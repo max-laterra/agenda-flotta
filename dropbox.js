@@ -74,7 +74,14 @@
     const o = Object.assign({}, opts, { headers: Object.assign({ Authorization: "Bearer " + t }, opts.headers || {}) });
     let r;
     try { r = await fetch(url, o); } catch (_) { throw { code: "network" }; }
-    if (r.status === 401 && retry) { await accessToken(true); return call(url, opts, false); }
+    if (r.status === 401) {
+      const t401 = await r.text();
+      if (/missing_scope/.test(t401)) throw { code: "scope", status: 401, summary: t401 };
+      if (retry) { await accessToken(true); return call(url, opts, false); }
+      throw { code: "no_auth", status: 401, summary: t401 };
+    }
+    if (r.status === 400) throw { code: "api", status: 400, summary: (await r.text()).slice(0, 300) };
+    if (r.status === 403) throw { code: "api", status: 403, summary: (await r.text()).slice(0, 300) };
     if (r.status === 429 || r.status >= 500) throw { code: "busy", status: r.status };
     return r;
   }
@@ -90,7 +97,7 @@
   async function download(path) {
     const r = await call(CONTENT + "/2/files/download", { method: "POST", headers: { "Dropbox-API-Arg": argHeader({ path }) } });
     if (r.status === 409) { const t = await r.text(); if (/not_found/.test(t)) return null; throw { code: "api", status: 409, summary: t }; }
-    if (!r.ok) throw { code: "api", status: r.status };
+    if (!r.ok) throw { code: "api", status: r.status, summary: (await r.text()).slice(0, 300) };
     let meta = {}; try { meta = JSON.parse(r.headers.get("Dropbox-API-Result") || "{}"); } catch (_) {}
     return { meta, buf: await r.arrayBuffer() };
   }

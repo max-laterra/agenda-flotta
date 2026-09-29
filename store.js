@@ -155,7 +155,8 @@
       cache.lastSync = status.lastSync = Date.now(); status.error = null;
       persist();
     } catch (e) {
-      status.error = e && e.code;
+      status.error = e && e.code; status.errorDetail = e && (e.summary || e.status || "");
+      console.error("Dropbox:", e);
       if (e && e.code === "no_auth") hooks.onAuthLost && hooks.onAuthLost();
     } finally {
       pulling = false;

@@ -438,6 +438,9 @@ img{max-width:100%}
 .gate-file{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:9px 12px}
 .gate-file:hover{border-color:var(--accent)}
 .gate-file span{font-size:12px;color:var(--ink-3);overflow-wrap:anywhere}
+.gate-err{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;background:var(--surface-2);border-radius:8px;padding:8px 10px;color:var(--ink-2);max-height:140px;overflow:auto}
+.gate-ver{margin:0;font-size:12px;color:var(--ink-3);text-align:right}
+.appver{font-size:12px;color:var(--ink-3);align-self:center;font-variant-numeric:tabular-nums}
 .gate-msg{min-height:1.3em;color:var(--warn);font-weight:600;font-size:14px}
 .gate-msg.ok{color:var(--tourlt)}
 .code-in{font-size:22px;letter-spacing:.18em;text-align:center;border:1.5px solid var(--line);border-radius:10px;padding:12px;background:var(--bg);width:100%}
@@ -464,7 +467,7 @@ img{max-width:100%}
     <div class="gate-top"><img src="logo.jpg" alt="La Terra" class="gate-logo"><b>Agenda Flotta</b></div>
     <div class="gate-body">
       <h2 id="gTitle">Avvio…</h2>
-      <div id="gLoad"><p class="gate-sub" id="gLoadTxt"></p></div>
+      <div id="gLoad"><p class="gate-sub" id="gLoadTxt"></p><pre class="gate-err" id="gErr" hidden></pre><button class="btn primary big" id="gRetry" type="button" hidden>Riprova</button><button class="btn" id="gRelink" type="button" hidden>Ricollega Dropbox</button></div>
       <div id="gLink" hidden>
         <p class="gate-sub">L'agenda salva prenotazioni, fatturato e fogli di servizio nel tuo Dropbox. Accedi con l'account Dropbox dell'azienda: serve una volta sola su questo dispositivo.</p>
         <p class="gate-sub err" id="gKeyMissing" hidden>Manca la chiave dell'app Dropbox nel file config.js (vedi LEGGIMI).</p>
@@ -486,6 +489,7 @@ img{max-width:100%}
         </form>
       </div>
       <div class="gate-msg" id="gMsg" role="alert"></div>
+      <p class="gate-ver" id="gVer"></p>
     </div>
   </div>
 </div>
@@ -495,7 +499,7 @@ img{max-width:100%}
 <div class="wrap">
   <header class="top">
     <div class="topline">
-      <div class="brand"><h1>Agenda Flotta</h1><span id="fleetCount">26 mezzi</span><span class="net" id="netStatus" hidden></span></div>
+      <div class="brand"><h1>Agenda Flotta</h1><span id="fleetCount">26 mezzi</span><span class="net" id="netStatus" hidden></span><span class="appver" id="appVer"></span></div>
       <img class="logo" src="logo.jpg" alt="La Terra" width="1000" height="138">
     </div>
     <div class="controls">

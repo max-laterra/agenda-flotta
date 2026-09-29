@@ -981,6 +981,10 @@ async function sheetSave(kind){
 $("sheetPdf").onclick=()=>sheetSave("pdf");
 $("sheetXlsx").onclick=()=>sheetSave("xlsx");
 
+// ---------- versione ----------
+const APP_VERSION="1.3",APP_DATE="29/09/2026";
+$("gVer").textContent="Versione "+APP_VERSION+" · "+APP_DATE;$("appVer").textContent="v"+APP_VERSION;
+
 // ---------- dati: Dropbox ----------
 function subscribe(){subMonth=mkey(S.sel);}
 function refreshFromStore(){
@@ -1047,7 +1051,7 @@ function showGate(mode,o){
   ["gLink","gLoad","gFat","gCode"].forEach(id=>$(id).hidden=true);
   $("gMsg").textContent=o.msg||"";$("gMsg").className="gate-msg"+(o.ok?" ok":"");
   if(mode==="link"){$("gTitle").textContent="Collega Dropbox";$("gLink").hidden=false;$("gKeyMissing").hidden=DBX.hasKey();$("gLinkBtn").hidden=!DBX.hasKey();}
-  else if(mode==="loading"){$("gTitle").textContent=o.title||"Un momento…";$("gLoad").hidden=false;$("gLoadTxt").textContent=o.text||"";}
+  else if(mode==="loading"){$("gTitle").textContent=o.title||"Un momento…";$("gLoad").hidden=false;$("gLoadTxt").textContent=o.text||"";$("gRetry").hidden=true;$("gRelink").hidden=true;$("gErr").hidden=true;}
   else if(mode==="fatturato"){$("gTitle").textContent="Scegli il file fatturato";$("gFat").hidden=false;$("gFatLater").hidden=!!o.fromMenu&&false;gateFromMenu=!!o.fromMenu;if(!$("gFatQ").value)$("gFatQ").value="fatturato";searchFat();}
   else if(mode==="code-create"||mode==="code"){
     $("gCode").hidden=false;const create=mode==="code-create";
@@ -1117,7 +1121,7 @@ function menuPane(name){
 }
 $("btnMenu").onclick=()=>{
   const s=STORE.settings||{};
-  $("menuInfo").innerHTML="Dati nella cartella Dropbox <b>"+esc(STORE.BASE)+"</b>. File fatturato: <b>"+esc(s.fatturatoNome||"non collegato")+"</b>.";
+  $("menuInfo").innerHTML="Versione <b>"+APP_VERSION+"</b> del "+APP_DATE+". Dati nella cartella Dropbox <b>"+esc(STORE.BASE)+"</b>. File fatturato: <b>"+esc(s.fatturatoNome||"non collegato")+"</b>.";
   menuPane("mMain");$("ovMenu").hidden=false;
 };
 $("mClose").onclick=()=>{$("ovMenu").hidden=true;};
@@ -1159,6 +1163,22 @@ async function shareSheet(){
 (function(){try{const f=new File([new Blob(["x"])],"a.pdf",{type:"application/pdf"});if(navigator.canShare&&navigator.canShare({files:[f]}))$("sheetShare").hidden=false;}catch(_){}})();
 $("sheetShare").onclick=shareSheet;
 
+// ---------- errori al primo avvio ----------
+function showStartError(){
+  const st=STORE.status(),code=st.error,det=String(st.errorDetail||"");
+  let title="Dropbox non risponde",text;
+  if(!navigator.onLine){title="Connessione necessaria";text="Il primo avvio su questo dispositivo richiede internet. Collegati e premi Riprova.";}
+  else if(code==="scope"){title="Mancano i permessi dell'app Dropbox";text="Nella pagina dell'app su dropbox.com/developers/apps, scheda Permissions, spunta files.metadata.read, files.content.read e files.content.write e premi Submit in fondo. Poi qui premi \"Ricollega Dropbox\": il collegamento va rifatto perché i permessi valgono solo per i nuovi accessi.";}
+  else if(code==="no_auth"){title="Accesso a Dropbox scaduto";text="Premi \"Ricollega Dropbox\" e accedi di nuovo.";}
+  else if(code==="network"){title="Dropbox non raggiungibile";text="Il browser non riesce a contattare Dropbox. Se usi un blocco pubblicità o una rete aziendale con filtri, prova a disattivarli per questo sito, poi premi Riprova.";}
+  else{text="Dropbox ha risposto con un errore. Premi Riprova; se continua, premi \"Ricollega Dropbox\" e, se ancora non va, manda a chi ti assiste questo dettaglio:";}
+  showGate("loading",{title,text});
+  $("gErr").hidden=!(det&&code!=="scope"&&code!=="network");$("gErr").textContent=(code||"")+" "+det;
+  $("gRetry").hidden=false;$("gRelink").hidden=!DBX.hasKey();
+}
+$("gRetry").onclick=()=>location.reload();
+$("gRelink").onclick=()=>{DBX.unlink();STORE.reset();DBX.startLogin().catch(()=>{$("gMsg").textContent="Manca la chiave dell'app Dropbox in config.js.";});};
+
 // ---------- avvio ----------
 async function boot(){
   try{const v=localStorage.getItem("agenda-view");if(v==="month"||v==="week"||v==="bill")setView(v);}catch(_){}
@@ -1169,7 +1189,7 @@ async function boot(){
   if(!DBX.isLinked()){showGate("link");return;}
   refreshFromStore();
   if(navigator.onLine){showGate("loading",{title:"Sincronizzazione",text:"Leggo l'agenda da Dropbox…"});await STORE.pull();}
-  if(!STORE.hasData){showGate("loading",{title:"Connessione necessaria",text:"Il primo avvio su questo dispositivo richiede internet. Collegati e ricarica la pagina."});return;}
+  if(!STORE.hasData){showStartError();return;}
   if(STORE.settings&&STORE.settings.fatturato&&!(STORE.lists&&STORE.lists.clients))await STORE.syncFatturato();
   refreshFromStore();
   await afterSync();
