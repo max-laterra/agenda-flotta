@@ -1,0 +1,111 @@
+AGENDA FLOTTA LA TERRA – COME METTERLA IN FUNZIONE
+===================================================
+
+Come funziona
+-------------
+- L'app usa SOLO la sua cartella di Dropbox: Dropbox › Applicazioni › Agenda La Terra
+  (in inglese: Apps › Agenda La Terra). Non può vedere né modificare nessun altro file
+  del vostro Dropbox. Lì dentro salva prenotazioni, flotta, codice di accesso e fogli
+  di servizio, e lì mettete il file fatturato che l'app deve aggiornare.
+- Ogni prenotazione salvata viene scritta da sola nel file "fatturato 2026.xlsx",
+  una riga per n. foglio. Se modifichi o elimini la prenotazione, la riga si aggiorna
+  o si svuota. Ogni 5 minuti l'app controlla che nel fatturato ci siano tutti i servizi
+  e rimette quelli mancanti.
+- Clienti, autisti e targhe vengono letti dal fatturato (fogli "clienti" e "regole"):
+  se aggiungi un cliente nell'Excel, dopo pochi minuti lo trovi nell'app.
+- Mac e telefoni si aggiornano tra loro in pochi secondi. Senza internet si continua
+  a lavorare: le modifiche partono appena torna la connessione.
+
+Servono circa 20 minuti, una volta sola. L'ordine dei passi è importante.
+
+
+PASSO 1 – Pubblica l'app su GitHub Pages
+----------------------------------------
+Usate un repository NUOVO, separato da quello dell'app presenze, così non la toccate.
+1. Estrai lo zip: ottieni la cartella "agenda-flotta-laterra".
+2. Su github.com, con l'account dove c'è già l'app presenze: "+" in alto → "New repository".
+   - Nome: agenda-flotta
+   - Visibilità: "Public" (con GitHub gratuito le Pages funzionano solo con repository
+     pubblici; nel codice non ci sono password né dati: i dati restano nel vostro Dropbox
+     e per entrare servono l'accesso Dropbox e il codice).
+   - Spunta "Add a README file" → "Create repository".
+3. Nel repository: "Add file" → "Upload files" → trascina TUTTO il CONTENUTO della cartella
+   (index.html, app.js, le cartelle icons e vendor, ecc.; non la cartella stessa)
+   → "Commit changes".
+4. "Settings" → "Pages" → Source: "Deploy from a branch" → Branch: "main", cartella "/ (root)"
+   → "Save". Dopo 1–2 minuti in alto compare l'indirizzo, ad esempio:
+      https://nomeaccount.github.io/agenda-flotta/
+5. Apri l'indirizzo: deve comparire "Collega Dropbox" con il messaggio che manca la chiave.
+   Annota l'indirizzo esatto (con la barra finale): serve al passo 2.
+
+
+PASSO 2 – Crea l'app Dropbox (gratuito)
+---------------------------------------
+1. Entra in Dropbox con l'account dell'azienda e vai su
+   https://www.dropbox.com/developers/apps → "Create app".
+2. Scegli: "Scoped access" → "App folder" (NON "Full Dropbox") → nome: "Agenda La Terra".
+   Con "App folder" l'app può usare solo la cartella Applicazioni › Agenda La Terra.
+3. Scheda "Permissions": spunta
+      files.metadata.read   files.content.read   files.content.write
+   e premi "Submit" in fondo alla pagina.
+4. Scheda "Settings":
+   - "Redirect URIs": incolla l'indirizzo del passo 1 esattamente come appare nel browser,
+     con la barra finale (es. https://www.vostrosito.it/agenda/) e premi "Add".
+   - "Allow public clients (Implicit Grant & PKCE)": deve essere "Allow".
+   - Copia la "App key" (una sequenza di lettere e numeri).
+
+
+PASSO 3 – Inserisci la chiave
+-----------------------------
+1. Su GitHub, nel repository agenda-flotta, apri il file config.js → icona matita (Edit).
+2. Incolla la App key tra le virgolette:
+      dropboxAppKey: "la-tua-app-key",
+3. "Commit changes". Dopo 1–2 minuti l'app aggiornata è online.
+
+
+PASSO 4 – Primo avvio (sul primo Mac)
+-------------------------------------
+1. Apri l'indirizzo in Google Chrome.
+2. "Collega Dropbox" → accedi con l'account dell'azienda → "Consenti".
+3. Ora in Dropbox compare la cartella Applicazioni › Agenda La Terra. Copiaci dentro il
+   file fatturato (per le prove, una COPIA del fatturato), poi nell'app premi "Cerca"
+   e sceglilo.
+4. Crea il codice di accesso (almeno 6 caratteri): varrà su tutti i dispositivi.
+5. Installa l'app: icona "Installa" a destra nella barra dell'indirizzo di Chrome.
+   Da quel momento la trovi tra le applicazioni del Mac.
+
+
+PASSO 5 – Gli altri Mac e i telefoni
+------------------------------------
+- Mac: apri l'indirizzo in Chrome → "Collega Dropbox" → inserisci il codice → Installa.
+- Android: apri l'indirizzo in Chrome → menu ⋮ → "Installa app".
+- iPhone: apri l'indirizzo in Safari → Condividi → "Aggiungi alla schermata Home",
+  poi apri l'app dalla schermata Home e fai lì "Collega Dropbox".
+  Se dopo l'accesso a Dropbox non torni nell'app, usa l'agenda direttamente da Safari
+  (salvala nei Preferiti): funziona allo stesso modo.
+
+Tutti i dispositivi devono collegarsi allo STESSO account Dropbox (quello dell'azienda):
+la cartella dell'app non si può condividere con altri account.
+
+
+Uso quotidiano
+--------------
+- In alto: "Sincronizzato" = tutto salvato in Dropbox. "Offline · 2 modifiche da inviare"
+  = partiranno appena torna internet.
+- Vista "Fatturato": mostra quando il file è stato aggiornato l'ultima volta.
+- Foglio di servizio: dal modulo "Salva e apri foglio di servizio". "Salva PDF" mette una
+  copia in Dropbox → Applicazioni → Agenda La Terra → Agenda Flotta La Terra →
+  Fogli di servizio → anno, e la scarica sul
+  dispositivo. Dal telefono c'è anche "Invia…" per mandarlo su WhatsApp all'autista.
+- Menu: Blocca, Aggiorna adesso, Cambia file fatturato (a inizio anno), Cambia codice,
+  Scollega questo dispositivo (se un telefono viene perso o cambia utente).
+
+Consigli importanti
+-------------------
+- I dati dei servizi (date, mezzo, cliente, importi, autisti) modificali dall'app:
+  in Excel compila le altre colonne (fatture, busta, spese).
+- Se tieni il fatturato aperto in Excel e lo salvi mentre l'app sta scrivendo, Excel può
+  sovrascrivere le righe nuove: entro 5 minuti l'app le rimette da sola. Dropbox conserva
+  comunque tutte le versioni precedenti del file.
+- Sicurezza: attiva la verifica in due passaggi sull'account Dropbox
+  (Dropbox → Impostazioni → Sicurezza). I dati non passano da altri server.
