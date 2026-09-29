@@ -989,7 +989,7 @@ $("sheetPdf").onclick=()=>sheetSave("pdf");
 $("sheetXlsx").onclick=()=>sheetSave("xlsx");
 
 // ---------- versione ----------
-const APP_VERSION="1.4",APP_DATE="29/09/2026";
+const APP_VERSION="1.5",APP_DATE="29/09/2026";
 $("gVer").textContent="Versione "+APP_VERSION+" · "+APP_DATE;$("appVer").textContent="v"+APP_VERSION;
 
 // ---------- dati: Dropbox ----------
