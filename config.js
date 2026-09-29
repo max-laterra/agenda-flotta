@@ -5,6 +5,6 @@
 //                 (vedi LEGGIMI.txt, passo A). Non è una password: si può tenere qui.
 //  folder:        cartella di Dropbox dove l'agenda salva i suoi dati.
 window.AGENDA_CONFIG = {
-  dropboxAppKey: "",
+  dropboxAppKey: "zobqvfqhz2frw1z",
   folder: "/Agenda Flotta La Terra"
 };
