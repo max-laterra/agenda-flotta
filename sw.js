@@ -1,5 +1,5 @@
 // Rende l'app utilizzabile senza connessione. Aumenta il numero quando pubblichi una nuova versione.
-const VERSION = "agenda-laterra-1.3";
+const VERSION = "agenda-laterra-1.4";
 const SHELL = ["./", "./index.html", "./app.js", "./config.js", "./dropbox.js", "./store.js", "./fatturato.js",
   "./vendor/jszip.min.js", "./vendor/pdf-lib.min.js", "./logo.jpg", "./manifest.webmanifest",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
@@ -15,7 +15,8 @@ self.addEventListener("fetch", (e) => {
   e.respondWith((async () => {
     const c = await caches.open(VERSION);
     if (fonts) { const hit = await c.match(req); if (hit) return hit; try { const r = await fetch(req); if (r.ok || r.type === "opaque") c.put(req, r.clone()); return r; } catch (_) { return Response.error(); } }
-    try { const r = await timeout(fetch(req), 4000); if (r.ok) c.put(req, r.clone()); return r; }
+    // "no-cache": chiede sempre al sito se il file è cambiato, così un aggiornamento su GitHub arriva subito
+    try { const r = await timeout(fetch(req, { cache: "no-cache" }), 4000); if (r.ok) c.put(req, r.clone()); return r; }
     catch (_) { return (await c.match(req, { ignoreSearch: true })) || (req.mode === "navigate" ? await c.match("./index.html") : null) || Response.error(); }
   })());
 });

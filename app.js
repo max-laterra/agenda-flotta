@@ -302,7 +302,8 @@ async function nextSeq(date){
   let d=S.days[date];
   if(!d&&db){try{const snap=await db.doc("days/"+date).get();d=snap.exists?snap.data():null;}catch(_){d=null;}}
   const used=Object.values((d&&d.bookings)||{}).filter(Boolean).map(x=>parseInt(String(x.foglio||"").slice(6),10)||0);
-  return Math.max((d&&d.seq)||0,0,...used)+1;
+  const ext=(window.STORE?STORE.fileFogli(yymmdd(date)):[]).map(x=>parseInt(String(x).slice(6),10)||0);
+  return Math.max((d&&d.seq)||0,0,...used,...ext)+1;
 }
 
 
@@ -432,7 +433,8 @@ $("fFleet").addEventListener("submit",async e=>{
   e.preventDefault();if(S.readOnly){$("ovFleet").hidden=true;return;}
   const fleet=S.fleet.map((v,i)=>Object.assign({},v,{name:$("fl-n-"+i).value.trim()||v.name,plate:$("fl-p-"+i).value.trim().toUpperCase(),seats:$("fl-s-"+i).value?Number($("fl-s-"+i).value):null,xcat:$("fl-x-"+i).value}));
   try{
-    await STORE.setFleet(fleet);
+    const changedIds=fleet.filter(v=>{const o=S.fleet.find(x=>x.id===v.id)||{};return (o.plate||"")!==(v.plate||"")||xcatOf(o)!==xcatOf(v);}).map(v=>v.id);
+    await STORE.setFleet(fleet,changedIds);
     S.fleet=sortFleet(fleet);$("ovFleet").hidden=true;renderAll();toast("Flotta aggiornata");
   }catch(err){handleErr(err);}
 });
@@ -874,7 +876,12 @@ async function sheetPDF(rows){
     let ci=0;
     const laid=r.cells.map(c=>{const x0=X[ci],w=X[ci+c.span]-x0;ci+=c.span;const f=c.b||c.k==="d"||c.k==="h"&&c.b?bold:reg;return {c,x0,w,f,lines:wrapText(c.t,f,size,w-6)};});
     const h=r.sign?56:Math.max(18,Math.max(...laid.map(l=>l.lines.length))*lh+6);
-    if(y+h>PH-M){page=pdf.addPage([PW,PH]);y=M;}
+    if(y+h>PH-M){
+      page=pdf.addPage([PW,PH]);y=M;
+      const fg=(rows.find(x=>x.cells&&x.cells.some(c=>c.k==="h"))||{cells:[{},{}]}).cells[1].t||"";
+      page.drawText(pdfTxt("Foglio di servizio n. "+fg+" - segue (pagina "+pdf.getPageCount()+")"),{x:M,y:PH-y-9,size:9,font:bold,color:INK});
+      y+=18;
+    }
     for(const l of laid){
       const val=l.c.k==="v"||l.c.k==="d";
       page.drawRectangle({x:l.x0,y:PH-y-h,width:l.w,height:h,color:val?FILL:undefined,borderColor:LINE,borderWidth:.6});
@@ -982,7 +989,7 @@ $("sheetPdf").onclick=()=>sheetSave("pdf");
 $("sheetXlsx").onclick=()=>sheetSave("xlsx");
 
 // ---------- versione ----------
-const APP_VERSION="1.3",APP_DATE="29/09/2026";
+const APP_VERSION="1.4",APP_DATE="29/09/2026";
 $("gVer").textContent="Versione "+APP_VERSION+" · "+APP_DATE;$("appVer").textContent="v"+APP_VERSION;
 
 // ---------- dati: Dropbox ----------
@@ -1004,21 +1011,27 @@ function renderNet(st){
   const pend=(st.pending||0);
   if(!navigator.onLine){cls="off";txt=pend?"Offline · "+pend+(pend===1?" modifica da inviare":" modifiche da inviare"):"Offline";}
   else if(st.error==="no_auth"){cls="off";txt="Dropbox scollegato";}
+  else if(st.error==="scope"){cls="off";txt="Permessi Dropbox mancanti";}
+  else if(st.error==="busy"){cls="sync";txt="Dropbox occupato, riprovo…";}
   else if(st.syncing||pend){cls="sync";txt="Sincronizzazione…";}
   else if(st.error){cls="off";txt="Dropbox non raggiungibile";}
   else{cls="on";txt="Sincronizzato";}
-  el.className="net "+cls;el.textContent=txt;el.hidden=false;
+  el.className="net "+cls;el.textContent=txt;el.hidden=false;el.title=st.error?((st.error||"")+" "+(st.errorDetail||"")).trim():"";
   // stato del fatturato
   const f=st.fat,fs=$("fatStatus");if(!fs)return;
-  const name=(STORE.settings&&STORE.settings.fatturatoNome)||"file fatturato";
+  const files=STORE.fatFiles(),ys=Object.keys(files).sort();
   let h,c="";
-  if(!(STORE.settings&&STORE.settings.fatturato)){h="Nessun file fatturato collegato. Sceglilo dal Menu › Cambia file fatturato.";c="err";}
-  else if(st.fatPending){h="<b>"+esc(name)+"</b>: "+st.fatPending+(st.fatPending===1?" riga da scrivere":" righe da scrivere")+(navigator.onLine?"…":" appena torna la connessione.");}
-  else if(f&&f.ok){h="<b>"+esc(name)+"</b> aggiornato "+fmtTime(f.at)+".";c="ok";}
-  else if(f&&f.error==="missing"){h="Non trovo più <b>"+esc(name)+"</b> in Dropbox. Sceglilo di nuovo dal Menu › Cambia file fatturato.";c="err";}
-  else if(f&&f.error==="nosheet"){h="In <b>"+esc(name)+"</b> non c'è il foglio \"agenda\". Scegli il file giusto dal Menu.";c="err";}
-  else if(f&&f.error){h="Non sono riuscito ad aggiornare <b>"+esc(name)+"</b>: riprovo tra poco.";c="err";}
-  else{h="<b>"+esc(name)+"</b>: in attesa del primo aggiornamento.";}
+  if(!ys.length){h="Nessun file fatturato collegato. Sceglilo dal Menu › Collega file fatturato.";c="err";}
+  else if(st.fatPending){h=st.fatPending+(st.fatPending===1?" riga da scrivere nel fatturato":" righe da scrivere nel fatturato")+(navigator.onLine?"…":" appena torna la connessione.");}
+  else if(!f||!f.files){h="In attesa del primo aggiornamento del fatturato.";}
+  else{
+    const parts=ys.map(y=>{const r=f.files[y]||{},n="<b>"+esc(files[y].name)+"</b>";
+      if(r.ok)return n+" aggiornato "+fmtTime(r.at);
+      if(r.error==="missing")return "non trovo più "+n+" in Dropbox: collegalo di nuovo dal Menu";
+      if(r.error==="nosheet")return "in "+n+" non c'è il foglio \"agenda\"";
+      return n+": aggiornamento non riuscito, riprovo tra poco";});
+    h=parts.join(" · ")+".";c=f.ok?"ok":"err";
+  }
   fs.className="bill-status "+c;fs.innerHTML=h;
 }
 STORE.configure({
@@ -1051,7 +1064,7 @@ function showGate(mode,o){
   ["gLink","gLoad","gFat","gCode"].forEach(id=>$(id).hidden=true);
   $("gMsg").textContent=o.msg||"";$("gMsg").className="gate-msg"+(o.ok?" ok":"");
   if(mode==="link"){$("gTitle").textContent="Collega Dropbox";$("gLink").hidden=false;$("gKeyMissing").hidden=DBX.hasKey();$("gLinkBtn").hidden=!DBX.hasKey();}
-  else if(mode==="loading"){$("gTitle").textContent=o.title||"Un momento…";$("gLoad").hidden=false;$("gLoadTxt").textContent=o.text||"";$("gRetry").hidden=true;$("gRelink").hidden=true;$("gErr").hidden=true;}
+  else if(mode==="loading"){$("gTitle").textContent=o.title||"Un momento…";$("gLoad").hidden=false;$("gLoadTxt").textContent=o.text||"";$("gRetry").hidden=true;$("gRelink").hidden=true;$("gErr").hidden=true;$("gHere").hidden=true;}
   else if(mode==="fatturato"){$("gTitle").textContent="Scegli il file fatturato";$("gFat").hidden=false;$("gFatLater").hidden=!!o.fromMenu&&false;gateFromMenu=!!o.fromMenu;if(!$("gFatQ").value)$("gFatQ").value="fatturato";searchFat();}
   else if(mode==="code-create"||mode==="code"){
     $("gCode").hidden=false;const create=mode==="code-create";
@@ -1076,7 +1089,7 @@ $("gFatList").addEventListener("click",async e=>{
   const b=e.target.closest("[data-fi]");if(!b)return;const f=$("gFatList").__res[+b.dataset.fi];
   $("gMsg").textContent="Collego "+f.name+"…";
   try{
-    await STORE.setSettings({fatturato:f.path_display,fatturatoNome:f.name});
+    await STORE.linkFatturato(f.path_display,f.name);
     await STORE.syncFatturato();
     const L=STORE.lists||{};refreshFromStore();
     const n=L.clients?L.clients.length:0;
@@ -1107,7 +1120,7 @@ function unlocked(){
   if(!started){started=true;STORE.flush();STORE.syncFatturato();STORE.watch();}
 }
 async function afterSync(o){
-  if(!(STORE.settings&&STORE.settings.fatturato)&&navigator.onLine&&!sessionStorage.getItem("fat-later")){showGate("fatturato",o);return;}
+  if(!Object.keys(STORE.fatFiles()).length&&navigator.onLine&&!sessionStorage.getItem("fat-later")){showGate("fatturato",o);return;}
   if(!STORE.access){if(!navigator.onLine){showGate("loading",{title:"Connessione necessaria",text:"Per creare il codice di accesso serve internet."});return;}showGate("code-create",o);return;}
   showGate("code",o);
 }
@@ -1121,7 +1134,8 @@ function menuPane(name){
 }
 $("btnMenu").onclick=()=>{
   const s=STORE.settings||{};
-  $("menuInfo").innerHTML="Versione <b>"+APP_VERSION+"</b> del "+APP_DATE+". Dati nella cartella Dropbox <b>"+esc(STORE.BASE)+"</b>. File fatturato: <b>"+esc(s.fatturatoNome||"non collegato")+"</b>.";
+  const ff=STORE.fatFiles(),fy=Object.keys(ff).sort();
+  $("menuInfo").innerHTML="Versione <b>"+APP_VERSION+"</b> del "+APP_DATE+". Dati nella cartella Dropbox <b>"+esc(STORE.BASE)+"</b>. Fatturato: "+(fy.length?fy.map(y=>(y==="*"?"":y+" → ")+"<b>"+esc(ff[y].name)+"</b>").join(", "):"<b>non collegato</b>")+".";
   menuPane("mMain");$("ovMenu").hidden=false;
 };
 $("mClose").onclick=()=>{$("ovMenu").hidden=true;};
@@ -1177,20 +1191,49 @@ function showStartError(){
   $("gRetry").hidden=false;$("gRelink").hidden=!DBX.hasKey();
 }
 $("gRetry").onclick=()=>location.reload();
+function lostWindow(){
+  STORE.disable();
+  showGate("loading",{title:"Agenda aperta in un'altra finestra",text:"Hai continuato a lavorare in un'altra finestra, quindi questa si è fermata per non creare doppioni. Chiudila, oppure premi il pulsante per usare di nuovo questa."});
+  $("gHere").hidden=false;
+}
+$("gHere").onclick=async()=>{$("gHere").hidden=true;showGate("loading",{title:"Avvio…"});if(await takeWindow(true))await start();};
 $("gRelink").onclick=()=>{DBX.unlink();STORE.reset();DBX.startLogin().catch(()=>{$("gMsg").textContent="Manca la chiave dell'app Dropbox in config.js.";});};
+
+// ---------- una sola finestra attiva per dispositivo ----------
+// Due finestre aperte insieme si sovrascriverebbero a vicenda le modifiche non ancora inviate.
+function takeWindow(steal){
+  if(!navigator.locks)return Promise.resolve(true);
+  return new Promise(res=>{
+    navigator.locks.request("agenda-laterra-finestra",steal?{steal:true}:{ifAvailable:true},lock=>{
+      if(!lock){res(false);return;}
+      res(true);return new Promise(()=>{}); // la tiene finché la finestra resta aperta
+    }).catch(()=>lostWindow()); // un'altra finestra l'ha presa: questa si ferma
+  }).then(ok=>{
+    if(!ok){showGate("loading",{title:"Agenda già aperta",text:"L'agenda è aperta in un'altra finestra o scheda di questo dispositivo. Usa quella, oppure continua qui: l'altra si fermerà."});$("gHere").hidden=false;}
+    return ok;
+  });
+}
 
 // ---------- avvio ----------
 async function boot(){
   try{const v=localStorage.getItem("agenda-view");if(v==="month"||v==="week"||v==="bill")setView(v);}catch(_){}
   if("serviceWorker" in navigator&&location.protocol!=="file:")navigator.serviceWorker.register("./sw.js").catch(()=>{});
   showGate("loading",{title:"Avvio…"});
+  if(!(await takeWindow()))return;
+  await start();
+}
+async function start(){
+  STORE.enable();
   try{await DBX.finishLogin();}
   catch(e){showGate("link",{msg:e&&e.code==="denied"?"Collegamento a Dropbox annullato.":"Collegamento a Dropbox non riuscito. Riprova."});return;}
   if(!DBX.isLinked()){showGate("link");return;}
   refreshFromStore();
-  if(navigator.onLine){showGate("loading",{title:"Sincronizzazione",text:"Leggo l'agenda da Dropbox…"});await STORE.pull();}
+  if(navigator.onLine){
+    showGate("loading",{title:"Sincronizzazione",text:"Leggo l'agenda da Dropbox…"});
+    for(let i=0;i<4;i++){await STORE.pull();const e=STORE.status().error;if(STORE.hasData||!(e==="busy"||e==="network"))break;await new Promise(r=>setTimeout(r,[2000,5000,10000][i]||10000));}
+  }
   if(!STORE.hasData){showStartError();return;}
-  if(STORE.settings&&STORE.settings.fatturato&&!(STORE.lists&&STORE.lists.clients))await STORE.syncFatturato();
+  if(Object.keys(STORE.fatFiles()).length&&!(STORE.lists&&STORE.lists.clients))await STORE.syncFatturato();
   refreshFromStore();
   await afterSync();
 }

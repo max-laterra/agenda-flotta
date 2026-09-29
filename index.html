@@ -467,14 +467,14 @@ img{max-width:100%}
     <div class="gate-top"><img src="logo.jpg" alt="La Terra" class="gate-logo"><b>Agenda Flotta</b></div>
     <div class="gate-body">
       <h2 id="gTitle">Avvio…</h2>
-      <div id="gLoad"><p class="gate-sub" id="gLoadTxt"></p><pre class="gate-err" id="gErr" hidden></pre><button class="btn primary big" id="gRetry" type="button" hidden>Riprova</button><button class="btn" id="gRelink" type="button" hidden>Ricollega Dropbox</button></div>
+      <div id="gLoad"><p class="gate-sub" id="gLoadTxt"></p><pre class="gate-err" id="gErr" hidden></pre><button class="btn primary big" id="gRetry" type="button" hidden>Riprova</button><button class="btn" id="gRelink" type="button" hidden>Ricollega Dropbox</button><button class="btn primary big" id="gHere" type="button" hidden>Continua in questa finestra</button></div>
       <div id="gLink" hidden>
         <p class="gate-sub">L'agenda salva prenotazioni, fatturato e fogli di servizio nel tuo Dropbox. Accedi con l'account Dropbox dell'azienda: serve una volta sola su questo dispositivo.</p>
         <p class="gate-sub err" id="gKeyMissing" hidden>Manca la chiave dell'app Dropbox nel file config.js (vedi LEGGIMI).</p>
         <button class="btn primary big" id="gLinkBtn" type="button">Collega Dropbox</button>
       </div>
       <div id="gFat" hidden>
-        <p class="gate-sub">Cerca il tuo file fatturato in Dropbox (per esempio "fatturato 2026"). L'agenda ci scriverà le righe dei servizi e prenderà da lì clienti, autisti e targhe.</p>
+        <p class="gate-sub">Cerca il tuo file fatturato in Dropbox (per esempio "fatturato 2026"). L'agenda ci scriverà le righe dei servizi di quell'anno e prenderà da lì clienti, autisti e targhe.</p>
         <form id="gFatForm" class="gate-row"><input id="gFatQ" class="gate-in" autocomplete="off" aria-label="Nome del file"><button class="btn" type="submit">Cerca</button></form>
         <div id="gFatList" class="gate-files"></div>
         <button class="linkbtn" id="gFatLater" type="button">Più tardi</button>
@@ -704,7 +704,7 @@ img{max-width:100%}
     <div class="menu-list" id="mMain">
       <button type="button" id="mLock"><b>Blocca l'agenda</b><span>Richiede di nuovo il codice</span></button>
       <button type="button" id="mSync"><b>Aggiorna adesso</b><span>Scarica le modifiche degli altri dispositivi e aggiorna il fatturato</span></button>
-      <button type="button" id="mFat"><b>Cambia file fatturato</b><span>Per esempio a inizio anno, quando passi al nuovo file</span></button>
+      <button type="button" id="mFat"><b>Collega file fatturato</b><span>A inizio anno collega il file del nuovo anno: ogni servizio va nel file del suo anno</span></button>
       <button type="button" data-pane="mCode"><b>Cambia codice di accesso</b><span>Il nuovo codice vale su tutti i dispositivi</span></button>
       <button type="button" class="danger" data-pane="mUnlink"><b>Scollega questo dispositivo</b><span>Da usare se il Mac o il telefono non deve più avere accesso</span></button>
     </div>

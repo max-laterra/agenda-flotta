@@ -142,11 +142,12 @@
     return (j.matches || []).map((m) => m.metadata && m.metadata.metadata).filter((x) => x && x[".tag"] === "file");
   }
   async function account() { return rpc("users/get_current_account", null); }
+  async function metadata(path) { return rpc("files/get_metadata", { path }); }
 
   window.DBX = {
     isLinked: () => !!(tok && tok.refresh),
     hasKey: () => !!C.dropboxAppKey,
-    startLogin, finishLogin, download, upload, listFolder, longpoll, createFolder, remove, search, account,
+    startLogin, finishLogin, download, upload, listFolder, longpoll, createFolder, remove, search, account, metadata,
     unlink() { save(null); },
   };
 })();

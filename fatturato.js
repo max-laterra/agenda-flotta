@@ -126,26 +126,48 @@
       return x !== before;
     }
 
-    const upKeys = new Set();
+    const upKeys = new Set(), collisions = [], addedFogli = [], clearedFogli = [];
+    const known = job.known || null;
+    // valori attuali di una riga (tipo, codice cliente, cliente) per riconoscere le righe dell'agenda
+    function rowNow(r) {
+      if (byNum[r] == null) return {};
+      const cells = rowCells(rows[byNum[r]].xml), o = {};
+      for (const c of ["B", "C", "D"]) { const x = cells[c]; if (!x) continue; const am = /<c r="[A-Z]+\d+"([^>]*?)(?:\/>|>)/.exec(x.xml); o[c] = /<f[\s>]/.test(x.inner) ? null : cellValue(am ? am[1] : "", x.inner, sst); }
+      return o;
+    }
+    const norm = (t) => String(t == null ? "" : t).trim().toLowerCase();
+    function matches(r, row) {
+      const o = rowNow(r);
+      if (norm(o.B) !== norm(row.B)) return false;
+      if (row.C !== "" && row.C != null) return norm(o.C) === norm(row.C);
+      return o.D != null && norm(o.D) === norm(row.D);
+    }
+    // una riga con lo stesso n. foglio non scritta dall'agenda (es. inserita a mano) non si tocca mai
+    const foreign = (key, row) => known && where[key] && !known[key] && !(row && matches(where[key], row));
     for (const row of job.upserts || []) {
       const key = String(row.foglio); upKeys.add(key);
+      if (foreign(key, row)) { collisions.push(key); continue; }
       const vals = valuesFor(row);
       if (where[key]) { if (writeRow(where[key], vals)) updated++; }
-      else { const r = ++lastUsed; writeRow(r, vals); where[key] = r; added++; }
+      else { const r = ++lastUsed; writeRow(r, vals); where[key] = r; added++; addedFogli.push(key); }
     }
     for (const row of job.ensure || []) {
       const key = String(row.foglio);
-      if (upKeys.has(key) || where[key]) continue;
-      const r = ++lastUsed; writeRow(r, valuesFor(row)); where[key] = r; added++;
+      if (upKeys.has(key)) continue;
+      if (where[key]) { if (foreign(key, row) && !collisions.includes(key)) collisions.push(key); continue; }
+      const r = ++lastUsed; writeRow(r, valuesFor(row)); where[key] = r; added++; addedFogli.push(key);
     }
-    for (const f of job.clears || []) {
-      const key = String(f);
+    for (const c of job.clears || []) {
+      const key = String(c && c.foglio != null ? c.foglio : c);
       if (upKeys.has(key) || !where[key]) continue;
+      // si svuota solo una riga scritta dall'agenda (mai una riga inserita a mano con lo stesso numero)
+      if (known && !known[key] && !(c && c.row && matches(where[key], c.row))) continue;
       const vals = {}; for (const c of OWN) vals[c] = c === "D" ? "formula" : null;
-      writeRow(where[key], vals); delete where[key]; cleared++;
+      writeRow(where[key], vals); delete where[key]; cleared++; clearedFogli.push(key);
     }
+    lists.fogli = Object.keys(where);
     const changed = added + updated + cleared > 0;
-    if (!changed) return { changed: false, added, updated, cleared, lists };
+    if (!changed) return { changed: false, added, updated, cleared, lists, collisions, addedFogli, clearedFogli };
 
     rows.sort((x, y) => x.n - y.n);
     xml = head + (selfClosed ? "<sheetData>" : "") + rows.map((x) => x.xml).join("") + "</sheetData>" + tail;
@@ -176,7 +198,7 @@
       zip.file("xl/_rels/workbook.xml.rels", wr.replace(/<Relationship\b[^>]*calcChain[^>]*\/>/g, ""));
     }
     const out = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE", compressionOptions: { level: 6 } });
-    return { changed: true, buf: out, added, updated, cleared, lists };
+    return { changed: true, buf: out, added, updated, cleared, lists, collisions, addedFogli, clearedFogli };
   }
 
   // Clienti (foglio "clienti") e autisti/targhe (foglio "regole")

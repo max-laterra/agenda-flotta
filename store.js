@@ -43,19 +43,27 @@
       if (op.t === "put") {
         const b = clone(op.b);
         const prev = doc.bookings[op.id];
+        const pre = yymmdd(doc.date);
         if (op.assign || !b.foglio) {
-          const used = Object.entries(doc.bookings).filter(([k, x]) => x && k !== op.id).map(([, x]) => x.foglio);
-          const next = Math.max(doc.seq || 0, 0, ...used.map(nnOf)) + 1;
-          let nn = nnOf(b.foglio);
-          if (!b.foglio || (strict && (nn < next || used.includes(b.foglio)))) { nn = next; b.foglio = yymmdd(doc.date) + pad(nn); }
-          doc.seq = Math.max(doc.seq || 0, nn);
+          if (!op.renumber && prev && prev.foglio && String(prev.foglio).slice(0, 6) === pre) {
+            b.foglio = prev.foglio; // già numerata (per esempio invio ripetuto dopo un errore di rete): non si rinumera
+          } else {
+            const used = Object.entries(doc.bookings).filter(([k, x]) => x && k !== op.id).map(([, x]) => String(x.foglio || ""));
+            const ext = fileFogli(pre);
+            const taken = new Set(used.concat(ext, op.renumber && prev ? [String(prev.foglio)] : []));
+            const next = Math.max(doc.seq || 0, 0, ...used.map(nnOf), ...ext.map(nnOf)) + 1;
+            let nn = nnOf(b.foglio);
+            if (!b.foglio || String(b.foglio).slice(0, 6) !== pre || (strict && (nn < next || taken.has(String(b.foglio))))) { nn = next; b.foglio = pre + pad(nn); }
+            doc.seq = Math.max(doc.seq || 0, nn);
+          }
         }
-        if (prev && prev.foglio && prev.foglio !== b.foglio) fat.push({ act: "clear", foglio: prev.foglio });
+        // se la prenotazione cambia numero, la riga vecchia si svuota; non quando il numero era di una riga scritta a mano
+        if (prev && prev.foglio && prev.foglio !== b.foglio && !op.renumber) fat.push({ act: "clear", foglio: prev.foglio, b: Object.assign({ id: op.id }, prev) });
         doc.bookings[op.id] = b;
         fat.push({ act: "upsert", foglio: b.foglio, b: Object.assign({ id: op.id }, b) });
       } else if (op.t === "del") {
         const prev = doc.bookings[op.id];
-        if (prev && prev.foglio) fat.push({ act: "clear", foglio: prev.foglio });
+        if (prev && prev.foglio) fat.push({ act: "clear", foglio: prev.foglio, b: Object.assign({ id: op.id }, prev, { start: prev.start || doc.date }) });
         delete doc.bookings[op.id];
       } else if (op.t === "extra") {
         doc.extra = op.v;
@@ -63,6 +71,9 @@
     }
     return fat;
   }
+
+  // n. foglio già presenti nel file fatturato per quella data (anche quelli scritti a mano)
+  function fileFogli(pre) { return ((cache.lists && cache.lists.fogli) || []).map(String).filter((f) => f.slice(0, 6) === pre); }
 
   // Vista corrente: dati di Dropbox + modifiche non ancora inviate.
   function view() {
@@ -83,8 +94,9 @@
 
   // ---------- invio delle modifiche ----------
   let flushing = false;
+  let enabled = false;
   async function flush() {
-    if (flushing || !navigator.onLine || !DBX.isLinked()) return;
+    if (!enabled || flushing || !navigator.onLine || !DBX.isLinked()) return;
     flushing = true; status.syncing = true; emitStatus();
     try {
       while (queue.days.length) {
@@ -93,12 +105,13 @@
         for (let attempt = 0; attempt < 6 && !done; attempt++) {
           const path = dayPath(item.date);
           const cur = await DBX.download(path);
+          if (cur && !cur.meta.rev) cur.meta = await DBX.metadata(path); // il browser non ha ricevuto la versione del file
           const doc = cur ? JSON.parse(dec.decode(cur.buf)) : emptyDay(item.date);
           const fat = applyOps(doc, item.ops, true);
           try {
             const meta = await DBX.upload(path, enc.encode(JSON.stringify(doc)), cur ? { update: cur.meta.rev } : "add");
             cache.days[item.date] = { doc, rev: meta.rev };
-            for (const f of fat) queue.fat[f.foglio] = f.act === "clear" ? { act: "clear" } : { act: "upsert", b: f.b };
+            for (const f of fat) queue.fat[f.foglio] = { act: f.act, b: f.b };
             done = true;
           } catch (e) {
             if (e.code !== "conflict") throw e; // un altro dispositivo ha scritto: si rilegge e si riprova
@@ -107,20 +120,29 @@
         if (!done) throw { code: "busy" };
         queue.days.shift(); persist(); changed();
       }
-      status.error = null;
+      status.error = null; retryN = 0;
     } catch (e) {
-      status.error = e && e.code;
+      status.error = e && e.code; status.errorDetail = e && (e.summary || e.status || "");
       if (e && e.code === "no_auth") hooks.onAuthLost && hooks.onAuthLost();
+      if (e && (e.code === "busy" || e.code === "network" || e.code === "api")) retrySoon();
     } finally {
       flushing = false; status.syncing = false; emitStatus();
     }
     if (Object.keys(queue.fat).length) syncFatturato();
   }
 
+  // nuovi tentativi ravvicinati dopo un errore temporaneo: 3 s, 10 s, 30 s, poi ogni minuto
+  let retryN = 0, retryTimer = null;
+  function retrySoon() {
+    if (retryTimer) return; // un nuovo tentativo è già in programma
+    const d = [3000, 10000, 30000, 60000][Math.min(retryN++, 3)];
+    retryTimer = setTimeout(async () => { retryTimer = null; await flush(); await pull(); }, d);
+  }
+
   // ---------- lettura delle modifiche degli altri dispositivi ----------
   let pulling = false;
   async function pull() {
-    if (pulling || !navigator.onLine || !DBX.isLinked()) return;
+    if (!enabled || pulling || !navigator.onLine || !DBX.isLinked()) return;
     pulling = true;
     let touched = false;
     try {
@@ -146,18 +168,20 @@
           continue;
         }
         if (e[".tag"] === "file" && p === (P.cfg + "/flotta.json").toLowerCase()) { const f = await DBX.download(e.path_lower); if (f) { cache.fleet = JSON.parse(dec.decode(f.buf)); touched = true; } }
+        if (e[".tag"] === "file" && p === (P.cfg + "/righe-fatturato.json").toLowerCase()) { const f = await DBX.download(e.path_lower); if (f) { cache.fatShared = (JSON.parse(dec.decode(f.buf)) || {}).fogli || {}; } }
         if (e[".tag"] === "file" && p === (P.cfg + "/impostazioni.json").toLowerCase()) { const f = await DBX.download(e.path_lower); if (f) { cache.settings = JSON.parse(dec.decode(f.buf)); touched = true; } }
         if (e[".tag"] === "file" && p === (P.cfg + "/accesso.json").toLowerCase()) {
           const f = await DBX.download(e.path_lower);
           if (f) { const a = JSON.parse(dec.decode(f.buf)); const was = cache.access; cache.access = a; if (was && was.hash !== a.hash) hooks.onAccessChanged(); touched = true; }
         }
       }
-      cache.lastSync = status.lastSync = Date.now(); status.error = null;
+      cache.lastSync = status.lastSync = Date.now(); status.error = null; status.errorDetail = ""; retryN = 0;
       persist();
     } catch (e) {
       status.error = e && e.code; status.errorDetail = e && (e.summary || e.status || "");
       console.error("Dropbox:", e);
       if (e && e.code === "no_auth") hooks.onAuthLost && hooks.onAuthLost();
+      if (e && (e.code === "busy" || e.code === "network")) retrySoon();
     } finally {
       pulling = false;
     }
@@ -199,57 +223,133 @@
   setInterval(() => { if (!document.hidden) syncFatturato(); }, 5 * 60000);
 
   // ---------- fatturato ----------
+  // Un file per anno: "fatturato 2026.xlsx" riceve i servizi del 2026, "fatturato 2027.xlsx" quelli del 2027.
+  // Un file senza anno nel nome riceve i servizi degli anni che non hanno un file proprio.
+  const yearOf = (n) => { const m = /(20\d\d)/.exec(n || ""); return m ? m[1] : null; };
+  function fatFiles() {
+    const s = cache.settings || {};
+    const files = Object.assign({}, s.files || {});
+    if (s.fatturato && !Object.values(files).some((f) => f.path.toLowerCase() === s.fatturato.toLowerCase())) {
+      files[yearOf(s.fatturatoNome || s.fatturato) || "*"] = { path: s.fatturato, name: s.fatturatoNome || s.fatturato.split("/").pop() };
+    }
+    return files;
+  }
   let fatRunning = false, fatAgain = false;
-  // Scrive nel file fatturato le righe in attesa e rimette quelle mancanti. Legge anche clienti e regole.
+  // Scrive nei file fatturato le righe in attesa e rimette quelle mancanti. Legge anche clienti e regole.
   async function syncFatturato() {
-    const path = cache.settings && cache.settings.fatturato;
-    if (!path || !hooks.rowFor || !navigator.onLine || !DBX.isLinked()) return;
+    const files = fatFiles(), years = Object.keys(files).sort();
+    if (!enabled || !years.length || !hooks.rowFor || !navigator.onLine || !DBX.isLinked()) return;
     if (fatRunning) { fatAgain = true; return; }
     fatRunning = true; fatAgain = false;
+    const yOfFoglio = (fg) => "20" + String(fg).slice(0, 2);
+    const fileFor = (y) => (files[y] ? y : files["*"] ? "*" : null);
+    // modifiche di anni senza file: non c'è dove scriverle (verranno aggiunte quando colleghi quel file)
+    for (const k of Object.keys(queue.fat)) if (!fileFor(yOfFoglio(k))) delete queue.fat[k];
     const pendingNow = Object.assign({}, queue.fat);
+    // righe già scritte dall'agenda: le altre righe con lo stesso numero non vanno mai sovrascritte
+    if (!cache.fatWritten) { cache.fatWritten = {}; for (const d in cache.days) for (const x of Object.values(cache.days[d].doc.bookings || {})) if (x && x.foglio) cache.fatWritten[x.foglio] = 1; }
+    const all = [];
+    for (const d in cache.days) { const bk = cache.days[d].doc.bookings || {}; for (const id in bk) { const b = bk[id]; if (b && b.foglio) all.push(Object.assign({ id }, b, { start: b.start || d })); } }
+    const report = {}; let firstErr = null;
     try {
-      for (let attempt = 0; attempt < 5; attempt++) {
-        const f = await DBX.download(path);
-        if (!f) { cache.fat = { ok: false, error: "missing", at: Date.now() }; break; }
-        // tutte le prenotazioni note: quelle mancanti nel file vengono aggiunte
-        const all = [];
-        for (const d in cache.days) { const bk = cache.days[d].doc.bookings || {}; for (const id in bk) { const b = bk[id]; if (b && b.foglio) all.push(Object.assign({ id }, b, { start: b.start || d })); } }
-        const res = await FAT.apply(f.buf, {
-          upserts: Object.entries(pendingNow).filter(([, x]) => x.act === "upsert").map(([, x]) => hooks.rowFor(x.b)),
-          clears: Object.entries(pendingNow).filter(([, x]) => x.act === "clear").map(([k]) => k),
-          ensure: all.map(hooks.rowFor),
-        });
-        if (res.lists) cache.lists = Object.assign({}, cache.lists || {}, res.lists, { at: Date.now() });
-        if (!res.changed) { finishFat(pendingNow, res, f.meta.rev); break; }
+      for (const y of years) {
+        const mine = (b) => fileFor(String(b.start || "").slice(0, 4)) === y;
+        const pend = {};
+        for (const [k, x] of Object.entries(pendingNow)) if (fileFor(yOfFoglio(k)) === y && (x.act === "clear" || mine(x.b))) pend[k] = x;
         try {
-          const meta = await DBX.upload(path, res.buf, { update: f.meta.rev });
-          finishFat(pendingNow, res, meta.rev);
-          break;
+          const r = await syncOne(files[y].path, pend, all.filter(mine));
+          report[y] = r ? { ok: true, name: files[y].name, at: Date.now() } : { ok: false, error: "missing", name: files[y].name };
+          if (!r && !firstErr) firstErr = "missing";
         } catch (e) {
-          if (e.code !== "conflict") throw e;
-          if (attempt === 4) throw { code: "busy" };
+          report[y] = { ok: false, error: (e && e.code) || "error", name: files[y].name };
+          if (!firstErr) firstErr = report[y].error;
+          if (e && e.message) console.error(e);
         }
       }
-    } catch (e) {
-      cache.fat = Object.assign({}, cache.fat || {}, { ok: false, error: (e && e.code) || "error", at: Date.now() });
-      if (e && e.message) console.error(e);
     } finally {
+      cache.fat = { ok: !firstErr, error: firstErr, at: Date.now(), files: report };
       fatRunning = false; persist(); changed();
     }
     if (fatAgain) syncFatturato();
   }
-  function finishFat(done, res, rev) {
+  async function syncOne(path, pend, ensureList) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const f = await DBX.download(path);
+      if (!f) return null;
+      if (!f.meta.rev) f.meta = await DBX.metadata(path);
+      const res = await FAT.apply(f.buf, {
+        upserts: Object.values(pend).filter((x) => x.act === "upsert").map((x) => hooks.rowFor(x.b)),
+        clears: Object.entries(pend).filter(([, x]) => x.act === "clear").map(([k, x]) => ({ foglio: k, row: x.b ? hooks.rowFor(x.b) : null })),
+        ensure: ensureList.map(hooks.rowFor),
+        known: Object.assign({}, cache.fatShared || {}, cache.fatWritten || {}),
+      });
+      if (res.collisions && res.collisions.length) renumberCollisions(res.collisions);
+      if (res.lists) cache.lists = Object.assign({}, cache.lists || {}, res.lists, { fogli: Array.from(new Set(((cache.lists && cache.lists.fogli) || []).concat(res.lists.fogli || []))), at: Date.now() });
+      if (!res.changed) { finishFat(pend, res); return res; }
+      try {
+        await DBX.upload(path, res.buf, { update: f.meta.rev }); finishFat(pend, res);
+        await shareRows(res, Object.keys(pend).filter((k) => pend[k].act === "upsert" && !(res.collisions || []).includes(k)));
+        return res;
+      }
+      catch (e) { if (e.code !== "conflict") throw e; if (attempt === 4) throw { code: "busy" }; }
+    }
+  }
+  // Un n. foglio dell'agenda coincide con una riga scritta a mano nel fatturato: la prenotazione prende il numero libero successivo.
+  function renumberCollisions(list) {
+    for (const fg of list) {
+      delete queue.fat[fg];
+      for (const d in cache.days) {
+        const bk = cache.days[d].doc.bookings || {};
+        for (const id in bk) if (bk[id] && String(bk[id].foglio) === String(fg)) queue.days.push({ date: d, ops: [{ t: "put", id, b: clone(bk[id]), assign: true, renumber: true }], at: Date.now() });
+      }
+    }
+    persist(); kick();
+  }
+  // Elenco condiviso (in Dropbox) dei n. foglio scritti dall'agenda nel fatturato, uguale su tutti i dispositivi
+  async function shareRows(res, upserted) {
+    const add = (res.addedFogli || []).concat(upserted || []), del = res.clearedFogli || [];
+    const path = P.cfg + "/righe-fatturato.json";
+    for (let i = 0; i < 4; i++) {
+      try {
+        const f = await DBX.download(path);
+        const cur = f ? (JSON.parse(dec.decode(f.buf)) || {}).fogli || {} : {};
+        const before = JSON.stringify(cur);
+        for (const k of add) cur[k] = 1;
+        for (const k of del) delete cur[k];
+        cache.fatShared = cur;
+        if (JSON.stringify(cur) === before) return;
+        const meta = f && !f.meta.rev ? await DBX.metadata(path) : f && f.meta;
+        await DBX.upload(path, enc.encode(JSON.stringify({ fogli: cur })), f ? { update: meta.rev } : "add");
+        return;
+      } catch (e) { if (e.code !== "conflict") return; }
+    }
+  }
+  function finishFat(done, res) {
+    for (const k in done) {
+      if (res.collisions && res.collisions.includes(k)) continue;
+      if (done[k].act === "upsert") cache.fatWritten[k] = 1; else delete cache.fatWritten[k];
+    }
     for (const k in done) if (queue.fat[k] && JSON.stringify(queue.fat[k]) === JSON.stringify(done[k])) delete queue.fat[k];
-    cache.fat = { ok: true, at: Date.now(), added: res.added, updated: res.updated, cleared: res.cleared, rev };
+    for (const k of res.addedFogli || []) cache.fatWritten[k] = 1;
   }
 
   // ---------- configurazione ----------
   async function putJSON(path, obj) { await DBX.upload(path, enc.encode(JSON.stringify(obj, null, 1)), "overwrite"); }
-  async function setFleet(vehicles) {
-    cache.fleet = { vehicles }; persist(); changed();
+  async function setFleet(vehicles, changedIds) {
+    cache.fleet = { vehicles };
+    if (changedIds && changedIds.length) {
+      for (const d in cache.days) for (const [id, b] of Object.entries(cache.days[d].doc.bookings || {}))
+        if (b && b.foglio && changedIds.includes(b.vehicle)) queue.fat[b.foglio] = { act: "upsert", b: Object.assign({ id }, b, { start: b.start || d }) };
+    }
+    persist(); changed(); syncFatturato();
     try { await putJSON(P.cfg + "/flotta.json", cache.fleet); } catch (e) { status.error = e.code; emitStatus(); throw e; }
   }
   async function setSettings(s) { cache.settings = Object.assign({}, cache.settings || {}, s); await putJSON(P.cfg + "/impostazioni.json", cache.settings); persist(); changed(); }
+  // collega un file fatturato: vale per l'anno scritto nel nome (o per tutti se non c'è un anno)
+  async function linkFatturato(path, name) {
+    const files = fatFiles(); files[yearOf(name) || "*"] = { path, name };
+    await setSettings({ fatturato: path, fatturatoNome: name, files });
+  }
   async function setAccess(a) { await putJSON(P.cfg + "/accesso.json", a); cache.access = a; persist(); }
 
   async function saveSheetFile(name, blob, year) {
@@ -264,8 +364,11 @@
   window.STORE = {
     BASE, P,
     configure(h) { Object.assign(hooks, h); },
+    enable() { enabled = true; },
+    disable() { enabled = false; },
+    fileFogli,
     view, mutateDay, pull, flush, watch, setupFolders, syncFatturato,
-    setFleet, setSettings, setAccess, saveSheetFile, reset,
+    setFleet, setSettings, linkFatturato, fatFiles, setAccess, saveSheetFile, reset,
     get fleet() { return cache.fleet && cache.fleet.vehicles; },
     get settings() { return cache.settings; },
     get access() { return cache.access; },
