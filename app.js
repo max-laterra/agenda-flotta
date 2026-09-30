@@ -34,6 +34,19 @@ const hasEvent=t=>normType(t)==="notturno";
 const GEN1="Autista Generico 1",GEN2="Autista Generico 2";
 const isGen=x=>/^autista\s+generico\b/i.test(String(x||"").trim());
 const realDriver=x=>{x=String(x||"").trim();return x&&!isGen(x)?x:"";};
+const DRIVERS=[["Accardi Giovanni","g"],["Buscema Salvatore","r"],["Calabrese Saro","g"],["Campo Gianfranco","g"],["Capuano Cosimo","r"],["Cascone Saro","g"],["Di Blasi Antonio","g"],["Giannone Piero","r"],["Giannone Roberto","r"],["Giummarra Luca","g"],["Giunta Fabio","g"],["Giurdanella Giorgio","r"],["Gurrieri Angelo","r"],["La Terra Massimo","r"],["Lo Buglio Antonio","g"],["Lucenti Franco","r"],["Panasia Giovanni","r"],["Senia Fabio","g"],["Silipo Graziano","r"],["Sortino Giorgio","g"],["Virduzzo Luca","g"]];
+// nomi abbreviati delle prenotazioni vecchie (es. "Campo G.") → nome per esteso, per contare una persona una volta sola
+function driverCanon(x){
+  x=String(x||"").trim().replace(/\s+/g," ");if(!x||isGen(x))return x;
+  const n=norm(x).replace(/\bold\b/g,"").replace(/[.]/g," ").replace(/\s+/g," ").trim();
+  const exact=DRIVERS.find(d=>norm(d[0])===n);if(exact)return exact[0];
+  const parts=n.split(" "),ini=parts.length>1&&parts[parts.length-1].length===1?parts.pop():"",sur=parts.join(" ");
+  const same=DRIVERS.filter(d=>norm(d[0]).startsWith(sur+" "));
+  if(same.length===1)return same[0][0];
+  if(ini){const m=same.filter(d=>norm(d[0]).slice(sur.length+1).startsWith(ini));if(m.length===1)return m[0][0];}
+  return x;
+}
+const driverColor=x=>{const d=DRIVERS.find(d=>d[0]===driverCanon(x));return d?d[1]:"";};
 // autisti che servono per un servizio: i nomi veri contano una volta sola al giorno,
 // ogni generico (o servizio senza autista) conta come una persona in più
 function dayCounts(ds,all){
@@ -41,7 +54,7 @@ function dayCounts(ds,all){
   for(const b of list){
     const ds2=[b.driver,b.driver2].map(x=>String(x||"").trim()).filter(Boolean);
     if(!ds2.length)gen++;
-    for(const d of ds2){if(isGen(d))gen++;else named.add(d.toLowerCase().replace(/\s+/g," "));}
+    for(const d of ds2){if(isGen(d))gen++;else named.add(driverCanon(d).toLowerCase());}
   }
   return {a:named.size+gen,gen:gen,s:list.length,p:new Set(list.map(b=>b.vehicle)).size};
 }
@@ -91,6 +104,18 @@ function bookingsAll(){
   return out;
 }
 function endOf(b){return (b.end&&b.end>=b.start)?b.end:b.start;}
+// Tour: cosa fa il mezzo in quel giorno, preso dal programma giorno per giorno
+function dayProgram(b,ds){
+  if(!isMulti(b.type)||!Array.isArray(b.program))return "";
+  const i=diff(b.start,ds);if(i<0)return "";
+  return String(b.program[i]||"").split("\n").map(x=>x.trim()).filter(Boolean).join(" · ");
+}
+// testo da mostrare sotto il cliente: per i tour il programma del giorno (il percorso solo il 1° giorno, se il programma manca)
+function whatToday(b,ds){
+  if(!isMulti(b.type))return b.route||"";
+  const p=dayProgram(b,ds);
+  return p||(ds===b.start?b.route||"":"");
+}
 const spans=b=>endOf(b)>b.start;
 function on(date,vid,list){return (list||bookingsAll()).filter(b=>b.vehicle===vid&&b.start<=date&&endOf(b)>=date).sort((a,b)=>(a.time||"99").localeCompare(b.time||"99"));}
 function vehicle(id){return S.fleet.find(v=>v.id===id);}
@@ -127,9 +152,9 @@ function renderWeek(){
       for(const b of list){
         let tp=TYPES[b.type]||"",tm=b.time||"";
         if(spans(b)){const tot=diff(b.start,endOf(b))+1,i=diff(b.start,ds)+1;tp+=" "+i+"/"+tot;if(i>1)tm=i===tot&&b.time2?b.time2:"";}
-        inner+='<button class="wb '+esc(b.type)+(b.status==="opzione"?" opzione":"")+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc((b.foglio?"n. "+b.foglio+" · ":"")+(b.client||"")+(b.event?" – "+b.event:"")+(b.route?" – "+b.route:"")+(b.driver?" · Autista: "+b.driver:"")+(b.escort?" · Accompagnatore: "+b.escort:""))+'">'+
+        inner+='<button class="wb '+esc(b.type)+(b.status==="opzione"?" opzione":"")+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc((b.foglio?"n. "+b.foglio+" · ":"")+(b.client||"")+(b.event?" – "+b.event:"")+(whatToday(b,ds)?" – "+whatToday(b,ds):"")+(b.driver?" · Autista: "+b.driver:"")+(b.escort?" · Accompagnatore: "+b.escort:""))+'">'+
           '<span class="l1">'+(tm?'<span class="tm">'+esc(tm)+'</span>':"")+'<span class="tp">'+tp+'</span></span>'+
-          '<span class="cl">'+esc(b.client||"Senza cliente")+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(b.route?'<span class="rt">'+esc(b.route)+'</span>':"")+'</button>';
+          '<span class="cl">'+esc(b.client||"Senza cliente")+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(whatToday(b,ds)?'<span class="rt'+(dayProgram(b,ds)?" pg":"")+'">'+esc(whatToday(b,ds))+'</span>':"")+'</button>';
       }
       if(!S.readOnly)inner+='<span class="plus">+ Aggiungi</span>';
       h+='<td class="wc'+(wday(ds)===0?" sun":"")+'" data-addv="'+v.id+'" data-addd="'+ds+'"><div class="wcell">'+inner+'</div></td>';
@@ -193,12 +218,12 @@ function bookingHTML(b,date){
   if(isMulti(b.type)&&has(b.advance))det.push("Anticipo € "+eu(b.advance));
   if(isMulti(b.type)&&b.envelope)det.push("Busta "+esc(b.envelope)+(b.envno?" n. "+esc(b.envno):""));
   if(hasEvent(b.type)&&b.escort)det.push("Accompagnatore: "+esc(b.escort));
-  if(b.contact)det.push(esc(b.contact));
+  if(b.contactName||b.contact)det.push("Ref. "+esc([b.contactName,b.contact].filter(Boolean).join(" ")));
   if(b.notes)det.push(esc(b.notes));
   return '<button class="bk '+esc(b.type)+(b.status==="opzione"?" opzione":"")+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'">'+
     '<span class="when">'+when+'</span>'+
     '<span class="what"><span class="tp">'+tp+'</span>'+(b.status==="opzione"?'<span class="st">Opzione</span>':"")+
-    '<span class="cl">'+esc(b.client||"Senza cliente")+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(b.route?'<span class="rt">'+esc(b.route)+'</span>':"")+'</span>'+
+    '<span class="cl">'+esc(b.client||"Senza cliente")+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(whatToday(b,date)?'<span class="rt'+(dayProgram(b,date)?" pg":"")+'">'+esc(whatToday(b,date))+'</span>':"")+'</span>'+
     (det.length?'<span class="det">'+det.map(x=>"<span>"+x+"</span>").join("")+'</span>':"")+
     '</button>';
 }
@@ -252,7 +277,7 @@ function renderMonth(){
         if(list.every(x=>x.status==="opzione"))cls+=" opz";
         const lab=list.length>1?list.length:(spans(b)?(b.start===ds?MONTH_LAB[b.type]:""):(MONTH_LAB[b.type]||""));
         inner='<div class="'+cls+'">'+lab+'</div>';
-        tip=list.map(x=>(TYPES[x.type]||"")+(x.time?" "+x.time:"")+" – "+(x.client||"")+(x.event?" · "+x.event:"")+(x.route?" ("+x.route+")":""));
+        tip=list.map(x=>(TYPES[x.type]||"")+(x.time?" "+x.time:"")+" – "+(x.client||"")+(x.event?" · "+x.event:"")+(whatToday(x,ds)?" ("+whatToday(x,ds)+")":""));
       }
       h+='<td class="c'+(w===0?" sun":"")+(ds===S.sel?" sel":"")+'" data-day="'+ds+'" title="'+esc(ds.split("-").reverse().join("/")+(tip.length?"\n"+tip.join("\n"):" – libero"))+'">'+inner+'</td>';
     }
@@ -285,13 +310,13 @@ function openForm(opts){
   $("fTitle").textContent=editing?"Modifica prenotazione"+(b.foglio?" · n. "+b.foglio:""):"Nuova prenotazione";
   formClient=b.clientCode!==""&&b.clientCode!=null?{code:b.clientCode,name:b.client||""}:null;
   $("f-price").value=b.price==null?"":b.price;$("f-driver2").value=b.driver2||"";
-  $("f-park").value=b.park==null?"":b.park;$("f-meals").value=b.meals==null?"":b.meals;$("f-advance").value=b.advance==null?"":b.advance;$("f-envelope").value=b.envelope||"";$("f-envno").value=b.envno||"";
+  $("f-park").value=b.park==null?"":b.park;$("f-meals").value=b.meals==null?"":b.meals;$("f-advance").value=b.advance==null?"":b.advance;$("f-envelope").value=b.envelope||"";$("f-envno").value=b.envno||"";bustaAuto="";
   $("cSug").hidden=true;
   $("f-vehicle").innerHTML=S.fleet.map(v=>'<option value="'+v.id+'">'+esc(v.name)+(v.plate?" – "+esc(v.plate):"")+'</option>').join("");
   $("t-"+normType(b.type)).checked=true;
   $("f-vehicle").value=b.vehicle;$("f-start").value=b.start;$("f-end").value=(b.end&&b.end>=b.start)?b.end:b.start;$("f-end").min=b.start||"";formStart=b.start;
   $("f-time").value=b.time||"";$("f-time2").value=b.time2||"";$("f-client").value=b.client||"";$("f-route").value=b.route||"";
-  $("f-pax").value=b.pax==null?"":b.pax;$("f-event").value=b.event||"";$("f-escort").value=b.escort||"";$("f-driver").value=b.driver||"";$("f-contact").value=b.contact||"";
+  $("f-pax").value=b.pax==null?"":b.pax;$("f-event").value=b.event||"";$("f-escort").value=b.escort||"";$("f-driver").value=b.driver||"";$("f-contact").value=b.contact||"";$("f-contactname").value=b.contactName||"";drvPaint("f-driver");drvPaint("f-driver2");
   $("f-status").value=b.status||"confermato";$("f-notes").value=b.notes||"";
   renderClientInfo();syncDrvQ();
   $("f-saldo").value=b.saldo||"NO";$("f-saldoamt").value=b.saldoAmt==null?"":b.saldoAmt;$("f-npark").value=b.npark||"";$("f-ndriver").value=b.ndriver||"";$("f-n3h").value=b.n3h||"";$("f-nextra").value=b.nextra||"";
@@ -303,14 +328,62 @@ function openForm(opts){
   $("ovBooking").hidden=false;setTimeout(()=>$("f-client").focus(),30);
 }
 // elenco autisti: i due generici in cima, poi quelli del foglio "regole"
-function fillDrivers(){
-  const l=[GEN1,GEN2].concat((S.regole.autisti||[]).filter(a=>!isGen(a)));
-  $("dlDrivers").innerHTML=l.map(a=>'<option value="'+esc(a)+'">').join("");
+function fillDrivers(){} // l'elenco autisti è quello fisso (DRIVERS): non si legge più dal foglio "regole"
+// tendina autisti: generici in cima, poi l'elenco per esteso con i colori; si può anche scrivere
+let drvIdx=-1;
+function drvItems(id,q){
+  q=norm(q||"").trim();
+  const gens=(id==="f-driver"?[GEN1,GEN2]:[GEN2,GEN1]).map(n=>({n,c:"x"}));
+  const all=gens.concat(DRIVERS.map(d=>({n:d[0],c:d[1]})));
+  return q?all.filter(x=>norm(x.n).split(/\s+/).some(w=>w.startsWith(q))||norm(x.n).includes(q)):all;
 }
+function drvRender(id,show){
+  const box=$("dl-"+id),inp=$(id);
+  if(!show){box.hidden=true;inp.setAttribute("aria-expanded","false");return;}
+  const q=inp.value,cur=driverCanon(q),items=drvItems(id,DRIVERS.some(d=>d[0]===cur)||isGen(q)?"":q);
+  let h="";items.forEach((x,i)=>{if(i===2&&x.c!=="x"&&items[1]&&items[1].c==="x")h+='<div class="sep"></div>';h+='<button type="button" role="option" data-drv="'+esc(x.n)+'" class="drv-'+x.c+'" aria-selected="'+(i===drvIdx)+'">'+esc(x.n)+(x.c==="x"?'<small>da assegnare</small>':'')+'</button>';});
+  box.innerHTML=h||'<div class="none">Nessun autista con questo nome: resterà scritto così.</div>';
+  box.hidden=false;inp.setAttribute("aria-expanded","true");
+}
+function drvPaint(id){const el=$(id);el.classList.remove("drv-g","drv-r");const c=driverColor(el.value);if(c)el.classList.add("drv-"+c);}
+function drvPick(id,name){$(id).value=name;drvRender(id,false);drvPaint(id);syncDrvQ();checkWarns();}
+["f-driver","f-driver2"].forEach(id=>{
+  const inp=$(id),box=$("dl-"+id);
+  inp.addEventListener("focus",()=>{drvIdx=-1;drvRender(id,true);});
+  inp.addEventListener("click",()=>{if(box.hidden){drvIdx=-1;drvRender(id,true);}});
+  inp.addEventListener("input",()=>{drvIdx=-1;drvRender(id,true);drvPaint(id);});
+  inp.addEventListener("blur",()=>setTimeout(()=>{if(document.activeElement!==inp)drvRender(id,false);},150));
+  inp.addEventListener("keydown",e=>{
+    if(box.hidden)return;const n=box.querySelectorAll("[data-drv]").length;
+    if(e.key==="ArrowDown"){e.preventDefault();drvIdx=Math.min(n-1,drvIdx+1);drvRender(id,true);box.querySelector('[aria-selected="true"]')?.scrollIntoView({block:"nearest"});}
+    else if(e.key==="ArrowUp"){e.preventDefault();drvIdx=Math.max(0,drvIdx-1);drvRender(id,true);box.querySelector('[aria-selected="true"]')?.scrollIntoView({block:"nearest"});}
+    else if(e.key==="Enter"&&drvIdx>=0){e.preventDefault();const b=box.querySelectorAll("[data-drv]")[drvIdx];if(b)drvPick(id,b.dataset.drv);}
+    else if(e.key==="Escape"){e.preventDefault();e.stopPropagation();drvRender(id,false);}
+  });
+  box.addEventListener("mousedown",e=>{const b=e.target.closest("[data-drv]");if(b){e.preventDefault();drvPick(id,b.dataset.drv);}});
+});
+document.querySelectorAll("[data-drvopen]").forEach(b=>b.addEventListener("mousedown",e=>{e.preventDefault();const id=b.dataset.drvopen,box=$("dl-"+id);if(box.hidden){$(id).focus();drvIdx=-1;drvRender(id,true);}else drvRender(id,false);}));
 function syncDrvQ(){$("q-driver").hidden=!!$("f-driver").value.trim()||S.readOnly;$("q-driver2").hidden=!!$("f-driver2").value.trim()||S.readOnly;}
 ["f-driver","f-driver2"].forEach(id=>$(id).addEventListener("input",syncDrvQ));
 fillDrivers();
-document.querySelectorAll("[data-gen]").forEach(bt=>bt.addEventListener("click",()=>{const id=bt.dataset.gen;$(id).value=id==="f-driver"?GEN1:GEN2;syncDrvQ();}));
+document.querySelectorAll("[data-gen]").forEach(bt=>bt.addEventListener("click",()=>{const id=bt.dataset.gen;$(id).value=id==="f-driver"?GEN1:GEN2;drvPaint(id);syncDrvQ();}));
+// N. busta: con "Busta SI" propone il numero successivo (per anno), modificabile
+let bustaAuto="";
+function nextBusta(){
+  const st=$("f-start").value||todayISO(),y=st.slice(0,4);
+  let m=STORE.bustaMax?STORE.bustaMax(y):0;
+  for(const x of bookingsAll()){
+    if(editing&&x.id===editing.id)continue;
+    if(!isMulti(x.type)||x.envelope!=="SI"||String(x.start).slice(0,4)!==y)continue;
+    const n=parseInt(String(x.envno||"").replace(/\D/g,""),10);if(n>m)m=n;
+  }
+  return m+1;
+}
+$("f-envelope").addEventListener("change",()=>{
+  const v=$("f-envelope").value,no=$("f-envno");
+  if(v==="SI"&&!no.value.trim()){no.value=String(nextBusta());bustaAuto=no.value;}
+  else if(v!=="SI"&&no.value===bustaAuto){no.value="";bustaAuto="";}
+});
 function eur(id){const v=$(id).value;return v===""?"":Math.round(Number(v)*100)/100;}
 function curType(){const r=document.querySelector('input[name="type"]:checked');return r?r.value:"transfer";}
 function syncType(){$("w-tourcash").hidden=!isMulti(curType());if(progReady)renderProgram();const ev=hasEvent(curType());$("w-event").hidden=!ev;$("w-escort").hidden=!ev;$("w-time2").hidden=onlyDeparture(curType());}
@@ -319,7 +392,7 @@ function readForm(){
   return {type:type,vehicle:$("f-vehicle").value,start:start,end:$("f-end").value||start,
     time:$("f-time").value,time2:onlyDeparture(type)?"":$("f-time2").value,client:$("f-client").value.trim(),clientCode:formClient&&formClient.name===$("f-client").value.trim()?formClient.code:"",route:$("f-route").value.trim(),
     event:hasEvent(type)?$("f-event").value.trim():"",escort:hasEvent(type)?$("f-escort").value.trim():"",
-    pax:$("f-pax").value.trim(),price:eur("f-price"),park:eur("f-park"),meals:eur("f-meals"),advance:isMulti(type)?eur("f-advance"):"",envelope:isMulti(type)?$("f-envelope").value:"",envno:isMulti(type)?$("f-envno").value.trim():"",driver:$("f-driver").value.trim(),driver2:$("f-driver2").value.trim(),contact:$("f-contact").value.trim(),
+    pax:$("f-pax").value.trim(),price:eur("f-price"),park:eur("f-park"),meals:eur("f-meals"),advance:isMulti(type)?eur("f-advance"):"",envelope:isMulti(type)?$("f-envelope").value:"",envno:isMulti(type)?$("f-envno").value.trim():"",driver:$("f-driver").value.trim(),driver2:$("f-driver2").value.trim(),contact:$("f-contact").value.trim(),contactName:$("f-contactname").value.trim(),
     status:$("f-status").value,notes:$("f-notes").value.trim(),
     saldo:$("f-saldo").value,saldoAmt:eur("f-saldoamt"),npark:$("f-npark").value.trim(),ndriver:$("f-ndriver").value.trim(),n3h:$("f-n3h").value.trim(),nextra:$("f-nextra").value.trim(),
     refs:readRep("refs"),hotels:readRep("hotels"),guides:readRep("guides"),program:readProgram(),
@@ -459,8 +532,8 @@ function cliKind(h){
   if(/tel|cell|fax/i.test(h))return "tel";
   return "text";
 }
-const CLI_LABEL={name:"Ragione sociale",aliasSara:"Alias Sara",cat:"Alias (categoria)",addr:"Indirizzo",cap:"CAP",city:"Città",prov:"Provincia",piva:"Partita IVA",cf:"Codice fiscale",pivaEst:"Partita IVA estera",mail:"E-mail",sdi:"Codice SDI",pec:"PEC",ref:"Referente 1° nome"};
-function cliLabel(col){const k=cliKind(col.h);if(col.c==="A")return "Codice";if(k==="tel")return col.h.replace(/\s*\(.*?\)\s*/g,"").trim();return CLI_LABEL[k]||col.h;}
+const CLI_LABEL={name:"Ragione sociale",aliasSara:"Alias Sara",cat:"Alias (categoria)",addr:"Indirizzo",cap:"CAP",city:"Città",prov:"Provincia",piva:"Partita IVA",cf:"Codice fiscale",pivaEst:"Partita IVA estera",mail:"E-mail",sdi:"Codice univoco (SDI)",pec:"PEC",ref:"Referente 1° nome"};
+function cliLabel(col){const k=cliKind(col.h);if(col.c==="A")return "Codice Multi";if(k==="tel")return col.h.replace(/\s*\(.*?\)\s*/g,"").trim();return CLI_LABEL[k]||col.h;}
 const idNorm=t=>String(t==null?"":t).toUpperCase().replace(/[^A-Z0-9]/g,"").replace(/^IT(?=\d{11}$)/,"");
 function cliRow(c){ // valori completi del cliente, allineati alle colonne
   if(Array.isArray(c[8]))return c[8];
@@ -469,7 +542,11 @@ function cliRow(c){ // valori completi del cliente, allineati alle colonne
 }
 function cliField(c,kind){const cols=cliCols(),i=cols.findIndex(x=>cliKind(x.h)===kind);return i<0?"":(cliRow(c)[i]||"");}
 function cliHay(c){return c._h||(c._h=norm(cliRow(c).join(" ")+" "+c.slice(0,8).join(" ")));}
-function nextClientCode(){let m=0;for(const c of S.clients)if(typeof c[0]==="number"&&c[0]>m)m=c[0];return m+1+STORE.pendingClients.length;}
+function nextClientCode(){
+  let m=0;for(const c of S.clients)if(typeof c[0]==="number"&&c[0]>m)m=c[0];
+  for(const p of STORE.pendingClients){const n=p.vals&&p.vals.A&&p.vals.A.n;if(n>m)m=n;else if(!n)m++;}
+  return m+1;
+}
 
 let cliShown=150,cliOpenCode=null;
 function openClients(q){
@@ -493,7 +570,7 @@ function renderClients(){
   // clienti in attesa di essere scritti nel fatturato
   const pend=STORE.pendingClients;
   $("cliPending").hidden=!pend.length;
-  $("cliPending").innerHTML=pend.map(p=>'<div>⏳ <b>'+esc(p.name||"")+'</b> — '+(navigator.onLine?"in scrittura nel file fatturato…":"sarà scritto nel file fatturato appena torna la connessione")+'</div>').join("");
+  $("cliPending").innerHTML=pend.map(p=>p.error?'<div class="err">⚠ <b>'+esc(p.name||"")+'</b> non scritto nel fatturato: '+esc(cliErrText(p.error))+' <button type="button" class="btn" data-cli-fix="'+esc(p.tmp)+'">Correggi</button><button type="button" class="btn" data-cli-drop="'+esc(p.tmp)+'">Elimina</button></div>':'<div>⏳ <b>'+esc(p.name||"")+'</b> — '+(navigator.onLine?"in scrittura nel file fatturato…":"sarà scritto nel file fatturato appena torna la connessione")+'</div>').join("");
   if(!all.length){$("cliList").innerHTML='<div class="cli-empty">Elenco clienti non ancora caricato: collega il file fatturato (Menu › Collega file fatturato) e attendi qualche secondo.</div>';return;}
   if(!list.length){$("cliList").innerHTML='<div class="cli-empty">Nessun cliente trovato per «'+esc($("cliQ").value.trim())+'».<br><br><button type="button" class="btn primary" data-cli-new="1">+ Aggiungi «'+esc($("cliQ").value.trim())+'» come nuovo cliente</button></div>';return;}
   const cols=cliCols();
@@ -529,23 +606,38 @@ $("cliList").addEventListener("click",e=>{
   const r=e.target.closest("[data-cli]");if(r){cliOpenCode=String(cliOpenCode)===r.dataset.cli?null:r.dataset.cli;renderClients();}
 });
 $("cliNew").onclick=()=>openClientNew({name:""});
+function cliErrText(e){return e.code==="codeexists"?"il codice Multi "+e.num+" nel file è già di «"+(e.by||"")+"»":e.code==="noclienti"?"nel file non c'è il foglio «clienti»":"errore di scrittura";}
+$("cliPending").addEventListener("click",e=>{
+  const fx=e.target.closest("[data-cli-fix]"),dr=e.target.closest("[data-cli-drop]");
+  if(fx){const p=STORE.pendingClients.find(x=>x.tmp===fx.dataset.cliFix);if(p)openClientNew({prefill:p});}
+  if(dr){STORE.dropClient(dr.dataset.cliDrop);renderClients();}
+});
 
 // --- nuovo cliente ---
-let cnFromBooking=false;
+let cnFromBooking=false,cnReplacing=null;
 function openClientNew(o){
   o=o||{};cnFromBooking=!!o.fromBooking;
   if(S.readOnly){toast("Hai accesso in sola lettura.");return;}
   const files=STORE.fatFiles(),ys=Object.keys(files).filter(k=>k!=="*").sort(),y=String(new Date().getFullYear());
   const f=files[y]||files[ys[ys.length-1]]||files["*"];
-  $("cnHint").innerHTML=f?'Viene aggiunto in fondo al foglio <b>clienti</b> di <b>'+esc(f.name)+'</b> con il codice <b>'+nextClientCode()+'</b> (il numero definitivo è quello libero nel file al momento della scrittura).':'<span style="color:var(--warn)">Prima collega il file fatturato (Menu › Collega file fatturato): è lì che viene scritto il cliente.</span>';
+  $("cnHint").innerHTML=f?'Viene aggiunto in fondo al foglio <b>clienti</b> di <b>'+esc(f.name)+'</b>, con il codice Multi che scrivi qui sotto.':'<span style="color:var(--warn)">Prima collega il file fatturato (Menu › Collega file fatturato): è lì che viene scritto il cliente.</span>';
   const cats=[...new Set(S.clients.map(c=>cliField(c,"cat")).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"it"));
   $("dlCat").innerHTML=cats.map(x=>'<option value="'+esc(x)+'">').join("");
-  $("cnFields").innerHTML=cliCols().filter(x=>x.c!=="A").map(x=>{
-    const k=cliKind(x.h),id="cn-"+x.c,full=k==="name"||k==="addr";
-    const at=k==="cap"?' inputmode="numeric" maxlength="5"':k==="prov"?' maxlength="2" class="up"':k==="city"||k==="cf"?' class="up"':k==="piva"?' maxlength="20"':k==="mail"||k==="pec"?' type="email"':k==="sdi"?' maxlength="7" class="up"':k==="tel"?' type="tel" inputmode="tel"':k==="cat"?' list="dlCat"':'';
-    const ph=k==="name"?' placeholder="Es. Istituto Comprensivo Vittorini"':k==="aliasSara"?' placeholder="Nome breve usato in agenda"':k==="cat"?' placeholder="Es. scuole pubbliche, agenzie viaggi sicilia…"':k==="cap"?' placeholder="97100"':k==="prov"?' placeholder="RG"':'';
-    return '<div class="f'+(full?" full":"")+'"><label for="'+id+'">'+esc(cliLabel(x))+(k==="name"?" *":"")+'</label><input id="'+id+'" data-col="'+x.c+'" data-kind="'+k+'"'+at+ph+' autocomplete="off"></div>';
+  // campi: Codice Multi, poi le colonne del foglio clienti; se manca la colonna del codice univoco la aggiunge l'app
+  const cols=cliCols().filter(x=>x.c!=="A"),fields=[{c:"A",h:"Codice"}];
+  const hasSdi=cols.some(x=>cliKind(x.h)==="sdi");
+  for(const x of cols){fields.push(x);if(!hasSdi&&cliKind(x.h)==="cf")fields.push({c:"_SDI",h:"Codice univoco"});}
+  if(!hasSdi&&!fields.some(x=>x.c==="_SDI"))fields.push({c:"_SDI",h:"Codice univoco"});
+  $("cnFields").innerHTML=fields.map(x=>{
+    const k=x.c==="A"?"code":cliKind(x.h),id="cn-"+x.c,full=k==="name"||k==="addr";
+    const at=k==="code"?' inputmode="numeric" maxlength="7" required':k==="cap"?' inputmode="numeric" maxlength="5"':k==="prov"?' maxlength="2" class="up"':k==="city"||k==="cf"?' class="up"':k==="piva"?' maxlength="20"':k==="mail"||k==="pec"?' type="email"':k==="sdi"?' maxlength="7" class="up"':k==="tel"?' type="tel" inputmode="tel"':k==="cat"?' list="dlCat"':'';
+    const ph=k==="name"?' placeholder="Es. Istituto Comprensivo Vittorini"':k==="aliasSara"?' placeholder="Nome breve usato in agenda"':k==="cat"?' placeholder="Es. scuole pubbliche, agenzie viaggi sicilia…"':k==="cap"?' placeholder="97100"':k==="prov"?' placeholder="RG"':k==="sdi"?' placeholder="7 caratteri, es. M5UXCR1"':'';
+    const sub=k==="code"?'<span class="sub">Proposto il primo libero: cambialo se in Multi il cliente ha un altro codice.</span>':x.c==="_SDI"?'<span class="sub">Nel foglio clienti non c\'è ancora questa colonna: la aggiunge l\'app in fondo alla tabella.</span>':'';
+    return '<div class="f'+(full?" full":"")+'"><label for="'+id+'">'+esc(x.c==="A"?"Codice Multi":x.c==="_SDI"?"Codice univoco (SDI)":cliLabel(x))+(k==="name"||k==="code"?" *":"")+'</label><input id="'+id+'" data-col="'+x.c+'" data-kind="'+k+'"'+at+ph+' autocomplete="off">'+sub+'</div>';
   }).join("");
+  $("cn-A").value=o.prefill?"":nextClientCode();
+  if(o.prefill&&o.prefill.vals)for(const c in o.prefill.vals){const el=$("cn-"+c);const v=o.prefill.vals[c];if(el&&v)el.value=v.t!=null?v.t:v.n;}
+  cnReplacing=o.prefill?o.prefill.tmp:null;
   const nameCol=cliCols().find(x=>cliKind(x.h)==="name");
   if(nameCol&&o.name)$("cn-"+nameCol.c).value=o.name;
   $("cnWarns").innerHTML="";$("cnSave").disabled=!f;
@@ -557,7 +649,7 @@ function cnRead(){
   for(const el of $("cnFields").querySelectorAll("input")){
     let v=el.value.replace(/\s+/g," ").trim();const k=el.dataset.kind;
     if(!v)continue;
-    if(k==="city"||k==="prov"||k==="cf")v=v.toUpperCase();
+    if(k==="city"||k==="prov"||k==="cf"||k==="sdi")v=v.toUpperCase().replace(/\s/g,k==="sdi"?"":" ");
     if(k==="piva")v=v.replace(/\s/g,"").toUpperCase();
     out[el.dataset.col]={v,k};
   }
@@ -567,7 +659,13 @@ function cnRead(){
 function cnCheck(){
   const d=cnRead(),w=[],block=[];
   const get=k=>{for(const c in d)if(d[c].k===k)return d[c].v;return "";};
-  const name=get("name"),piva=idNorm(get("piva")),cf=idNorm(get("cf"));
+  const name=get("name"),piva=idNorm(get("piva")),cf=idNorm(get("cf")),code=get("code");
+  if(!/^\d{1,7}$/.test(code)||!+code)block.push("Scrivi il codice Multi (solo numeri).");
+  else{
+    const used=S.clients.find(c=>String(c[0])===String(+code));
+    if(used)block.push('Il codice Multi <b>'+esc(+code)+'</b> è già di <b>'+esc(used[1])+'</b>: usa un altro codice.');
+    else if(STORE.pendingClients.some(p=>p.tmp!==cnReplacing&&p.vals&&p.vals.A&&p.vals.A.n===+code))block.push('Il codice Multi <b>'+esc(+code)+'</b> è già usato da un cliente in attesa di essere scritto.');
+  }
   const dup=(k,val)=>val&&S.clients.find(c=>idNorm(cliField(c,k))===val||(k==="cf"&&idNorm(cliField(c,"piva"))===val));
   const dp=dup("piva",piva)||dup("cf",cf);
   if(dp)block.push('Esiste già un cliente con questa '+(dup("piva",piva)?"partita IVA":"codice fiscale")+': <b>Cod. '+esc(dp[0])+' – '+esc(dp[1])+'</b>.');
@@ -577,6 +675,7 @@ function cnCheck(){
   const cap=get("cap");if(cap&&!/^\d{5}$/.test(cap))w.push("Il CAP ha 5 cifre.");
   const pr=get("prov");if(pr&&!/^[A-Z]{2}$/.test(pr))w.push("La provincia va scritta con 2 lettere (es. RG).");
   const ml=get("mail");if(ml&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ml))w.push("L'indirizzo e-mail non sembra valido.");
+  const sd=get("sdi");if(sd&&!/^[A-Z0-9]{6,7}$/.test(sd))w.push("Il codice univoco ha 7 caratteri (6 per la pubblica amministrazione).");
   $("cnWarns").innerHTML=block.map(x=>'<div>'+x+'</div>').join("")+w.map(x=>'<div class="soft">'+esc(x)+'</div>').join("");
   return {name,block,dup:dp};
 }
@@ -588,7 +687,8 @@ $("fClient").addEventListener("submit",e=>{
   if(!r.name){$("cnWarns").innerHTML='<div>Scrivi la ragione sociale.</div>';return;}
   if(r.block.length)return;
   const d=cnRead(),vals={};
-  for(const c in d)vals[c]=d[c].k==="cap"&&/^[1-9]\d{4}$/.test(d[c].v)?{n:Number(d[c].v)}:{t:d[c].v};
+  for(const c in d)vals[c]=d[c].k==="code"?{n:Number(d[c].v)}:d[c].k==="cap"&&/^[1-9]\d{4}$/.test(d[c].v)?{n:Number(d[c].v)}:{t:d[c].v};
+  if(cnReplacing){STORE.dropClient(cnReplacing);cnReplacing=null;}
   const tmp=STORE.addClient(vals,r.name);
   cnWaiting[tmp]={name:r.name,fromBooking:cnFromBooking};
   $("ovClientNew").hidden=true;
@@ -715,7 +815,7 @@ function billNote(b){
   if(b.pax!==""&&b.pax!=null)p.push(b.pax+" pax");
   if(hasEvent(b.type)&&b.escort)p.push("Accompagnatore: "+b.escort);
   const cl=b.clientCode!==""&&b.clientCode!=null?clientByCode(b.clientCode):null;
-  if(b.contact&&!(cl&&cl[4]===b.contact))p.push("Ref. "+b.contact);
+  if(b.contactName||(b.contact&&!(cl&&cl[4]===b.contact)))p.push("Ref. "+[b.contactName,b.contact&&!(cl&&cl[4]===b.contact)?b.contact:""].filter(Boolean).join(" "));
   if(b.status==="opzione")p.push("OPZIONE");
   return p.join(" · ");
 }
@@ -976,6 +1076,12 @@ const TPL_DRIVER_LAST=31; // righe 1–31: copia per l'autista; 32–44: copia u
 function shClient(b){return b.clientCode!==""&&b.clientCode!=null?clientByCode(b.clientCode):null;}
 function xlSerial(d){return Math.round((Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10))-Date.UTC(1899,11,30))/864e5);}
 const numOrE=x=>x===""||x==null||!isFinite(Number(x))?"":Number(x);
+function tplRef2(b,cl){
+  const tel=b.contact&&!(cl&&String(cl[4])===b.contact)?b.contact:"";
+  if(b.contactName)return {name:b.contactName,tel};
+  if(tel)return {name:tel,tel:""}; // prenotazioni vecchie: nome e telefono nella stessa casella
+  return null;
+}
 // programma: al massimo le 7 righe del modello (righe 14–20)
 function tplProgram(b){
   const lines=[],prog=Array.isArray(b.program)?b.program:[];
@@ -992,7 +1098,7 @@ function tplProgram(b){
     if(!l.length){const t=((b.time?"Ore "+b.time+" ":"")+(b.route||"")).trim();if(t)l=[t];}
     l.forEach((t,i)=>lines.push((i+1)+") "+t));
   }
-  (b.refs||[]).slice(1).forEach(x=>{if(x.name||x.tel)lines.push("Referente: "+[x.name,x.tel].filter(Boolean).join(" – "));});
+  (b.refs||[]).slice(tplRef2(b,shClient(b))?0:1).forEach(x=>{if(x.name||x.tel)lines.push("Referente: "+[x.name,x.tel].filter(Boolean).join(" – "));});
   (b.hotels||[]).forEach(x=>{if(x.name||x.tel)lines.push("Hotel: "+[x.name,x.tel].filter(Boolean).join(" – "));});
   (b.guides||[]).slice(2).forEach(x=>{if(x.name||x.tel)lines.push("Guida: "+[x.name,x.tel].filter(Boolean).join(" – "));});
   if(lines.length>7){const head=lines.slice(0,6);head.push(lines.slice(6).join(" · "));return head;}
@@ -1005,7 +1111,8 @@ function tplValues(b){
   const nd=diff(b.start,endOf(b))+1,P=numOrE(b.price),Q=numOrE(b.park),R=numOrE(b.meals);
   const name=cl?cl[1]:(b.client||""),tel=cl&&cl[4]?String(cl[4]):"",refName=cl&&cl[6]?cl[6]:"",refTel=cl&&cl[7]?String(cl[7]):"";
   const contact=b.contact&&!(cl&&String(cl[4])===b.contact)?b.contact:"";
-  const r2=(b.refs||[])[0]||(contact?{name:contact,tel:""}:{}),g=b.guides||[];
+  // Referente 2°: il referente della prenotazione (nome + telefono), altrimenti il primo degli "Altri referenti"
+  const r2=tplRef2(b,cl)||(b.refs||[])[0]||{},g=b.guides||[];
   const pax=String(b.pax==null?"":b.pax).trim(),kind=v.kind==="van"?"Van":v.kind==="auto"?"Auto":"Bus";
   const drv=realDriver(b.driver),fg=/^\d+$/.test(String(b.foglio||""))?Number(b.foglio):(b.foglio||"");
   const any=P!==""||Q!==""||R!=="";
@@ -1020,7 +1127,7 @@ function tplValues(b){
     B34:{v:TYPE_XL[type]||""},D34:{v:xcatOf(v),f:1},F34:{v:plate,f:1},H34:{v:drv,f:1},
     B35:{v:b.start,k:"d",f:1},D35:{v:endOf(b),k:"d",f:1},F35:{v:nd,k:"i",f:1},H35:{v:drv,f:1},
     B36:{v:name,f:1},H36:{v:tel,f:1},B37:{v:refName,f:1},H37:{v:refTel,f:1},B38:{v:billItin(b),f:1},
-    H39:{v:P,k:"e",f:1},B40:{v:cl&&cl[5]?String(cl[5]):"",f:1},D40:{v:cl?cl[0]:"",k:cl&&typeof cl[0]==="number"?"i":"s",f:1},H40:{v:Q,k:"e",f:1},
+    H39:{v:P,k:"e",f:1},B40:{v:cl&&cl[5]?String(cl[5]):"",f:1},F40:{v:cl?cliField(cl,"sdi"):""},D40:{v:cl?cl[0]:"",k:cl&&typeof cl[0]==="number"?"i":"s",f:1},H40:{v:Q,k:"e",f:1},
     B41:{v:"",f:1},D41:{v:"",f:1},F41:{v:"",f:1},H41:{v:R,k:"e",f:1},
     B42:{v:"",f:1},D42:{v:"",f:1},F42:{v:"",f:1},H42:{v:any?0:"",k:"e",f:1},
     B43:{v:"",f:1},H43:{v:(P||0)+(Q||0)+(R||0),k:"e",f:1},B44:{v:billNote(b),f:1},H44:{v:fg,k:"i",f:1},
@@ -1175,7 +1282,7 @@ $("sheetClose").onclick=()=>{$("ovSheet").hidden=true;};
 $("ovSheet").addEventListener("click",e=>{if(e.target===$("ovSheet"))$("ovSheet").hidden=true;});
 async function sheetSave(kind){
   if(!sheetBooking)return;
-  const full=$("sheetFull").checked,btns=[$("sheetPdf"),$("sheetXlsx")];btns.forEach(x=>x.disabled=true);
+  const full=$("sheetFull").checked,btns=[$("sheetPdf"),$("sheetPrint")];btns.forEach(x=>x.disabled=true);
   $("sheetMsg").textContent="Preparo il file…";
   try{
     const blob=kind==="pdf"?await tplPDF(sheetBooking,full):await tplXLSX(sheetBooking);
@@ -1188,10 +1295,27 @@ async function sheetSave(kind){
   }finally{btns.forEach(x=>x.disabled=false);}
 }
 $("sheetPdf").onclick=()=>sheetSave("pdf");
-$("sheetXlsx").onclick=()=>sheetSave("xlsx");
+// Stampa: il foglio (come nell'anteprima) su una pagina A4
+async function printSheet(){
+  if(!sheetBooking)return;
+  const full=$("sheetFull").checked,ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+  if(ios){ // su iPhone/iPad si stampa dal PDF (Condividi › Stampa)
+    try{const blob=await tplPDF(sheetBooking,full);const u=URL.createObjectURL(blob);window.open(u,"_blank");setTimeout(()=>URL.revokeObjectURL(u),60000);}catch(_){toast("Non riesco a preparare la stampa.");}
+    return;
+  }
+  const html='<!doctype html><html lang="it"><head><meta charset="utf-8"><title>'+esc("Foglio di servizio "+(sheetBooking.foglio||""))+'</title>'+
+    '<style>@page{size:A4 portrait;margin:10mm}html,body{margin:0;background:#fff}svg{display:block;width:100%;height:auto}</style></head><body>'+tplSVG(sheetBooking,full)+'</body></html>';
+  let fr=$("printFrame");
+  if(fr)fr.remove();
+  fr=document.createElement("iframe");fr.id="printFrame";fr.setAttribute("aria-hidden","true");fr.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  document.body.appendChild(fr);
+  await new Promise(r=>{fr.onload=r;fr.srcdoc=html;});
+  try{fr.contentWindow.focus();fr.contentWindow.print();}catch(_){toast("Non riesco ad aprire la stampa.");}
+}
+$("sheetPrint").onclick=printSheet;
 
 // ---------- versione ----------
-const APP_VERSION="1.6",APP_DATE="30/09/2026";
+const APP_VERSION="1.7",APP_DATE="30/09/2026";
 $("gVer").textContent="Versione "+APP_VERSION+" · "+APP_DATE;$("appVer").textContent="v"+APP_VERSION;
 
 // ---------- dati: Dropbox ----------
@@ -1243,7 +1367,7 @@ STORE.configure({
   onAuthLost:()=>showGate("link",{msg:"L'accesso a Dropbox è scaduto o è stato revocato: collegalo di nuovo."}),
   rowFor:b=>Object.assign(billRow(Object.assign({},b,{start:b.start})),{tour:isMulti(b.type)}),
   onClientAdded:(tmp,info)=>onClientAdded(tmp,info),
-  onClientError:c=>toast(c==="noclienti"?"Nel file fatturato non trovo il foglio «clienti»: il cliente non è stato scritto.":"Il cliente non è stato scritto nel fatturato.")
+  onClientError:(tmp,q)=>{toast("«"+(q.name||"")+"» non scritto nel fatturato: "+cliErrText(q.error)+". Correggilo da Clienti.");if(!$("ovClients").hidden)renderClients();}
 });
 function writeDayOps(date,patch){
   const ops=[];

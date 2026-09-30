@@ -27,7 +27,7 @@
 
   const hooks = { onChange() {}, onStatus() {}, onAccessChanged() {}, rowFor: null };
   const status = { online: navigator.onLine, syncing: false, error: null, lastSync: cache.lastSync || null };
-  function emitStatus() { hooks.onStatus(Object.assign({ pending: queue.days.length, fatPending: Object.keys(queue.fat).length + queue.clients.length, fat: cache.fat }, status)); }
+  function emitStatus() { hooks.onStatus(Object.assign({ pending: queue.days.length, fatPending: Object.keys(queue.fat).length + queue.clients.filter((c) => !c.error).length, fat: cache.fat }, status)); }
 
   // ---------- giornate ----------
   const dayPath = (date) => P.days + "/" + date.slice(0, 4) + "/" + date + ".json";
@@ -129,7 +129,7 @@
     } finally {
       flushing = false; status.syncing = false; emitStatus();
     }
-    if (Object.keys(queue.fat).length || queue.clients.length) syncFatturato();
+    if (Object.keys(queue.fat).length || queue.clients.some((c) => !c.error)) syncFatturato();
   }
 
   // nuovi tentativi ravvicinati dopo un errore temporaneo: 3 s, 10 s, 30 s, poi ogni minuto
@@ -262,7 +262,8 @@
         const pend = {};
         for (const [k, x] of Object.entries(pendingNow)) if (fileFor(yOfFoglio(k)) === y && (x.act === "clear" || mine(x.b))) pend[k] = x;
         try {
-          const r = await syncOne(files[y].path, pend, all.filter(mine), y === clientYear(files) ? queue.clients.slice() : []);
+          const r = await syncOne(files[y].path, pend, all.filter(mine), y === clientYear(files) ? queue.clients.filter((c) => !c.error) : []);
+          if (r && r.lists && r.lists.bustaMax != null) { cache.bustaMax = cache.bustaMax || {}; cache.bustaMax[y] = r.lists.bustaMax; }
           report[y] = r ? { ok: true, name: files[y].name, at: Date.now() } : { ok: false, error: "missing", name: files[y].name };
           if (!r && !firstErr) firstErr = "missing";
         } catch (e) {
@@ -333,11 +334,12 @@
   // clienti scritti nel foglio "clienti": escono dalla coda e l'app riceve il codice assegnato
   function finishClients(res) {
     const done = (res.newClients || []).filter((x) => !x.error);
-    if (!done.length) {
-      const errs = (res.newClients || []).filter((x) => x.error);
-      if (errs.length) { cache.clientErr = errs[0].error; hooks.onClientError && hooks.onClientError(errs[0].error); }
-      return;
+    // non scritto (es. codice già usato): resta in elenco con l'errore finché non lo correggi o lo elimini
+    for (const x of (res.newClients || []).filter((x) => x.error)) {
+      const q = queue.clients.find((c) => c.tmp === x.tmp);
+      if (q) { q.error = { code: x.error, num: x.code, by: x.by }; hooks.onClientError && hooks.onClientError(x.tmp, q); }
     }
+    if (!done.length) { persist(); return; }
     cache.clientDone = cache.clientDone || {};
     for (const x of done) {
       const q = queue.clients.find((c) => c.tmp === x.tmp);
@@ -348,6 +350,7 @@
     persist();
   }
   // nuovo cliente: va in coda e viene scritto nel file fatturato (subito se c'è la connessione)
+  function dropClient(tmp) { queue.clients = queue.clients.filter((c) => c.tmp !== tmp); persist(); changed(); }
   function addClient(vals, name) {
     const tmp = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     queue.clients.push({ tmp, vals, name, at: Date.now() });
@@ -398,7 +401,8 @@
     disable() { enabled = false; },
     fileFogli,
     view, mutateDay, pull, flush, watch, setupFolders, syncFatturato,
-    setFleet, setSettings, linkFatturato, fatFiles, setAccess, saveSheetFile, reset, addClient,
+    setFleet, setSettings, linkFatturato, fatFiles, setAccess, saveSheetFile, reset, addClient, dropClient,
+    bustaMax: (y) => { const m = cache.bustaMax || {}; return m[y] != null ? m[y] : m["*"] || 0; },
     get pendingClients() { return queue.clients.slice(); },
     clientDone: (tmp) => (cache.clientDone || {})[tmp] || null,
     get fleet() { return cache.fleet && cache.fleet.vehicles; },
@@ -406,8 +410,8 @@
     get access() { return cache.access; },
     get lists() { return cache.lists; },
     get fat() { return cache.fat; },
-    get pending() { return queue.days.length + Object.keys(queue.fat).length + queue.clients.length; },
+    get pending() { return queue.days.length + Object.keys(queue.fat).length + queue.clients.filter((c) => !c.error).length; },
     get hasData() { return !!cache.cursor; },
-    status: () => Object.assign({ pending: queue.days.length, fatPending: Object.keys(queue.fat).length + queue.clients.length, fat: cache.fat }, status),
+    status: () => Object.assign({ pending: queue.days.length, fatPending: Object.keys(queue.fat).length + queue.clients.filter((c) => !c.error).length, fat: cache.fat }, status),
   };
 })();

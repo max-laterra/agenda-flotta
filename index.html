@@ -484,6 +484,8 @@ img{max-width:100%}
 .cli-note{font-size:13px;color:var(--ink-3)}
 .cli-pending{border:1px dashed var(--tbd);background:var(--tbd-bg);color:var(--tbd-ink);border-radius:10px;padding:8px 12px;font-size:13.5px}
 .cli-pending div+div{margin-top:3px}
+.cli-pending .err{color:var(--warn);font-weight:600}
+.cli-pending .err button{margin-left:8px;font-size:12.5px;padding:3px 9px}
 .modal.cn-modal{max-width:820px}
 .cn-hint{margin:0;font-size:14px;color:var(--ink-2)}
 .cn-modal .f input.up{text-transform:uppercase}
@@ -497,6 +499,27 @@ img{max-width:100%}
   .cli-det{padding-left:14px}
 }
 @media (max-width:640px){#ovClients{padding:0}.modal.cli-modal{border-radius:0;max-height:100dvh;min-height:100dvh}}
+/* modulo prenotazione su 4 colonne (2 sul telefono) */
+.fgrid.fgrid4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.fgrid4 .c2{grid-column:span 2}.fgrid4 .c1{grid-column:span 1}
+@media (max-width:700px){.fgrid.fgrid4{grid-template-columns:repeat(2,minmax(0,1fr))}.fgrid4 .c2,.fgrid4 .rowstart.c2{grid-column:1 / -1}.fgrid4 .f>label{letter-spacing:.02em}}
+.fgrid4 .rowstart.c2{grid-column:1 / span 2}
+.modal#fBooking{max-width:800px}
+.fgrid4 .f>label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* elenco autisti colorato */
+.drvbox{position:relative}
+.drvbox input{padding-right:34px}
+.drvopen{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--ink-2);font-size:14px;padding:4px 8px;cursor:pointer}
+.drvlist{position:absolute;left:0;right:0;top:calc(100% + 3px);z-index:60;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);max-height:300px;overflow:auto;padding:4px}
+.drvlist button{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;border:0;background:none;padding:7px 10px;border-radius:7px;font:inherit;font-size:14.5px;font-weight:600;cursor:pointer}
+.drvlist button:hover,.drvlist button[aria-selected="true"]{background:var(--accent-soft)}
+.drvlist button small{font-weight:500;font-size:11.5px;color:var(--ink-3)}
+.drvlist .sep{height:1px;background:var(--line);margin:4px 6px}
+.drvlist .none{padding:8px 10px;color:var(--ink-3);font-size:13.5px}
+.drv-g{color:#1F6B3A}.drv-r{color:#9B1C1C}.drv-x{color:var(--tbd-ink)}
+input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:600}
+:root[data-theme="dark"] .drv-g{color:#7FD39B}:root[data-theme="dark"] .drv-r{color:#FF9C9C}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .drv-g{color:#7FD39B}:root:not([data-theme="light"]) .drv-r{color:#FF9C9C}}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -633,16 +656,16 @@ img{max-width:100%}
       <label class="notturno"><input type="radio" name="type" id="t-notturno" value="notturno"><b>Notturno</b><span>Concerti, serate</span></label>
       <label class="transfer"><input type="radio" name="type" id="t-transfer" value="transfer"><b>Transfer</b><span>Solo ora di partenza</span></label>
     </div>
-    <div class="fgrid">
-      <div class="f full"><label for="f-vehicle">Mezzo</label><select id="f-vehicle"></select></div>
-      <div class="f"><label for="f-start" id="l-start">Data partenza</label><input type="date" id="f-start" required></div>
-      <div class="f" id="w-end"><label for="f-end">Data rientro</label><input type="date" id="f-end"></div>
-      <div class="f"><label for="f-time">Ora partenza</label><input type="time" id="f-time"></div>
-      <div class="f" id="w-time2"><label for="f-time2">Ora rientro</label><input type="time" id="f-time2"></div>
+    <div class="fgrid fgrid4">
+      <div class="f c2"><label for="f-vehicle">Mezzo</label><select id="f-vehicle"></select></div>
+      <div class="f c2"><label for="f-pax">Passeggeri</label><input id="f-pax" inputmode="numeric" autocomplete="off" placeholder="Es. 45 oppure 180/4"></div>
+      <div class="f c1"><label for="f-start" id="l-start">Data partenza</label><input type="date" id="f-start" required></div>
+      <div class="f c1"><label for="f-time">Ora partenza</label><input type="time" id="f-time"></div>
+      <div class="f c1" id="w-end"><label for="f-end">Data rientro</label><input type="date" id="f-end"></div>
+      <div class="f c1" id="w-time2"><label for="f-time2">Ora rientro</label><input type="time" id="f-time2"></div>
       <div class="f full" id="w-event"><label for="f-event">Evento</label><input id="f-event" placeholder="Es. concerto, artista e luogo"></div>
       <div class="f full csearch"><label for="f-client">Cliente</label><input id="f-client" autocomplete="off" placeholder="Cerca per nome, alias, città o codice" role="combobox" aria-expanded="false" aria-controls="cSug"><div class="csug" id="cSug" role="listbox" hidden></div><div class="cinfo" id="cInfo"></div></div>
-      <div class="f full"><label for="f-route">Percorso / itinerario</label><input id="f-route" placeholder="Es. Ragusa → Aeroporto Catania"></div>
-      <div class="f"><label for="f-pax">Passeggeri</label><input id="f-pax" inputmode="numeric" autocomplete="off" placeholder="Es. 45 oppure 180/4"></div>
+      <div class="f full"><label for="f-route">Anteprima itinerario</label><input id="f-route" placeholder="Es. Ragusa → Aeroporto Catania"></div>
       <div class="f full money3">
         <div class="f"><label for="f-price">€ Noleggio</label><input id="f-price" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
         <div class="f"><label for="f-park">€ Parcheggi</label><input id="f-park" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
@@ -651,14 +674,15 @@ img{max-width:100%}
       <div class="f full money3 tourcash" id="w-tourcash">
         <div class="f"><label for="f-advance">€ Anticipo spese</label><input id="f-advance" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
         <div class="f"><label for="f-envelope">Busta autista</label><select id="f-envelope"><option value="">—</option><option value="SI">SI</option><option value="NO">NO</option></select></div>
-        <div class="f"><label for="f-envno">N. busta</label><input id="f-envno" autocomplete="off"></div>
+        <div class="f"><label for="f-envno">N. busta</label><input id="f-envno" autocomplete="off" inputmode="numeric" placeholder="automatico con SI"></div>
       </div>
-      <div class="f"><label for="f-driver">1° Autista</label><input id="f-driver" list="dlDrivers" autocomplete="off" placeholder="Scegli dall'elenco"><div class="drvq" id="q-driver" hidden><button type="button" data-gen="f-driver">Autista Generico 1</button></div></div>
-      <div class="f"><label for="f-driver2">2° Autista</label><input id="f-driver2" list="dlDrivers" autocomplete="off" placeholder="Solo se serve"><div class="drvq" id="q-driver2" hidden><button type="button" data-gen="f-driver2">+ Autista Generico 2</button></div></div>
-      <div class="f" id="w-escort"><label for="f-escort">Accompagnatore</label><input id="f-escort"></div>
-      <div class="f"><label for="f-contact">Referente / telefono</label><input id="f-contact"></div>
-      <div class="f"><label for="f-status">Stato</label><select id="f-status"><option value="confermato">Confermato</option><option value="opzione">Opzione</option></select></div>
-      <div class="f full"><label for="f-notes">Note (ufficio)</label><textarea id="f-notes"></textarea></div>
+      <div class="f c2 drvf"><label for="f-driver">1° Autista</label><div class="drvbox"><input id="f-driver" autocomplete="off" placeholder="Scegli dall'elenco" role="combobox" aria-expanded="false" aria-controls="dl-f-driver"><button type="button" class="drvopen" data-drvopen="f-driver" tabindex="-1" aria-label="Apri elenco autisti">▾</button><div class="drvlist" id="dl-f-driver" role="listbox" hidden></div></div><div class="drvq" id="q-driver" hidden><button type="button" data-gen="f-driver">Autista Generico 1</button></div></div>
+      <div class="f c2 drvf"><label for="f-driver2">2° Autista</label><div class="drvbox"><input id="f-driver2" autocomplete="off" placeholder="Solo se serve" role="combobox" aria-expanded="false" aria-controls="dl-f-driver2"><button type="button" class="drvopen" data-drvopen="f-driver2" tabindex="-1" aria-label="Apri elenco autisti">▾</button><div class="drvlist" id="dl-f-driver2" role="listbox" hidden></div></div><div class="drvq" id="q-driver2" hidden><button type="button" data-gen="f-driver2">+ Autista Generico 2</button></div></div>
+      <div class="f c2" id="w-escort"><label for="f-escort">Accompagnatore</label><input id="f-escort"></div>
+      <div class="f c2 rowstart"><label for="f-contactname">Referente nome</label><input id="f-contactname" autocomplete="off"></div>
+      <div class="f c1"><label for="f-contact">Referente telefono</label><input id="f-contact" type="tel" inputmode="tel" autocomplete="off"></div>
+      <div class="f c1"><label for="f-status">Stato</label><select id="f-status"><option value="confermato">Confermato</option><option value="opzione">Opzione</option></select></div>
+      <div class="f full"><label for="f-notes">Note</label><textarea id="f-notes"></textarea></div>
       <details class="f full sheetbox" id="sheetBox" open>
         <summary>Foglio di servizio per l'autista</summary>
         <div class="sheetbox-in">
@@ -697,14 +721,14 @@ img{max-width:100%}
       <h3 id="sheetTitle">Foglio di servizio</h3>
       <label class="sheet-opt"><input type="checkbox" id="sheetFull"> Includi la copia ufficio (prezzi e fatture)</label>
     </div>
-    <p class="sheet-hint">Impaginato del modello <b>automatico_2026_neutro</b>. Il file Excel è il vostro modello con le caselle compilate e contiene sempre anche la copia ufficio.</p>
+    <p class="sheet-hint">Impaginato del modello <b>automatico_2026_neutro</b>. «Stampa» stampa il foglio così come lo vedi (una pagina A4).</p>
     <div class="sheet-scroll"><div id="sheetView"></div></div>
     <div class="sheet-msg" id="sheetMsg" role="status"></div>
     <div class="mfoot">
       <button type="button" class="btn" id="sheetClose">Chiudi</button>
       <span class="spacer"></span>
       <button type="button" class="btn" id="sheetShare" hidden>Invia…</button>
-      <button type="button" class="btn" id="sheetXlsx">Salva Excel</button>
+      <button type="button" class="btn" id="sheetPrint">Stampa</button>
       <button type="button" class="btn primary" id="sheetPdf">Salva PDF</button>
     </div>
   </div>
@@ -732,7 +756,7 @@ img{max-width:100%}
     <div class="mfoot"><button type="button" class="btn" id="cnCancel">Annulla</button><span class="spacer"></span><button type="submit" class="btn primary" id="cnSave">Salva nel fatturato</button></div>
   </form>
 </div>
-<datalist id="dlDrivers"></datalist>
+
 <div id="dlPlates"></div>
 <div class="overlay" id="ovFleet" hidden>
   <form class="modal" id="fFleet">

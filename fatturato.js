@@ -213,6 +213,41 @@
       zip.file(tp, tx);
     }
   }
+  async function addTableColumn(zip, path, rows, byNum, col, name) {
+    // testo dell'intestazione nei testi condivisi, come le altre intestazioni
+    let idx = null;
+    const sf = zip.file("xl/sharedStrings.xml");
+    if (sf) {
+      let sx = await sf.async("string");
+      idx = +(attr(sx.slice(0, sx.indexOf(">", sx.indexOf("<sst")) + 1), "uniqueCount") || (sx.match(/<si>/g) || []).length);
+      sx = sx.replace("</sst>", "<si><t>" + xEsc(name) + "</t></si></sst>")
+        .replace(/(<sst\b[^>]*\suniqueCount=")(\d+)/, (a, p, n) => p + (+n + 1)).replace(/(<sst\b[^>]*\scount=")(\d+)/, (a, p, n) => p + (+n + 1));
+      zip.file("xl/sharedStrings.xml", sx);
+    }
+    const h = byNum[1] != null ? rows[byNum[1]] : null;
+    if (h) {
+      const cells = rowCells(h.xml), last = Object.keys(cells).sort((a, b) => colIdx(a) - colIdx(b)).pop();
+      const s = last && cells[last].s != null ? ' s="' + cells[last].s + '"' : "";
+      const cx = idx != null ? '<c r="' + col + '1"' + s + ' t="s"><v>' + idx + "</v></c>" : '<c r="' + col + '1"' + s + ' t="inlineStr"><is><t>' + xEsc(name) + "</t></is></c>";
+      h.xml = h.xml.replace(/<\/row>$/, cx + "</row>");
+    }
+    const relsPath = path.replace(/([^/]+)$/, "_rels/$1.rels");
+    if (!zip.file(relsPath)) return;
+    const rels = await zip.file(relsPath).async("string");
+    for (const t of rels.match(/<Relationship\b[^>]*>/g) || []) {
+      if (!/\/table$/.test(attr(t, "Type") || "")) continue;
+      const tp = ("xl/worksheets/" + attr(t, "Target")).replace(/[^/]+\/\.\.\//g, "");
+      if (!zip.file(tp)) continue;
+      let tx = await zip.file(tp).async("string");
+      const m = /\sref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/.exec(tx);
+      if (!m || m[1] !== "A" || colIdx(m[3]) + 1 !== colIdx(col)) continue; // solo la tabella dei clienti, se finisce proprio prima
+      tx = tx.replace(/(\sref="[A-Z]+\d+:)([A-Z]+)(\d+)/g, (a, p, c, n) => p + col + n);
+      const ids = (tx.match(/<tableColumn\b[^>]*\sid="(\d+)"/g) || []).map((x) => +/id="(\d+)"/.exec(x)[1]);
+      tx = tx.replace(/<\/tableColumns>/, '<tableColumn id="' + (Math.max(0, ...ids) + 1) + '" name="' + xEsc(name) + '"/></tableColumns>')
+        .replace(/(<tableColumns\b[^>]*\scount=")(\d+)/, (a, p, n) => p + (+n + 1));
+      zip.file(tp, tx);
+    }
+  }
   const normName = (t) => String(t == null ? "" : t).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
   const normId = (t) => String(t == null ? "" : t).toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^IT(?=\d{11}$)/, "");
   // Aggiunge i clienti nuovi al foglio "clienti": codice = il più alto + 1, stessi stili della riga sopra.
@@ -241,13 +276,15 @@
     const cols = Object.keys(hdr).sort((x, y) => colIdx(x) - colIdx(y));
     const colOf = (re) => cols.find((c) => re.test(hdr[c])) || null;
     const cPiva = colOf(/partita\s*iva(?!.*estera)/i), cCf = colOf(/codice\s*fiscale/i), cName = "B";
+    let cSdi = colOf(/univoco|\bsdi\b/i), newSdiCol = null;
     let lastData = 1, maxCode = 0;
-    const byPiva = {}, byCf = {}, byName = {};
+    const byPiva = {}, byCf = {}, byName = {}, byCode = {};
     for (const n in recs) {
       const x = recs[n]; if (!x.A && !x.B) continue;
       if (+n > lastData) lastData = +n;
       const code = /^\d+(\.0+)?$/.test(x.A || "") ? Number(x.A) : null;
       if (code != null && code > maxCode) maxCode = code;
+      if (x.A) byCode[String(code != null ? code : x.A)] = x.B || "";
       const key = code != null ? code : x.A;
       if (cPiva && x[cPiva]) byPiva[normId(x[cPiva])] = key;
       if (cCf && x[cCf]) byCf[normId(x[cCf])] = key;
@@ -264,7 +301,17 @@
       else if (!piva && !cf && nm && byName[nm] != null) existing = byName[nm];
       if (existing != null) { results.push({ tmp: nc.tmp, code: existing, existed: true }); continue; }
       if (!nm) { results.push({ tmp: nc.tmp, error: "noname" }); continue; }
-      const r = ++lastData, code = ++maxCode, prev = prevCells();
+      // codice Multi scelto nell'app: deve essere libero
+      let code;
+      if (v.A && v.A.n != null) {
+        code = Number(v.A.n);
+        if (byCode[String(code)] != null) { results.push({ tmp: nc.tmp, error: "codeexists", code, by: byCode[String(code)] }); continue; }
+        if (code > maxCode) maxCode = code;
+      } else code = ++maxCode;
+      // codice univoco (SDI): se nel foglio manca la colonna, la aggiunge in fondo alla tabella
+      if (v._SDI && !cSdi) { cSdi = COLS[colIdx(cols[cols.length - 1])]; newSdiCol = cSdi; hdr[cSdi] = "Codice univoco"; cols.push(cSdi); }
+      if (v._SDI) { v[cSdi] = v._SDI; }
+      const r = ++lastData, prev = prevCells();
       let cells, open;
       if (byNum[r] != null) { const old = rows[byNum[r]].xml; open = old.slice(0, old.indexOf(">") + 1).replace(/\/>$/, ">"); cells = rowCells(old); }
       else { open = '<row r="' + r + '">'; cells = {}; }
@@ -272,11 +319,11 @@
       const put = (c, val) => { cells[c] = { xml: makeCell(c + r, styleOf(c), val), s: styleOf(c), inner: "" }; };
       for (const c of cols) { if (c === "A") continue; if (!cells[c] && prev[c]) put(c, null); }
       put("A", { n: code });
-      for (const c of Object.keys(v)) if (c !== "A" && hdr[c]) put(c, v[c]);
+      for (const c of Object.keys(v)) if (c !== "A" && c !== "_SDI" && hdr[c]) put(c, v[c]);
       const x = open + Object.keys(cells).sort((p, q) => colIdx(p) - colIdx(q)).map((k) => cells[k].xml).join("") + "</row>";
       if (byNum[r] != null) rows[byNum[r]].xml = x; else { byNum[r] = rows.length; rows.push({ n: r, xml: x }); }
       if (r > maxRow) maxRow = r;
-      if (piva) byPiva[piva] = code; if (cf) byCf[cf] = code; byName[nm] = code;
+      if (piva) byPiva[piva] = code; if (cf) byCf[cf] = code; byName[nm] = code; byCode[String(code)] = tv("B");
       added++; results.push({ tmp: nc.tmp, code, existed: false, row: r });
       // subito nell'elenco dell'app
       if (lists && lists.clients) {
@@ -285,15 +332,24 @@
       }
     }
     if (!added) return { added: 0, results };
+    if (newSdiCol) await addTableColumn(zip, path, rows, byNum, newSdiCol, "Codice univoco");
     rows.sort((x, y) => x.n - y.n);
     xml = head + rows.map((x) => x.xml).join("") + tail;
     xml = xml.replace(/(<dimension ref="[A-Z]+\d+:)([A-Z]+)(\d+)/, (all, pre, col, n) => (+n < maxRow ? pre + col + maxRow : all));
+    if (newSdiCol) {
+      xml = xml.replace(/(<dimension ref="[A-Z]+\d+:)([A-Z]+)(\d+)/, (all, pre, col, n) => (colIdx(col) < colIdx(newSdiCol) ? pre + newSdiCol + n : all));
+      if (/<cols>/.test(xml) && !new RegExp('<col [^>]*min="' + colIdx(newSdiCol) + '"').test(xml)) xml = xml.replace("</cols>", '<col min="' + colIdx(newSdiCol) + '" max="' + colIdx(newSdiCol) + '" width="16" customWidth="1"/></cols>');
+    }
     return { added, results, xml, path, maxRow };
   }
 
   // Clienti (foglio "clienti") e autisti/targhe (foglio "regole")
   async function readLists(zip, sst) {
     const out = {};
+    try {
+      const g = await readGrid(zip, "agenda", ["AJ"], sst);
+      if (g) { let mx = 0; for (const r in g) { if (+r < 2) continue; const n = parseInt(String(g[r].AJ).replace(/\D/g, ""), 10); if (n > mx && n < 1e7) mx = n; } out.bustaMax = mx; }
+    } catch (_) {}
     try {
       const g = await readGrid(zip, "clienti", COLS.slice(0, 26), sst);
       if (g) {
