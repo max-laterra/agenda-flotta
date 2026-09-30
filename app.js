@@ -19,13 +19,41 @@ const DEFAULT_FLEET=[
   mk("b79","Bus 79 posti",79,"bus"),
   mk("b81-1","Bus 81 posti · 1",81,"bus"), mk("b81-2","Bus 81 posti · 2",81,"bus")
 ];
-const TYPES={gitalt:"Gita La Terra",tourlt:"Tour La Terra",evento:"Evento La Terra",gitasc:"Gita Scuole",toursc:"Tour Scuole",gita:"Gita",tour:"Tour",transfer:"Transfer",navetta:"Navetta",transvil:"Transfer Villaggi",escvil:"Escursione Villaggi",immigrati:"Immigrati"};
+const TYPES={gita:"Gita",tour:"Tour",notturno:"Notturno",transfer:"Transfer"};
 // valori della colonna B "Tipo Servizio" del fatturato
-const TYPE_XL={gitalt:"gita la terra",tourlt:"tour la terra",evento:"evento la terra",gitasc:"gita scuole",toursc:"tour scuole",gita:"gita",tour:"tour",transfer:"transfer",navetta:"navetta",transvil:"transfer villaggi",escvil:"escursione villaggi",immigrati:"immigrati"};
-const STAT_LABELS={gitalt:"Gite LT",tourlt:"Tour LT",evento:"Eventi LT",gitasc:"Gite scuole",toursc:"Tour scuole",gita:"Gite",tour:"Tour",transfer:"Transfer",navetta:"Navette",transvil:"Transf. villaggi",escvil:"Escurs. villaggi",immigrati:"Immigrati"};
-const MONTH_LAB={transfer:"T",gita:"G",gitalt:"GL",evento:"E",tour:"TR",tourlt:"TL",gitasc:"GS",toursc:"TS",navetta:"N",transvil:"TV",escvil:"EV",immigrati:"I"};
-const isMulti=t=>t==="tour"||t==="tourlt"||t==="toursc";
-const onlyDeparture=t=>t==="transfer"||t==="transvil";
+const TYPE_XL={gita:"gita",tour:"tour",notturno:"notturno",transfer:"transfer"};
+const STAT_LABELS={gita:"Gite",tour:"Tour",notturno:"Notturni",transfer:"Transfer"};
+const MONTH_LAB={gita:"G",tour:"TR",notturno:"N",transfer:"T"};
+// le 12 categorie fino alla versione 1.5 diventano le 4 attuali
+const OLD_TYPES={gitalt:"gita",gitasc:"gita",escvil:"gita",tourlt:"tour",toursc:"tour",evento:"notturno",navetta:"transfer",transvil:"transfer",immigrati:"transfer"};
+const normType=t=>TYPES[t]?t:(OLD_TYPES[t]||"transfer");
+const isMulti=t=>normType(t)==="tour";
+const onlyDeparture=t=>normType(t)==="transfer";
+const hasEvent=t=>normType(t)==="notturno";
+// autisti generici: segnaposto quando non si sa ancora chi andrà
+const GEN1="Autista Generico 1",GEN2="Autista Generico 2";
+const isGen=x=>/^autista\s+generico\b/i.test(String(x||"").trim());
+const realDriver=x=>{x=String(x||"").trim();return x&&!isGen(x)?x:"";};
+// autisti che servono per un servizio: i nomi veri contano una volta sola al giorno,
+// ogni generico (o servizio senza autista) conta come una persona in più
+function dayCounts(ds,all){
+  const list=all.filter(b=>b.start<=ds&&endOf(b)>=ds),named=new Set();let gen=0;
+  for(const b of list){
+    const ds2=[b.driver,b.driver2].map(x=>String(x||"").trim()).filter(Boolean);
+    if(!ds2.length)gen++;
+    for(const d of ds2){if(isGen(d))gen++;else named.add(d.toLowerCase().replace(/\s+/g," "));}
+  }
+  return {a:named.size+gen,gen:gen,s:list.length,p:new Set(list.map(b=>b.vehicle)).size};
+}
+function driversText(b){
+  const l=[b.driver,b.driver2].map(x=>String(x||"").trim()).filter(Boolean);
+  const real=l.filter(x=>!isGen(x)),g=l.length-real.length;
+  return real.concat(g?[g>1?g+" da assegnare":"da assegnare"]:[]).join(" + ");
+}
+function driversHTML(b){
+  const l=[b.driver,b.driver2].map(x=>String(x||"").trim()).filter(Boolean);
+  return l.map(x=>isGen(x)?'<span class="gen" title="Autista da assegnare">'+esc(x)+'</span>':esc(x)).join(" + ");
+}
 // categoria "Mezzo" del fatturato (colonna G) in base ai posti
 const XCATS=["_3_posti","_7_posti","_20_posti","_28_posti","_42_posti","_54_posti","_58_posti","_64_posti","_81_posti"];
 function xcatOf(v){if(v.xcat)return v.xcat;const n=v.seats;if(!n)return "_3_posti";if(n<=7)return "_7_posti";if(n<=20)return "_20_posti";if(n<=28)return "_28_posti";if(n<=42)return "_42_posti";if(n<=54)return "_54_posti";if(n<=58)return "_58_posti";if(n<=79)return "_64_posti";return "_81_posti";}
@@ -59,22 +87,16 @@ const $=id=>document.getElementById(id);
 
 function bookingsAll(){
   const out=[];
-  for(const date in S.days){const bk=(S.days[date]||{}).bookings||{};for(const id in bk){const b=bk[id];if(b&&typeof b==="object")out.push(Object.assign({},b,{id:id,start:b.start||date}));}}
+  for(const date in S.days){const bk=(S.days[date]||{}).bookings||{};for(const id in bk){const b=bk[id];if(b&&typeof b==="object")out.push(Object.assign({},b,{id:id,start:b.start||date,type:normType(b.type)}));}}
   return out;
 }
-function endOf(b){return (isMulti(b.type)&&b.end&&b.end>=b.start)?b.end:b.start;}
+function endOf(b){return (b.end&&b.end>=b.start)?b.end:b.start;}
+const spans=b=>endOf(b)>b.start;
 function on(date,vid,list){return (list||bookingsAll()).filter(b=>b.vehicle===vid&&b.start<=date&&endOf(b)>=date).sort((a,b)=>(a.time||"99").localeCompare(b.time||"99"));}
 function vehicle(id){return S.fleet.find(v=>v.id===id);}
 
 // ---------- rendering ----------
-// colore della barra per mese (gen → dic)
-const MONTH_COLORS=["#0F2F4F","#3D2352","#1E4A2E","#4A5215","#6A1F45","#0D4F57","#7A2E0C","#6B4E05","#521A22","#37414F","#3E2C20","#2B2F6B"];
-function applyMonthColor(){
-  const m=+S.sel.slice(5,7)-1,r=document.documentElement.style;
-  r.setProperty("--sign-bg",MONTH_COLORS[m]);
-  r.setProperty("--sign-dim","rgba(255,205,110,.78)");
-}
-function renderAll(){applyMonthColor();renderMonthBar();renderStrip();if(S.view==="day")renderDay();else if(S.view==="week")renderWeek();else if(S.view==="bill")renderBill();else renderMonth();}
+function renderAll(){renderMonthBar();renderStrip();if(S.view==="day")renderDay();else if(S.view==="week")renderWeek();else if(S.view==="bill")renderBill();else renderMonth();}
 function weekStart(s){return addDays(s,-((wday(s)+6)%7));}
 
 function renderWeek(){
@@ -104,10 +126,10 @@ function renderWeek(){
       let inner="";
       for(const b of list){
         let tp=TYPES[b.type]||"",tm=b.time||"";
-        if(isMulti(b.type)){const tot=diff(b.start,endOf(b))+1,i=diff(b.start,ds)+1;tp+=" "+i+"/"+tot;if(i>1)tm=i===tot&&b.time2?b.time2:"";}
+        if(spans(b)){const tot=diff(b.start,endOf(b))+1,i=diff(b.start,ds)+1;tp+=" "+i+"/"+tot;if(i>1)tm=i===tot&&b.time2?b.time2:"";}
         inner+='<button class="wb '+esc(b.type)+(b.status==="opzione"?" opzione":"")+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc((b.foglio?"n. "+b.foglio+" · ":"")+(b.client||"")+(b.event?" – "+b.event:"")+(b.route?" – "+b.route:"")+(b.driver?" · Autista: "+b.driver:"")+(b.escort?" · Accompagnatore: "+b.escort:""))+'">'+
           '<span class="l1">'+(tm?'<span class="tm">'+esc(tm)+'</span>':"")+'<span class="tp">'+tp+'</span></span>'+
-          '<span class="cl">'+esc(b.client||"Senza cliente")+'</span>'+(b.type==="evento"&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(b.route?'<span class="rt">'+esc(b.route)+'</span>':"")+'</button>';
+          '<span class="cl">'+esc(b.client||"Senza cliente")+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(b.route?'<span class="rt">'+esc(b.route)+'</span>':"")+'</button>';
       }
       if(!S.readOnly)inner+='<span class="plus">+ Aggiungi</span>';
       h+='<td class="wc'+(wday(ds)===0?" sun":"")+'" data-addv="'+v.id+'" data-addd="'+ds+'"><div class="wcell">'+inner+'</div></td>';
@@ -124,33 +146,45 @@ function renderMonthBar(){
   const k=mkey(S.sel);$("mTitle").textContent=MN[+k.slice(5,7)-1]+" "+k.slice(0,4);
   $("fleetCount").textContent=S.fleet.length+" mezzi";
 }
+let cntOpen=true;try{cntOpen=localStorage.getItem("agenda-conteggi")!=="0";}catch(_){}
 function renderStrip(){
-  const k=mkey(S.sel),n=dim(k),all=bookingsAll(),t=todayISO();let h="";
+  const k=mkey(S.sel),n=dim(k),all=bookingsAll(),t=todayISO(),nf=S.fleet.length;
   const wkA=S.view==="week"?weekStart(S.sel):"",wkZ=wkA?addDays(wkA,6):"";
+  let g='<div class="lab lg"><button type="button" class="cnt-tg lb" id="cntToggle" aria-expanded="'+cntOpen+'" title="'+(cntOpen?"Nascondi":"Mostra")+' i conteggi (autisti, servizi, pullman)"><b>G</b><small>giorno</small><i>'+(cntOpen?"▲":"▼")+'</i></button></div>';
+  let ra='<div class="lab r2" title="Autisti impegnati"><span class="lb"><b>A</b><small>autisti</small></span></div>';
+  let rs='<div class="lab r2" title="Servizi del giorno"><span class="lb"><b>S</b><small>servizi</small></span></div>';
+  let rp='<div class="lab r2" title="Pullman (mezzi) impegnati"><span class="lb"><b>P</b><small>pullman</small></span></div>';
   for(let d=1;d<=n;d++){
     const ds=k+"-"+pad(d),w=wday(ds);
     const inwk=wkA&&ds>=wkA&&ds<=wkZ;
-    const busy=new Set(all.filter(b=>b.start<=ds&&endOf(b)>=ds).map(b=>b.vehicle)).size;
-    const pct=Math.round(busy/Math.max(1,S.fleet.length)*100);
-    h+='<button class="dbtn'+(w===0?" sun":"")+(ds===t?" today":"")+(inwk?" inweek":"")+'" data-day="'+ds+'"'+(ds===S.sel?' aria-current="date"':"")+' title="'+busy+' mezzi impegnati"><span class="wd">'+WD[w]+'</span><span class="dn">'+d+'</span><span class="load"><b style="width:'+pct+'%"></b></span></button>';
+    const c=dayCounts(ds,all);
+    const pct=Math.round(c.p/Math.max(1,nf)*100);
+    const when=WDL[w]+" "+d+": ";
+    g+='<button class="dbtn'+(w===0?" sun":"")+(ds===t?" today":"")+(inwk?" inweek":"")+'" data-day="'+ds+'"'+(ds===S.sel?' aria-current="date"':"")+' title="'+c.p+' mezzi impegnati"><span class="wd">'+WD[w]+'</span><span class="dn">'+d+'</span><span class="load"><b style="width:'+pct+'%"></b></span></button>';
+    const cls="cc r2"+(w===0?" sun":"")+(ds===S.sel?" sel":"")+(inwk?" inweek":"");
+    ra+='<button type="button" class="'+cls+(c.a?"":" z")+'" data-day="'+ds+'" title="'+when+c.a+' autisti'+(c.gen?" (di cui "+c.gen+" da assegnare)":"")+'">'+c.a+(c.gen?'<span class="tbd"></span>':"")+'</button>';
+    rs+='<button type="button" class="'+cls+(c.s?"":" z")+'" data-day="'+ds+'" title="'+when+c.s+' servizi">'+c.s+'</button>';
+    rp+='<button type="button" class="'+cls+(c.p?"":" z")+(c.p>=nf?" full":"")+'" data-day="'+ds+'" title="'+when+c.p+" su "+nf+' mezzi impegnati">'+c.p+'</button>';
   }
-  $("strip").innerHTML=h;
-  const cur=$("strip").querySelector('[aria-current="date"]');
-  if(cur){const w=$("strip").parentElement;const l=cur.offsetLeft-w.clientWidth/2+cur.clientWidth/2;w.scrollLeft=Math.max(0,l);}
+  const st=$("strip");
+  st.style.setProperty("--ndays",n);st.classList.toggle("open",cntOpen);
+  st.innerHTML=g+ra+rs+rp;
+  const cur=st.querySelector('[aria-current="date"]');
+  if(cur){const w=st.parentElement;const l=cur.offsetLeft-w.clientWidth/2+cur.clientWidth/2;w.scrollLeft=Math.max(0,l);}
 }
 
 function bookingHTML(b,date){
   const v=vehicle(b.vehicle);
   let when=esc(b.time||"—");
   let tp=TYPES[b.type]||"Servizio";
-  if(isMulti(b.type)){const tot=diff(b.start,endOf(b))+1,i=diff(b.start,date)+1;tp+=" · giorno "+i+" di "+tot;
-    if(i>1)when=i===tot&&b.time2?"rientro":"in tour";}
+  if(spans(b)){const tot=diff(b.start,endOf(b))+1,i=diff(b.start,date)+1;tp+=" · giorno "+i+" di "+tot;
+    if(i>1)when=i===tot&&b.time2?"rientro":(isMulti(b.type)?"in tour":"in corso");}
   const det=[];
   if(b.foglio)det.push('<span class="fg">n. '+esc(b.foglio)+'</span>');
-  if(isMulti(b.type))det.push(short(b.start)+" → "+short(endOf(b)));
+  if(spans(b))det.push(short(b.start)+" → "+short(endOf(b)));
   if(b.time2&&!onlyDeparture(b.type))det.push("Rientro "+esc(b.time2));
   if(b.pax!==""&&b.pax!=null){const over=v&&v.seats&&/^\d+$/.test(String(b.pax))&&+b.pax>v.seats;det.push('<span class="'+(over?"over":"")+'">'+esc(b.pax)+(v&&v.seats?"/"+v.seats:"")+" pax"+(over?" · oltre capienza":"")+"</span>");}
-  if(b.driver)det.push("Autista: "+esc(b.driver)+(b.driver2?" + "+esc(b.driver2):""));
+  const dh=driversHTML(b);if(dh)det.push("Autista: "+dh);
   const eu=x=>Number(x).toLocaleString("it-IT",{minimumFractionDigits:2,maximumFractionDigits:2});
   const has=x=>x!==""&&x!=null;
   if(has(b.price))det.push("Noleggio € "+eu(b.price));
@@ -158,13 +192,13 @@ function bookingHTML(b,date){
   if(has(b.meals))det.push("Pasti € "+eu(b.meals));
   if(isMulti(b.type)&&has(b.advance))det.push("Anticipo € "+eu(b.advance));
   if(isMulti(b.type)&&b.envelope)det.push("Busta "+esc(b.envelope)+(b.envno?" n. "+esc(b.envno):""));
-  if(b.type==="evento"&&b.escort)det.push("Accompagnatore: "+esc(b.escort));
+  if(hasEvent(b.type)&&b.escort)det.push("Accompagnatore: "+esc(b.escort));
   if(b.contact)det.push(esc(b.contact));
   if(b.notes)det.push(esc(b.notes));
   return '<button class="bk '+esc(b.type)+(b.status==="opzione"?" opzione":"")+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'">'+
     '<span class="when">'+when+'</span>'+
     '<span class="what"><span class="tp">'+tp+'</span>'+(b.status==="opzione"?'<span class="st">Opzione</span>':"")+
-    '<span class="cl">'+esc(b.client||"Senza cliente")+'</span>'+(b.type==="evento"&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(b.route?'<span class="rt">'+esc(b.route)+'</span>':"")+'</span>'+
+    '<span class="cl">'+esc(b.client||"Senza cliente")+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(b.route?'<span class="rt">'+esc(b.route)+'</span>':"")+'</span>'+
     (det.length?'<span class="det">'+det.map(x=>"<span>"+x+"</span>").join("")+'</span>':"")+
     '</button>';
 }
@@ -172,13 +206,13 @@ function bookingHTML(b,date){
 function renderDay(){
   const date=S.sel,w=wday(date),all=bookingsAll(),d=parse(date);
   const today=all.filter(b=>b.start<=date&&endOf(b)>=date);
-  const busy=new Set(today.map(b=>b.vehicle));
-  const cnt=t=>today.filter(b=>b.type===t).length;
+  const busy=new Set(today.map(b=>b.vehicle)),dc=dayCounts(date,all);
   $("sign").innerHTML=
     '<div class="date"><small>'+(date===todayISO()?"Oggi · ":"")+WDL[w]+'</small>'+d.getUTCDate()+" "+MN[d.getUTCMonth()]+" "+d.getUTCFullYear()+'</div>'+
     (w===0?'<span class="sunflag">Domenica</span>':"")+
     '<div class="stats">'+
       '<div class="stat"><b>'+busy.size+"/"+S.fleet.length+'</b><span>Mezzi impegnati</span></div>'+
+      '<div class="stat" title="'+(dc.gen?"di cui "+dc.gen+" da assegnare":"")+'"><b>'+dc.a+'</b><span>Autisti</span></div>'+
       statsHTML(today)+
     '</div>'+
     '<div class="nav"><button id="dPrev" aria-label="Giorno precedente">‹</button><button id="dNext" aria-label="Giorno successivo">›</button></div>';
@@ -214,9 +248,9 @@ function renderMonth(){
       let inner="",tip=[];
       if(list.length){
         const b=list[0];let cls="cell "+b.type;
-        if(isMulti(b.type)){const s=b.start===ds,e=endOf(b)===ds;cls+=s&&e?"":s?" first":e?" last":" mid";}
+        if(spans(b)){const s=b.start===ds,e=endOf(b)===ds;cls+=s&&e?"":s?" first":e?" last":" mid";}
         if(list.every(x=>x.status==="opzione"))cls+=" opz";
-        const lab=list.length>1?list.length:(isMulti(b.type)?(b.start===ds?MONTH_LAB[b.type]:""):(MONTH_LAB[b.type]||""));
+        const lab=list.length>1?list.length:(spans(b)?(b.start===ds?MONTH_LAB[b.type]:""):(MONTH_LAB[b.type]||""));
         inner='<div class="'+cls+'">'+lab+'</div>';
         tip=list.map(x=>(TYPES[x.type]||"")+(x.time?" "+x.time:"")+" – "+(x.client||"")+(x.event?" · "+x.event:"")+(x.route?" ("+x.route+")":""));
       }
@@ -246,7 +280,7 @@ async function writeDay(date,patch){writeDayOps(date,patch);}
 let editing=null; // {id,start}
 function openForm(opts){
   opts=opts||{};
-  const b=opts.booking||{type:"transfer",vehicle:opts.vehicle||S.fleet[0].id,start:opts.date||S.sel,end:"",time:"",time2:"",client:"",clientCode:"",route:"",event:"",escort:"",pax:"",price:"",driver:"",driver2:"",contact:"",status:"confermato",notes:""};
+  const b=opts.booking||{type:"transfer",vehicle:opts.vehicle||S.fleet[0].id,start:opts.date||S.sel,end:"",time:"",time2:"",client:"",clientCode:"",route:"",event:"",escort:"",pax:"",price:"",driver:GEN1,driver2:"",contact:"",status:"confermato",notes:""};
   editing=opts.booking?{id:b.id,start:b.start,foglio:b.foglio||""}:null;progReady=false;
   $("fTitle").textContent=editing?"Modifica prenotazione"+(b.foglio?" · n. "+b.foglio:""):"Nuova prenotazione";
   formClient=b.clientCode!==""&&b.clientCode!=null?{code:b.clientCode,name:b.client||""}:null;
@@ -254,13 +288,13 @@ function openForm(opts){
   $("f-park").value=b.park==null?"":b.park;$("f-meals").value=b.meals==null?"":b.meals;$("f-advance").value=b.advance==null?"":b.advance;$("f-envelope").value=b.envelope||"";$("f-envno").value=b.envno||"";
   $("cSug").hidden=true;
   $("f-vehicle").innerHTML=S.fleet.map(v=>'<option value="'+v.id+'">'+esc(v.name)+(v.plate?" – "+esc(v.plate):"")+'</option>').join("");
-  $("t-"+(TYPES[b.type]?b.type:"transfer")).checked=true;
-  $("f-vehicle").value=b.vehicle;$("f-start").value=b.start;$("f-end").value=b.end||"";
+  $("t-"+normType(b.type)).checked=true;
+  $("f-vehicle").value=b.vehicle;$("f-start").value=b.start;$("f-end").value=(b.end&&b.end>=b.start)?b.end:b.start;$("f-end").min=b.start||"";formStart=b.start;
   $("f-time").value=b.time||"";$("f-time2").value=b.time2||"";$("f-client").value=b.client||"";$("f-route").value=b.route||"";
   $("f-pax").value=b.pax==null?"":b.pax;$("f-event").value=b.event||"";$("f-escort").value=b.escort||"";$("f-driver").value=b.driver||"";$("f-contact").value=b.contact||"";
   $("f-status").value=b.status||"confermato";$("f-notes").value=b.notes||"";
-  renderClientInfo();
-  $("f-saldo").value=b.saldo||"NO";$("f-npark").value=b.npark||"";$("f-ndriver").value=b.ndriver||"";$("f-n3h").value=b.n3h||"";$("f-nextra").value=b.nextra||"";
+  renderClientInfo();syncDrvQ();
+  $("f-saldo").value=b.saldo||"NO";$("f-saldoamt").value=b.saldoAmt==null?"":b.saldoAmt;$("f-npark").value=b.npark||"";$("f-ndriver").value=b.ndriver||"";$("f-n3h").value=b.n3h||"";$("f-nextra").value=b.nextra||"";
   ["refs","hotels","guides"].forEach(k=>renderRep(k,b[k]||[]));
   progCache=Array.isArray(b.program)?b.program.slice():[];renderProgram();
   $("fDelete").hidden=!editing;$("fConfirm").hidden=true;
@@ -268,24 +302,33 @@ function openForm(opts){
   syncType();checkWarns();
   $("ovBooking").hidden=false;setTimeout(()=>$("f-client").focus(),30);
 }
+// elenco autisti: i due generici in cima, poi quelli del foglio "regole"
+function fillDrivers(){
+  const l=[GEN1,GEN2].concat((S.regole.autisti||[]).filter(a=>!isGen(a)));
+  $("dlDrivers").innerHTML=l.map(a=>'<option value="'+esc(a)+'">').join("");
+}
+function syncDrvQ(){$("q-driver").hidden=!!$("f-driver").value.trim()||S.readOnly;$("q-driver2").hidden=!!$("f-driver2").value.trim()||S.readOnly;}
+["f-driver","f-driver2"].forEach(id=>$(id).addEventListener("input",syncDrvQ));
+fillDrivers();
+document.querySelectorAll("[data-gen]").forEach(bt=>bt.addEventListener("click",()=>{const id=bt.dataset.gen;$(id).value=id==="f-driver"?GEN1:GEN2;syncDrvQ();}));
 function eur(id){const v=$(id).value;return v===""?"":Math.round(Number(v)*100)/100;}
 function curType(){const r=document.querySelector('input[name="type"]:checked');return r?r.value:"transfer";}
-function syncType(){$("w-tourcash").hidden=!isMulti(curType());if(progReady)renderProgram();const tour=isMulti(curType()),ev=curType()==="evento";$("w-event").hidden=!ev;$("w-escort").hidden=!ev;$("w-time2").hidden=onlyDeparture(curType());$("w-end").hidden=!tour;$("l-start").textContent=tour?"Data partenza":"Data";$("f-end").required=tour;}
+function syncType(){$("w-tourcash").hidden=!isMulti(curType());if(progReady)renderProgram();const ev=hasEvent(curType());$("w-event").hidden=!ev;$("w-escort").hidden=!ev;$("w-time2").hidden=onlyDeparture(curType());}
 function readForm(){
   const type=curType(),start=$("f-start").value;
-  return {type:type,vehicle:$("f-vehicle").value,start:start,end:isMulti(type)?($("f-end").value||start):"",
+  return {type:type,vehicle:$("f-vehicle").value,start:start,end:$("f-end").value||start,
     time:$("f-time").value,time2:onlyDeparture(type)?"":$("f-time2").value,client:$("f-client").value.trim(),clientCode:formClient&&formClient.name===$("f-client").value.trim()?formClient.code:"",route:$("f-route").value.trim(),
-    event:type==="evento"?$("f-event").value.trim():"",escort:type==="evento"?$("f-escort").value.trim():"",
+    event:hasEvent(type)?$("f-event").value.trim():"",escort:hasEvent(type)?$("f-escort").value.trim():"",
     pax:$("f-pax").value.trim(),price:eur("f-price"),park:eur("f-park"),meals:eur("f-meals"),advance:isMulti(type)?eur("f-advance"):"",envelope:isMulti(type)?$("f-envelope").value:"",envno:isMulti(type)?$("f-envno").value.trim():"",driver:$("f-driver").value.trim(),driver2:$("f-driver2").value.trim(),contact:$("f-contact").value.trim(),
     status:$("f-status").value,notes:$("f-notes").value.trim(),
-    saldo:$("f-saldo").value,npark:$("f-npark").value.trim(),ndriver:$("f-ndriver").value.trim(),n3h:$("f-n3h").value.trim(),nextra:$("f-nextra").value.trim(),
+    saldo:$("f-saldo").value,saldoAmt:eur("f-saldoamt"),npark:$("f-npark").value.trim(),ndriver:$("f-ndriver").value.trim(),n3h:$("f-n3h").value.trim(),nextra:$("f-nextra").value.trim(),
     refs:readRep("refs"),hotels:readRep("hotels"),guides:readRep("guides"),program:readProgram(),
     updatedAt:new Date().toISOString()};
 }
 function checkWarns(){
   const b=readForm(),w=[],v=vehicle(b.vehicle);
-  if(isMulti(b.type)&&b.end&&b.end<b.start)w.push("La data di rientro è prima della partenza.");
-  if(isMulti(b.type)&&b.end&&diff(b.start,b.end)>30)w.push("Un tour può durare al massimo 31 giorni.");
+  if(b.end&&b.end<b.start)w.push("La data di rientro è prima della partenza.");
+  if(b.end&&diff(b.start,b.end)>30)w.push("Un servizio può durare al massimo 31 giorni.");
   if(v&&v.seats&&b.pax!==""&&/^\d+$/.test(String(b.pax))&&+b.pax>v.seats)w.push("Passeggeri ("+b.pax+") oltre la capienza del mezzo ("+v.seats+" posti).");
   if(b.start){
     const e=endOf(b),others=bookingsAll().filter(x=>x.vehicle===b.vehicle&&(!editing||x.id!==editing.id)&&x.start<=e&&endOf(x)>=b.start);
@@ -342,7 +385,9 @@ function renderProgram(){
   }
   progReady=true;
 }
-$("f-start").addEventListener("change",()=>{if(isMulti(curType()))renderProgram();});
+// la data di rientro segue la partenza finché non la cambi tu
+let formStart="";
+$("f-start").addEventListener("change",()=>{const st=$("f-start").value,en=$("f-end").value;if(st&&(!en||en<st||en===formStart))$("f-end").value=st;$("f-end").min=st||"";formStart=st;checkWarns();if(isMulti(curType()))renderProgram();});
 $("f-end").addEventListener("change",()=>{if(isMulti(curType()))renderProgram();});
 let openSheetAfterSave=false;
 $("fSheet").onclick=()=>{if(S.readOnly)return;openSheetAfterSave=true;$("fBooking").requestSubmit();};
@@ -364,7 +409,7 @@ function renderSug(){
   const box=$("cSug"),q=$("f-client").value;
   sugList=searchClients(q);
   if(!q.trim()||(formClient&&formClient.name===q.trim())){box.hidden=true;$("f-client").setAttribute("aria-expanded","false");return;}
-  box.innerHTML=sugList.length?sugList.map((c,i)=>'<button type="button" role="option" data-ci="'+i+'" aria-selected="'+(i===sugIdx)+'"><b>'+esc(c[1])+'</b><span>Cod. '+esc(c[0])+(c[2]?' · '+esc(c[2]):'')+(c[3]?' · '+esc(c[3]):'')+'</span></button>').join(""):'<div class="none">'+(S.clients.length?'Nessun cliente trovato: resterà senza codice.':'Elenco clienti non ancora caricato.')+'</div>';
+  box.innerHTML=sugList.length?sugList.map((c,i)=>'<button type="button" role="option" data-ci="'+i+'" aria-selected="'+(i===sugIdx)+'"><b>'+esc(c[1])+'</b><span>Cod. '+esc(c[0])+(c[2]?' · '+esc(c[2]):'')+(c[3]?' · '+esc(c[3]):'')+'</span></button>').join(""):'<div class="none">'+(S.clients.length?'Nessun cliente trovato: resterà senza codice.':'Elenco clienti non ancora caricato.')+'</div>'+(S.readOnly?'':'<button type="button" class="addcli" data-addcli="1">+ Aggiungi «'+esc(q.trim())+'» all\'anagrafica clienti</button>');
   box.hidden=false;$("f-client").setAttribute("aria-expanded","true");
 }
 function pickClient(c){
@@ -388,7 +433,178 @@ $("f-client").addEventListener("keydown",e=>{
   else if(e.key==="Enter"&&sugIdx>=0){e.preventDefault();pickClient(sugList[sugIdx]);}
   else if(e.key==="Escape"){e.stopPropagation();$("cSug").hidden=true;}
 });
-$("cSug").addEventListener("mousedown",e=>{const b=e.target.closest("[data-ci]");if(b){e.preventDefault();pickClient(sugList[+b.dataset.ci]);}});
+$("cSug").addEventListener("mousedown",e=>{const b=e.target.closest("[data-ci]");if(b){e.preventDefault();pickClient(sugList[+b.dataset.ci]);return;}const a=e.target.closest("[data-addcli]");if(a){e.preventDefault();$("cSug").hidden=true;openClientNew({name:$("f-client").value.trim(),fromBooking:true});}});
+
+// ---------- anagrafica clienti ----------
+// Colonne del foglio "clienti" (lette dal file). Se il file non è ancora stato letto, quelle del vostro modello.
+const CLI_COLS_DEFAULT=[["A","Codice"],["B","Ragione sociale ( attivita')"],["C","Alias Sara"],["D","Indirizzo (att.)"],["E","Cap"],["F","Citta' (att.)"],["G","Provincia (att.)"],["H","Partita iva"],["I","Codice fiscale"],["J","Alias"],["K","Partita IVA estera"],["L","Telefono"],["M","Fax"],["N","E-mail"],["O","Referente 1° nome"],["P","Referente 1° tel"]].map(([c,h])=>({c,h}));
+function cliCols(){return (S.clientCols&&S.clientCols.length?S.clientCols:CLI_COLS_DEFAULT);}
+// tipo di campo in base all'intestazione della colonna
+function cliKind(h){
+  h=String(h||"");
+  if(/ragione|denominaz/i.test(h))return "name";
+  if(/alias\s*sara/i.test(h))return "aliasSara";
+  if(/^alias$/i.test(h.trim()))return "cat";
+  if(/indirizzo/i.test(h))return "addr";
+  if(/^cap\b/i.test(h))return "cap";
+  if(/citt/i.test(h))return "city";
+  if(/provincia/i.test(h))return "prov";
+  if(/estera/i.test(h))return "pivaEst";
+  if(/partita\s*iva/i.test(h))return "piva";
+  if(/codice\s*fiscale/i.test(h))return "cf";
+  if(/\bpec\b/i.test(h))return "pec";
+  if(/mail/i.test(h))return "mail";
+  if(/sdi|univoco/i.test(h))return "sdi";
+  if(/referente.*nome/i.test(h))return "ref";
+  if(/tel|cell|fax/i.test(h))return "tel";
+  return "text";
+}
+const CLI_LABEL={name:"Ragione sociale",aliasSara:"Alias Sara",cat:"Alias (categoria)",addr:"Indirizzo",cap:"CAP",city:"Città",prov:"Provincia",piva:"Partita IVA",cf:"Codice fiscale",pivaEst:"Partita IVA estera",mail:"E-mail",sdi:"Codice SDI",pec:"PEC",ref:"Referente 1° nome"};
+function cliLabel(col){const k=cliKind(col.h);if(col.c==="A")return "Codice";if(k==="tel")return col.h.replace(/\s*\(.*?\)\s*/g,"").trim();return CLI_LABEL[k]||col.h;}
+const idNorm=t=>String(t==null?"":t).toUpperCase().replace(/[^A-Z0-9]/g,"").replace(/^IT(?=\d{11}$)/,"");
+function cliRow(c){ // valori completi del cliente, allineati alle colonne
+  if(Array.isArray(c[8]))return c[8];
+  const o={A:c[0],B:c[1],C:c[2],F:c[3],L:c[4],H:c[5],O:c[6],P:c[7]};
+  return cliCols().map(x=>o[x.c]!=null?String(o[x.c]):"");
+}
+function cliField(c,kind){const cols=cliCols(),i=cols.findIndex(x=>cliKind(x.h)===kind);return i<0?"":(cliRow(c)[i]||"");}
+function cliHay(c){return c._h||(c._h=norm(cliRow(c).join(" ")+" "+c.slice(0,8).join(" ")));}
+function nextClientCode(){let m=0;for(const c of S.clients)if(typeof c[0]==="number"&&c[0]>m)m=c[0];return m+1+STORE.pendingClients.length;}
+
+let cliShown=150,cliOpenCode=null;
+function openClients(q){
+  $("ovClients").hidden=false;cliShown=150;cliOpenCode=null;
+  if(q!=null)$("cliQ").value=q;
+  renderClients();setTimeout(()=>$("cliQ").focus(),30);
+}
+function cliMark(t,words){
+  let h=esc(t);if(!words.length||!t)return h;
+  for(const w of words){if(w.length<2)continue;const re=new RegExp("("+w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","ig");h=h.replace(/(<[^>]*>)|([^<]+)/g,(all,tag,txt)=>tag?tag:txt.replace(re,"<mark>$1</mark>"));}
+  return h;
+}
+function renderClients(){
+  const q=norm($("cliQ").value).trim(),words=q.split(/\s+/).filter(Boolean);
+  const all=S.clients;
+  let list=q?all.filter(c=>words.every(w=>cliHay(c).includes(w))):all.slice();
+  if(q){const starts=c=>norm(c[1]).startsWith(q)||norm(c[2]).startsWith(q)||String(c[0])===q?0:1;list.sort((a,b)=>starts(a)-starts(b)||String(a[1]).localeCompare(String(b[1]),"it"));}
+  else list.sort((a,b)=>(typeof b[0]==="number"?b[0]:0)-(typeof a[0]==="number"?a[0]:0)); // senza ricerca: i più recenti in cima
+  $("cliCount").textContent=all.length?all.length.toLocaleString("it-IT")+" clienti":"";
+  $("cliNote").textContent=q?(list.length?list.length.toLocaleString("it-IT")+" trovati":""):(all.length?"In cima i clienti aggiunti per ultimi.":"");
+  // clienti in attesa di essere scritti nel fatturato
+  const pend=STORE.pendingClients;
+  $("cliPending").hidden=!pend.length;
+  $("cliPending").innerHTML=pend.map(p=>'<div>⏳ <b>'+esc(p.name||"")+'</b> — '+(navigator.onLine?"in scrittura nel file fatturato…":"sarà scritto nel file fatturato appena torna la connessione")+'</div>').join("");
+  if(!all.length){$("cliList").innerHTML='<div class="cli-empty">Elenco clienti non ancora caricato: collega il file fatturato (Menu › Collega file fatturato) e attendi qualche secondo.</div>';return;}
+  if(!list.length){$("cliList").innerHTML='<div class="cli-empty">Nessun cliente trovato per «'+esc($("cliQ").value.trim())+'».<br><br><button type="button" class="btn primary" data-cli-new="1">+ Aggiungi «'+esc($("cliQ").value.trim())+'» come nuovo cliente</button></div>';return;}
+  const cols=cliCols();
+  let h="";
+  for(const c of list.slice(0,cliShown)){
+    const row=cliRow(c),open=String(c[0])===String(cliOpenCode);
+    const piva=cliField(c,"piva"),cf=cliField(c,"cf"),city=cliField(c,"city"),prov=cliField(c,"prov"),mail=cliField(c,"mail");
+    h+='<button type="button" class="cli-row" role="listitem" data-cli="'+esc(c[0])+'" aria-expanded="'+open+'">'+
+      '<span class="cd">'+cliMark(String(c[0]),words)+'</span>'+
+      '<span class="nm"><b>'+cliMark(c[1],words)+'</b>'+(c[2]?'<small>'+cliMark(c[2],words)+'</small>':'')+'</span>'+
+      '<span>'+cliMark(city+(prov?" ("+prov+")":""),words)+'</span>'+
+      '<span>'+cliMark(piva||cf,words)+'</span>'+
+      '<span>'+cliMark(c[4]||"",words)+'</span>'+
+      '<span>'+cliMark(mail,words)+'</span>'+
+      '<span>'+cliMark([c[6],c[7]].filter(Boolean).join(" · "),words)+'</span></button>';
+    if(open){
+      h+='<div class="cli-det"><dl>'+cols.map((x,i)=>'<div><dt>'+esc(cliLabel(x))+'</dt><dd'+(row[i]?'':' class="none"')+'>'+(row[i]?esc(row[i]):"—")+'</dd></div>').join("")+'</dl>'+
+        (S.readOnly?'':'<button type="button" class="btn primary" data-cli-book="'+esc(c[0])+'">Nuova prenotazione per questo cliente</button>')+'</div>';
+    }
+  }
+  if(list.length>cliShown)h+='<button type="button" class="cli-more" data-cli-more="1">Mostra altri ('+(list.length-cliShown).toLocaleString("it-IT")+')</button>';
+  $("cliList").innerHTML=h;
+}
+$("btnClients").onclick=()=>openClients();
+$("cliClose").onclick=()=>{$("ovClients").hidden=true;};
+$("ovClients").addEventListener("click",e=>{if(e.target===$("ovClients"))$("ovClients").hidden=true;});
+$("cliQ").addEventListener("input",()=>{cliShown=150;cliOpenCode=null;renderClients();});
+$("cliList").addEventListener("click",e=>{
+  const more=e.target.closest("[data-cli-more]");if(more){cliShown+=300;renderClients();return;}
+  const nw=e.target.closest("[data-cli-new]");if(nw){openClientNew({name:$("cliQ").value.trim()});return;}
+  const bk=e.target.closest("[data-cli-book]");
+  if(bk){const c=clientByCode(bk.dataset.cliBook);$("ovClients").hidden=true;openForm({});if(c)pickClient(c);return;}
+  const r=e.target.closest("[data-cli]");if(r){cliOpenCode=String(cliOpenCode)===r.dataset.cli?null:r.dataset.cli;renderClients();}
+});
+$("cliNew").onclick=()=>openClientNew({name:""});
+
+// --- nuovo cliente ---
+let cnFromBooking=false;
+function openClientNew(o){
+  o=o||{};cnFromBooking=!!o.fromBooking;
+  if(S.readOnly){toast("Hai accesso in sola lettura.");return;}
+  const files=STORE.fatFiles(),ys=Object.keys(files).filter(k=>k!=="*").sort(),y=String(new Date().getFullYear());
+  const f=files[y]||files[ys[ys.length-1]]||files["*"];
+  $("cnHint").innerHTML=f?'Viene aggiunto in fondo al foglio <b>clienti</b> di <b>'+esc(f.name)+'</b> con il codice <b>'+nextClientCode()+'</b> (il numero definitivo è quello libero nel file al momento della scrittura).':'<span style="color:var(--warn)">Prima collega il file fatturato (Menu › Collega file fatturato): è lì che viene scritto il cliente.</span>';
+  const cats=[...new Set(S.clients.map(c=>cliField(c,"cat")).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"it"));
+  $("dlCat").innerHTML=cats.map(x=>'<option value="'+esc(x)+'">').join("");
+  $("cnFields").innerHTML=cliCols().filter(x=>x.c!=="A").map(x=>{
+    const k=cliKind(x.h),id="cn-"+x.c,full=k==="name"||k==="addr";
+    const at=k==="cap"?' inputmode="numeric" maxlength="5"':k==="prov"?' maxlength="2" class="up"':k==="city"||k==="cf"?' class="up"':k==="piva"?' maxlength="20"':k==="mail"||k==="pec"?' type="email"':k==="sdi"?' maxlength="7" class="up"':k==="tel"?' type="tel" inputmode="tel"':k==="cat"?' list="dlCat"':'';
+    const ph=k==="name"?' placeholder="Es. Istituto Comprensivo Vittorini"':k==="aliasSara"?' placeholder="Nome breve usato in agenda"':k==="cat"?' placeholder="Es. scuole pubbliche, agenzie viaggi sicilia…"':k==="cap"?' placeholder="97100"':k==="prov"?' placeholder="RG"':'';
+    return '<div class="f'+(full?" full":"")+'"><label for="'+id+'">'+esc(cliLabel(x))+(k==="name"?" *":"")+'</label><input id="'+id+'" data-col="'+x.c+'" data-kind="'+k+'"'+at+ph+' autocomplete="off"></div>';
+  }).join("");
+  const nameCol=cliCols().find(x=>cliKind(x.h)==="name");
+  if(nameCol&&o.name)$("cn-"+nameCol.c).value=o.name;
+  $("cnWarns").innerHTML="";$("cnSave").disabled=!f;
+  $("ovClientNew").hidden=false;
+  setTimeout(()=>{const el=nameCol&&$("cn-"+nameCol.c);if(el){el.focus();el.select();}},30);
+}
+function cnRead(){
+  const out={};
+  for(const el of $("cnFields").querySelectorAll("input")){
+    let v=el.value.replace(/\s+/g," ").trim();const k=el.dataset.kind;
+    if(!v)continue;
+    if(k==="city"||k==="prov"||k==="cf")v=v.toUpperCase();
+    if(k==="piva")v=v.replace(/\s/g,"").toUpperCase();
+    out[el.dataset.col]={v,k};
+  }
+  return out;
+}
+// controlli: doppioni (bloccano) e formati (solo avvisi)
+function cnCheck(){
+  const d=cnRead(),w=[],block=[];
+  const get=k=>{for(const c in d)if(d[c].k===k)return d[c].v;return "";};
+  const name=get("name"),piva=idNorm(get("piva")),cf=idNorm(get("cf"));
+  const dup=(k,val)=>val&&S.clients.find(c=>idNorm(cliField(c,k))===val||(k==="cf"&&idNorm(cliField(c,"piva"))===val));
+  const dp=dup("piva",piva)||dup("cf",cf);
+  if(dp)block.push('Esiste già un cliente con questa '+(dup("piva",piva)?"partita IVA":"codice fiscale")+': <b>Cod. '+esc(dp[0])+' – '+esc(dp[1])+'</b>.');
+  else if(!piva&&!cf&&name){const dn=S.clients.find(c=>norm(c[1]).replace(/[^a-z0-9]+/g," ").trim()===norm(name).replace(/[^a-z0-9]+/g," ").trim());if(dn)block.push('Esiste già un cliente con questo nome: <b>Cod. '+esc(dn[0])+' – '+esc(dn[1])+'</b>. Se è un cliente diverso, inserisci la partita IVA o il codice fiscale.');}
+  if(piva&&!/^\d{11}$/.test(piva))w.push("La partita IVA italiana ha 11 cifre.");
+  if(cf&&!/^([A-Z0-9]{16}|\d{11})$/.test(cf))w.push("Il codice fiscale ha 16 caratteri (o 11 cifre per le società).");
+  const cap=get("cap");if(cap&&!/^\d{5}$/.test(cap))w.push("Il CAP ha 5 cifre.");
+  const pr=get("prov");if(pr&&!/^[A-Z]{2}$/.test(pr))w.push("La provincia va scritta con 2 lettere (es. RG).");
+  const ml=get("mail");if(ml&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ml))w.push("L'indirizzo e-mail non sembra valido.");
+  $("cnWarns").innerHTML=block.map(x=>'<div>'+x+'</div>').join("")+w.map(x=>'<div class="soft">'+esc(x)+'</div>').join("");
+  return {name,block,dup:dp};
+}
+$("cnFields").addEventListener("input",()=>{if($("cnWarns").innerHTML)cnCheck();});
+$("cnCancel").onclick=()=>{$("ovClientNew").hidden=true;};
+$("fClient").addEventListener("submit",e=>{
+  e.preventDefault();
+  const r=cnCheck();
+  if(!r.name){$("cnWarns").innerHTML='<div>Scrivi la ragione sociale.</div>';return;}
+  if(r.block.length)return;
+  const d=cnRead(),vals={};
+  for(const c in d)vals[c]=d[c].k==="cap"&&/^[1-9]\d{4}$/.test(d[c].v)?{n:Number(d[c].v)}:{t:d[c].v};
+  const tmp=STORE.addClient(vals,r.name);
+  cnWaiting[tmp]={name:r.name,fromBooking:cnFromBooking};
+  $("ovClientNew").hidden=true;
+  if(cnFromBooking){$("f-client").value=r.name;formClient=null;renderClientInfo();}
+  toast(navigator.onLine?"Scrivo «"+r.name+"» nel file fatturato…":"Sei offline: «"+r.name+"» sarà scritto nel fatturato appena torna la connessione.");
+  if(!$("ovClients").hidden)renderClients();
+});
+const cnWaiting={};
+function onClientAdded(tmp,info){
+  const w=cnWaiting[tmp];delete cnWaiting[tmp];
+  refreshFromStore();
+  toast(info.existed?"«"+(info.name||"")+"» c'era già nel fatturato: codice "+info.code+".":"Cliente salvato nel fatturato con codice "+info.code+".");
+  // se lo stavi inserendo da una prenotazione, la prenotazione prende subito il codice
+  if(w&&w.fromBooking&&!$("ovBooking").hidden&&$("f-client").value.trim()===w.name){const c=clientByCode(info.code);if(c)pickClient(c);}
+  if(!$("ovClients").hidden){cliOpenCode=String(info.code);renderClients();}
+}
 
 $("fBooking").addEventListener("input",e=>{if(e.target.name==="type")syncType();checkWarns();});
 $("fBooking").addEventListener("change",checkWarns);
@@ -396,7 +612,7 @@ $("fBooking").addEventListener("submit",async e=>{
   e.preventDefault();if(S.readOnly)return;
   const b=readForm();
   if(!b.start){toast("Inserisci la data.");return;}
-  if(isMulti(b.type)&&(b.end<b.start||diff(b.start,b.end)>30)){toast("Controlla le date del tour.");return;}
+  if(b.end<b.start||diff(b.start,b.end)>30){toast("Controlla la data di rientro.");return;}
   const id=editing?editing.id:("b"+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
   const old=editing&&editing.start;
   $("fSave").disabled=true;
@@ -470,7 +686,9 @@ $("btnToday").onclick=()=>go(todayISO());
 $("btnNew").onclick=()=>{if(S.readOnly){toast("Accesso in sola lettura");return;}openForm({date:S.sel});};
 $("mPrev").onclick=()=>go(shiftMonth(mkey(S.sel),-1)+"-01");
 $("mNext").onclick=()=>go(shiftMonth(mkey(S.sel),1)+"-01");
-$("strip").addEventListener("click",e=>{const b=e.target.closest("[data-day]");if(b)go(b.dataset.day);});
+$("strip").addEventListener("click",e=>{
+  if(e.target.closest("#cntToggle")){cntOpen=!cntOpen;try{localStorage.setItem("agenda-conteggi",cntOpen?"1":"0");}catch(_){}renderStrip();const tg=$("cntToggle");if(tg)tg.focus();return;}
+  const b=e.target.closest("[data-day]");if(b)go(b.dataset.day);});
 $("sign").addEventListener("click",e=>{if(e.target.id==="dPrev")go(addDays(S.sel,-1));if(e.target.id==="dNext")go(addDays(S.sel,1));});
 $("sheet").addEventListener("click",e=>{
   const a=e.target.closest("[data-add]");if(a){openForm({vehicle:a.dataset.add,date:S.sel});return;}
@@ -478,7 +696,7 @@ $("sheet").addEventListener("click",e=>{
   if(ed){const b=bookingsAll().find(x=>x.id===ed.dataset.edit&&x.start===ed.dataset.start);if(b)openForm({booking:b});}
 });
 $("mgrid").addEventListener("click",e=>{const c=e.target.closest("[data-day]");if(c){S.sel=c.dataset.day;setView("day");}});
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("ovBooking").hidden)closeForm();if(!$("ovFleet").hidden)$("ovFleet").hidden=true;$("ovSheet").hidden=true;}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("ovClientNew").hidden){$("ovClientNew").hidden=true;return;}if(!$("ovClients").hidden){$("ovClients").hidden=true;return;}if(!$("ovBooking").hidden)closeForm();if(!$("ovFleet").hidden)$("ovFleet").hidden=true;$("ovSheet").hidden=true;}});
 [$("ovBooking"),$("ovFleet")].forEach(o=>o.addEventListener("click",e=>{if(e.target===o)o.hidden=true;}));
 
 // ---------- fatturato ----------
@@ -495,22 +713,22 @@ function billNote(b){
   if(b.time)p.push("Partenza "+b.time);
   if(b.time2&&!onlyDeparture(b.type))p.push("Rientro "+b.time2);
   if(b.pax!==""&&b.pax!=null)p.push(b.pax+" pax");
-  if(b.type==="evento"&&b.escort)p.push("Accompagnatore: "+b.escort);
+  if(hasEvent(b.type)&&b.escort)p.push("Accompagnatore: "+b.escort);
   const cl=b.clientCode!==""&&b.clientCode!=null?clientByCode(b.clientCode):null;
   if(b.contact&&!(cl&&cl[4]===b.contact))p.push("Ref. "+b.contact);
   if(b.status==="opzione")p.push("OPZIONE");
   return p.join(" · ");
 }
-function billItin(b){return b.type==="evento"&&b.event?b.event+(b.route?" – "+b.route:""):(b.route||"");}
+function billItin(b){return hasEvent(b.type)&&b.event?b.event+(b.route?" – "+b.route:""):(b.route||"");}
 // una riga del fatturato per prenotazione
 function num(x){return x===""||x==null?"":Number(x);}
 function billTotal(r){return [r.P,r.Q,r.R].reduce((a,x)=>a+(x===""?0:x),0);}
 function billRow(b){
-  const v=vehicle(b.vehicle)||{};
-  return {foglio:b.foglio,id:b.id,start:b.start,type:b.type,
-    A:Number(b.foglio),B:TYPE_XL[b.type]||b.type,C:b.clientCode===""||b.clientCode==null?"":b.clientCode,
+  const v=vehicle(b.vehicle)||{},type=normType(b.type);
+  return {foglio:b.foglio,id:b.id,start:b.start,type:type,
+    A:Number(b.foglio),B:TYPE_XL[type],C:b.clientCode===""||b.clientCode==null?"":b.clientCode,
     D:b.client||"",G:xcatOf(v),H:(v.plate||"").trim(),I:b.start,J:endOf(b),
-    M:billItin(b),O:billNote(b),P:num(b.price),Q:num(b.park),R:num(b.meals),AH:isMulti(b.type)?num(b.advance):"",AI:isMulti(b.type)?(b.envelope||""):"",AJ:isMulti(b.type)?(b.envno||""):"",Z:b.driver||"",AA:b.driver2||"",
+    M:billItin(b),O:billNote(b),P:num(b.price),Q:num(b.park),R:num(b.meals),AH:isMulti(b.type)?num(b.advance):"",AI:isMulti(b.type)?(b.envelope||""):"",AJ:isMulti(b.type)?(b.envno||""):"",Z:realDriver(b.driver),AA:realDriver(b.driver2),dz:!realDriver(b.driver),daa:isGen(b.driver2),
     vehicleName:v.name||""};
 }
 function billRows(days){
@@ -528,7 +746,15 @@ async function rowsForRange(){
   }
   const k=mkey(S.sel);return billRows(S.days).filter(r=>mkey(r.start)===k);
 }
+// avviso se nel foglio "regole" del fatturato manca una delle 4 categorie
+function renderTipiWarn(){
+  const el=$("tipiWarn"),t=(S.regole.tipi||[]).map(x=>String(x).trim().toLowerCase());
+  const miss=t.length?Object.values(TYPE_XL).filter(x=>!t.includes(x)):[];
+  el.hidden=!miss.length;
+  if(miss.length)el.innerHTML='Nel file fatturato, foglio <b>regole</b>, colonna TIPO SERVIZIO manca'+(miss.length>1?'no':'')+': <b>'+miss.map(esc).join(", ")+'</b>. Aggiungil'+(miss.length>1?'i':'o')+' all\'elenco, così Excel '+(miss.length>1?'li':'lo')+' accetta anche quando modifichi la riga a mano.';
+}
 async function renderBill(){
+  renderTipiWarn();
   const k=mkey(S.sel),all=$("billRange").value==="all";
   $("billTitle").textContent="Fatturato · "+(all?"tutti i servizi":MN[+k.slice(5,7)-1]+" "+k.slice(0,4));
   let rows;try{rows=await rowsForRange();}catch(err){$("btable").innerHTML='<tbody><tr><td class="empty">Impossibile leggere le prenotazioni. Riprova.</td></tr></tbody>';return;}
@@ -546,13 +772,13 @@ async function renderBill(){
       '<td class="num">'+(r.H?esc(r.H):'<span class="miss">manca targa</span>')+'</td>'+
       '<td class="num">'+itDate(r.I)+'</td><td class="num">'+itDate(r.J)+'</td>'+
       '<td>'+esc(r.M)+(r.O?'<span class="sub">'+esc(r.O)+'</span>':'')+'</td>'+
-      '<td>'+esc(r.Z)+'</td><td>'+esc(r.AA)+'</td>'+
+      '<td>'+(r.Z?esc(r.Z):r.dz?'<span class="tbdtxt">da assegnare</span>':"")+'</td><td>'+(r.AA?esc(r.AA):r.daa?'<span class="tbdtxt">da assegnare</span>':"")+'</td>'+
       '<td class="num r">'+money(r.P)+'</td><td class="num r">'+money(r.Q)+'</td><td class="num r">'+money(r.R)+'</td><td class="num r"><b>'+(r.P===""&&r.Q===""&&r.R===""?"":money(billTotal(r)))+'</b></td>'+
       '<td class="num">'+(r.AH!==""?"€ "+money(r.AH):"")+(r.AI?'<span class="sub">Busta '+esc(r.AI)+(r.AJ?" n. "+esc(r.AJ):"")+'</span>':"")+'</td><td><button type="button" class="mini" data-fs="1">Foglio di servizio</button></td></tr>';
   }).join("")+'</tbody><tfoot><tr><td colspan="10">'+rows.length+' servizi</td><td class="num r">'+money(sum("P"))+'</td><td class="num r">'+money(sum("Q"))+'</td><td class="num r">'+money(sum("R"))+'</td><td class="num r">'+money(tot)+'</td><td class="num">'+(sum("AH")?"€ "+money(sum("AH")):"")+'</td><td></td></tr></tfoot>';
 }
 $("btable").addEventListener("click",e=>{const tr=e.target.closest("[data-bid]");if(!tr)return;const b=bookingsAll().concat(S.allDays?billSourceAll():[]).find(x=>x.id===tr.dataset.bid&&x.start===tr.dataset.bstart);if(!b)return;if(e.target.closest("[data-fs]"))openSheet(b);else openForm({booking:b});});
-function billSourceAll(){const out=[];for(const date in S.allDays){const bk=(S.allDays[date]||{}).bookings||{};for(const id in bk){const b=bk[id];if(b&&typeof b==="object")out.push(Object.assign({},b,{id:id,start:b.start||date}));}}return out;}
+function billSourceAll(){const out=[];for(const date in S.allDays){const bk=(S.allDays[date]||{}).bookings||{};for(const id in bk){const b=bk[id];if(b&&typeof b==="object")out.push(Object.assign({},b,{id:id,start:b.start||date,type:normType(b.type)}));}}return out;}
 $("billRange").addEventListener("change",()=>{S.allDays=null;renderBill();});
 function billMsg(t,cls){const m=$("billMsg");m.textContent=t;m.className="bill-msg"+(cls?" "+cls:"");}
 
@@ -739,213 +965,190 @@ async function readLists(zip,sst){
   }catch(_){}
   return out;
 }
-// ---------- foglio di servizio ----------
-const COMPANY=["La Terra s.r.l. - Via Archimede 285C - 97100 - Ragusa - tel. 0932/626240 - Aut. Reg. Sicilia","www.laterra.it - info@laterra.it - laterrasrl@pec.it - univoco M5UXCR1 - p. iva 00826460883"];
-const SH_W=[11.4,12.4,6,12.1,7.4,10.3,9.1,13.3]; // larghezze colonne come nel modello Excel (A–H)
+// ---------- foglio di servizio: modello "automatico_2026_neutro.xlsx" ----------
+// Il file Excel del modello NON viene modificato: l'app riempie solo le caselle da compilare
+// e il valore già calcolato delle formule (che restano quelle del modello).
+const TPL_FILE="modelli/automatico_2026_neutro.xlsx";
+const TPL_COLS=[11.42578125,12.42578125,6,12.140625,7.42578125,10.28515625,9.140625,13.28515625];
+const TPL_LETTERS="ABCDEFGH";
+const TPL_ROWS=[[20.0,{"A":{"t":" La Terra s.r.l. - Via Archimede 285C - 97100 - Ragusa - tel. 0932/626240 - Aut. Reg. Sicilia","z":15,"bd":"l1t1"},"B":{"z":15,"bd":"t1"},"C":{"z":15,"bd":"t1"},"D":{"z":15,"bd":"t1"},"E":{"z":15,"bd":"t1"},"F":{"z":15,"bd":"t1"},"G":{"z":15,"bd":"t1"},"H":{"z":15,"bd":"r1t1"}}],[20.0,{"A":{"t":"www.laterra.it - info@laterra.it - laterrasrl@pec.it - univoco M5UXCR1 - p. iva 00826460883","z":15,"bd":"l1b1"},"B":{"z":15,"bd":"b1"},"C":{"z":15,"bd":"b1"},"D":{"z":15,"bd":"b1"},"E":{"z":15,"bd":"b1"},"F":{"z":15,"bd":"b1"},"G":{"z":15,"bd":"b1"},"H":{"z":15,"bd":"r1b1"}}],[12.0,{}],[19,{"A":{"t":"ESTREMI DEL CONTRATTO CON IL CLIENTE E FOGLIO DI SERVIZIO NUMERO","al":"l","bd":"l1t1b1"},"B":{"bd":"t1b1"},"C":{"bd":"t1b1"},"D":{"bd":"t1b1"},"E":{"bd":"t1b1"},"F":{"bd":"t1b1"},"G":{"bd":"t1b1"},"H":{"bd":"l1r1t1b1"}}],[12.0,{"A":{"z":13},"B":{"z":13},"C":{"z":13},"D":{"z":13},"E":{"z":13},"F":{"z":13},"G":{"z":13},"H":{"z":13,"al":"r"}}],[19,{"A":{"t":"Passeggeri","bd":"l1t1b1"},"B":{"f":"a","al":"c","bd":"t1b1"},"C":{"t":"Bus","f":"a","bd":"l1t1b1"},"D":{"fx":1,"al":"c","bd":"t1b1"},"E":{"t":"Numero","bd":"l1t1b1"},"F":{"fx":1,"al":"c","bd":"r1t1b1"},"G":{"t":"Targa","bd":"t1b1"},"H":{"fx":1,"al":"c","bd":"r1t1b1"}}],[19,{"A":{"t":"Inizio","bd":"l1t1b1"},"B":{"fx":1,"al":"l","bd":"t1b1"},"C":{"t":"Fine","bd":"l1t1b1"},"D":{"fx":1,"al":"l","bd":"r1t1b1"},"E":{"t":"Giorni","bd":"l1t1b1"},"F":{"fx":1,"al":"c","bd":"r1t1b1"},"G":{"t":"Autista","bd":"l1t1b1"},"H":{"fx":1,"al":"c","bd":"r1t1b1"}}],[19,{"A":{"t":"Cliente","bd":"l1t1b1"},"B":{"fx":1,"b":1,"bd":"t1b1"},"C":{"bd":"t1b1"},"D":{"bd":"t1b1"},"E":{"bd":"t1b1"},"F":{"bd":"t1b1"},"G":{"t":"Telefono","bd":"l1t1b1"},"H":{"fx":1,"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Referente 1°","bd":"l1t1b1"},"B":{"fx":1,"al":"l","bd":"t1b1"},"C":{"al":"c","bd":"t1b1"},"D":{"al":"c","bd":"t1b1"},"E":{"al":"c","bd":"t1b1"},"F":{"al":"c","bd":"t1b1"},"G":{"t":"Telefono","bd":"l1t1b1"},"H":{"fx":1,"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Referente 2°","bd":"l1t1b1"},"B":{"f":"a","al":"c","bd":"t1b1"},"C":{"f":"a","al":"c","bd":"t1b1"},"D":{"f":"a","al":"c","bd":"t1b1"},"E":{"f":"a","al":"c","bd":"t1b1"},"F":{"f":"a","al":"c","bd":"t1b1"},"G":{"t":"Telefono","bd":"l1t1b1"},"H":{"f":"a","al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Guida 1°","bd":"l1t1b1"},"B":{"f":"a","al":"c","bd":"t1b1"},"C":{"f":"a","al":"c","bd":"t1b1"},"D":{"f":"a","al":"c","bd":"t1b1"},"E":{"f":"a","al":"c","bd":"t1b1"},"F":{"f":"a","al":"c","bd":"t1b1"},"G":{"t":"Telefono","bd":"l1t1b1"},"H":{"f":"a","al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Guida 2°","bd":"l1t1b1"},"B":{"f":"a","al":"c","bd":"t1b1"},"C":{"f":"a","al":"c","bd":"t1b1"},"D":{"f":"a","al":"c","bd":"t1b1"},"E":{"f":"a","al":"c","bd":"t1b1"},"F":{"f":"a","al":"c","bd":"t1b1"},"G":{"t":"Telefono","bd":"l1t1b1"},"H":{"f":"a","al":"l","bd":"r1t1b1"}}],[13.0,{"A":{"z":15},"B":{"z":15},"C":{"z":15},"D":{"z":15},"E":{"z":15},"F":{"z":15},"G":{"z":15},"H":{"z":15}}],[19,{"A":{"f":"a","al":"l","bd":"l1t1b2"},"B":{"bd":"t1b2"},"C":{"bd":"t1b2"},"D":{"bd":"t1b2"},"E":{"bd":"t1b2"},"F":{"bd":"t1b2"},"G":{"bd":"t1b2"},"H":{"bd":"r1t1b2"}}],[19,{"A":{"bd":"l1t2b2"},"B":{"bd":"t2b2"},"C":{"bd":"t2b2"},"D":{"bd":"t2b2"},"E":{"bd":"t2b2"},"F":{"bd":"t2b2"},"G":{"bd":"t2b2"},"H":{"bd":"r1t2b2"}}],[19,{"A":{"bd":"l1t2b2"},"B":{"bd":"t2b2"},"C":{"bd":"t2b2"},"D":{"bd":"t2b2"},"E":{"bd":"t2b2"},"F":{"bd":"t2b2"},"G":{"bd":"t2b2"},"H":{"bd":"r1t2b2"}}],[19,{"A":{"bd":"l1t2b2"},"B":{"bd":"t2b2"},"C":{"bd":"t2b2"},"D":{"bd":"t2b2"},"E":{"bd":"t2b2"},"F":{"bd":"t2b2"},"G":{"bd":"t2b2"},"H":{"bd":"r1t2b2"}}],[19,{"A":{"bd":"l1t2b2"},"B":{"bd":"t2b2"},"C":{"bd":"t2b2"},"D":{"bd":"t2b2"},"E":{"bd":"t2b2"},"F":{"bd":"t2b2"},"G":{"bd":"t2b2"},"H":{"bd":"r1t2b2"}}],[19,{"A":{"bd":"l1t2b2"},"B":{"bd":"t2b2"},"C":{"bd":"t2b2"},"D":{"bd":"t2b2"},"E":{"bd":"t2b2"},"F":{"bd":"t2b2"},"G":{"bd":"t2b2"},"H":{"bd":"r1t2b2"}}],[19,{"A":{"bd":"l1t2b1"},"B":{"bd":"t2b1"},"C":{"bd":"t2b1"},"D":{"bd":"t2b1"},"E":{"bd":"t2b1"},"F":{"bd":"t2b1"},"G":{"bd":"t2b1"},"H":{"bd":"r1t2b1"}}],[12.0,{"C":{"bd":"b1"}}],[19,{"A":{"t":"Saldo da ricevere","bd":"l1t1b1"},"B":{"bd":"t1b1"},"C":{"t":"NO","f":"g","al":"c"},"D":{"f":"a","al":"l","bd":"r1t1b1"},"E":{"t":"Acconto La Terra","bd":"l1t1b1"},"F":{"bd":"t1b1"},"G":{"bd":"t1b1"},"H":{"fx":1,"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Note 1° park","bd":"l1t1b1"},"B":{"f":"a","bd":"t1b1"},"C":{"f":"a","bd":"t1b1"},"D":{"f":"a","bd":"t1b1"},"E":{"f":"a","bd":"t1b1"},"F":{"f":"a","bd":"t1b1"},"G":{"f":"a","bd":"t1b1"},"H":{"f":"a","bd":"r1t1b1"}}],[19,{"A":{"t":"Note 2° autis","bd":"l1t1b1"},"B":{"f":"a","bd":"t1b1"},"C":{"f":"a","bd":"t1b1"},"D":{"f":"a","bd":"t1b1"},"E":{"f":"a","bd":"t1b1"},"F":{"f":"a","bd":"t1b1"},"G":{"f":"a","bd":"t1b1"},"H":{"f":"a","bd":"r1t1b1"}}],[19,{"A":{"t":"Note 3° 3 ore","bd":"l1t1b1"},"B":{"f":"a","bd":"t1b1"},"C":{"f":"a","bd":"t1b1"},"D":{"f":"a","bd":"t1b1"},"E":{"f":"a","bd":"t1b1"},"F":{"f":"a","bd":"t1b1"},"G":{"f":"a","bd":"t1b1"},"H":{"f":"a","bd":"r1t1b1"}}],[19,{"A":{"t":"Note 4° extra","bd":"l1t1b1"},"B":{"f":"a","bd":"t1b1"},"C":{"f":"a","bd":"t1b1"},"D":{"f":"a","bd":"t1b1"},"E":{"f":"a","bd":"t1b1"},"F":{"f":"a","bd":"t1b1"},"G":{"f":"a","bd":"t1b1"},"H":{"f":"a","bd":"r1t1b1"}}],[12.0,{}],[12.0,{}],[20.0,{"A":{"t":"Autista firma","bd":"l1t1"},"B":{"bd":"t1"},"C":{"bd":"t1"},"D":{"bd":"r1t1"},"E":{"t":"Azienda firma","bd":"l1t1"},"F":{"bd":"t1"},"G":{"z":15,"bd":"t1"},"H":{"z":15,"bd":"r1t1"}}],[20.0,{"A":{"z":15,"bd":"l1"},"B":{"z":15},"C":{"z":15},"D":{"z":15,"bd":"r1"},"E":{"z":15,"bd":"l1"},"F":{"z":15},"G":{"z":15},"H":{"z":15,"bd":"r1"}}],[20.0,{"A":{"z":15,"bd":"l1b1"},"B":{"z":15,"bd":"b1"},"C":{"z":15,"bd":"b1"},"D":{"z":15,"bd":"r1b1"},"E":{"z":15,"bd":"l1b1"},"F":{"z":15,"bd":"b1"},"G":{"z":15,"bd":"b1"},"H":{"z":15,"bd":"r1b1"}}],[20.0,{}],[20.0,{"A":{"bd":"t3"},"B":{"bd":"t3"},"C":{"bd":"t3"},"D":{"bd":"t3"},"E":{"bd":"t3"},"F":{"bd":"t3"},"G":{"bd":"t3"},"H":{"bd":"t3"}}],[20.0,{"A":{"t":"Servizio","bd":"l1t1b1"},"B":{"f":"a","al":"l","bd":"t1b1"},"C":{"t":"Bus","bd":"l1t1b1"},"D":{"fx":1,"bd":"t1b1"},"E":{"t":"Targa","bd":"l1t1b1"},"F":{"fx":1,"bd":"r1t1b1"},"G":{"t":"Autista","bd":"t1b1"},"H":{"fx":1,"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Inizio","bd":"l1t1b1"},"B":{"fx":1,"al":"l","bd":"r1t1b1"},"C":{"t":"Fine","bd":"t1b1"},"D":{"fx":1,"al":"l","bd":"r1t1b1"},"E":{"t":"Giorni","bd":"t1b1"},"F":{"fx":1,"al":"l","bd":"r1"},"G":{"t":"Ore","bd":"l1t1b1"},"H":{"fx":1,"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Cliente","bd":"l1t1b1"},"B":{"fx":1,"bd":"t1b1"},"C":{"bd":"t1b1"},"D":{"bd":"t1b1"},"E":{"bd":"t1b1"},"F":{"bd":"t1b1"},"G":{"t":"Telefono","bd":"l1t1b1"},"H":{"fx":1,"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Referente","bd":"l1t1b1"},"B":{"fx":1,"bd":"t1b1"},"C":{"bd":"t1b1"},"D":{"bd":"t1b1"},"E":{"bd":"t1b1"},"F":{"bd":"t1b1"},"G":{"t":"Telefono","bd":"l1t1b1"},"H":{"fx":1,"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Itinerario","bd":"l1t1"},"B":{"fx":1,"bd":"t1"},"C":{"bd":"t1"},"D":{"bd":"t1"},"E":{"bd":"t1"},"F":{"bd":"t1"},"G":{"bd":"t1"},"H":{"bd":"r1t1"}}],[19,{"A":{"t":"Causale","bd":"l1t1b1"},"B":{"f":"a","bd":"t1b1"},"C":{"f":"a","bd":"t1b1"},"D":{"f":"a","bd":"t1b1"},"E":{"f":"a","bd":"t1b1"},"F":{"f":"a","bd":"t1b1"},"G":{"t":"Prezzo i.c.","bd":"l1t1b1"},"H":{"fx":1,"al":"r","bd":"r1t1b1"}}],[19,{"A":{"t":"Partita Iva","bd":"l1t1b1"},"B":{"fx":1,"al":"l","bd":"r1t1b1"},"C":{"t":"Multi","bd":"l1t1b1"},"D":{"fx":1,"al":"l","bd":"r1t1b1"},"E":{"t":"SDI","bd":"l1t1b1"},"F":{"f":"a","bd":"r1t1b1"},"G":{"t":"Parcheggi","bd":"l1t1b1"},"H":{"fx":1,"al":"r","bd":"r1t1b1"}}],[19,{"A":{"t":"Fattura acc.","bd":"l1t1b1"},"B":{"fx":1,"al":"l","bd":"r1t1b1"},"C":{"t":"Del","bd":"l1t1b1"},"D":{"fx":1,"al":"l","bd":"r1t1b1"},"E":{"t":"Euro","bd":"l1t1b1"},"F":{"fx":1,"al":"l","bd":"r1t1b1"},"G":{"t":"Pasti","bd":"l1t1b1"},"H":{"fx":1,"al":"r","bd":"r1t1b1"}}],[19,{"A":{"t":"Fattura sald","bd":"l1t1b1"},"B":{"fx":1,"al":"l","bd":"r1t1b1"},"C":{"t":"Del","bd":"l1t1b1"},"D":{"fx":1,"al":"l","bd":"r1t1b1"},"E":{"t":"Euro","bd":"l1t1b1"},"F":{"fx":1,"al":"l","bd":"r1t1b1"},"G":{"t":"Varie ","bd":"l1t1b1"},"H":{"fx":1,"al":"r","bd":"r1t1b1"}}],[19,{"A":{"t":"Note A","bd":"l1"},"B":{"fx":1},"G":{"t":"Totale","bd":"l1t1b1"},"H":{"fx":1,"al":"r","bd":"r1t1b1"}}],[19,{"A":{"t":"Note B","bd":"l1t1b1"},"B":{"fx":1,"bd":"t1b1"},"C":{"bd":"t1b1"},"D":{"bd":"t1b1"},"E":{"bd":"t1b1"},"F":{"bd":"r1t1b1"},"G":{"t":"Contratto","bd":"l1t1b1"},"H":{"fx":1,"bd":"r1t1b1"}}]];
+const TPL_DRIVER_LAST=31; // righe 1–31: copia per l'autista; 32–44: copia ufficio
 function shClient(b){return b.clientCode!==""&&b.clientCode!=null?clientByCode(b.clientCode):null;}
-// Descrizione unica del foglio: righe di 8 colonne, usata per anteprima, PDF ed Excel.
-// cella: {t:testo, span, k:"l" etichetta | "v" valore | "h" intestazione, b:grassetto, al:"c"|"r"}
-function sheetSpec(b,full){
-  const v=vehicle(b.vehicle)||{},cl=shClient(b),plate=(v.plate||"").trim(),num=(S.regole.numeri||{})[plate]||"";
-  const nd=diff(b.start,endOf(b))+1,rows=[];
-  const L=(t,span)=>({t,span:span||1,k:"l"}),V=(t,span,o)=>Object.assign({t:t==null?"":String(t),span:span||1,k:"v"},o||{});
-  const row=cells=>rows.push({cells}),gap=()=>rows.push({gap:1});
-  const drivers=[b.driver,b.driver2].filter(Boolean).join(" + ");
-  const refName=cl&&cl[6]?cl[6]:"",refTel=cl&&cl[7]?cl[7]:"";
-  rows.push({company:1});
-  row([V("ESTREMI DEL CONTRATTO CON IL CLIENTE E FOGLIO DI SERVIZIO NUMERO",7,{k:"h"}),V(b.foglio||"",1,{k:"h",b:1,al:"r"})]);
-  gap();
-  row([L("Passeggeri"),V(b.pax,1,{al:"c"}),L("Bus"),V(xcatOf(v)),L("Numero"),V(num,1,{al:"c"}),L("Targa"),V(plate)]);
-  row([L("Inizio"),V(itDate(b.start)),L("Fine"),V(itDate(endOf(b))),L("Giorni"),V(nd,1,{al:"c"}),L("Autista"),V(drivers)]);
-  row([L("Cliente"),V(cl?cl[1]:(b.client||""),5,{b:1}),L("Telefono"),V(cl&&cl[4]?cl[4]:"")]);
-  row([L("Referente 1°"),V(refName||(b.contact&&!(cl&&cl[4]===b.contact)?b.contact:""),5),L("Telefono"),V(refTel)]);
-  (b.refs||[]).forEach(x=>row([L("Referente 2°"),V(x.name,5),L("Telefono"),V(x.tel)]));
-  (b.hotels||[]).forEach((x,i)=>row([L((i+1)+"° Hotel"),V(x.name,5),L("Telefono"),V(x.tel)]));
-  (b.guides||[]).forEach(x=>row([L("Guida"),V(x.name,5),L("Telefono"),V(x.tel)]));
-  if(b.type==="evento"&&(b.event||b.escort)){row([L("Evento"),V(b.event||"",5),L("Accomp."),V(b.escort||"")]);}
-  gap();
-  const prog=Array.isArray(b.program)?b.program:[];
+function xlSerial(d){return Math.round((Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10))-Date.UTC(1899,11,30))/864e5);}
+const numOrE=x=>x===""||x==null||!isFinite(Number(x))?"":Number(x);
+// programma: al massimo le 7 righe del modello (righe 14–20)
+function tplProgram(b){
+  const lines=[],prog=Array.isArray(b.program)?b.program:[];
+  const clean=t=>String(t||"").split("\n").map(x=>x.trim()).filter(Boolean);
+  if(hasEvent(b.type)&&(b.event||b.escort))lines.push([b.event?"Evento: "+b.event:"",b.escort?"Accompagnatore: "+b.escort:""].filter(Boolean).join(" – "));
   if(isMulti(b.type)){
+    const nd=Math.min(31,diff(b.start,endOf(b))+1);
     for(let i=0;i<nd;i++){
-      const d=addDays(b.start,i);
-      row([V((i+1)+"° giorno - "+(+d.slice(8,10))+"/"+d.slice(5,7)+" - "+WDL[wday(d)].replace(/^./,c=>c.toUpperCase()),8,{b:1,al:"c",k:"d"})]);
-      const lines=String(prog[i]||"").split("\n").map(x=>x.trim()).filter(Boolean);
-      (lines.length?lines:[i===0&&b.time?"Ore "+b.time+(b.route?" "+b.route:""):""]).forEach(t=>row([V(t,8)]));
+      const d=addDays(b.start,i),txt=clean(prog[i]).join(" · ")||(i===0&&(b.time||b.route)?((b.time?"Ore "+b.time+" ":"")+(b.route||"")).trim():"");
+      lines.push((i+1)+"° giorno "+(+d.slice(8,10))+"/"+d.slice(5,7)+" "+WD[wday(d)]+(txt?": "+txt:""));
     }
   }else{
-    let lines=prog.join("\n").split("\n").map(x=>x.trim()).filter(Boolean);
-    if(!lines.length)lines=[(b.time?"Ore "+b.time+" ":"")+(b.route||"")].filter(x=>x.trim());
-    lines.forEach((t,i)=>row([V((i+1)+") "+t,8)]));
-    for(let i=lines.length;i<5;i++)row([V("",8)]);
+    let l=clean(prog.join("\n"));
+    if(!l.length){const t=((b.time?"Ore "+b.time+" ":"")+(b.route||"")).trim();if(t)l=[t];}
+    l.forEach((t,i)=>lines.push((i+1)+") "+t));
   }
-  gap();
-  row([L("Saldo da ricevere",2),V(b.saldo||"NO",2,{al:"c",b:1}),L("Acconto La Terra",3),V(isMulti(b.type)&&b.advance!==""&&b.advance!=null?"€ "+money(b.advance):"",1,{al:"r"})]);
-  row([L("Note park"),V(b.npark||"",7)]);
-  row([L("Note autista"),V(b.ndriver||"",7)]);
-  row([L("Note 3 ore"),V(b.n3h||"",7)]);
-  row([L("Note extra"),V(b.nextra||"",7)]);
-  gap();
-  rows.push({cells:[L("Autista firma",4),L("Azienda firma",4)],sign:1});
-  if(!full)return rows;
-  rows.push({cut:1});
-  const P=num0(b.price),Q=num0(b.park),Rr=num0(b.meals);
-  row([L("Servizio"),V(TYPE_XL[b.type]||""),L("Bus"),V(xcatOf(v)),L("Targa"),V(plate),L("Autista"),V(drivers)]);
-  row([L("Inizio"),V(itDate(b.start)),L("Fine"),V(itDate(endOf(b))),L("Giorni"),V(nd,1,{al:"c"}),L("Ore"),V(b.time||"")]);
-  row([L("Cliente"),V(cl?cl[1]:(b.client||""),5),L("Telefono"),V(cl&&cl[4]?cl[4]:"")]);
-  row([L("Referente"),V(refName,5),L("Telefono"),V(refTel)]);
-  row([L("Itinerario"),V(billItin(b),7)]);
-  row([L("Causale"),V("",5),L("Prezzo i.c."),V(b.price!==""&&b.price!=null?"€ "+money(b.price):"",1,{al:"r"})]);
-  row([L("Partita Iva"),V(cl&&cl[5]?cl[5]:""),L("Multi"),V(cl?cl[0]:""),L("SDI"),V(""),L("Parcheggi"),V(b.park!==""&&b.park!=null?"€ "+money(b.park):"",1,{al:"r"})]);
-  row([L("Fattura acc."),V(""),L("Del"),V(""),L("Euro"),V(""),L("Pasti"),V(b.meals!==""&&b.meals!=null?"€ "+money(b.meals):"",1,{al:"r"})]);
-  row([L("Fattura sald"),V(""),L("Del"),V(""),L("Euro"),V(""),L("Varie"),V("")]);
-  row([L("Note A"),V(b.notes||"",5),L("Totale"),V(P+Q+Rr?"€ "+money(P+Q+Rr):"",1,{al:"r",b:1})]);
-  row([L("Note B"),V(billNote(b),5),L("Contratto"),V(b.foglio||"",1,{al:"r"})]);
-  return rows;
+  (b.refs||[]).slice(1).forEach(x=>{if(x.name||x.tel)lines.push("Referente: "+[x.name,x.tel].filter(Boolean).join(" – "));});
+  (b.hotels||[]).forEach(x=>{if(x.name||x.tel)lines.push("Hotel: "+[x.name,x.tel].filter(Boolean).join(" – "));});
+  (b.guides||[]).slice(2).forEach(x=>{if(x.name||x.tel)lines.push("Guida: "+[x.name,x.tel].filter(Boolean).join(" – "));});
+  if(lines.length>7){const head=lines.slice(0,6);head.push(lines.slice(6).join(" · "));return head;}
+  return lines;
 }
-function num0(x){return x===""||x==null?0:Number(x)||0;}
-
-// --- anteprima HTML ---
-function sheetHTML(rows){
-  let h='<table class="fs"><colgroup>'+SH_W.map(w=>'<col style="width:'+(w/82*100).toFixed(2)+'%">').join("")+'</colgroup><tbody>';
-  for(const r of rows){
-    if(r.company){h+='<tr class="fs-co"><td colspan="6">'+COMPANY.map(esc).join("<br>")+'</td><td colspan="2" class="fs-logo"><img src="logo.jpg" alt="La Terra"></td></tr>';continue;}
-    if(r.gap){h+='<tr class="fs-gap"><td colspan="8"></td></tr>';continue;}
-    if(r.cut){h+='<tr class="fs-cut"><td colspan="8"><span>taglia qui · copia ufficio</span></td></tr>';continue;}
-    h+='<tr'+(r.sign?' class="fs-sign"':'')+'>'+r.cells.map(c=>'<td colspan="'+c.span+'" class="fs-'+c.k+(c.b?" fs-b":"")+(c.al?" fs-"+c.al:"")+'">'+esc(c.t)+'</td>').join("")+'</tr>';
+// valori delle caselle. k: s testo, i numero intero, d data, e euro, a euro contabile. f: casella con formula del modello
+function tplValues(b){
+  const v=vehicle(b.vehicle)||{},cl=shClient(b),plate=(v.plate||"").trim(),type=normType(b.type);
+  const nr=(S.regole.numeri||{})[plate],numero=nr==null?"":(/^\d+$/.test(String(nr).trim())?Number(nr):String(nr));
+  const nd=diff(b.start,endOf(b))+1,P=numOrE(b.price),Q=numOrE(b.park),R=numOrE(b.meals);
+  const name=cl?cl[1]:(b.client||""),tel=cl&&cl[4]?String(cl[4]):"",refName=cl&&cl[6]?cl[6]:"",refTel=cl&&cl[7]?String(cl[7]):"";
+  const contact=b.contact&&!(cl&&String(cl[4])===b.contact)?b.contact:"";
+  const r2=(b.refs||[])[0]||(contact?{name:contact,tel:""}:{}),g=b.guides||[];
+  const pax=String(b.pax==null?"":b.pax).trim(),kind=v.kind==="van"?"Van":v.kind==="auto"?"Auto":"Bus";
+  const drv=realDriver(b.driver),fg=/^\d+$/.test(String(b.foglio||""))?Number(b.foglio):(b.foglio||"");
+  const any=P!==""||Q!==""||R!=="";
+  const o={
+    H4:{v:fg,k:"i"},
+    B6:{v:/^\d+$/.test(pax)?Number(pax):pax,k:/^\d+$/.test(pax)?"i":"s"},C6:{v:kind},D6:{v:xcatOf(v),f:1},F6:{v:numero,k:typeof numero==="number"?"i":"s",f:1},H6:{v:plate,f:1},
+    B7:{v:b.start,k:"d",f:1},D7:{v:endOf(b),k:"d",f:1},F7:{v:nd,k:"i",f:1},H7:{v:drv,f:1},
+    B8:{v:name,f:1},H8:{v:tel,f:1},B9:{v:refName,f:1},H9:{v:refTel,f:1},
+    B10:{v:r2.name||""},H10:{v:r2.tel||""},B11:{v:(g[0]||{}).name||""},H11:{v:(g[0]||{}).tel||""},B12:{v:(g[1]||{}).name||""},H12:{v:(g[1]||{}).tel||""},
+    C22:{v:b.saldo==="SI"?"SI":"NO"},D22:{v:numOrE(b.saldoAmt),k:"a"},H22:{v:isMulti(type)?numOrE(b.advance):"",k:"e",f:1},
+    B23:{v:b.npark||""},B24:{v:b.ndriver||""},B25:{v:b.n3h||""},B26:{v:b.nextra||""},
+    B34:{v:TYPE_XL[type]||""},D34:{v:xcatOf(v),f:1},F34:{v:plate,f:1},H34:{v:drv,f:1},
+    B35:{v:b.start,k:"d",f:1},D35:{v:endOf(b),k:"d",f:1},F35:{v:nd,k:"i",f:1},H35:{v:drv,f:1},
+    B36:{v:name,f:1},H36:{v:tel,f:1},B37:{v:refName,f:1},H37:{v:refTel,f:1},B38:{v:billItin(b),f:1},
+    H39:{v:P,k:"e",f:1},B40:{v:cl&&cl[5]?String(cl[5]):"",f:1},D40:{v:cl?cl[0]:"",k:cl&&typeof cl[0]==="number"?"i":"s",f:1},H40:{v:Q,k:"e",f:1},
+    B41:{v:"",f:1},D41:{v:"",f:1},F41:{v:"",f:1},H41:{v:R,k:"e",f:1},
+    B42:{v:"",f:1},D42:{v:"",f:1},F42:{v:"",f:1},H42:{v:any?0:"",k:"e",f:1},
+    B43:{v:"",f:1},H43:{v:(P||0)+(Q||0)+(R||0),k:"e",f:1},B44:{v:billNote(b),f:1},H44:{v:fg,k:"i",f:1},
+  };
+  tplProgram(b).forEach((t,i)=>{o["A"+(14+i)]={v:t};});
+  for(let i=14;i<=20;i++)if(!o["A"+i])o["A"+i]={v:""};
+  return o;
+}
+function tplText(x){
+  if(!x||x.v===""||x.v==null)return "";
+  if(x.k==="d")return itDate(x.v).replace(/\/(\d\d)(\d\d)$/,"/$2");
+  if(x.k==="e")return "€ "+money(x.v);
+  if(x.k==="a")return money(x.v)+" €";
+  return String(x.v);
+}
+// Disegno del modello (unità: pixel del foglio Excel a 100%). Usato da anteprima e PDF.
+function tplLayout(b,full,measure){
+  const vals=tplValues(b),last=full?TPL_ROWS.length:TPL_DRIVER_LAST;
+  const X=[0];TPL_COLS.forEach(w=>X.push(X[X.length-1]+Math.round(w*9+5)));
+  const fills=[],lines=[],texts=[];let y=0;
+  const FILLC={a:"#F6FDFC",g:"#E5ECEB"};
+  for(let r=1;r<=last;r++){
+    const [hpt,cells]=TPL_ROWS[r-1],h=hpt*4/3;
+    const content=[];
+    for(let i=0;i<8;i++){
+      const L=TPL_LETTERS[i],c=cells[L]||{},val=vals[L+r];
+      const t=val?tplText(val):(c.t!=null&&!c.fx?String(c.t):"");
+      content.push({c,t,val});
+      const cf=L+r==="D22"&&vals.C22&&vals.C22.v==="SI"?"#C6E0B4":null; // come la formattazione condizionale del modello
+      if(c.f||cf)fills.push({x:X[i],y,w:X[i+1]-X[i],h,c:cf||FILLC[c.f]});
+      const bd=c.bd||"";
+      for(const m of bd.matchAll(/([lrtb])([123])/g)){
+        const s=m[1],k=m[2],col=k==="2"?"#AEAAAA":"#000000",dash=k==="3",wd=k==="3"?2:1;
+        const x1=s==="r"?X[i+1]:X[i],x2=s==="l"?X[i]:X[i+1],y1=s==="b"?y+h:y,y2=s==="t"?y:y+h;
+        lines.push({x1,y1,x2:s==="l"||s==="r"?x1:x2,y2:s==="t"||s==="b"?y1:y2,c:col,dash,w:wd});
+      }
+    }
+    for(let i=0;i<8;i++){
+      const {c,t,val}=content[i];if(!t)continue;
+      const size=(c.z||14)*4/3,bold=!!c.b,isNum=val&&val.k&&val.k!=="s"&&typeof val.v==="number";
+      let al=c.al||(isNum?"r":"l");
+      // come in Excel: il testo a sinistra si allunga sulle caselle vuote a destra
+      let j=i+1;while(j<8&&!content[j].t)j++;
+      const cellW=X[i+1]-X[i],regionW=X[j]-X[i];
+      let tw=measure(t,size,bold),x0=X[i],w=cellW;
+      if(al==="l"||(al==="c"&&tw>cellW-6)){al="l";w=regionW;}
+      let sz=size,txt=t;
+      if(tw>w-6){sz=Math.max(size*0.72,size*(w-6)/tw);tw=measure(txt,sz,bold);
+        while(tw>w-6&&txt.length>1){txt=txt.slice(0,-2)+"…";tw=measure(txt,sz,bold);}}
+      const tx=al==="c"?x0+(w-tw)/2:al==="r"?x0+w-3-tw:x0+3;
+      texts.push({x:tx,y:y+h-Math.max(3,(h-sz)/2-1)-sz*0.2,t:txt,size:sz,bold});
+    }
+    y+=h;
   }
-  return h+'</tbody></table>';
+  // la linea di taglio tratteggiata va disegnata tutta d'un pezzo
+  const dashed=lines.filter(l=>l.dash),solid=lines.filter(l=>!l.dash),rowsY={};
+  for(const l of dashed){const k=l.y1;rowsY[k]=rowsY[k]?{x1:Math.min(rowsY[k].x1,l.x1),x2:Math.max(rowsY[k].x2,l.x2)}:{x1:l.x1,x2:l.x2};}
+  for(const k in rowsY)solid.push({x1:rowsY[k].x1,y1:+k,x2:rowsY[k].x2,y2:+k,c:"#000000",dash:true,w:2});
+  return {W:X[8],H:y,fills,lines:solid,texts};
+}
+const TPL_FONT="Calibri, Carlito, 'Helvetica Neue', Arial, sans-serif";
+let _mctx=null;
+function measureCanvas(t,size,bold){if(!_mctx)_mctx=document.createElement("canvas").getContext("2d");_mctx.font=(bold?"bold ":"")+size+"px "+TPL_FONT;return _mctx.measureText(t).width;}
+function tplSVG(b,full){
+  const L=tplLayout(b,full,measureCanvas);
+  let s='<svg class="fs-page" viewBox="-6 -6 '+(L.W+12)+' '+(L.H+12)+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Anteprima del foglio di servizio">';
+  s+='<rect x="-6" y="-6" width="'+(L.W+12)+'" height="'+(L.H+12)+'" fill="#fff"/>';
+  for(const f of L.fills)s+='<rect x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" fill="'+f.c+'"/>';
+  for(const l of L.lines)s+='<line x1="'+l.x1+'" y1="'+l.y1+'" x2="'+l.x2+'" y2="'+l.y2+'" stroke="'+l.c+'" stroke-width="'+l.w+'"'+(l.dash?' stroke-dasharray="7 4"':'')+'/>';
+  for(const t of L.texts)s+='<text x="'+t.x.toFixed(1)+'" y="'+t.y.toFixed(1)+'" font-size="'+t.size.toFixed(2)+'"'+(t.bold?' font-weight="700"':'')+' font-family="'+esc(TPL_FONT)+'" fill="#111">'+esc(t.t)+'</text>';
+  return s+'</svg>';
 }
 
-// --- PDF (pdf-lib) ---
+// --- PDF (pdf-lib): stesso disegno, una pagina A4 ---
 let _pdflib=null;
 function loadPdfLib(){
   if(window.PDFLib)return Promise.resolve(window.PDFLib);
   if(_pdflib)return _pdflib;
-  _pdflib=new Promise((res,rej)=>{const sc=document.createElement("script");sc.src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";sc.onload=()=>res(window.PDFLib);sc.onerror=()=>{_pdflib=null;rej(new Error("pdflib"));};document.head.appendChild(sc);});
+  _pdflib=new Promise((res,rej)=>{const sc=document.createElement("script");sc.src="vendor/pdf-lib.min.js";sc.onload=()=>res(window.PDFLib);sc.onerror=()=>{_pdflib=null;rej(new Error("pdflib"));};document.head.appendChild(sc);});
   return _pdflib;
 }
-let _logoBytes=null;
-async function logoBytes(){
-  if(_logoBytes)return _logoBytes;
-  try{const r=await fetch("logo.jpg");if(r.ok)_logoBytes=new Uint8Array(await r.arrayBuffer());}catch(_){}
-  return _logoBytes;
-}
-const pdfTxt=t=>String(t==null?"":t).replace(/→/g,">").replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/\t/g," ").replace(/[^\x20-\x7E -ÿ€–—…•]/g,"");
-function wrapText(text,font,size,maxW){
-  const out=[];
-  for(const para of pdfTxt(text).split("\n")){
-    let line="";
-    for(const word of para.split(/\s+/).filter(Boolean)){
-      let w=word;
-      while(font.widthOfTextAtSize(w,size)>maxW&&w.length>1){ // parola troppo lunga
-        let k=w.length;while(k>1&&font.widthOfTextAtSize(w.slice(0,k),size)>maxW)k--;
-        if(line){out.push(line);line="";}
-        out.push(w.slice(0,k));w=w.slice(k);
-      }
-      const t=line?line+" "+w:w;
-      if(font.widthOfTextAtSize(t,size)<=maxW)line=t;else{out.push(line);line=w;}
-    }
-    out.push(line);
-  }
-  return out.length?out:[""];
-}
-async function sheetPDF(rows){
+const pdfTxt=t=>String(t==null?"":t).replace(/→/g,">").replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/\t/g," ").replace(/[^\x20-\x7E\u00A0-\u00FF€–—…•]/g,"");
+async function tplPDF(b,full){
   const {PDFDocument,StandardFonts,rgb}=await loadPdfLib();
   const pdf=await PDFDocument.create();
-  pdf.setTitle("Foglio di servizio");pdf.setAuthor("La Terra s.r.l.");
-  const PW=595.28,PH=841.89,mm=2.83465,M=12*mm,W=PW-2*M;
-  const X=[M];SH_W.forEach(w=>X.push(X[X.length-1]+w/82*W));
+  pdf.setTitle("Foglio di servizio "+(b.foglio||""));pdf.setAuthor("La Terra s.r.l.");
   const reg=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold);
-  const FILL=rgb(240/255,246/255,250/255),LINE=rgb(120/255,128/255,136/255),INK=rgb(.1,.12,.14),LAB=rgb(.3,.33,.36);
-  let page=pdf.addPage([PW,PH]),y=M;
-  let logo=null;const lb=await logoBytes();if(lb){try{logo=await pdf.embedJpg(lb);}catch(_){logo=null;}}
-  for(const r of rows){
-    if(r.company){
-      page.drawText(pdfTxt(COMPANY[0]),{x:M,y:PH-y-9,size:8,font:reg,color:INK});
-      page.drawText(pdfTxt(COMPANY[1]),{x:M,y:PH-y-19,size:8,font:reg,color:INK});
-      if(logo){const lw=44*mm,lh=lw*logo.height/logo.width;page.drawImage(logo,{x:M+W-lw,y:PH-y-lh-1,width:lw,height:lh});}
-      y+=32;continue;
-    }
-    if(r.gap){y+=8;continue;}
-    if(r.cut){
-      y+=12;page.drawLine({start:{x:M,y:PH-y},end:{x:M+W,y:PH-y},thickness:.8,color:LINE,dashArray:[4,3]});
-      const t="taglia qui - copia ufficio",tw=reg.widthOfTextAtSize(t,7);page.drawText(t,{x:M+W/2-tw/2,y:PH-y+3,size:7,font:reg,color:LINE});
-      y+=14;continue;
-    }
-    const size=r.cells.some(c=>c.k==="h")?10.5:9.5,lh=size*1.22;
-    let ci=0;
-    const laid=r.cells.map(c=>{const x0=X[ci],w=X[ci+c.span]-x0;ci+=c.span;const f=c.b||c.k==="d"||c.k==="h"&&c.b?bold:reg;return {c,x0,w,f,lines:wrapText(c.t,f,size,w-6)};});
-    const h=r.sign?56:Math.max(18,Math.max(...laid.map(l=>l.lines.length))*lh+6);
-    if(y+h>PH-M){
-      page=pdf.addPage([PW,PH]);y=M;
-      const fg=(rows.find(x=>x.cells&&x.cells.some(c=>c.k==="h"))||{cells:[{},{}]}).cells[1].t||"";
-      page.drawText(pdfTxt("Foglio di servizio n. "+fg+" - segue (pagina "+pdf.getPageCount()+")"),{x:M,y:PH-y-9,size:9,font:bold,color:INK});
-      y+=18;
-    }
-    for(const l of laid){
-      const val=l.c.k==="v"||l.c.k==="d";
-      page.drawRectangle({x:l.x0,y:PH-y-h,width:l.w,height:h,color:val?FILL:undefined,borderColor:LINE,borderWidth:.6});
-      l.lines.forEach((ln,i)=>{
-        const tw=l.f.widthOfTextAtSize(ln,size);
-        const tx=l.c.al==="c"?l.x0+(l.w-tw)/2:l.c.al==="r"?l.x0+l.w-3-tw:l.x0+3;
-        page.drawText(ln,{x:tx,y:PH-y-3-size-(i*lh)+1,size,font:l.f,color:l.c.k==="l"?LAB:INK});
-      });
-    }
-    y+=h;
-  }
+  const HK=0.88; // Helvetica è più larga di Calibri: stessa resa con un corpo un po' più piccolo
+  const L=tplLayout(b,full,(t,size,bd)=>(bd?bold:reg).widthOfTextAtSize(pdfTxt(t),size*HK));
+  const PW=595.28,PH=841.89,M=28.35,k=(PW-2*M)/L.W;
+  const page=pdf.addPage([PW,PH]),X=x=>M+x*k,Y=y=>PH-M-y*k;
+  const hex=h=>rgb(parseInt(h.slice(1,3),16)/255,parseInt(h.slice(3,5),16)/255,parseInt(h.slice(5,7),16)/255);
+  for(const f of L.fills)page.drawRectangle({x:X(f.x),y:Y(f.y+f.h),width:f.w*k,height:f.h*k,color:hex(f.c)});
+  for(const l of L.lines)page.drawLine({start:{x:X(l.x1),y:Y(l.y1)},end:{x:X(l.x2),y:Y(l.y2)},thickness:(l.w===2?1.3:0.6),color:hex(l.c),dashArray:l.dash?[5,3]:undefined});
+  for(const t of L.texts)page.drawText(pdfTxt(t.t),{x:X(t.x),y:Y(t.y),size:t.size*HK*k,font:t.bold?bold:reg,color:rgb(.07,.07,.07)});
   return new Blob([await pdf.save()],{type:"application/pdf"});
 }
 
-// --- Excel (xlsx scritto da zero, stesso impaginato del modello) ---
-async function sheetXLSX(rows){
-  const JSZip=await loadJSZip(),zip=new JSZip();
-  // stili: 0 normale, 1 etichetta con bordo, 2 valore con bordo e fondo, 3 valore grassetto, 4 intestazione, 5 azienda, 6 giorno tour, 7 centrato, 8 destra, 9 taglio
-  const styles='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
-    '<fonts count="4"><font><sz val="12"/><name val="Calibri"/></font><font><b/><sz val="12"/><name val="Calibri"/></font><font><sz val="10"/><name val="Calibri"/></font><font><b/><sz val="13"/><name val="Calibri"/></font></fonts>'+
-    '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF0F6FA"/><bgColor indexed="64"/></patternFill></fill></fills>'+
-    '<borders count="3"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FF78808A"/></left><right style="thin"><color rgb="FF78808A"/></right><top style="thin"><color rgb="FF78808A"/></top><bottom style="thin"><color rgb="FF78808A"/></bottom><diagonal/></border><border><left/><right/><top/><bottom style="dashed"><color rgb="FF78808A"/></bottom><diagonal/></border></borders>'+
-    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="10">'+
-    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+
-    '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"><alignment vertical="top" wrapText="1"/></xf>'+
-    '<xf numFmtId="0" fontId="0" fillId="2" borderId="1" xfId="0" applyFill="1" applyBorder="1"><alignment vertical="top" wrapText="1"/></xf>'+
-    '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment vertical="top" wrapText="1"/></xf>'+
-    '<xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"><alignment vertical="center"/></xf>'+
-    '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+
-    '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center"/></xf>'+
-    '<xf numFmtId="0" fontId="0" fillId="2" borderId="1" xfId="0" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="top"/></xf>'+
-    '<xf numFmtId="0" fontId="0" fillId="2" borderId="1" xfId="0" applyFill="1" applyBorder="1"><alignment horizontal="right" vertical="top"/></xf>'+
-    '<xf numFmtId="0" fontId="2" fillId="0" borderId="2" xfId="0" applyFont="1" applyBorder="1"><alignment horizontal="center"/></xf>'+
-    '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
-  const styleOf=c=>c.k==="l"?1:c.k==="h"?4:c.k==="d"?6:c.b?3:c.al==="c"?7:c.al==="r"?8:2;
-  let r=1;const xrows=[],merges=[];
-  const cell=(col,rr,s,t)=>'<c r="'+XL_COLS[col]+rr+'" s="'+s+'"'+(t!==""&&t!=null?' t="inlineStr"><is><t xml:space="preserve">'+xEsc(t)+'</t></is></c>':'/>');
-  for(const row of rows){
-    if(row.company){xrows.push('<row r="'+r+'">'+cell(0,r,5,COMPANY[0])+'</row>');r++;xrows.push('<row r="'+r+'">'+cell(0,r,5,COMPANY[1])+'</row>');r+=2;continue;}
-    if(row.gap){r++;continue;}
-    if(row.cut){let c="";for(let i=0;i<8;i++)c+=cell(i,r,9,i===0?"":"");xrows.push('<row r="'+r+'" ht="10" customHeight="1">'+c+'</row>');r+=2;continue;}
-    let col=0,c="",maxLines=1;
-    for(const x of row.cells){
-      const s=styleOf(x);c+=cell(col,r,s,x.t);
-      for(let i=1;i<x.span;i++)c+=cell(col+i,r,s,"");
-      if(x.span>1)merges.push(XL_COLS[col]+r+":"+XL_COLS[col+x.span-1]+r);
-      if(x.k!=="l"){const wChars=SH_W.slice(col,col+x.span).reduce((a,b)=>a+b,0)*1.3;maxLines=Math.max(maxLines,Math.ceil((String(x.t).length||1)/Math.max(8,wChars)));}
-      col+=x.span;
-    }
-    const ht=row.sign?60:maxLines>1?Math.round(maxLines*16):0;
-    xrows.push('<row r="'+r+'"'+(ht?' ht="'+ht+'" customHeight="1"':'')+'>'+c+'</row>');r++;
+// --- Excel: il file del modello, con le sole caselle compilate ---
+function tplSetCell(xml,ref,val){
+  const m=new RegExp('<c r="'+ref+'"([^>]*?)(?:/>|>([\\s\\S]*?)</c>)').exec(xml);
+  if(!m)return xml;
+  const attrs=m[1].replace(/\s+t="[^"]*"/,""),fm=/<f[\s\S]*?(?:<\/f>|\/>)/.exec(m[2]||"");
+  const v=val.v,empty=v===""||v==null,num=val.k==="d"?xlSerial(v):Number(v);
+  const isNum=!empty&&val.k&&val.k!=="s"&&isFinite(num);
+  const txt=xEsc(String(empty?"":v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,""));
+  let out;
+  if(fm)out=isNum?'<c r="'+ref+'"'+attrs+'>'+fm[0]+'<v>'+num+'</v></c>':'<c r="'+ref+'"'+attrs+' t="str">'+fm[0]+'<v>'+txt+'</v></c>';
+  else if(empty)out='<c r="'+ref+'"'+attrs+'/>';
+  else out=isNum?'<c r="'+ref+'"'+attrs+'><v>'+num+'</v></c>':'<c r="'+ref+'"'+attrs+' t="inlineStr"><is><t xml:space="preserve">'+txt+'</t></is></c>';
+  return xml.slice(0,m.index)+out+xml.slice(m.index+m[0].length);
+}
+async function tplXLSX(b){
+  const JSZip=await loadJSZip();
+  let r;try{r=await fetch(TPL_FILE,{cache:"no-cache"});}catch(_){r=null;}
+  if(!r||!r.ok)throw {code:"tpl"};
+  const zip=await JSZip.loadAsync(await r.arrayBuffer()),p="xl/worksheets/sheet1.xml";
+  let xml=await zip.file(p).async("string");
+  const vals=tplValues(b),sstF=zip.file("xl/sharedStrings.xml");
+  const sst=sstF?[...(await sstF.async("string")).matchAll(/<si>([\s\S]*?)<\/si>/g)].map(m=>[...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x=>x[1]).join("")):[];
+  for(const ref in vals){
+    const cur=new RegExp('<c r="'+ref+'"[^>]*t="s"[^>]*><v>(\\d+)</v></c>').exec(xml);
+    if(cur&&sst[+cur[1]]===xEsc(String(vals[ref].v)))continue; // es. "Bus" o "NO" già presenti nel modello
+    xml=tplSetCell(xml,ref,vals[ref]);
   }
-  const sheet='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+
-    '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:H'+(r-1)+'"/><sheetViews><sheetView showGridLines="0" workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="17"/>'+
-    '<cols>'+SH_W.map((w,i)=>'<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+w+'" customWidth="1"/>').join("")+'</cols>'+
-    '<sheetData>'+xrows.join("")+'</sheetData>'+(merges.length?'<mergeCells count="'+merges.length+'">'+merges.map(m=>'<mergeCell ref="'+m+'"/>').join("")+'</mergeCells>':'')+
-    '<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="0"/></worksheet>';
-  zip.file("[Content_Types].xml",'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>');
-  zip.file("_rels/.rels",'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
-  zip.file("xl/workbook.xml",'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Foglio1" sheetId="1" r:id="rId1"/></sheets></workbook>');
-  zip.file("xl/_rels/workbook.xml.rels",'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>');
-  zip.file("xl/styles.xml",styles);
-  zip.file("xl/worksheets/sheet1.xml",sheet);
-  return zip.generateAsync({type:"blob",compression:"DEFLATE"});
+  zip.file(p,xml);
+  for(const n of Object.keys(zip.files))if(zip.files[n].dir)delete zip.files[n]; // stesso elenco di file del modello
+  return zip.generateAsync({type:"blob",compression:"DEFLATE",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
 }
 
 // --- nome file come nell'archivio: 26092602_cliente_x_destinazione ---
@@ -954,7 +1157,7 @@ function sheetFileName(b){
   const cl=shClient(b),who=slug((cl&&cl[2])||(cl&&cl[1])||b.client||"cliente");
   let parts=(b.route||"").split(/[>→,–]| - /).map(x=>x.trim()).filter(Boolean);
   if(parts.length>2){const inner=parts.slice(1);if(norm(inner[inner.length-1])===norm(parts[0]))inner.pop();parts=inner;}else if(parts.length===2)parts=parts.slice(1);
-  const what=slug(b.type==="evento"&&b.event?b.event:(parts.slice(0,2).join(" ")||TYPES[b.type]||"servizio"));
+  const what=slug(hasEvent(b.type)&&b.event?b.event:(parts.slice(0,2).join(" ")||TYPES[normType(b.type)]||"servizio"));
   return (b.foglio||"foglio")+"_"+who+(what?"_x_"+what:"");
 }
 
@@ -963,11 +1166,11 @@ let sheetBooking=null;
 function openSheet(b){
   sheetBooking=b;
   $("sheetTitle").textContent="Foglio di servizio n. "+(b.foglio||"");
-  $("sheetView").innerHTML=sheetHTML(sheetSpec(b,$("sheetFull").checked));
+  $("sheetView").innerHTML=tplSVG(b,$("sheetFull").checked);
   $("sheetMsg").textContent="";
   $("ovSheet").hidden=false;
 }
-$("sheetFull").addEventListener("change",()=>{if(sheetBooking)$("sheetView").innerHTML=sheetHTML(sheetSpec(sheetBooking,$("sheetFull").checked));});
+$("sheetFull").addEventListener("change",()=>{if(sheetBooking)$("sheetView").innerHTML=tplSVG(sheetBooking,$("sheetFull").checked);});
 $("sheetClose").onclick=()=>{$("ovSheet").hidden=true;};
 $("ovSheet").addEventListener("click",e=>{if(e.target===$("ovSheet"))$("ovSheet").hidden=true;});
 async function sheetSave(kind){
@@ -975,13 +1178,12 @@ async function sheetSave(kind){
   const full=$("sheetFull").checked,btns=[$("sheetPdf"),$("sheetXlsx")];btns.forEach(x=>x.disabled=true);
   $("sheetMsg").textContent="Preparo il file…";
   try{
-    const rows=sheetSpec(sheetBooking,full);
-    const blob=kind==="pdf"?await sheetPDF(rows):await sheetXLSX(rows);
+    const blob=kind==="pdf"?await tplPDF(sheetBooking,full):await tplXLSX(sheetBooking);
     const where=await saveXlsx(blob,sheetFileName(sheetBooking)+(full&&kind==="pdf"?"_completo":"")+"."+kind);
     $("sheetMsg").textContent=(kind==="pdf"?"PDF pronto. ":"File Excel pronto. ")+where;
   }catch(err){
     const c=err&&err.code;
-    $("sheetMsg").textContent=c==="declined"?"Salvataggio annullato.":c==="unavailable"||c==="not_granted"?"Il download non è disponibile in questa vista.":"Non sono riuscito a creare il file. Controlla la connessione e riprova.";
+    $("sheetMsg").textContent=c==="tpl"?"Non trovo il modello del foglio di servizio (cartella modelli): controlla di averla caricata su GitHub.":c==="declined"?"Salvataggio annullato.":c==="unavailable"||c==="not_granted"?"Il download non è disponibile in questa vista.":"Non sono riuscito a creare il file. Controlla la connessione e riprova.";
     console.error(err);
   }finally{btns.forEach(x=>x.disabled=false);}
 }
@@ -989,7 +1191,7 @@ $("sheetPdf").onclick=()=>sheetSave("pdf");
 $("sheetXlsx").onclick=()=>sheetSave("xlsx");
 
 // ---------- versione ----------
-const APP_VERSION="1.5",APP_DATE="29/09/2026";
+const APP_VERSION="1.6",APP_DATE="30/09/2026";
 $("gVer").textContent="Versione "+APP_VERSION+" · "+APP_DATE;$("appVer").textContent="v"+APP_VERSION;
 
 // ---------- dati: Dropbox ----------
@@ -999,8 +1201,8 @@ function refreshFromStore(){
   const fl=STORE.fleet;if(Array.isArray(fl)&&fl.length){S.fleet=sortFleet(fl);S.fleetStored=true;}
   const L=STORE.lists;
   if(L){
-    if(L.clients)S.clients=L.clients;
-    if(L.regole){S.regole=Object.assign({autisti:[],targhe:{},numeri:{}},L.regole);$("dlDrivers").innerHTML=(S.regole.autisti||[]).map(a=>'<option value="'+esc(a)+'">').join("");}
+    if(L.clients){S.clients=L.clients;S.clientCols=L.clientCols||null;}
+    if(L.regole){S.regole=Object.assign({autisti:[],targhe:{},numeri:{}},L.regole);fillDrivers();}
   }
   if(!$("app").hidden)renderAll();
 }
@@ -1039,7 +1241,9 @@ STORE.configure({
   onStatus:renderNet,
   onAccessChanged:()=>{if(!$("app").hidden)showGate("code",{msg:"Il codice di accesso è stato cambiato: inserisci quello nuovo."});},
   onAuthLost:()=>showGate("link",{msg:"L'accesso a Dropbox è scaduto o è stato revocato: collegalo di nuovo."}),
-  rowFor:b=>Object.assign(billRow(Object.assign({},b,{start:b.start})),{tour:isMulti(b.type)})
+  rowFor:b=>Object.assign(billRow(Object.assign({},b,{start:b.start})),{tour:isMulti(b.type)}),
+  onClientAdded:(tmp,info)=>onClientAdded(tmp,info),
+  onClientError:c=>toast(c==="noclienti"?"Nel file fatturato non trovo il foglio «clienti»: il cliente non è stato scritto.":"Il cliente non è stato scritto nel fatturato.")
 });
 function writeDayOps(date,patch){
   const ops=[];
@@ -1168,7 +1372,7 @@ async function saveXlsx(blob,filename){
 async function shareSheet(){
   if(!sheetBooking)return;
   try{
-    const blob=await sheetPDF(sheetSpec(sheetBooking,false));
+    const blob=await tplPDF(sheetBooking,$("sheetFull").checked);
     const file=new File([blob],sheetFileName(sheetBooking)+".pdf",{type:"application/pdf"});
     await navigator.share({files:[file],title:"Foglio di servizio n. "+(sheetBooking.foglio||"")});
     $("sheetMsg").textContent="Inviato.";

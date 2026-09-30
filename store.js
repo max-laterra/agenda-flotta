@@ -17,7 +17,8 @@
   const pad = (n) => String(n).padStart(2, "0");
 
   let cache = load(CK, { days: {}, cursor: null, fleet: null, settings: null, access: null, lists: null, fat: null });
-  let queue = load(QK, { days: [], fat: {} });
+  let queue = load(QK, { days: [], fat: {}, clients: [] });
+  if (!Array.isArray(queue.clients)) queue.clients = [];
   function load(k, d) { try { return Object.assign(d, JSON.parse(localStorage.getItem(k) || "null") || {}); } catch (_) { return d; } }
   function persist() {
     try { localStorage.setItem(CK, JSON.stringify(cache)); } catch (_) {}
@@ -26,7 +27,7 @@
 
   const hooks = { onChange() {}, onStatus() {}, onAccessChanged() {}, rowFor: null };
   const status = { online: navigator.onLine, syncing: false, error: null, lastSync: cache.lastSync || null };
-  function emitStatus() { hooks.onStatus(Object.assign({ pending: queue.days.length, fatPending: Object.keys(queue.fat).length, fat: cache.fat }, status)); }
+  function emitStatus() { hooks.onStatus(Object.assign({ pending: queue.days.length, fatPending: Object.keys(queue.fat).length + queue.clients.length, fat: cache.fat }, status)); }
 
   // ---------- giornate ----------
   const dayPath = (date) => P.days + "/" + date.slice(0, 4) + "/" + date + ".json";
@@ -128,7 +129,7 @@
     } finally {
       flushing = false; status.syncing = false; emitStatus();
     }
-    if (Object.keys(queue.fat).length) syncFatturato();
+    if (Object.keys(queue.fat).length || queue.clients.length) syncFatturato();
   }
 
   // nuovi tentativi ravvicinati dopo un errore temporaneo: 3 s, 10 s, 30 s, poi ogni minuto
@@ -234,6 +235,10 @@
     }
     return files;
   }
+  function clientYear(files) {
+    const y = String(new Date().getFullYear()), ys = Object.keys(files).filter((k) => k !== "*").sort();
+    return files[y] ? y : ys.length ? ys[ys.length - 1] : files["*"] ? "*" : null;
+  }
   let fatRunning = false, fatAgain = false;
   // Scrive nei file fatturato le righe in attesa e rimette quelle mancanti. Legge anche clienti e regole.
   async function syncFatturato() {
@@ -257,7 +262,7 @@
         const pend = {};
         for (const [k, x] of Object.entries(pendingNow)) if (fileFor(yOfFoglio(k)) === y && (x.act === "clear" || mine(x.b))) pend[k] = x;
         try {
-          const r = await syncOne(files[y].path, pend, all.filter(mine));
+          const r = await syncOne(files[y].path, pend, all.filter(mine), y === clientYear(files) ? queue.clients.slice() : []);
           report[y] = r ? { ok: true, name: files[y].name, at: Date.now() } : { ok: false, error: "missing", name: files[y].name };
           if (!r && !firstErr) firstErr = "missing";
         } catch (e) {
@@ -272,7 +277,7 @@
     }
     if (fatAgain) syncFatturato();
   }
-  async function syncOne(path, pend, ensureList) {
+  async function syncOne(path, pend, ensureList, newClients) {
     for (let attempt = 0; attempt < 5; attempt++) {
       const f = await DBX.download(path);
       if (!f) return null;
@@ -282,12 +287,13 @@
         clears: Object.entries(pend).filter(([, x]) => x.act === "clear").map(([k, x]) => ({ foglio: k, row: x.b ? hooks.rowFor(x.b) : null })),
         ensure: ensureList.map(hooks.rowFor),
         known: Object.assign({}, cache.fatShared || {}, cache.fatWritten || {}),
+        newClients: (newClients || []).map((x) => ({ tmp: x.tmp, vals: x.vals })),
       });
       if (res.collisions && res.collisions.length) renumberCollisions(res.collisions);
       if (res.lists) cache.lists = Object.assign({}, cache.lists || {}, res.lists, { fogli: Array.from(new Set(((cache.lists && cache.lists.fogli) || []).concat(res.lists.fogli || []))), at: Date.now() });
-      if (!res.changed) { finishFat(pend, res); return res; }
+      if (!res.changed) { finishFat(pend, res); finishClients(res); return res; }
       try {
-        await DBX.upload(path, res.buf, { update: f.meta.rev }); finishFat(pend, res);
+        await DBX.upload(path, res.buf, { update: f.meta.rev }); finishFat(pend, res); finishClients(res);
         await shareRows(res, Object.keys(pend).filter((k) => pend[k].act === "upsert" && !(res.collisions || []).includes(k)));
         return res;
       }
@@ -324,6 +330,30 @@
       } catch (e) { if (e.code !== "conflict") return; }
     }
   }
+  // clienti scritti nel foglio "clienti": escono dalla coda e l'app riceve il codice assegnato
+  function finishClients(res) {
+    const done = (res.newClients || []).filter((x) => !x.error);
+    if (!done.length) {
+      const errs = (res.newClients || []).filter((x) => x.error);
+      if (errs.length) { cache.clientErr = errs[0].error; hooks.onClientError && hooks.onClientError(errs[0].error); }
+      return;
+    }
+    cache.clientDone = cache.clientDone || {};
+    for (const x of done) {
+      const q = queue.clients.find((c) => c.tmp === x.tmp);
+      cache.clientDone[x.tmp] = { code: x.code, existed: !!x.existed, name: q && q.name, at: Date.now() };
+      queue.clients = queue.clients.filter((c) => c.tmp !== x.tmp);
+      hooks.onClientAdded && hooks.onClientAdded(x.tmp, cache.clientDone[x.tmp]);
+    }
+    persist();
+  }
+  // nuovo cliente: va in coda e viene scritto nel file fatturato (subito se c'è la connessione)
+  function addClient(vals, name) {
+    const tmp = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    queue.clients.push({ tmp, vals, name, at: Date.now() });
+    persist(); changed(); syncFatturato();
+    return tmp;
+  }
   function finishFat(done, res) {
     for (const k in done) {
       if (res.collisions && res.collisions.includes(k)) continue;
@@ -359,7 +389,7 @@
     return DBX.upload(folder + "/" + name, blob, "overwrite");
   }
 
-  function reset() { cache = { days: {}, cursor: null, fleet: null, settings: null, access: null, lists: null, fat: null }; queue = { days: [], fat: {} }; persist(); }
+  function reset() { cache = { days: {}, cursor: null, fleet: null, settings: null, access: null, lists: null, fat: null }; queue = { days: [], fat: {}, clients: [] }; persist(); }
 
   window.STORE = {
     BASE, P,
@@ -368,14 +398,16 @@
     disable() { enabled = false; },
     fileFogli,
     view, mutateDay, pull, flush, watch, setupFolders, syncFatturato,
-    setFleet, setSettings, linkFatturato, fatFiles, setAccess, saveSheetFile, reset,
+    setFleet, setSettings, linkFatturato, fatFiles, setAccess, saveSheetFile, reset, addClient,
+    get pendingClients() { return queue.clients.slice(); },
+    clientDone: (tmp) => (cache.clientDone || {})[tmp] || null,
     get fleet() { return cache.fleet && cache.fleet.vehicles; },
     get settings() { return cache.settings; },
     get access() { return cache.access; },
     get lists() { return cache.lists; },
     get fat() { return cache.fat; },
-    get pending() { return queue.days.length + Object.keys(queue.fat).length; },
+    get pending() { return queue.days.length + Object.keys(queue.fat).length + queue.clients.length; },
     get hasData() { return !!cache.cursor; },
-    status: () => Object.assign({ pending: queue.days.length, fatPending: Object.keys(queue.fat).length, fat: cache.fat }, status),
+    status: () => Object.assign({ pending: queue.days.length, fatPending: Object.keys(queue.fat).length + queue.clients.length, fat: cache.fat }, status),
   };
 })();

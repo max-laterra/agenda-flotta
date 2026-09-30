@@ -136,9 +136,12 @@
       return o;
     }
     const norm = (t) => String(t == null ? "" : t).trim().toLowerCase();
+    // tipi scritti fino alla versione 1.5: valgono come la categoria nuova corrispondente
+    const OLD_B = { "gita la terra": "gita", "gita scuole": "gita", "escursione villaggi": "gita", "tour la terra": "tour", "tour scuole": "tour", "evento la terra": "notturno", "navetta": "transfer", "transfer villaggi": "transfer", "immigrati": "transfer" };
+    const tipo = (t) => { const k = norm(t); return OLD_B[k] || k; };
     function matches(r, row) {
       const o = rowNow(r);
-      if (norm(o.B) !== norm(row.B)) return false;
+      if (tipo(o.B) !== tipo(row.B)) return false;
       if (row.C !== "" && row.C != null) return norm(o.C) === norm(row.C);
       return o.D != null && norm(o.D) === norm(row.D);
     }
@@ -166,26 +169,21 @@
       writeRow(where[key], vals); delete where[key]; cleared++; clearedFogli.push(key);
     }
     lists.fogli = Object.keys(where);
-    const changed = added + updated + cleared > 0;
-    if (!changed) return { changed: false, added, updated, cleared, lists, collisions, addedFogli, clearedFogli };
+    const agendaChanged = added + updated + cleared > 0;
+    // clienti nuovi dal pulsante "Nuovo cliente": righe in fondo al foglio "clienti"
+    const cli = job.newClients && job.newClients.length ? await addClients(zip, sst, job.newClients, lists) : null;
+    const newClients = cli ? cli.results : [];
+    const changed = agendaChanged || !!(cli && cli.added);
+    if (!changed) return { changed: false, added, updated, cleared, lists, collisions, addedFogli, clearedFogli, newClients };
 
-    rows.sort((x, y) => x.n - y.n);
-    xml = head + (selfClosed ? "<sheetData>" : "") + rows.map((x) => x.xml).join("") + "</sheetData>" + tail;
-    xml = xml.replace(/(<dimension ref="[A-Z]+\d+:)([A-Z]+)(\d+)/, (all, pre, col, n) => (+n < maxRow ? pre + col + maxRow : all));
-    zip.file(path, xml);
-    // tabella e filtro si allargano se servono righe nuove
-    const relsPath = path.replace(/([^/]+)$/, "_rels/$1.rels");
-    if (zip.file(relsPath)) {
-      const rels = await zip.file(relsPath).async("string");
-      for (const t of rels.match(/<Relationship\b[^>]*>/g) || []) {
-        if (!/\/table$/.test(attr(t, "Type") || "")) continue;
-        const tp = ("xl/worksheets/" + attr(t, "Target")).replace(/[^/]+\/\.\.\//g, "");
-        if (!zip.file(tp)) continue;
-        let tx = await zip.file(tp).async("string");
-        tx = tx.replace(/(\sref="[A-Z]+\d+:)([A-Z]+)(\d+)/g, (all, pre, col, n) => (+n < maxRow ? pre + col + maxRow : all));
-        zip.file(tp, tx);
-      }
+    if (agendaChanged) {
+      rows.sort((x, y) => x.n - y.n);
+      xml = head + (selfClosed ? "<sheetData>" : "") + rows.map((x) => x.xml).join("") + "</sheetData>" + tail;
+      xml = xml.replace(/(<dimension ref="[A-Z]+\d+:)([A-Z]+)(\d+)/, (all, pre, col, n) => (+n < maxRow ? pre + col + maxRow : all));
+      zip.file(path, xml);
+      await growTables(zip, path, maxRow);
     }
+    if (cli && cli.added) { zip.file(cli.path, cli.xml); await growTables(zip, cli.path, cli.maxRow); }
     let wb = await zip.file("xl/workbook.xml").async("string");
     wb = wb.replace(/(<definedName name="_xlnm\._FilterDatabase"[^>]*>agenda!\$[A-Z]+\$\d+:\$)([A-Z]+)\$(\d+)/, (all, pre, col, n) => (+n < maxRow ? pre + col + "$" + maxRow : all));
     wb = /<calcPr\b[^>]*fullCalcOnLoad/.test(wb) ? wb : wb.replace(/<calcPr\b([^>]*?)\/>/, '<calcPr$1 fullCalcOnLoad="1"/>');
@@ -198,22 +196,119 @@
       zip.file("xl/_rels/workbook.xml.rels", wr.replace(/<Relationship\b[^>]*calcChain[^>]*\/>/g, ""));
     }
     const out = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE", compressionOptions: { level: 6 } });
-    return { changed: true, buf: out, added, updated, cleared, lists, collisions, addedFogli, clearedFogli };
+    return { changed: true, buf: out, added, updated, cleared, lists, collisions, addedFogli, clearedFogli, newClients };
+  }
+
+  // la tabella (e il suo filtro) si allarga se servono righe nuove
+  async function growTables(zip, path, maxRow) {
+    const relsPath = path.replace(/([^/]+)$/, "_rels/$1.rels");
+    if (!zip.file(relsPath)) return;
+    const rels = await zip.file(relsPath).async("string");
+    for (const t of rels.match(/<Relationship\b[^>]*>/g) || []) {
+      if (!/\/table$/.test(attr(t, "Type") || "")) continue;
+      const tp = ("xl/worksheets/" + attr(t, "Target")).replace(/[^/]+\/\.\.\//g, "");
+      if (!zip.file(tp)) continue;
+      let tx = await zip.file(tp).async("string");
+      tx = tx.replace(/(\sref="[A-Z]+\d+:)([A-Z]+)(\d+)/g, (all, pre, col, n) => (+n < maxRow ? pre + col + maxRow : all));
+      zip.file(tp, tx);
+    }
+  }
+  const normName = (t) => String(t == null ? "" : t).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  const normId = (t) => String(t == null ? "" : t).toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^IT(?=\d{11}$)/, "");
+  // Aggiunge i clienti nuovi al foglio "clienti": codice = il più alto + 1, stessi stili della riga sopra.
+  // Se esiste già un cliente con la stessa partita IVA / codice fiscale (o, senza questi, lo stesso nome) non lo duplica.
+  // nc: [{tmp, vals:{B:{t}|{n}, C:…}}] → results: [{tmp, code, existed, row}]
+  async function addClients(zip, sst, list, lists) {
+    const path = await sheetFile(zip, "clienti");
+    if (!path || !zip.file(path)) return { added: 0, results: list.map((x) => ({ tmp: x.tmp, error: "noclienti" })) };
+    let xml = await zip.file(path).async("string");
+    const a = xml.indexOf("<sheetData"), b = xml.indexOf("</sheetData>");
+    if (a < 0 || b < 0) return { added: 0, results: list.map((x) => ({ tmp: x.tmp, error: "noclienti" })) };
+    const openEnd = xml.indexOf(">", a) + 1, head = xml.slice(0, openEnd), tail = xml.slice(b), body = xml.slice(openEnd, b);
+    const rowRe = /<row\b[^>]*?(?:\/>|>[\s\S]*?<\/row>)/g, rows = [], byNum = {}; let m;
+    while ((m = rowRe.exec(body))) { const n = +attr(m[0].slice(0, m[0].indexOf(">") + 1), "r"); byNum[n] = rows.length; rows.push({ n, xml: m[0] }); }
+    // intestazioni e dati esistenti
+    const hdr = {}, recs = {};
+    for (const r of rows) {
+      const cells = rowCells(r.xml);
+      for (const c in cells) {
+        const am = /<c r="[A-Z]+\d+"([^>]*?)(?:\/>|>)/.exec(cells[c].xml);
+        const v = cellValue(am ? am[1] : "", cells[c].inner, sst);
+        if (v === "") continue;
+        if (r.n === 1) hdr[c] = v.trim(); else (recs[r.n] || (recs[r.n] = {}))[c] = String(v).trim();
+      }
+    }
+    const cols = Object.keys(hdr).sort((x, y) => colIdx(x) - colIdx(y));
+    const colOf = (re) => cols.find((c) => re.test(hdr[c])) || null;
+    const cPiva = colOf(/partita\s*iva(?!.*estera)/i), cCf = colOf(/codice\s*fiscale/i), cName = "B";
+    let lastData = 1, maxCode = 0;
+    const byPiva = {}, byCf = {}, byName = {};
+    for (const n in recs) {
+      const x = recs[n]; if (!x.A && !x.B) continue;
+      if (+n > lastData) lastData = +n;
+      const code = /^\d+(\.0+)?$/.test(x.A || "") ? Number(x.A) : null;
+      if (code != null && code > maxCode) maxCode = code;
+      const key = code != null ? code : x.A;
+      if (cPiva && x[cPiva]) byPiva[normId(x[cPiva])] = key;
+      if (cCf && x[cCf]) byCf[normId(x[cCf])] = key;
+      if (x[cName]) byName[normName(x[cName])] = key;
+    }
+    const results = []; let added = 0, maxRow = 0;
+    const prevCells = () => { for (let n = lastData; n >= 2; n--) if (byNum[n] != null) return rowCells(rows[byNum[n]].xml); return {}; };
+    for (const nc of list) {
+      const v = nc.vals || {}, tv = (c) => (v[c] ? String(v[c].t != null ? v[c].t : v[c].n) : "");
+      const piva = cPiva ? normId(tv(cPiva)) : "", cf = cCf ? normId(tv(cCf)) : "", nm = normName(tv(cName));
+      let existing = null;
+      if (piva && byPiva[piva] != null) existing = byPiva[piva];
+      else if (cf && (byCf[cf] != null || byPiva[cf] != null)) existing = byCf[cf] != null ? byCf[cf] : byPiva[cf];
+      else if (!piva && !cf && nm && byName[nm] != null) existing = byName[nm];
+      if (existing != null) { results.push({ tmp: nc.tmp, code: existing, existed: true }); continue; }
+      if (!nm) { results.push({ tmp: nc.tmp, error: "noname" }); continue; }
+      const r = ++lastData, code = ++maxCode, prev = prevCells();
+      let cells, open;
+      if (byNum[r] != null) { const old = rows[byNum[r]].xml; open = old.slice(0, old.indexOf(">") + 1).replace(/\/>$/, ">"); cells = rowCells(old); }
+      else { open = '<row r="' + r + '">'; cells = {}; }
+      const styleOf = (c) => (cells[c] && cells[c].s != null ? cells[c].s : prev[c] && prev[c].s);
+      const put = (c, val) => { cells[c] = { xml: makeCell(c + r, styleOf(c), val), s: styleOf(c), inner: "" }; };
+      for (const c of cols) { if (c === "A") continue; if (!cells[c] && prev[c]) put(c, null); }
+      put("A", { n: code });
+      for (const c of Object.keys(v)) if (c !== "A" && hdr[c]) put(c, v[c]);
+      const x = open + Object.keys(cells).sort((p, q) => colIdx(p) - colIdx(q)).map((k) => cells[k].xml).join("") + "</row>";
+      if (byNum[r] != null) rows[byNum[r]].xml = x; else { byNum[r] = rows.length; rows.push({ n: r, xml: x }); }
+      if (r > maxRow) maxRow = r;
+      if (piva) byPiva[piva] = code; if (cf) byCf[cf] = code; byName[nm] = code;
+      added++; results.push({ tmp: nc.tmp, code, existed: false, row: r });
+      // subito nell'elenco dell'app
+      if (lists && lists.clients) {
+        const g = (re) => { const c = colOf(re); return c ? tv(c) : ""; };
+        lists.clients.push([code, tv("B"), tv("C"), g(/citt/i), g(/^telefono/i), cPiva ? tv(cPiva) : "", g(/referente.*nome/i), g(/referente.*tel/i), cols.map((c) => (c === "A" ? String(code) : tv(c)))]);
+      }
+    }
+    if (!added) return { added: 0, results };
+    rows.sort((x, y) => x.n - y.n);
+    xml = head + rows.map((x) => x.xml).join("") + tail;
+    xml = xml.replace(/(<dimension ref="[A-Z]+\d+:)([A-Z]+)(\d+)/, (all, pre, col, n) => (+n < maxRow ? pre + col + maxRow : all));
+    return { added, results, xml, path, maxRow };
   }
 
   // Clienti (foglio "clienti") e autisti/targhe (foglio "regole")
   async function readLists(zip, sst) {
     const out = {};
     try {
-      const g = await readGrid(zip, "clienti", ["A", "B", "C", "F", "H", "L", "O", "P"], sst);
+      const g = await readGrid(zip, "clienti", COLS.slice(0, 26), sst);
       if (g) {
+        const hdr = g[1] || {}, cols = Object.keys(hdr).filter((c) => hdr[c]).sort((a, b) => colIdx(a) - colIdx(b));
+        const colOf = (re) => cols.find((c) => re.test(hdr[c])) || null;
+        const cCity = colOf(/citt/i) || "F", cTel = colOf(/^telefono/i) || "L", cPiva = colOf(/partita\s*iva(?!.*estera)/i) || "H", cCf = colOf(/codice\s*fiscale/i) || "I";
+        const cRef = colOf(/referente.*nome/i) || "O", cRefT = colOf(/referente.*tel/i) || "P";
         const list = [];
         for (const r of Object.keys(g).map(Number).sort((a, b) => a - b)) {
           if (r < 2) continue; const x = g[r]; if (!x.A || !x.B) continue;
           const code = /^\d+(\.0+)?$/.test(x.A) ? Number(x.A) : x.A;
-          list.push([code, x.B, x.C || "", x.F || "", x.L || "", x.H || "", x.O || "", x.P || ""]);
+          list.push([code, x.B, x.C || "", x[cCity] || "", x[cTel] || "", x[cPiva] || "", x[cRef] || "", x[cRefT] || "", cols.map((c) => (c === "A" ? String(code) : x[c] || ""))]);
         }
         if (list.length) out.clients = list;
+        if (cols.length) out.clientCols = cols.map((c) => ({ c, h: hdr[c] }));
       }
     } catch (_) {}
     try {
