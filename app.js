@@ -49,8 +49,8 @@ function driverCanon(x){
 const driverColor=x=>{const d=DRIVERS.find(d=>d[0]===driverCanon(x));return d?d[1]:"";};
 // autisti che servono per un servizio: i nomi veri contano una volta sola al giorno,
 // ogni generico (o servizio senza autista) conta come una persona in più
-function dayCounts(ds,all){
-  const list=all.filter(b=>b.start<=ds&&endOf(b)>=ds),named=new Set();let gen=0;
+function dayCounts(ds){
+  const list=dayList(ds),named=new Set();let gen=0;
   for(const b of list){
     const ds2=[b.driver,b.driver2].map(x=>String(x||"").trim()).filter(Boolean);
     if(!ds2.length)gen++;
@@ -90,6 +90,16 @@ function shiftMonth(k,n){let y=+k.slice(0,4),m=+k.slice(5,7)+n;while(m<1){m+=12;
 function dim(k){return new Date(Date.UTC(+k.slice(0,4),+k.slice(5,7),0)).getUTCDate();}
 function short(s){const d=parse(s);return d.getUTCDate()+" "+MN[d.getUTCMonth()].slice(0,3);}
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+// data valida: anno tra 2000 e 2099 e giorno esistente (evita 0026 o 20266 scritti per sbaglio)
+function validDate(s){return /^20\d\d-\d\d-\d\d$/.test(String(s||""))&&fmt(parse(s))===s;}
+// testo pulito: niente caratteri invisibili incollati da Word, PDF o WhatsApp (rovinerebbero il file Excel)
+function cleanText(t,multi){
+  t=String(t==null?"":t).replace(/\r\n?/g,"\n").replace(/[\u000B\u000C\u2028\u2029]/g,"\n").replace(/\t/g," ")
+    .replace(/[\u0000-\u0008\u000E-\u001F\u007F\u200B\u200E\u200F\u202A-\u202E\u2060\uFEFF]/g,"")
+    .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDFFF]/g,m=>m.length===2?m:"");
+  if(!multi)t=t.replace(/\n+/g," ");
+  return t.trim();
+}
 
 // ---------- stato ----------
 // flotta in ordine decrescente di posti (l'auto in fondo)
@@ -98,12 +108,16 @@ const S={fleet:sortFleet(DEFAULT_FLEET),fleetStored:false,days:{},sel:todayISO()
 let db=null, unsubDays=null, subMonth=null;
 const $=id=>document.getElementById(id);
 
+// tutte le prenotazioni (calcolate una volta sola finché i dati non cambiano: da non modificare)
+let _allFor=null,_all=[],_idx=null;
 function bookingsAll(){
+  if(_allFor===S.days)return _all;
   const out=[];
   for(const date in S.days){const bk=(S.days[date]||{}).bookings||{};for(const id in bk){const b=bk[id];if(b&&typeof b==="object")out.push(Object.assign({},b,{id:id,start:b.start||date,type:normType(b.type)}));}}
+  _allFor=S.days;_all=out;_idx=null;
   return out;
 }
-function endOf(b){return (b.end&&b.end>=b.start)?b.end:b.start;}
+function endOf(b){return (b.end&&b.end>=b.start&&diff(b.start,b.end)<=31)?b.end:b.start;}
 // Tour: cosa fa il mezzo in quel giorno, preso dal programma giorno per giorno
 function dayProgram(b,ds){
   if(!isMulti(b.type)||!Array.isArray(b.program))return "";
@@ -117,7 +131,15 @@ function whatToday(b,ds){
   return p||(ds===b.start?b.route||"":"");
 }
 const spans=b=>endOf(b)>b.start;
-function on(date,vid,list){return (list||bookingsAll()).filter(b=>b.vehicle===vid&&b.start<=date&&endOf(b)>=date).sort((a,b)=>(a.time||"99").localeCompare(b.time||"99"));}
+// indice giorno → prenotazioni in corso quel giorno (così le viste non scorrono tutto l'archivio per ogni casella)
+function byDay(){
+  const all=bookingsAll();if(_idx&&_idx.all===all)return _idx.map;
+  const map={};
+  for(const b of all){if(!validDate(b.start))continue;const e=endOf(b);let d=b.start,n=0;while(d<=e&&n<32){(map[d]||(map[d]=[])).push(b);d=addDays(d,1);n++;}}
+  _idx={all,map};return map;
+}
+const dayList=ds=>byDay()[ds]||[];
+function on(date,vid,list){return (list?list.filter(b=>b.start<=date&&endOf(b)>=date):dayList(date)).filter(b=>b.vehicle===vid).sort((a,b)=>(a.time||"99").localeCompare(b.time||"99"));}
 function vehicle(id){return S.fleet.find(v=>v.id===id);}
 
 // ---------- rendering ----------
@@ -140,14 +162,14 @@ function renderWeek(){
     '<div class="nav"><button id="wPrev" aria-label="Settimana precedente">‹</button><button id="wNext" aria-label="Settimana successiva">›</button></div>';
   let h='<colgroup><col class="vcol">'+days.map(()=>"<col>").join("")+'</colgroup><thead><tr><th class="vc">Mezzo</th>';
   for(const ds of days){
-    const w=wday(ds),busy=new Set(all.filter(b=>b.start<=ds&&endOf(b)>=ds).map(b=>b.vehicle)).size;
+    const w=wday(ds),busy=new Set(dayList(ds).map(b=>b.vehicle)).size;
     h+='<th class="'+(w===0?"sun ":"")+(ds===t?"today ":"")+(ds===S.sel?"sel":"")+'" data-goday="'+ds+'" title="Apri la giornata"><span class="wdn">'+WDL[w]+'</span><span class="dnum">'+parse(ds).getUTCDate()+" "+MN[parse(ds).getUTCMonth()].slice(0,3)+'</span><span class="occ">'+busy+"/"+S.fleet.length+' impegnati</span></th>';
   }
   h+='</tr></thead><tbody>';
   for(const v of S.fleet){
     h+='<tr><th class="vc"><b>'+esc(v.name)+(v.h?'<span class="badge-h" title="Accessibile">H</span>':"")+'</b><span>'+(v.seats?v.seats+" posti":"Auto")+(v.plate?" · "+esc(v.plate):"")+'</span></th>';
     for(const ds of days){
-      const list=on(ds,v.id,all);
+      const list=on(ds,v.id);
       let inner="";
       for(const b of list){
         let tp=TYPES[b.type]||"",tm=b.time||"";
@@ -182,7 +204,7 @@ function renderStrip(){
   for(let d=1;d<=n;d++){
     const ds=k+"-"+pad(d),w=wday(ds);
     const inwk=wkA&&ds>=wkA&&ds<=wkZ;
-    const c=dayCounts(ds,all);
+    const c=dayCounts(ds);
     const pct=Math.round(c.p/Math.max(1,nf)*100);
     const when=WDL[w]+" "+d+": ";
     g+='<button class="dbtn'+(w===0?" sun":"")+(ds===t?" today":"")+(inwk?" inweek":"")+'" data-day="'+ds+'"'+(ds===S.sel?' aria-current="date"':"")+' title="'+c.p+' mezzi impegnati"><span class="wd">'+WD[w]+'</span><span class="dn">'+d+'</span><span class="load"><b style="width:'+pct+'%"></b></span></button>';
@@ -230,8 +252,8 @@ function bookingHTML(b,date){
 
 function renderDay(){
   const date=S.sel,w=wday(date),all=bookingsAll(),d=parse(date);
-  const today=all.filter(b=>b.start<=date&&endOf(b)>=date);
-  const busy=new Set(today.map(b=>b.vehicle)),dc=dayCounts(date,all);
+  const today=dayList(date);
+  const busy=new Set(today.map(b=>b.vehicle)),dc=dayCounts(date);
   $("sign").innerHTML=
     '<div class="date"><small>'+(date===todayISO()?"Oggi · ":"")+WDL[w]+'</small>'+d.getUTCDate()+" "+MN[d.getUTCMonth()]+" "+d.getUTCFullYear()+'</div>'+
     (w===0?'<span class="sunflag">Domenica</span>':"")+
@@ -246,7 +268,7 @@ function renderDay(){
   for(const v of S.fleet){
     const g=GROUPS[v.kind]||"Bus";
     if(g!==lastG){h+='<div class="group-h">'+g+'</div>';lastG=g;}
-    const list=on(date,v.id,all);
+    const list=on(date,v.id);
     h+='<div class="row'+(list.length?" busy":"")+'">'+
       '<div class="veh"><span class="nm">'+esc(v.name)+(v.h?'<span class="badge-h" title="Accessibile">H</span>':"")+'</span>'+
       '<span class="meta">'+(v.seats?v.seats+" posti":"Auto")+(v.plate?" · "+esc(v.plate):"")+'</span></div>'+
@@ -269,7 +291,7 @@ function renderMonth(){
   for(const v of S.fleet){
     h+='<tr><th class="vc">'+esc(v.name)+(v.plate?'<small>'+esc(v.plate)+'</small>':"")+'</th>';
     for(let d=1;d<=n;d++){
-      const ds=k+"-"+pad(d),w=wday(ds),list=on(ds,v.id,all);
+      const ds=k+"-"+pad(d),w=wday(ds),list=on(ds,v.id);
       let inner="",tip=[];
       if(list.length){
         const b=list[0];let cls="cell "+b.type;
@@ -284,7 +306,7 @@ function renderMonth(){
     h+='</tr>';
   }
   h+='</tbody><tfoot><tr><th class="vc" style="font-size:11.5px;color:var(--ink-3)">Mezzi liberi</th>';
-  for(let d=1;d<=n;d++){const ds=k+"-"+pad(d);const busy=new Set(all.filter(b=>b.start<=ds&&endOf(b)>=ds).map(b=>b.vehicle)).size;h+='<td class="'+(wday(ds)===0?"sun":"")+'">'+(S.fleet.length-busy)+'</td>';}
+  for(let d=1;d<=n;d++){const ds=k+"-"+pad(d);const busy=new Set(dayList(ds).map(b=>b.vehicle)).size;h+='<td class="'+(wday(ds)===0?"sun":"")+'">'+(S.fleet.length-busy)+'</td>';}
   h+='</tr></tfoot>';
   $("mgrid").innerHTML=h;
 }
@@ -293,20 +315,21 @@ function renderMonth(){
 function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2600);}
 function handleErr(e){
   const c=e&&e.code;
+  if(c==="baddate"){toast("Controlla la data: l'anno deve essere tra 2000 e 2099.");return;}
   if(c==="invalid_argument"){S.readOnly=true;showBanner("Hai accesso in sola lettura: le modifiche non vengono salvate.");renderAll();}
   else if(c==="quota_exceeded")toast("Spazio di archiviazione pieno: elimina le giornate più vecchie.");
   else toast("Salvataggio non riuscito. Riprova tra poco.");
 }
-function showBanner(m){const b=$("banner");b.textContent=m;b.hidden=false;}
+function showBanner(m){notify(m,true);}
 
-async function writeDay(date,patch){writeDayOps(date,patch);}
+
 
 // ---------- form prenotazione ----------
 let editing=null; // {id,start}
 function openForm(opts){
   opts=opts||{};
   const b=opts.booking||{type:"transfer",vehicle:opts.vehicle||S.fleet[0].id,start:opts.date||S.sel,end:"",time:"",time2:"",client:"",clientCode:"",route:"",event:"",escort:"",pax:"",price:"",driver:GEN1,driver2:"",contact:"",status:"confermato",notes:""};
-  editing=opts.booking?{id:b.id,start:b.start,foglio:b.foglio||""}:null;progReady=false;
+  editing=opts.booking?{id:b.id,start:b.start,foglio:b.foglio||"",base:b.updatedAt||null}:null;progReady=false;
   $("fTitle").textContent=editing?"Modifica prenotazione"+(b.foglio?" · n. "+b.foglio:""):"Nuova prenotazione";
   formClient=b.clientCode!==""&&b.clientCode!=null?{code:b.clientCode,name:b.client||""}:null;
   $("f-price").value=b.price==null?"":b.price;$("f-driver2").value=b.driver2||"";
@@ -314,7 +337,7 @@ function openForm(opts){
   $("cSug").hidden=true;
   $("f-vehicle").innerHTML=S.fleet.map(v=>'<option value="'+v.id+'">'+esc(v.name)+(v.plate?" – "+esc(v.plate):"")+'</option>').join("");
   $("t-"+normType(b.type)).checked=true;
-  $("f-vehicle").value=b.vehicle;$("f-start").value=b.start;$("f-end").value=(b.end&&b.end>=b.start)?b.end:b.start;$("f-end").min=b.start||"";formStart=b.start;
+  $("f-vehicle").value=b.vehicle;if(!$("f-vehicle").value&&S.fleet[0])$("f-vehicle").value=S.fleet[0].id;$("f-start").value=b.start;$("f-end").value=(b.end&&b.end>=b.start)?b.end:b.start;$("f-end").min=b.start||"";formStart=b.start;
   $("f-time").value=b.time||"";$("f-time2").value=b.time2||"";$("f-client").value=b.client||"";$("f-route").value=b.route||"";
   $("f-pax").value=b.pax==null?"":b.pax;$("f-event").value=b.event||"";$("f-escort").value=b.escort||"";$("f-driver").value=b.driver||"";$("f-contact").value=b.contact||"";$("f-contactname").value=b.contactName||"";drvPaint("f-driver");drvPaint("f-driver2");
   $("f-status").value=b.status||"confermato";$("f-notes").value=b.notes||"";
@@ -322,11 +345,19 @@ function openForm(opts){
   $("f-saldo").value=b.saldo||"NO";$("f-saldoamt").value=b.saldoAmt==null?"":b.saldoAmt;$("f-npark").value=b.npark||"";$("f-ndriver").value=b.ndriver||"";$("f-n3h").value=b.n3h||"";$("f-nextra").value=b.nextra||"";
   ["refs","hotels","guides"].forEach(k=>renderRep(k,b[k]||[]));
   progCache=Array.isArray(b.program)?b.program.slice():[];renderProgram();
-  $("fDelete").hidden=!editing;$("fConfirm").hidden=true;
+  $("fDelete").hidden=!editing;$("fConfirm").hidden=true;$("fCloseAsk").hidden=true;
   [...$("fBooking").elements].forEach(el=>{if(el.id!=="fCancel")el.disabled=S.readOnly;});
   syncType();checkWarns();
+  formOrig=readForm(); // per sapere se l'utente ha cambiato qualcosa e quali campi
   $("ovBooking").hidden=false;setTimeout(()=>$("f-client").focus(),30);
 }
+let formOrig=null,saving=false;
+const FORM_SKIP=["updatedAt","foglio"];
+// campi cambiati dall'utente rispetto a quando il modulo è stato aperto
+function formChanges(){if(!formOrig)return [];const now=readForm();return Object.keys(now).filter(k=>!FORM_SKIP.includes(k)&&JSON.stringify(now[k])!==JSON.stringify(formOrig[k]));}
+function formDirty(){return !$("ovBooking").hidden&&!S.readOnly&&formChanges().length>0;}
+// chiusura del modulo: se ci sono modifiche non salvate chiede conferma
+function tryCloseForm(){if(formDirty()){$("fCloseAsk").hidden=false;$("fCloseNo").focus();return false;}closeForm();return true;}
 // elenco autisti: i due generici in cima, poi quelli del foglio "regole"
 function fillDrivers(){} // l'elenco autisti è quello fisso (DRIVERS): non si legge più dal foglio "regole"
 // tendina autisti: generici in cima, poi l'elenco per esteso con i colori; si può anche scrivere
@@ -388,26 +419,46 @@ function eur(id){const v=$(id).value;return v===""?"":Math.round(Number(v)*100)/
 function curType(){const r=document.querySelector('input[name="type"]:checked');return r?r.value:"transfer";}
 function syncType(){$("w-tourcash").hidden=!isMulti(curType());if(progReady)renderProgram();const ev=hasEvent(curType());$("w-event").hidden=!ev;$("w-escort").hidden=!ev;$("w-time2").hidden=onlyDeparture(curType());}
 function readForm(){
-  const type=curType(),start=$("f-start").value;
+  const type=curType(),start=$("f-start").value,T=id=>cleanText($(id).value);
+  const client=T("f-client");
   return {type:type,vehicle:$("f-vehicle").value,start:start,end:$("f-end").value||start,
-    time:$("f-time").value,time2:onlyDeparture(type)?"":$("f-time2").value,client:$("f-client").value.trim(),clientCode:formClient&&formClient.name===$("f-client").value.trim()?formClient.code:"",route:$("f-route").value.trim(),
-    event:hasEvent(type)?$("f-event").value.trim():"",escort:hasEvent(type)?$("f-escort").value.trim():"",
-    pax:$("f-pax").value.trim(),price:eur("f-price"),park:eur("f-park"),meals:eur("f-meals"),advance:isMulti(type)?eur("f-advance"):"",envelope:isMulti(type)?$("f-envelope").value:"",envno:isMulti(type)?$("f-envno").value.trim():"",driver:$("f-driver").value.trim(),driver2:$("f-driver2").value.trim(),contact:$("f-contact").value.trim(),contactName:$("f-contactname").value.trim(),
-    status:$("f-status").value,notes:$("f-notes").value.trim(),
-    saldo:$("f-saldo").value,saldoAmt:eur("f-saldoamt"),npark:$("f-npark").value.trim(),ndriver:$("f-ndriver").value.trim(),n3h:$("f-n3h").value.trim(),nextra:$("f-nextra").value.trim(),
+    time:$("f-time").value,time2:onlyDeparture(type)?"":$("f-time2").value,client:client,clientCode:formClient&&formClient.name===client?formClient.code:"",route:T("f-route"),
+    event:hasEvent(type)?T("f-event"):"",escort:hasEvent(type)?T("f-escort"):"",
+    pax:T("f-pax"),price:eur("f-price"),park:eur("f-park"),meals:eur("f-meals"),advance:isMulti(type)?eur("f-advance"):"",envelope:isMulti(type)?$("f-envelope").value:"",envno:isMulti(type)?T("f-envno"):"",driver:T("f-driver"),driver2:T("f-driver2"),contact:T("f-contact"),contactName:T("f-contactname"),
+    status:$("f-status").value,notes:cleanText($("f-notes").value,true),
+    saldo:$("f-saldo").value,saldoAmt:eur("f-saldoamt"),npark:T("f-npark"),ndriver:T("f-ndriver"),n3h:T("f-n3h"),nextra:T("f-nextra"),
     refs:readRep("refs"),hotels:readRep("hotels"),guides:readRep("guides"),program:readProgram(),
     updatedAt:new Date().toISOString()};
 }
+// prenotazioni (tranne quella aperta) in corso tra due date
+function overlapping(start,end){
+  const out=new Map();if(!validDate(start))return [];
+  const e=validDate(end)&&end>=start&&diff(start,end)<=31?end:start;
+  for(let d=start,n=0;d<=e&&n<32;d=addDays(d,1),n++)for(const x of dayList(d))if(!editing||x.id!==editing.id)out.set(x.id+"|"+x.start,x);
+  return [...out.values()];
+}
+const drvKey=x=>driverCanon(String(x||"").trim()).toLowerCase().replace(/\s+/g," "); // "Campo G." = "Campo Gianfranco"
+const when=x=>short(x.start)+(endOf(x)!==x.start?"–"+short(endOf(x)):"")+(x.time?" ore "+x.time:"");
 function checkWarns(){
   const b=readForm(),w=[],v=vehicle(b.vehicle);
+  if(b.start&&!validDate(b.start))w.push("La data di partenza non è valida: controlla l'anno (per esempio 2026, non 0026).");
+  if(b.end&&b.end!==b.start&&!validDate(b.end))w.push("La data di rientro non è valida: controlla l'anno.");
   if(b.end&&b.end<b.start)w.push("La data di rientro è prima della partenza.");
   if(b.end&&diff(b.start,b.end)>30)w.push("Un servizio può durare al massimo 31 giorni.");
   if(v&&v.seats&&b.pax!==""&&/^\d+$/.test(String(b.pax))&&+b.pax>v.seats)w.push("Passeggeri ("+b.pax+") oltre la capienza del mezzo ("+v.seats+" posti).");
-  if(b.start){
-    const e=endOf(b),others=bookingsAll().filter(x=>x.vehicle===b.vehicle&&(!editing||x.id!==editing.id)&&x.start<=e&&endOf(x)>=b.start);
+  if(validDate(b.start)){
+    const near=overlapping(b.start,b.end);
+    const others=near.filter(x=>x.vehicle===b.vehicle);
     const long=others.filter(x=>!onlyDeparture(x.type)||!onlyDeparture(b.type));
-    if(long.length)w.push("Mezzo già impegnato: "+long.map(x=>(TYPES[x.type]||"")+" "+(x.client||"")+" ("+short(x.start)+(endOf(x)!==x.start?"–"+short(endOf(x)):"")+(x.time?" ore "+x.time:"")+")").join("; "));
+    if(long.length)w.push("Mezzo già impegnato: "+long.map(x=>(TYPES[x.type]||"")+" "+(x.client||"")+" ("+when(x)+")").join("; "));
     else if(others.length)w.push("Sullo stesso mezzo ci sono già "+others.length+" transfer in questa data: verifica gli orari.");
+    // stesso autista (con nome) su un altro servizio negli stessi giorni
+    for(const dn of [b.driver,b.driver2].map(realDriver).filter(Boolean)){
+      const k=drvKey(dn),busy=near.filter(x=>[x.driver,x.driver2].some(y=>realDriver(y)&&drvKey(y)===k));
+      if(!busy.length)continue;
+      const hard=busy.filter(x=>!onlyDeparture(x.type)||!onlyDeparture(b.type));
+      w.push("Autista "+dn+" già impegnato"+(hard.length?"":" (transfer: verifica gli orari)")+": "+busy.map(x=>(TYPES[x.type]||"")+" "+(x.client||"")+" su "+((vehicle(x.vehicle)||{}).name||"altro mezzo")+" ("+when(x)+")").join("; "));
+    }
   }
   $("fWarns").innerHTML=w.map(x=>"<div>"+esc(x)+"</div>").join("");
   return w;
@@ -429,7 +480,7 @@ function renderRep(k,list){
   $("rep-"+k).innerHTML=list.map((x,i)=>repRow(k,i,x)).join("");
 }
 function repRow(k,i,x){x=x||{};return '<div class="rep-row"><input data-rk="'+k+'" data-rf="name" value="'+esc(x.name||"")+'" placeholder="'+REP_PH[k][0]+'" aria-label="'+REP_PH[k][0]+'"><input data-rk="'+k+'" data-rf="tel" value="'+esc(x.tel||"")+'" placeholder="Telefono" inputmode="tel" aria-label="Telefono"><button type="button" data-rdel title="Rimuovi" aria-label="Rimuovi">×</button></div>';}
-function readRep(k){return [...$("rep-"+k).querySelectorAll(".rep-row")].map(r=>({name:r.querySelector('[data-rf="name"]').value.trim(),tel:r.querySelector('[data-rf="tel"]').value.trim()})).filter(x=>x.name||x.tel);}
+function readRep(k){return [...$("rep-"+k).querySelectorAll(".rep-row")].map(r=>({name:cleanText(r.querySelector('[data-rf="name"]').value),tel:cleanText(r.querySelector('[data-rf="tel"]').value)})).filter(x=>x.name||x.tel);}
 $("sheetBox").addEventListener("click",e=>{
   const a=e.target.closest("[data-addrep]");
   if(a){const k=a.dataset.addrep,box=$("rep-"+k);box.insertAdjacentHTML("beforeend",repRow(k,box.children.length,{}));box.lastElementChild.querySelector("input").focus();return;}
@@ -444,7 +495,7 @@ function progDays(){
   for(let i=0;i<n;i++){const d=addDays(st,i);out.push((i+1)+"° giorno - "+(+d.slice(8,10))+"/"+d.slice(5,7)+" - "+WDL[wday(d)].replace(/^./,c=>c.toUpperCase()));}
   return out;
 }
-function readProgram(){return [...$("progWrap").querySelectorAll("textarea")].map(t=>t.value.replace(/\s+$/,""));}
+function readProgram(){return [...$("progWrap").querySelectorAll("textarea")].map(t=>cleanText(t.value,true));}
 function renderProgram(){
   if(progReady)progCache=readProgram().map((v,i)=>v||progCache[i]||"");
   const days=progDays();
@@ -555,9 +606,14 @@ function openClients(q){
   renderClients();setTimeout(()=>$("cliQ").focus(),30);
 }
 function cliMark(t,words){
-  let h=esc(t);if(!words.length||!t)return h;
-  for(const w of words){if(w.length<2)continue;const re=new RegExp("("+w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","ig");h=h.replace(/(<[^>]*>)|([^<]+)/g,(all,tag,txt)=>tag?tag:txt.replace(re,"<mark>$1</mark>"));}
-  return h;
+  t=String(t==null?"":t);const ws=words.filter(w=>w.length>=2);
+  if(!ws.length||!t)return esc(t);
+  // posizioni da evidenziare (senza badare ad accenti e maiuscole), poi si converte in HTML pezzo per pezzo
+  const low=norm(t),hit=new Array(t.length).fill(false);
+  if(low.length===t.length)for(const w of ws){let i=low.indexOf(w);while(i>=0){for(let k=i;k<i+w.length;k++)hit[k]=true;i=low.indexOf(w,i+w.length);}}
+  let h="",on=false;
+  for(let i=0;i<t.length;i++){if(hit[i]!==on){h+=on?"</mark>":"<mark>";on=hit[i];}h+=esc(t[i]);}
+  return h+(on?"</mark>":"");
 }
 function renderClients(){
   const q=norm($("cliQ").value).trim(),words=q.split(/\s+/).filter(Boolean);
@@ -570,7 +626,7 @@ function renderClients(){
   // clienti in attesa di essere scritti nel fatturato
   const pend=STORE.pendingClients;
   $("cliPending").hidden=!pend.length;
-  $("cliPending").innerHTML=pend.map(p=>p.error?'<div class="err">⚠ <b>'+esc(p.name||"")+'</b> non scritto nel fatturato: '+esc(cliErrText(p.error))+' <button type="button" class="btn" data-cli-fix="'+esc(p.tmp)+'">Correggi</button><button type="button" class="btn" data-cli-drop="'+esc(p.tmp)+'">Elimina</button></div>':'<div>⏳ <b>'+esc(p.name||"")+'</b> — '+(navigator.onLine?"in scrittura nel file fatturato…":"sarà scritto nel file fatturato appena torna la connessione")+'</div>').join("");
+  $("cliPending").innerHTML=pend.map(p=>p.failed?'<div class="err">⚠️ <b>'+esc(p.name||"")+'</b> — non scritto nel fatturato: '+esc(cliErrText(p))+'. '+(p.failed==="codeexists"?'<button type="button" class="linkbtn" data-cli-fix="'+esc(p.tmp)+'">Correggi</button>':'<button type="button" class="linkbtn" data-cli-retry="'+esc(p.tmp)+'">Riprova</button>')+' · <button type="button" class="linkbtn" data-cli-cancel="'+esc(p.tmp)+'">Annulla</button></div>':'<div>⏳ <b>'+esc(p.name||"")+'</b> — '+(navigator.onLine?"in scrittura nel file fatturato…":"sarà scritto nel file fatturato appena torna la connessione")+' <button type="button" class="linkbtn" data-cli-cancel="'+esc(p.tmp)+'">Annulla</button></div>').join("");
   if(!all.length){$("cliList").innerHTML='<div class="cli-empty">Elenco clienti non ancora caricato: collega il file fatturato (Menu › Collega file fatturato) e attendi qualche secondo.</div>';return;}
   if(!list.length){$("cliList").innerHTML='<div class="cli-empty">Nessun cliente trovato per «'+esc($("cliQ").value.trim())+'».<br><br><button type="button" class="btn primary" data-cli-new="1">+ Aggiungi «'+esc($("cliQ").value.trim())+'» come nuovo cliente</button></div>';return;}
   const cols=cliCols();
@@ -596,8 +652,12 @@ function renderClients(){
 }
 $("btnClients").onclick=()=>openClients();
 $("cliClose").onclick=()=>{$("ovClients").hidden=true;};
-$("ovClients").addEventListener("click",e=>{if(e.target===$("ovClients"))$("ovClients").hidden=true;});
+backdropClose($("ovClients"),()=>{$("ovClients").hidden=true;});backdropClose($("ovClientNew"),()=>closeClientNew());
 $("cliQ").addEventListener("input",()=>{cliShown=150;cliOpenCode=null;renderClients();});
+$("cliPending").addEventListener("click",e=>{
+  const c=e.target.closest("[data-cli-cancel]");if(c){STORE.cancelClient(c.dataset.cliCancel);delete cnWaiting[c.dataset.cliCancel];renderClients();return;}
+  const r=e.target.closest("[data-cli-retry]");if(r){STORE.retryClient(r.dataset.cliRetry);renderClients();}
+});
 $("cliList").addEventListener("click",e=>{
   const more=e.target.closest("[data-cli-more]");if(more){cliShown+=300;renderClients();return;}
   const nw=e.target.closest("[data-cli-new]");if(nw){openClientNew({name:$("cliQ").value.trim()});return;}
@@ -606,11 +666,15 @@ $("cliList").addEventListener("click",e=>{
   const r=e.target.closest("[data-cli]");if(r){cliOpenCode=String(cliOpenCode)===r.dataset.cli?null:r.dataset.cli;renderClients();}
 });
 $("cliNew").onclick=()=>openClientNew({name:""});
-function cliErrText(e){return e.code==="codeexists"?"il codice Multi "+e.num+" nel file è già di «"+(e.by||"")+"»":e.code==="noclienti"?"nel file non c'è il foglio «clienti»":"errore di scrittura";}
+// motivo per cui un cliente non è stato scritto (q = elemento della coda con q.failed)
+function cliErrText(q){
+  const f=q&&q.failed,i=(q&&q.failInfo)||{};
+  return f==="codeexists"?"il codice Multi "+i.num+" nel file è già di «"+(i.by||"")+"»":f==="noclienti"?"nel file non trovo il foglio «clienti»":f==="noname"?"manca la ragione sociale":"errore nel file";
+}
+// codice Multi già usato: si riapre il modulo compilato per cambiare il codice
 $("cliPending").addEventListener("click",e=>{
-  const fx=e.target.closest("[data-cli-fix]"),dr=e.target.closest("[data-cli-drop]");
+  const fx=e.target.closest("[data-cli-fix]");
   if(fx){const p=STORE.pendingClients.find(x=>x.tmp===fx.dataset.cliFix);if(p)openClientNew({prefill:p});}
-  if(dr){STORE.dropClient(dr.dataset.cliDrop);renderClients();}
 });
 
 // --- nuovo cliente ---
@@ -641,13 +705,13 @@ function openClientNew(o){
   const nameCol=cliCols().find(x=>cliKind(x.h)==="name");
   if(nameCol&&o.name)$("cn-"+nameCol.c).value=o.name;
   $("cnWarns").innerHTML="";$("cnSave").disabled=!f;
-  $("ovClientNew").hidden=false;
+  $("ovClientNew").hidden=false;cnOrig=JSON.stringify(cnRead());
   setTimeout(()=>{const el=nameCol&&$("cn-"+nameCol.c);if(el){el.focus();el.select();}},30);
 }
 function cnRead(){
   const out={};
   for(const el of $("cnFields").querySelectorAll("input")){
-    let v=el.value.replace(/\s+/g," ").trim();const k=el.dataset.kind;
+    let v=cleanText(el.value).replace(/\s+/g," ");const k=el.dataset.kind;
     if(!v)continue;
     if(k==="city"||k==="prov"||k==="cf"||k==="sdi")v=v.toUpperCase().replace(/\s/g,k==="sdi"?"":" ");
     if(k==="piva")v=v.replace(/\s/g,"").toUpperCase();
@@ -680,7 +744,9 @@ function cnCheck(){
   return {name,block,dup:dp};
 }
 $("cnFields").addEventListener("input",()=>{if($("cnWarns").innerHTML)cnCheck();});
-$("cnCancel").onclick=()=>{$("ovClientNew").hidden=true;};
+let cnOrig="";
+function closeClientNew(){if(!$("ovClientNew").hidden&&JSON.stringify(cnRead())!==cnOrig&&!confirm("Chiudere senza salvare il nuovo cliente?"))return;$("ovClientNew").hidden=true;}
+$("cnCancel").onclick=closeClientNew;
 $("fClient").addEventListener("submit",e=>{
   e.preventDefault();
   const r=cnCheck();
@@ -688,7 +754,7 @@ $("fClient").addEventListener("submit",e=>{
   if(r.block.length)return;
   const d=cnRead(),vals={};
   for(const c in d)vals[c]=d[c].k==="code"?{n:Number(d[c].v)}:d[c].k==="cap"&&/^[1-9]\d{4}$/.test(d[c].v)?{n:Number(d[c].v)}:{t:d[c].v};
-  if(cnReplacing){STORE.dropClient(cnReplacing);cnReplacing=null;}
+  if(cnReplacing){STORE.cancelClient(cnReplacing);delete cnWaiting[cnReplacing];cnReplacing=null;}
   const tmp=STORE.addClient(vals,r.name);
   cnWaiting[tmp]={name:r.name,fromBooking:cnFromBooking};
   $("ovClientNew").hidden=true;
@@ -709,62 +775,87 @@ function onClientAdded(tmp,info){
 $("fBooking").addEventListener("input",e=>{if(e.target.name==="type")syncType();checkWarns();});
 $("fBooking").addEventListener("change",checkWarns);
 $("fBooking").addEventListener("submit",async e=>{
-  e.preventDefault();if(S.readOnly)return;
+  e.preventDefault();
+  if(S.readOnly||saving||$("ovBooking").hidden)return; // niente doppi invii (doppio clic, Invio ripetuto)
   const b=readForm();
   if(!b.start){toast("Inserisci la data.");return;}
+  if(!validDate(b.start)||!validDate(b.end)){checkWarns();toast("Controlla la data: l'anno deve essere tra 2000 e 2099.");return;}
   if(b.end<b.start||diff(b.start,b.end)>30){toast("Controlla la data di rientro.");return;}
   const id=editing?editing.id:("b"+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
-  const old=editing&&editing.start;
-  $("fSave").disabled=true;
+  const old=editing&&editing.start,moved=!!(old&&old!==b.start);
+  // per le modifiche: versione di partenza e campi cambiati, così non si cancellano le modifiche fatte da altri nel frattempo
+  const meta=editing?{edit:true,base:editing.base,patch:formChanges()}:{};
+  saving=true;$("fSave").disabled=true;$("fSheet").disabled=true;
   try{
     // n. foglio: AAMMGG + progressivo del giorno del servizio; resta fisso finché il servizio non cambia giorno
     let foglio=editing?editing.foglio:"",seqPatch={};
-    if(!foglio||(old&&old!==b.start)){const n=await nextSeq(b.start);foglio=yymmdd(b.start)+pad(n);seqPatch={assign:true};}
+    if(!foglio||moved){const n=await nextSeq(b.start);foglio=yymmdd(b.start)+pad(n);seqPatch={assign:true};}
     b.foglio=foglio;
-    if(old&&old!==b.start)await writeDay(old,{bookings:{[id]:null}});
-    await writeDay(b.start,Object.assign({bookings:{[id]:b}},seqPatch));
-    closeForm();S.sel=b.start;if(mkey(b.start)!==subMonth)subscribe();renderAll();toast("Prenotazione salvata");
-    if(openSheetAfterSave)openSheet(Object.assign({},b,{id:id}));
-  }catch(err){handleErr(err);}finally{$("fSave").disabled=false;openSheetAfterSave=false;}
+    if(moved)writeDayOps(old,{bookings:{[id]:null}},{move:b.start});
+    writeDayOps(b.start,Object.assign({bookings:{[id]:b}},seqPatch),Object.assign({},meta,moved?{move:true}:{}));
+    const wantSheet=openSheetAfterSave;
+    closeForm();try{document.activeElement&&document.activeElement.blur&&document.activeElement.blur();}catch(_){}
+    S.sel=b.start;if(mkey(b.start)!==subMonth)subscribe();renderAll();toast("Prenotazione salvata");
+    if(wantSheet)openSheetConfirmed(Object.assign({},b,{id:id}));
+  }catch(err){handleErr(err);}finally{saving=false;$("fSave").disabled=false;$("fSheet").disabled=false;openSheetAfterSave=false;}
 });
-$("fCancel").onclick=closeForm;
+$("fCancel").onclick=tryCloseForm;
+$("fCloseYes").onclick=closeForm;
+$("fCloseNo").onclick=()=>{$("fCloseAsk").hidden=true;};
 $("fDelete").onclick=()=>{$("fConfirm").hidden=false;$("fDelete").hidden=true;};
 $("fDeleteNo").onclick=()=>{$("fConfirm").hidden=true;$("fDelete").hidden=false;};
 $("fDeleteYes").onclick=async()=>{
   if(!editing)return;
-  try{await writeDay(editing.start,{bookings:{[editing.id]:null}});closeForm();renderAll();toast("Prenotazione eliminata");}catch(err){handleErr(err);}
+  try{writeDayOps(editing.start,{bookings:{[editing.id]:null}},{client:cleanText($("f-client").value)});closeForm();renderAll();toast("Prenotazione eliminata");}catch(err){handleErr(err);}
 };
 
 // ---------- flotta ----------
 function openFleet(){
   const T=S.regole.targhe||{},N=S.regole.numeri||{};
   $("dlPlates").innerHTML=XCATS.map(c=>'<datalist id="pl'+c+'">'+(T[c]||[]).map(t=>'<option value="'+esc(t)+'">'+(N[t]?"n. "+esc(N[t]):"")+'</option>').join("")+'</datalist>').join("");
-  $("fleetList").innerHTML=S.fleet.map((v,i)=>{const xc=xcatOf(v);return '<div class="fleet-row"><input id="fl-n-'+i+'" value="'+esc(v.name)+'" aria-label="Nome"><input id="fl-s-'+i+'" type="number" min="1" value="'+(v.seats||"")+'" aria-label="Posti"><select id="fl-x-'+i+'" aria-label="Mezzo (Excel)">'+XCATS.map(c=>'<option'+(c===xc?' selected':'')+'>'+c+'</option>').join("")+'</select><input id="fl-p-'+i+'" list="pl'+xc+'" value="'+esc(v.plate||"")+'" placeholder="Targa" aria-label="Targa" autocomplete="off"></div>';}).join("");
+  fleetOpen={};S.fleet.forEach(v=>{fleetOpen[v.id]={name:v.name,seats:v.seats||null,plate:v.plate||"",xcat:xcatOf(v)};});
+  $("fleetList").innerHTML=S.fleet.map((v,i)=>{const xc=xcatOf(v);return '<div class="fleet-row" data-id="'+esc(v.id)+'"><input id="fl-n-'+i+'" value="'+esc(v.name)+'" aria-label="Nome"><input id="fl-s-'+i+'" type="number" min="1" value="'+(v.seats||"")+'" aria-label="Posti"><select id="fl-x-'+i+'" aria-label="Mezzo (Excel)">'+XCATS.map(c=>'<option'+(c===xc?' selected':'')+'>'+c+'</option>').join("")+'</select><input id="fl-p-'+i+'" list="pl'+xc+'" value="'+esc(v.plate||"")+'" placeholder="Targa" aria-label="Targa" autocomplete="off"></div>';}).join("");
   $("ovFleet").hidden=false;
 }
+let fleetOpen=null;
 $("btnFleet").onclick=openFleet;
 $("fleetList").addEventListener("change",e=>{const m=/^fl-x-(\d+)$/.exec(e.target.id);if(m)$("fl-p-"+m[1]).setAttribute("list","pl"+e.target.value);});
 $("flCancel").onclick=()=>$("ovFleet").hidden=true;
+// Ogni riga è legata al suo mezzo (data-id), non alla posizione nell'elenco. Si salvano solo i campi
+// cambiati, sull'ultima versione della flotta in Dropbox: le modifiche fatte intanto da altri restano.
 $("fFleet").addEventListener("submit",async e=>{
-  e.preventDefault();if(S.readOnly){$("ovFleet").hidden=true;return;}
-  const fleet=S.fleet.map((v,i)=>Object.assign({},v,{name:$("fl-n-"+i).value.trim()||v.name,plate:$("fl-p-"+i).value.trim().toUpperCase(),seats:$("fl-s-"+i).value?Number($("fl-s-"+i).value):null,xcat:$("fl-x-"+i).value}));
+  e.preventDefault();if(S.readOnly||!fleetOpen){$("ovFleet").hidden=true;return;}
+  if(!navigator.onLine){toast("Per modificare la flotta serve la connessione a internet.");return;}
+  const patches={};
+  for(const row of $("fleetList").querySelectorAll(".fleet-row")){
+    const id=row.dataset.id,o=fleetOpen[id];if(!o)continue;
+    const inp=row.querySelectorAll("input"),sel=row.querySelector("select");
+    const now={name:cleanText(inp[0].value)||o.name,seats:inp[1].value?Number(inp[1].value):null,plate:cleanText(inp[2].value).toUpperCase(),xcat:sel.value};
+    const p={};for(const k in now)if(JSON.stringify(now[k])!==JSON.stringify(o[k]))p[k]=now[k];
+    if(Object.keys(p).length)patches[id]=p;
+  }
+  if(!Object.keys(patches).length){$("ovFleet").hidden=true;return;}
+  const btn=$("fFleet").querySelector('button[type="submit"]');btn.disabled=true;
   try{
-    const changedIds=fleet.filter(v=>{const o=S.fleet.find(x=>x.id===v.id)||{};return (o.plate||"")!==(v.plate||"")||xcatOf(o)!==xcatOf(v);}).map(v=>v.id);
-    await STORE.setFleet(fleet,changedIds);
-    S.fleet=sortFleet(fleet);$("ovFleet").hidden=true;renderAll();toast("Flotta aggiornata");
-  }catch(err){handleErr(err);}
+    const vs=await STORE.patchFleet(patches,S.fleet.map(v=>Object.assign({},v,{xcat:xcatOf(v)})));
+    S.fleet=sortFleet(vs);$("ovFleet").hidden=true;fleetOpen=null;renderAll();toast("Flotta aggiornata");
+  }catch(err){toast(err&&err.code==="offline"?"Per modificare la flotta serve la connessione a internet.":"Non riesco a salvare la flotta adesso. Riprova tra poco.");}
+  finally{btn.disabled=false;}
 });
 
 // ---------- autisti extra ----------
-let exTimer=null,exDate=null;
+let exTimer=null,exDate=null;const exBase={};
+// exBase: il testo da cui si è partiti. Se nel frattempo un altro dispositivo scrive, i due testi vengono uniti.
 async function saveExtra(){
-  clearTimeout(exTimer);exTimer=null;const date=exDate,val=$("extraText").value;
+  clearTimeout(exTimer);exTimer=null;const date=exDate,val=cleanText($("extraText").value,true);
   if(!date||S.readOnly)return;
   const cur=(S.days[date]&&S.days[date].extra)||"";if(cur===val)return;
+  const base=date in exBase?exBase[date]:cur;
   $("extraSaved").textContent="Salvataggio…";
-  try{await writeDay(date,{extra:val});$("extraSaved").textContent="Salvato";}catch(err){$("extraSaved").textContent="";handleErr(err);}
+  try{writeDayOps(date,{extra:val,base:base});exBase[date]=val;$("extraSaved").textContent="Salvato";}catch(err){$("extraSaved").textContent="";handleErr(err);}
 }
-$("extraText").addEventListener("input",()=>{exDate=S.sel;$("extraSaved").textContent="";clearTimeout(exTimer);exTimer=setTimeout(saveExtra,800);});
+$("extraText").addEventListener("focus",()=>{exBase[S.sel]=(S.days[S.sel]&&S.days[S.sel].extra)||"";});
+$("extraText").addEventListener("input",()=>{exDate=S.sel;if(!(S.sel in exBase))exBase[S.sel]=(S.days[S.sel]&&S.days[S.sel].extra)||"";$("extraSaved").textContent="";clearTimeout(exTimer);exTimer=setTimeout(saveExtra,800);});
 $("extraText").addEventListener("blur",()=>{if(exTimer)saveExtra();});
 
 // ---------- navigazione ----------
@@ -796,8 +887,15 @@ $("sheet").addEventListener("click",e=>{
   if(ed){const b=bookingsAll().find(x=>x.id===ed.dataset.edit&&x.start===ed.dataset.start);if(b)openForm({booking:b});}
 });
 $("mgrid").addEventListener("click",e=>{const c=e.target.closest("[data-day]");if(c){S.sel=c.dataset.day;setView("day");}});
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("ovClientNew").hidden){$("ovClientNew").hidden=true;return;}if(!$("ovClients").hidden){$("ovClients").hidden=true;return;}if(!$("ovBooking").hidden)closeForm();if(!$("ovFleet").hidden)$("ovFleet").hidden=true;$("ovSheet").hidden=true;}});
-[$("ovBooking"),$("ovFleet")].forEach(o=>o.addEventListener("click",e=>{if(e.target===o)o.hidden=true;}));
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;
+  if(!$("ovClientNew").hidden){closeClientNew();return;}
+  if(!$("ovClients").hidden){$("ovClients").hidden=true;return;}
+  if(!$("ovBooking").hidden){if(!$("fCloseAsk").hidden){$("fCloseAsk").hidden=true;return;}tryCloseForm();return;}
+  if(!$("ovFleet").hidden)$("ovFleet").hidden=true;$("ovSheet").hidden=true;});
+// clic sullo sfondo scuro: chiude solo se il clic è cominciato e finito sullo sfondo
+// (non quando si seleziona un testo trascinando e si rilascia il mouse fuori dal riquadro)
+function backdropClose(o,fn){let down=null;o.addEventListener("pointerdown",e=>{down=e.target;});o.addEventListener("click",e=>{if(e.target===o&&down===o)fn();down=null;});}
+backdropClose($("ovBooking"),tryCloseForm);backdropClose($("ovFleet"),()=>{$("ovFleet").hidden=true;});
 
 // ---------- fatturato ----------
 const XL_COLS=(()=>{const a=[];for(let i=1;i<=45;i++){let n=i,s="";while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}a.push(s);}return a;})(); // A..AS
@@ -900,7 +998,7 @@ $("billCopy").onclick=async()=>{
   catch(_){
     const ta=document.createElement("textarea");ta.value=txt;ta.style.cssText="position:fixed;left:-9999px";document.body.appendChild(ta);ta.select();
     let ok=false;try{ok=document.execCommand("copy");}catch(__){}
-    ta.remove();billMsg(ok?rows.length+" righe copiate. In Excel clicca la cella A della prima riga vuota e incolla.":"Copia non consentita in questa vista: usa \"Aggiorna il mio file\".",ok?"ok":"err");
+    ta.remove();billMsg(ok?rows.length+" righe copiate. In Excel clicca la cella A della prima riga vuota e incolla.":"Copia non consentita in questa vista: usa «Aggiorna il fatturato adesso».",ok?"ok":"err");
   }
 };
 
@@ -1082,8 +1180,8 @@ function tplRef2(b,cl){
   if(tel)return {name:tel,tel:""}; // prenotazioni vecchie: nome e telefono nella stessa casella
   return null;
 }
-// programma: al massimo le 7 righe del modello (righe 14–20)
-function tplProgram(b){
+// programma completo: una riga per tappa (o per giorno nei tour), più referenti, hotel e guide in più
+function tplProgramAll(b){
   const lines=[],prog=Array.isArray(b.program)?b.program:[];
   const clean=t=>String(t||"").split("\n").map(x=>x.trim()).filter(Boolean);
   if(hasEvent(b.type)&&(b.event||b.escort))lines.push([b.event?"Evento: "+b.event:"",b.escort?"Accompagnatore: "+b.escort:""].filter(Boolean).join(" – "));
@@ -1101,11 +1199,19 @@ function tplProgram(b){
   (b.refs||[]).slice(tplRef2(b,shClient(b))?0:1).forEach(x=>{if(x.name||x.tel)lines.push("Referente: "+[x.name,x.tel].filter(Boolean).join(" – "));});
   (b.hotels||[]).forEach(x=>{if(x.name||x.tel)lines.push("Hotel: "+[x.name,x.tel].filter(Boolean).join(" – "));});
   (b.guides||[]).slice(2).forEach(x=>{if(x.name||x.tel)lines.push("Guida: "+[x.name,x.tel].filter(Boolean).join(" – "));});
-  if(lines.length>7){const head=lines.slice(0,6);head.push(lines.slice(6).join(" · "));return head;}
   return lines;
 }
+// righe per le 7 caselle del modello (righe 14–20). Se non bastano: nel PDF la settima rimanda alla
+// pagina 2, dove c'è il programma completo; nell'Excel la settima contiene tutto il resto.
+function tplProgram(b,forPdf){
+  const lines=tplProgramAll(b);
+  if(lines.length<=7)return lines;
+  const head=lines.slice(0,6);
+  head.push(forPdf?"▸ Il programma continua a pagina 2 (altre "+(lines.length-6)+" righe)":lines.slice(6).join(" · "));
+  return head;
+}
 // valori delle caselle. k: s testo, i numero intero, d data, e euro, a euro contabile. f: casella con formula del modello
-function tplValues(b){
+function tplValues(b,forPdf){
   const v=vehicle(b.vehicle)||{},cl=shClient(b),plate=(v.plate||"").trim(),type=normType(b.type);
   const nr=(S.regole.numeri||{})[plate],numero=nr==null?"":(/^\d+$/.test(String(nr).trim())?Number(nr):String(nr));
   const nd=diff(b.start,endOf(b))+1,P=numOrE(b.price),Q=numOrE(b.park),R=numOrE(b.meals);
@@ -1114,10 +1220,10 @@ function tplValues(b){
   // Referente 2°: il referente della prenotazione (nome + telefono), altrimenti il primo degli "Altri referenti"
   const r2=tplRef2(b,cl)||(b.refs||[])[0]||{},g=b.guides||[];
   const pax=String(b.pax==null?"":b.pax).trim(),kind=v.kind==="van"?"Van":v.kind==="auto"?"Auto":"Bus";
-  const drv=realDriver(b.driver),fg=/^\d+$/.test(String(b.foglio||""))?Number(b.foglio):(b.foglio||"");
+  const drv=realDriver(b.driver),fg=b.provisional?String(b.foglio||"")+" PROVV.":/^\d+$/.test(String(b.foglio||""))?Number(b.foglio):(b.foglio||"");
   const any=P!==""||Q!==""||R!=="";
   const o={
-    H4:{v:fg,k:"i"},
+    H4:{v:fg,k:b.provisional?"s":"i"},
     B6:{v:/^\d+$/.test(pax)?Number(pax):pax,k:/^\d+$/.test(pax)?"i":"s"},C6:{v:kind},D6:{v:xcatOf(v),f:1},F6:{v:numero,k:typeof numero==="number"?"i":"s",f:1},H6:{v:plate,f:1},
     B7:{v:b.start,k:"d",f:1},D7:{v:endOf(b),k:"d",f:1},F7:{v:nd,k:"i",f:1},H7:{v:drv,f:1},
     B8:{v:name,f:1},H8:{v:tel,f:1},B9:{v:refName,f:1},H9:{v:refTel,f:1},
@@ -1130,9 +1236,9 @@ function tplValues(b){
     H39:{v:P,k:"e",f:1},B40:{v:cl&&cl[5]?String(cl[5]):"",f:1},F40:{v:cl?cliField(cl,"sdi"):""},D40:{v:cl?cl[0]:"",k:cl&&typeof cl[0]==="number"?"i":"s",f:1},H40:{v:Q,k:"e",f:1},
     B41:{v:"",f:1},D41:{v:"",f:1},F41:{v:"",f:1},H41:{v:R,k:"e",f:1},
     B42:{v:"",f:1},D42:{v:"",f:1},F42:{v:"",f:1},H42:{v:any?0:"",k:"e",f:1},
-    B43:{v:"",f:1},H43:{v:(P||0)+(Q||0)+(R||0),k:"e",f:1},B44:{v:billNote(b),f:1},H44:{v:fg,k:"i",f:1},
+    B43:{v:"",f:1},H43:{v:(P||0)+(Q||0)+(R||0),k:"e",f:1},B44:{v:billNote(b),f:1},H44:{v:fg,k:b.provisional?"s":"i",f:1},
   };
-  tplProgram(b).forEach((t,i)=>{o["A"+(14+i)]={v:t};});
+  tplProgram(b,forPdf).forEach((t,i)=>{o["A"+(14+i)]={v:t};});
   for(let i=14;i<=20;i++)if(!o["A"+i])o["A"+i]={v:""};
   return o;
 }
@@ -1145,7 +1251,7 @@ function tplText(x){
 }
 // Disegno del modello (unità: pixel del foglio Excel a 100%). Usato da anteprima e PDF.
 function tplLayout(b,full,measure){
-  const vals=tplValues(b),last=full?TPL_ROWS.length:TPL_DRIVER_LAST;
+  const vals=tplValues(b,true),last=full?TPL_ROWS.length:TPL_DRIVER_LAST;let cut=false;
   const X=[0];TPL_COLS.forEach(w=>X.push(X[X.length-1]+Math.round(w*9+5)));
   const fills=[],lines=[],texts=[];let y=0;
   const FILLC={a:"#F6FDFC",g:"#E5ECEB"};
@@ -1176,7 +1282,9 @@ function tplLayout(b,full,measure){
       if(al==="l"||(al==="c"&&tw>cellW-6)){al="l";w=regionW;}
       let sz=size,txt=t;
       if(tw>w-6){sz=Math.max(size*0.72,size*(w-6)/tw);tw=measure(txt,sz,bold);
-        while(tw>w-6&&txt.length>1){txt=txt.slice(0,-2)+"…";tw=measure(txt,sz,bold);}}
+        // riga del programma troppo lunga: si accorcia e si rimanda alla pagina 2, dove c'è per intero
+        const prog=r>=14&&r<=20&&i===0,suf=prog?"… (segue a pag. 2)":"…";
+        if(tw>w-6){if(prog)cut=true;let base=txt;while(tw>w-6&&base.length>1){base=base.slice(0,-2);txt=base.replace(/\s+$/,"")+suf;tw=measure(txt,sz,bold);}}}
       const tx=al==="c"?x0+(w-tw)/2:al==="r"?x0+w-3-tw:x0+3;
       texts.push({x:tx,y:y+h-Math.max(3,(h-sz)/2-1)-sz*0.2,t:txt,size:sz,bold});
     }
@@ -1186,7 +1294,19 @@ function tplLayout(b,full,measure){
   const dashed=lines.filter(l=>l.dash),solid=lines.filter(l=>!l.dash),rowsY={};
   for(const l of dashed){const k=l.y1;rowsY[k]=rowsY[k]?{x1:Math.min(rowsY[k].x1,l.x1),x2:Math.max(rowsY[k].x2,l.x2)}:{x1:l.x1,x2:l.x2};}
   for(const k in rowsY)solid.push({x1:rowsY[k].x1,y1:+k,x2:rowsY[k].x2,y2:+k,c:"#000000",dash:true,w:2});
-  return {W:X[8],H:y,fills,lines:solid,texts};
+  return {W:X[8],H:y,fills,lines:solid,texts,cut};
+}
+// serve la pagina 2? (programma più lungo delle 7 righe del modello o righe tagliate)
+function needPage2(b,L){return tplProgramAll(b).length>7||!!(L&&L.cut);}
+function page2Head(b){
+  const v=vehicle(b.vehicle)||{},cl=shClient(b);
+  return {title:"Foglio di servizio n. "+(b.foglio||"")+(b.provisional?" (provvisorio)":"")+" – programma completo",
+    sub:[cl?cl[1]:(b.client||""),itDate(b.start)+(endOf(b)!==b.start?" – "+itDate(endOf(b)):""),[v.name,(v.plate||"").trim()].filter(Boolean).join(" "),realDriver(b.driver)?"Autista "+realDriver(b.driver):""].filter(Boolean).join(" · ")};
+}
+function tplPage2HTML(b){
+  if(!needPage2(b,tplLayout(b,false,measureCanvas)))return "";
+  const h=page2Head(b);
+  return '<div class="fs-page2"><p class="p2-note">Pagina 2 del PDF</p><h4>'+esc(h.title)+'</h4><p class="p2-sub">'+esc(h.sub)+'</p>'+tplProgramAll(b).map(l=>'<p>'+esc(l)+'</p>').join("")+'</div>';
 }
 const TPL_FONT="Calibri, Carlito, 'Helvetica Neue', Arial, sans-serif";
 let _mctx=null;
@@ -1209,20 +1329,114 @@ function loadPdfLib(){
   _pdflib=new Promise((res,rej)=>{const sc=document.createElement("script");sc.src="vendor/pdf-lib.min.js";sc.onload=()=>res(window.PDFLib);sc.onerror=()=>{_pdflib=null;rej(new Error("pdflib"));};document.head.appendChild(sc);});
   return _pdflib;
 }
-const pdfTxt=t=>String(t==null?"":t).replace(/→/g,">").replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/\t/g," ").replace(/[^\x20-\x7E\u00A0-\u00FF€–—…•]/g,"");
+// Senza il font incorporato (file non disponibile) si usa l'Helvetica standard, che ha solo i caratteri
+// dell'Europa occidentale: le altre lettere si semplificano (Ł → L, č → c) invece di sparire.
+const TRANSLIT={"Ł":"L","ł":"l","Đ":"D","đ":"d","Ħ":"H","ħ":"h","ı":"i","Ŀ":"L","ŀ":"l","Ŧ":"T","ŧ":"t","Œ":"OE","œ":"oe","ſ":"s","ß":"ss"};
+function pdfTxt(t){
+  t=String(t==null?"":t).replace(/→/g,">").replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/\t/g," ").replace(/▸/g,">");
+  let out="";
+  for(const ch of t){
+    if(/[\x20-\x7E -ÿ€–—…•]/.test(ch)){out+=ch;continue;}
+    if(TRANSLIT[ch]){out+=TRANSLIT[ch];continue;}
+    const base=ch.normalize("NFD").replace(/[̀-ͯ]/g,"");
+    if(/^[\x20-\x7E -ÿ]+$/.test(base))out+=base;
+  }
+  return out;
+}
+// --- font incorporato nel PDF (vendor/font-pdf.js), senza librerie in più ---
+let _fontsP=null;
+function loadPdfFonts(){
+  if(window.AGENDA_FONTS)return Promise.resolve(window.AGENDA_FONTS);
+  if(_fontsP)return _fontsP;
+  _fontsP=new Promise((res,rej)=>{const sc=document.createElement("script");sc.src="vendor/font-pdf.js";sc.onload=()=>window.AGENDA_FONTS?res(window.AGENDA_FONTS):rej(new Error("font"));sc.onerror=()=>{_fontsP=null;rej(new Error("font"));};document.head.appendChild(sc);});
+  return _fontsP;
+}
+function b64bytes(s){const bin=atob(s),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u;}
+const hex4=n=>n.toString(16).padStart(4,"0");
+function utf16hex(cp){if(cp<0x10000)return hex4(cp);cp-=0x10000;return hex4(0xD800+(cp>>10))+hex4(0xDC00+(cp&0x3FF));}
+// "embedder" per pdf-lib: font TrueType come Type0/CIDFontType2 con codifica Identity-H e tabella ToUnicode
+class PdfFontEmbedder{
+  constructor(F,L,name){this.F=F;this.L=L;this.fontName=name;this.scale=1000/F.upm;this.used=new Map();}
+  glyphs(text){
+    const out=[];
+    for(const ch of String(text)){
+      const cp=ch.codePointAt(0),g=this.F.cmap[cp];
+      if(g!=null){out.push([g,cp]);continue;}
+      // carattere assente (es. emoji): si prova la lettera senza accenti, altrimenti si salta
+      for(const c2 of ch.normalize("NFD").replace(/[̀-ͯ]/g,"")){const g2=this.F.cmap[c2.codePointAt(0)];if(g2!=null)out.push([g2,c2.codePointAt(0)]);}
+    }
+    return out;
+  }
+  encodeText(text){let h="";for(const [g,cp] of this.glyphs(text)){if(!this.used.has(g))this.used.set(g,cp);h+=hex4(g);}return this.L.PDFHexString.of(h);}
+  widthOfTextAtSize(text,size){let w=0;for(const [g] of this.glyphs(text))w+=this.F.w[g]||0;return w*this.scale*size/1000;}
+  heightOfFontAtSize(size){return (this.F.ascent-this.F.descent)*this.scale*size/1000;}
+  sizeOfFontAtHeight(h){return 1000*h/((this.F.ascent-this.F.descent)*this.scale);}
+  async embedIntoContext(ctx,ref){
+    const F=this.F,L=this.L,s=this.scale,name=this.fontName,bytes=b64bytes(F.b64);
+    const fileRef=ctx.register(ctx.flateStream(bytes,{Length1:bytes.length}));
+    const descRef=ctx.register(ctx.obj({Type:"FontDescriptor",FontName:name,Flags:32,FontBBox:F.bbox.map(v=>Math.round(v*s)),ItalicAngle:F.italicAngle,Ascent:Math.round(F.ascent*s),Descent:Math.round(F.descent*s),CapHeight:Math.round(F.capHeight*s),XHeight:Math.round(F.xHeight*s),StemV:0,FontFile2:fileRef}));
+    const used=[...this.used.entries()].sort((a,b)=>a[0]-b[0]),W=[];
+    for(const [g] of used)W.push(g,[Math.round((F.w[g]||0)*s)]);
+    const cidRef=ctx.register(ctx.obj({Type:"Font",Subtype:"CIDFontType2",CIDToGIDMap:"Identity",BaseFont:name,CIDSystemInfo:{Registry:L.PDFString.of("Adobe"),Ordering:L.PDFString.of("Identity"),Supplement:0},FontDescriptor:descRef,W:W}));
+    let cm="/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n1 begincodespacerange\n<0000><ffff>\nendcodespacerange\n";
+    for(let i=0;i<used.length;i+=100){const part=used.slice(i,i+100);cm+=part.length+" beginbfchar\n"+part.map(([g,cp])=>"<"+hex4(g)+"> <"+utf16hex(cp)+">").join("\n")+"\nendbfchar\n";}
+    cm+="endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend";
+    const tuRef=ctx.register(ctx.flateStream(cm));
+    const font=ctx.obj({Type:"Font",Subtype:"Type0",BaseFont:name,Encoding:"Identity-H",DescendantFonts:[cidRef],ToUnicode:tuRef});
+    if(ref){ctx.assign(ref,font);return ref;}
+    return ctx.register(font);
+  }
+}
+function customFont(pdf,L,F,name){
+  // pdf-lib accetta solo i suoi tipi di font: il nostro si presenta come un CustomFontEmbedder (i metodi restano i nostri)
+  if(L.CustomFontEmbedder&&Object.getPrototypeOf(PdfFontEmbedder.prototype)!==L.CustomFontEmbedder.prototype)Object.setPrototypeOf(PdfFontEmbedder.prototype,L.CustomFontEmbedder.prototype);
+  const e=new PdfFontEmbedder(F,L,name),ref=pdf.context.nextRef(),f=L.PDFFont.of(ref,pdf,e);pdf.fonts.push(f);return f;
+}
+// testo su più righe entro una larghezza
+function wrapText(t,font,size,maxW,conv){
+  const out=[];
+  for(const para of String(t||"").split("\n")){
+    let line="";
+    for(const word of para.split(/\s+/).filter(Boolean)){
+      const test=line?line+" "+word:word;
+      if(font.widthOfTextAtSize(conv(test),size)<=maxW){line=test;continue;}
+      if(line)out.push(line);
+      let w=word;while(font.widthOfTextAtSize(conv(w),size)>maxW&&w.length>1){let k=w.length-1;while(k>1&&font.widthOfTextAtSize(conv(w.slice(0,k)),size)>maxW)k--;out.push(w.slice(0,k));w=w.slice(k);}
+      line=w;
+    }
+    out.push(line);
+  }
+  return out;
+}
 async function tplPDF(b,full){
-  const {PDFDocument,StandardFonts,rgb}=await loadPdfLib();
+  const PL=await loadPdfLib(),{PDFDocument,StandardFonts,rgb}=PL;
   const pdf=await PDFDocument.create();
-  pdf.setTitle("Foglio di servizio "+(b.foglio||""));pdf.setAuthor("La Terra s.r.l.");
-  const reg=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold);
-  const HK=0.88; // Helvetica è più larga di Calibri: stessa resa con un corpo un po' più piccolo
-  const L=tplLayout(b,full,(t,size,bd)=>(bd?bold:reg).widthOfTextAtSize(pdfTxt(t),size*HK));
+  pdf.setTitle("Foglio di servizio "+(b.foglio||"")+(b.provisional?" (provvisorio)":""));pdf.setAuthor("La Terra s.r.l.");
+  let reg,bold,HK=1,conv=t=>String(t==null?"":t);
+  try{const F=await loadPdfFonts();reg=customFont(pdf,PL,F.regular,"AGENDA+AgendaSans-Regular");bold=customFont(pdf,PL,F.bold,"AGENDB+AgendaSans-Bold");}
+  catch(e){console.warn("Font del PDF non disponibile, uso Helvetica:",e);reg=await pdf.embedFont(StandardFonts.Helvetica);bold=await pdf.embedFont(StandardFonts.HelveticaBold);HK=0.88;conv=pdfTxt;} // Helvetica è più larga di Calibri
+  const L=tplLayout(b,full,(t,size,bd)=>(bd?bold:reg).widthOfTextAtSize(conv(t),size*HK));
   const PW=595.28,PH=841.89,M=28.35,k=(PW-2*M)/L.W;
   const page=pdf.addPage([PW,PH]),X=x=>M+x*k,Y=y=>PH-M-y*k;
   const hex=h=>rgb(parseInt(h.slice(1,3),16)/255,parseInt(h.slice(3,5),16)/255,parseInt(h.slice(5,7),16)/255);
+  const ink=rgb(.07,.07,.07);
   for(const f of L.fills)page.drawRectangle({x:X(f.x),y:Y(f.y+f.h),width:f.w*k,height:f.h*k,color:hex(f.c)});
   for(const l of L.lines)page.drawLine({start:{x:X(l.x1),y:Y(l.y1)},end:{x:X(l.x2),y:Y(l.y2)},thickness:(l.w===2?1.3:0.6),color:hex(l.c),dashArray:l.dash?[5,3]:undefined});
-  for(const t of L.texts)page.drawText(pdfTxt(t.t),{x:X(t.x),y:Y(t.y),size:t.size*HK*k,font:t.bold?bold:reg,color:rgb(.07,.07,.07)});
+  for(const t of L.texts)page.drawText(conv(t.t),{x:X(t.x),y:Y(t.y),size:t.size*HK*k,font:t.bold?bold:reg,color:ink});
+  // pagina 2: programma completo, a capo automatico
+  if(needPage2(b,L)){
+    const P2M=42,maxW=PW-2*P2M;let p=pdf.addPage([PW,PH]),y=PH-P2M;
+    const put=(txt,font,size,gapAfter,indent)=>{
+      for(const ln of wrapText(txt,font,size,maxW-(indent||0),conv)){
+        if(y-size<P2M){p=pdf.addPage([PW,PH]);y=PH-P2M;}
+        p.drawText(conv(ln),{x:P2M+(indent||0),y:y-size,size,font,color:ink});y-=size*1.32;
+      }
+      y-=gapAfter||0;
+    };
+    const h=page2Head(b);
+    put(h.title,bold,14,4);put(h.sub,reg,10.5,12);
+    for(const l of tplProgramAll(b))put(l,reg,11.5,5);
+  }
   return new Blob([await pdf.save()],{type:"application/pdf"});
 }
 
@@ -1259,7 +1473,7 @@ async function tplXLSX(b){
 }
 
 // --- nome file come nell'archivio: 26092602_cliente_x_destinazione ---
-function slug(t){return norm(t).replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"").slice(0,40);}
+function slug(t){return norm(pdfTxt(t)).replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"").slice(0,40);}
 function sheetFileName(b){
   const cl=shClient(b),who=slug((cl&&cl[2])||(cl&&cl[1])||b.client||"cliente");
   let parts=(b.route||"").split(/[>→,–]| - /).map(x=>x.trim()).filter(Boolean);
@@ -1270,23 +1484,49 @@ function sheetFileName(b){
 
 // --- finestra del foglio ---
 let sheetBooking=null;
+const sheetsOut={}; // prenotazione → n. foglio con cui il foglio di servizio è già stato salvato o inviato
+// Il n. foglio è definitivo solo quando la prenotazione è arrivata in Dropbox: prima è "provvisorio"
+// (un altro operatore potrebbe aver appena usato lo stesso numero) e il foglio lo dice chiaramente.
 function openSheet(b){
-  sheetBooking=b;
-  $("sheetTitle").textContent="Foglio di servizio n. "+(b.foglio||"");
-  $("sheetView").innerHTML=tplSVG(b,$("sheetFull").checked);
-  $("sheetMsg").textContent="";
+  sheetBooking=Object.assign({},b,{provisional:STORE.isPending(b.id)});
+  renderSheet();$("sheetMsg").textContent="";
   $("ovSheet").hidden=false;
 }
-$("sheetFull").addEventListener("change",()=>{if(sheetBooking)$("sheetView").innerHTML=tplSVG(sheetBooking,$("sheetFull").checked);});
+function renderSheet(){
+  const b=sheetBooking;if(!b)return;
+  $("sheetTitle").textContent="Foglio di servizio n. "+(b.foglio||"")+(b.provisional?" (provvisorio)":"");
+  $("sheetProv").hidden=!b.provisional;
+  $("sheetView").innerHTML=tplSVG(b,$("sheetFull").checked)+tplPage2HTML(b);
+}
+// dopo "Salva e apri foglio di servizio": si aspetta (al massimo 10 secondi) la conferma del numero
+async function openSheetConfirmed(b){
+  openSheet(b);
+  if(navigator.onLine&&STORE.isPending(b.id)){
+    $("sheetMsg").textContent="Confermo il n. foglio con Dropbox…";
+    await STORE.whenSent(b.id,10000);
+    refreshSheetBooking();
+    $("sheetMsg").textContent=sheetBooking&&sheetBooking.provisional?"Numero non ancora confermato: il foglio è provvisorio.":"";
+  }
+}
+// aggiorna il foglio aperto se la prenotazione cambia (numero confermato o rinumerato)
+function refreshSheetBooking(){
+  if(!sheetBooking||$("ovSheet").hidden)return;
+  const cur=bookingsAll().find(x=>x.id===sheetBooking.id);if(!cur)return;
+  const nb=Object.assign({},cur,{provisional:STORE.isPending(cur.id)});
+  if(nb.foglio!==sheetBooking.foglio||nb.provisional!==sheetBooking.provisional||nb.updatedAt!==sheetBooking.updatedAt){sheetBooking=nb;renderSheet();}
+}
+$("sheetFull").addEventListener("change",renderSheet);
 $("sheetClose").onclick=()=>{$("ovSheet").hidden=true;};
-$("ovSheet").addEventListener("click",e=>{if(e.target===$("ovSheet"))$("ovSheet").hidden=true;});
+backdropClose($("ovSheet"),()=>{$("ovSheet").hidden=true;});
 async function sheetSave(kind){
   if(!sheetBooking)return;
+  refreshSheetBooking();
   const full=$("sheetFull").checked,btns=[$("sheetPdf"),$("sheetPrint")];btns.forEach(x=>x.disabled=true);
   $("sheetMsg").textContent="Preparo il file…";
   try{
     const blob=kind==="pdf"?await tplPDF(sheetBooking,full):await tplXLSX(sheetBooking);
-    const where=await saveXlsx(blob,sheetFileName(sheetBooking)+(full&&kind==="pdf"?"_completo":"")+"."+kind);
+    const where=await saveXlsx(blob,sheetFileName(sheetBooking)+(full&&kind==="pdf"?"_completo":"")+(sheetBooking.provisional?"_PROVVISORIO":"")+"."+kind);
+    sheetsOut[sheetBooking.id]=String(sheetBooking.foglio);
     $("sheetMsg").textContent=(kind==="pdf"?"PDF pronto. ":"File Excel pronto. ")+where;
   }catch(err){
     const c=err&&err.code;
@@ -1295,16 +1535,24 @@ async function sheetSave(kind){
   }finally{btns.forEach(x=>x.disabled=false);}
 }
 $("sheetPdf").onclick=()=>sheetSave("pdf");
-// Stampa: il foglio (come nell'anteprima) su una pagina A4
+// Stampa: il foglio come nell'anteprima (A4); se il programma non ci sta, anche la pagina 2 come nel PDF
 async function printSheet(){
   if(!sheetBooking)return;
-  const full=$("sheetFull").checked,ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+  refreshSheetBooking();
+  const b=sheetBooking,full=$("sheetFull").checked,ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+  sheetsOut[b.id]=String(b.foglio);
   if(ios){ // su iPhone/iPad si stampa dal PDF (Condividi › Stampa)
-    try{const blob=await tplPDF(sheetBooking,full);const u=URL.createObjectURL(blob);window.open(u,"_blank");setTimeout(()=>URL.revokeObjectURL(u),60000);}catch(_){toast("Non riesco a preparare la stampa.");}
+    try{const blob=await tplPDF(b,full);const u=URL.createObjectURL(blob);window.open(u,"_blank");setTimeout(()=>URL.revokeObjectURL(u),60000);}catch(_){toast("Non riesco a preparare la stampa.");}
     return;
   }
-  const html='<!doctype html><html lang="it"><head><meta charset="utf-8"><title>'+esc("Foglio di servizio "+(sheetBooking.foglio||""))+'</title>'+
-    '<style>@page{size:A4 portrait;margin:10mm}html,body{margin:0;background:#fff}svg{display:block;width:100%;height:auto}</style></head><body>'+tplSVG(sheetBooking,full)+'</body></html>';
+  let p2="";
+  if(needPage2(b,tplLayout(b,false,measureCanvas))){
+    const h=page2Head(b);
+    p2='<section class="p2"><h1>'+esc(h.title)+'</h1><p class="sub">'+esc(h.sub)+'</p>'+tplProgramAll(b).map(l=>'<p>'+esc(l)+'</p>').join("")+'</section>';
+  }
+  const html='<!doctype html><html lang="it"><head><meta charset="utf-8"><title>'+esc("Foglio di servizio "+(b.foglio||"")+(b.provisional?" (provvisorio)":""))+'</title>'+
+    '<style>@page{size:A4 portrait;margin:10mm}html,body{margin:0;background:#fff;color:#111;font-family:Calibri,Carlito,Arial,sans-serif}svg{display:block;width:100%;height:auto}'+
+    '.p2{break-before:page;page-break-before:always;font-size:12pt}.p2 h1{font-size:15pt;margin:0 0 4pt}.p2 .sub{color:#444;margin:0 0 10pt}.p2 p{margin:0 0 4pt}</style></head><body>'+tplSVG(b,full)+p2+'</body></html>';
   let fr=$("printFrame");
   if(fr)fr.remove();
   fr=document.createElement("iframe");fr.id="printFrame";fr.setAttribute("aria-hidden","true");fr.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
@@ -1315,7 +1563,7 @@ async function printSheet(){
 $("sheetPrint").onclick=printSheet;
 
 // ---------- versione ----------
-const APP_VERSION="1.7",APP_DATE="30/09/2026";
+const APP_VERSION="1.7.1",APP_DATE="30/09/2026";
 $("gVer").textContent="Versione "+APP_VERSION+" · "+APP_DATE;$("appVer").textContent="v"+APP_VERSION;
 
 // ---------- dati: Dropbox ----------
@@ -1329,19 +1577,23 @@ function refreshFromStore(){
     if(L.regole){S.regole=Object.assign({autisti:[],targhe:{},numeri:{}},L.regole);fillDrivers();}
   }
   if(!$("app").hidden)renderAll();
+  refreshSheetBooking();
 }
 function fmtTime(t){if(!t)return "";const d=new Date(t);const today=new Date().toDateString()===d.toDateString();return (today?"oggi":d.toLocaleDateString("it-IT",{day:"numeric",month:"short"}))+" alle "+d.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"});}
 function renderNet(st){
   st=st||STORE.status();
   const el=$("netStatus");let cls,txt;
-  const pend=(st.pending||0);
+  const pend=(st.pending||0),fp=(st.fatPending||0);
   if(!navigator.onLine){cls="off";txt=pend?"Offline · "+pend+(pend===1?" modifica da inviare":" modifiche da inviare"):"Offline";}
   else if(st.error==="no_auth"){cls="off";txt="Dropbox scollegato";}
   else if(st.error==="scope"){cls="off";txt="Permessi Dropbox mancanti";}
   else if(st.error==="busy"){cls="sync";txt="Dropbox occupato, riprovo…";}
+  else if(st.error==="day"){cls="off";txt="Non riesco a salvare un giorno: riprovo";}
   else if(st.syncing||pend){cls="sync";txt="Sincronizzazione…";}
   else if(st.error){cls="off";txt="Dropbox non raggiungibile";}
+  else if(fp){cls="sync";txt="Sincronizzato · fatturato: "+fp+" in attesa";}
   else{cls="on";txt="Sincronizzato";}
+  if(st.storage==="full"&&!renderNet._warned){renderNet._warned=1;notify("Il browser non riesce più a salvare la copia dell'agenda su questo dispositivo (spazio pieno): le prenotazioni restano in Dropbox, ma senza rete l'agenda potrebbe non aprirsi. Libera spazio sul dispositivo.",true);}
   el.className="net "+cls;el.textContent=txt;el.hidden=false;el.title=st.error?((st.error||"")+" "+(st.errorDetail||"")).trim():"";
   // stato del fatturato
   const f=st.fat,fs=$("fatStatus");if(!fs)return;
@@ -1367,12 +1619,35 @@ STORE.configure({
   onAuthLost:()=>showGate("link",{msg:"L'accesso a Dropbox è scaduto o è stato revocato: collegalo di nuovo."}),
   rowFor:b=>Object.assign(billRow(Object.assign({},b,{start:b.start})),{tour:isMulti(b.type)}),
   onClientAdded:(tmp,info)=>onClientAdded(tmp,info),
-  onClientError:(tmp,q)=>{toast("«"+(q.name||"")+"» non scritto nel fatturato: "+cliErrText(q.error)+". Correggilo da Clienti.");if(!$("ovClients").hidden)renderClients();}
+  onClientError:(c,q)=>{notify((c==="codeexists"?"Codice Multi già usato nel file ("+cliErrText(q)+")":c==="noclienti"?"Nel file fatturato non trovo il foglio «clienti»":c==="noname"?"Manca la ragione sociale":"Errore nel file fatturato")+": il cliente «"+((q&&q.name)||"")+"» non è stato scritto. "+(c==="codeexists"?"Correggilo":"Puoi riprovare o annullarlo")+" da Clienti.",true);if(!$("ovClients").hidden)renderClients();},
+  onNotice:onNotice
 });
-function writeDayOps(date,patch){
-  const ops=[];
-  if(patch.bookings)for(const k in patch.bookings)ops.push(patch.bookings[k]===null?{t:"del",id:k}:{t:"put",id:k,b:patch.bookings[k],assign:!!patch.assign});
-  if("extra" in patch)ops.push({t:"extra",v:patch.extra});
+// avvisi importanti: restano in alto finché non li chiudi
+function notify(msg,sticky){
+  if(!sticky){toast(msg);return;}
+  const b=$("banner");const d=document.createElement("div");d.className="bn";d.innerHTML='<span></span><button type="button" aria-label="Chiudi avviso">×</button>';d.firstChild.textContent=msg;
+  d.lastChild.onclick=()=>{d.remove();b.hidden=!b.children.length;};b.appendChild(d);b.hidden=false;
+}
+function itD(d){return d?(+d.slice(8,10))+"/"+d.slice(5,7)+"/"+d.slice(0,4):"";}
+function onNotice(n){
+  const who=n.client?"«"+n.client+"»":"una prenotazione";
+  if(n.kind==="gone")notify("La prenotazione "+who+" del "+itD(n.date)+" era stata eliminata o spostata da un altro dispositivo: la tua modifica non è stata salvata. Controlla e, se serve, ripetila.",true);
+  else if(n.kind==="delGone")notify("La prenotazione "+who+" non è stata eliminata: nel frattempo un altro dispositivo l'aveva spostata su un altro giorno. Controlla e, se serve, eliminala di nuovo.",true);
+  else if(n.kind==="merged")toast("Prenotazione "+who+" modificata anche da un altro dispositivo: ho unito le modifiche.");
+  else if(n.kind==="renumbered"){
+    // avviso fisso solo se un foglio di servizio con il numero vecchio è già uscito (salvato o inviato)
+    const out=sheetsOut[n.id]===n.from;
+    notify("Il n. foglio di "+who+" del "+itD(n.date)+" è cambiato da "+n.from+" a "+n.to+" (un altro operatore aveva appena usato lo stesso numero)."+(out?" Hai già salvato o inviato il foglio di servizio con il numero vecchio: rimandalo.":""),out);
+    refreshSheetBooking();}
+  else if(n.kind==="extraMerged")toast("Autisti extra del "+itD(n.date)+": uniti al testo scritto da un altro dispositivo.");
+  else if(n.kind==="badfile")notify("Il file del giorno "+itD(n.date)+" in Dropbox era rovinato: ho tenuto l'ultima versione buona (una copia del file rovinato è in config › file-rovinati).",true);
+  else if(n.kind==="badcfg")notify("Non riesco a leggere il file "+(n.path||"di configurazione")+" in Dropbox: controllalo.",true);
+}
+// extra: per le prenotazioni {edit, base, patch, move}; per le eliminazioni {move: nuova data}
+function writeDayOps(date,patch,extra){
+  const ops=[];extra=extra||{};
+  if(patch.bookings)for(const k in patch.bookings)ops.push(patch.bookings[k]===null?Object.assign({t:"del",id:k},extra.move&&typeof extra.move==="string"?{move:extra.move}:{},extra.client!=null?{client:extra.client}:{}):Object.assign({t:"put",id:k,b:patch.bookings[k],assign:!!patch.assign},extra));
+  if("extra" in patch)ops.push({t:"extra",v:patch.extra,base:patch.base==null?null:patch.base});
   STORE.mutateDay(date,ops);
 }
 $("billSync").onclick=async()=>{billMsg("Aggiorno…");await STORE.pull();await STORE.flush();await STORE.syncFatturato();const f=STORE.fat;billMsg(f&&f.ok?"Fatturato aggiornato.":"Non riesco ad aggiornare il fatturato adesso: riprovo da solo più tardi.",f&&f.ok?"ok":"err");};
@@ -1388,7 +1663,7 @@ let gateMode="";
 function showGate(mode,o){
   o=o||{};gateMode=mode;
   $("gate").hidden=false;$("app").hidden=true;
-  ["ovBooking","ovFleet","ovMenu","ovSheet"].forEach(id=>{const x=$(id);if(x)x.hidden=true;});
+  ["ovBooking","ovFleet","ovMenu","ovSheet","ovClients","ovClientNew"].forEach(id=>{const x=$(id);if(x)x.hidden=true;});
   ["gLink","gLoad","gFat","gCode"].forEach(id=>$(id).hidden=true);
   $("gMsg").textContent=o.msg||"";$("gMsg").className="gate-msg"+(o.ok?" ok":"");
   if(mode==="link"){$("gTitle").textContent="Collega Dropbox";$("gLink").hidden=false;$("gKeyMissing").hidden=DBX.hasKey();$("gLinkBtn").hidden=!DBX.hasKey();}
@@ -1435,7 +1710,9 @@ $("gCodeForm").addEventListener("submit",async e=>{
     if(gateMode==="code-create"){
       if(code!==$("gCode2").value){$("gMsg").textContent="I due codici non coincidono.";return;}
       if(!navigator.onLine){$("gMsg").textContent="Per creare il codice serve la connessione a internet.";return;}
-      await STORE.setAccess(await makeAccess(code));unlocked();
+      try{await STORE.createAccess(await makeAccess(code));}
+      catch(err){if(err&&err.code==="exists"){showGate("code",{msg:"Il codice di accesso esiste già: inserisci quello aziendale."});return;}throw err;}
+      unlocked();
     }else if(await checkCode(code))unlocked();
     else{$("gMsg").textContent="Codice errato.";$("gCodeIn").select();}
   }catch(_){$("gMsg").textContent="Operazione non riuscita. Controlla la connessione e riprova.";}
@@ -1449,13 +1726,21 @@ function unlocked(){
 }
 async function afterSync(o){
   if(!Object.keys(STORE.fatFiles()).length&&navigator.onLine&&!sessionStorage.getItem("fat-later")){showGate("fatturato",o);return;}
-  if(!STORE.access){if(!navigator.onLine){showGate("loading",{title:"Connessione necessaria",text:"Per creare il codice di accesso serve internet."});return;}showGate("code-create",o);return;}
+  if(!STORE.access){
+    if(!navigator.onLine){showGate("loading",{title:"Connessione necessaria",text:"Per creare il codice di accesso serve internet."});$("gRetry").hidden=false;return;}
+    // prima di proporre un codice nuovo si controlla davvero che in Dropbox non ci sia già
+    let a=null;
+    try{a=await STORE.fetchAccess();}
+    catch(_){showGate("loading",{title:"Dropbox non risponde",text:"Non riesco a leggere il codice di accesso da Dropbox. Premi Riprova tra qualche secondo."});$("gRetry").hidden=false;return;}
+    if(!a){showGate("code-create",o);return;}
+  }
   showGate("code",o);
 }
 
 // ---------- menu ----------
 function menuPane(name){
   ["mMain","mCode","mUnlink"].forEach(id=>{$(id).hidden=id!==name;});
+  if(name==="mUnlink"){const n=STORE.pending;$("unlinkPend").textContent=n?"Attenzione: su questo dispositivo "+(n===1?"c'è 1 modifica non ancora inviata, che andrà persa.":"ci sono "+n+" modifiche non ancora inviate, che andranno perse.")+" Se puoi, collegati prima a internet e attendi «Sincronizzato».":"";$("unlinkPend").hidden=!n;}
   $("menuMsg").textContent="";
   document.querySelector("#menuFoot .back").hidden=name==="mMain";
   $("codeGo").hidden=name!=="mCode";$("unlinkGo").hidden=name!=="mUnlink";
@@ -1482,7 +1767,7 @@ $("mCode").addEventListener("submit",async e=>{
   catch(_){msg.textContent="Non riesco a salvare il nuovo codice. Riprova.";}
   finally{$("codeGo").disabled=false;}
 });
-$("unlinkGo").onclick=()=>{DBX.unlink();STORE.reset();try{localStorage.removeItem("agenda-view");}catch(_){}location.reload();};
+$("unlinkGo").onclick=async()=>{DBX.unlink();await STORE.reset();try{localStorage.removeItem("agenda-view");}catch(_){}location.reload();};
 
 // ---------- file dei fogli di servizio: in Dropbox e sul dispositivo ----------
 async function saveXlsx(blob,filename){
@@ -1497,8 +1782,9 @@ async function shareSheet(){
   if(!sheetBooking)return;
   try{
     const blob=await tplPDF(sheetBooking,$("sheetFull").checked);
-    const file=new File([blob],sheetFileName(sheetBooking)+".pdf",{type:"application/pdf"});
+    const file=new File([blob],sheetFileName(sheetBooking)+(sheetBooking.provisional?"_PROVVISORIO":"")+".pdf",{type:"application/pdf"});
     await navigator.share({files:[file],title:"Foglio di servizio n. "+(sheetBooking.foglio||"")});
+    sheetsOut[sheetBooking.id]=String(sheetBooking.foglio);
     $("sheetMsg").textContent="Inviato.";
   }catch(e){if(e&&e.name!=="AbortError")$("sheetMsg").textContent="Invio non riuscito: scarica il PDF e allegalo.";}
 }
@@ -1524,8 +1810,10 @@ function lostWindow(){
   showGate("loading",{title:"Agenda aperta in un'altra finestra",text:"Hai continuato a lavorare in un'altra finestra, quindi questa si è fermata per non creare doppioni. Chiudila, oppure premi il pulsante per usare di nuovo questa."});
   $("gHere").hidden=false;
 }
-$("gHere").onclick=async()=>{$("gHere").hidden=true;showGate("loading",{title:"Avvio…"});if(await takeWindow(true))await start();};
-$("gRelink").onclick=()=>{DBX.unlink();STORE.reset();DBX.startLogin().catch(()=>{$("gMsg").textContent="Manca la chiave dell'app Dropbox in config.js.";});};
+// "Continua in questa finestra": si ricarica la pagina, così si riparte dai dati aggiornati dall'altra finestra
+$("gHere").onclick=()=>{$("gHere").hidden=true;showGate("loading",{title:"Avvio…"});try{sessionStorage.setItem("agenda-steal","1");}catch(_){}location.reload();};
+// ricollega Dropbox senza cancellare la copia locale né le modifiche non ancora inviate
+$("gRelink").onclick=()=>{DBX.unlink();DBX.startLogin().catch(()=>{$("gMsg").textContent="Manca la chiave dell'app Dropbox in config.js.";});};
 
 // ---------- una sola finestra attiva per dispositivo ----------
 // Due finestre aperte insieme si sovrascriverebbero a vicenda le modifiche non ancora inviate.
@@ -1547,10 +1835,12 @@ async function boot(){
   try{const v=localStorage.getItem("agenda-view");if(v==="month"||v==="week"||v==="bill")setView(v);}catch(_){}
   if("serviceWorker" in navigator&&location.protocol!=="file:")navigator.serviceWorker.register("./sw.js").catch(()=>{});
   showGate("loading",{title:"Avvio…"});
-  if(!(await takeWindow()))return;
+  let steal=false;try{steal=sessionStorage.getItem("agenda-steal")==="1";sessionStorage.removeItem("agenda-steal");}catch(_){}
+  if(!(await takeWindow(steal)))return;
   await start();
 }
 async function start(){
+  await STORE.ready(); // copia locale (e coda rilette adesso, dopo aver preso il controllo della finestra)
   STORE.enable();
   try{await DBX.finishLogin();}
   catch(e){showGate("link",{msg:e&&e.code==="denied"?"Collegamento a Dropbox annullato.":"Collegamento a Dropbox non riuscito. Riprova."});return;}

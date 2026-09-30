@@ -69,26 +69,50 @@
     return refreshing;
   }
 
-  async function call(url, opts, retry = true) {
+  const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+  // richiesta con tempo massimo: una connessione che resta appesa (Wi-Fi debole, rete mobile) non deve
+  // bloccare la sincronizzazione per sempre
+  async function tfetch(url, o, ms) {
+    const ac = typeof AbortController === "function" ? new AbortController() : null;
+    // il limite vale anche per la lettura della risposta (il timer non si ferma quando arrivano le intestazioni)
+    const t = ac ? setTimeout(() => ac.abort(), ms) : null;
+    try { return await fetch(url, ac ? Object.assign({}, o, { signal: ac.signal }) : o); }
+    catch (e) { if (t) clearTimeout(t); throw e; }
+  }
+  const sizeOf = (b) => (b == null ? 0 : b.byteLength != null ? b.byteLength : b.size != null ? b.size : String(b).length);
+  // file dell'agenda (.json, piccoli): 30 s; altri file (fatturato, PDF): 2 minuti + 1 s ogni 20 KB inviati
+  const limitFor = (url, o) => (url.indexOf(CONTENT) !== 0 || /\.json\\?"/.test((o.headers || {})["Dropbox-API-Arg"] || "") ? 30000 : 120000 + Math.round(sizeOf(o.body) / 20));
+  // "troppe richieste" (429) o errore temporaneo di Dropbox: fino a 3 nuovi tentativi, aspettando
+  // quanto chiede Dropbox (Retry-After) o 1, 2, 4 secondi
+  async function call(url, opts, retry = true, busyTry = 0) {
     const t = await accessToken();
     const o = Object.assign({}, opts, { headers: Object.assign({ Authorization: "Bearer " + t }, opts.headers || {}) });
     let r;
-    try { r = await fetch(url, o); } catch (_) { throw { code: "network" }; }
+    try { r = await tfetch(url, o, limitFor(url, o)); } catch (_) { throw { code: "network" }; }
     if (r.status === 401) {
       const t401 = await r.text();
       if (/missing_scope/.test(t401)) throw { code: "scope", status: 401, summary: t401 };
-      if (retry) { await accessToken(true); return call(url, opts, false); }
-      throw { code: "no_auth", status: 401, summary: t401 };
+      if (retry) { await accessToken(true); return call(url, opts, false, busyTry); }
+      // rinnovo riuscito ma Dropbox rifiuta ancora: problema temporaneo, si riprova più tardi.
+      // "Collega Dropbox" serve solo quando Dropbox rifiuta il rinnovo (autorizzazione revocata).
+      throw tok && tok.refresh ? { code: "busy", status: 401, summary: t401 } : { code: "no_auth", status: 401, summary: t401 };
     }
     if (r.status === 400) throw { code: "api", status: 400, summary: (await r.text()).slice(0, 300) };
     if (r.status === 403) throw { code: "api", status: 403, summary: (await r.text()).slice(0, 300) };
-    if (r.status === 429 || r.status >= 500) throw { code: "busy", status: r.status };
+    if (r.status === 429 || r.status >= 500) {
+      if (busyTry < 3) {
+        const ra = parseFloat(r.headers.get("Retry-After") || "");
+        await wait(Math.min(15000, isFinite(ra) && ra > 0 ? ra * 1000 : 1000 * Math.pow(2, busyTry)));
+        return call(url, opts, retry, busyTry + 1);
+      }
+      throw { code: "busy", status: r.status };
+    }
     return r;
   }
 
   async function rpc(path, body) {
     const r = await call(API + "/2/" + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body == null ? null : body) });
-    const txt = await r.text();
+    let txt; try { txt = await r.text(); } catch (_) { throw { code: "network" }; }
     let j = null; try { j = JSON.parse(txt); } catch (_) {}
     if (!r.ok) throw { code: r.status === 409 ? "conflict" : "api", status: r.status, summary: (j && j.error_summary) || txt };
     return j;
@@ -99,7 +123,8 @@
     if (r.status === 409) { const t = await r.text(); if (/not_found/.test(t)) return null; throw { code: "api", status: 409, summary: t }; }
     if (!r.ok) throw { code: "api", status: r.status, summary: (await r.text()).slice(0, 300) };
     let meta = {}; try { meta = JSON.parse(r.headers.get("Dropbox-API-Result") || "{}"); } catch (_) {}
-    return { meta, buf: await r.arrayBuffer() };
+    let buf; try { buf = await r.arrayBuffer(); } catch (_) { throw { code: "network" }; } // connessione caduta a metà file
+    return { meta, buf };
   }
 
   // mode: "add" (fallisce se esiste) | "overwrite" | {update: rev} (fallisce se nel frattempo è cambiato)
@@ -110,7 +135,7 @@
       headers: { "Content-Type": "application/octet-stream", "Dropbox-API-Arg": argHeader({ path, mode: m, autorename: false, mute: true, strict_conflict: true }) },
       body: data,
     });
-    const txt = await r.text();
+    let txt; try { txt = await r.text(); } catch (_) { throw { code: "network" }; }
     if (r.status === 409) throw { code: "conflict", summary: txt };
     if (!r.ok) throw { code: "api", status: r.status, summary: txt };
     return JSON.parse(txt);
@@ -128,7 +153,9 @@
 
   // Attende fino a `timeout` secondi una modifica nella cartella. Non serve il token.
   async function longpoll(cursor, timeout) {
-    const r = await fetch(NOTIFY + "/2/files/list_folder/longpoll", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cursor, timeout }) });
+    let r;
+    try { r = await tfetch(NOTIFY + "/2/files/list_folder/longpoll", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cursor, timeout }) }, (timeout + 30) * 1000); }
+    catch (_) { throw { code: "network" }; }
     if (!r.ok) throw { code: "api", status: r.status };
     return r.json();
   }

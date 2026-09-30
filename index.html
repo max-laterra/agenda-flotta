@@ -378,7 +378,20 @@ table.bt{border-collapse:collapse;width:100%;min-width:1400px;font-size:13px}
 .fleet-row input{border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:var(--bg);min-width:0;width:100%}
 .fleet-head{display:grid;grid-template-columns:1.5fr 60px 1.1fr 1fr;gap:8px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
 
-.banner{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:9px 14px;font-weight:600;font-size:14px}
+.banner{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:6px 8px 6px 14px;font-weight:600;font-size:14px;display:flex;flex-direction:column;gap:4px}
+.banner .bn{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+.banner .bn span{padding:3px 0}
+.banner .bn button{border:0;background:transparent;color:inherit;font-size:20px;line-height:1;padding:2px 6px;border-radius:6px;cursor:pointer}
+.banner .bn button:hover{background:color-mix(in srgb,var(--warn) 15%,transparent)}
+.banner .bn+.bn{border-top:1px solid color-mix(in srgb,var(--warn) 25%,transparent);padding-top:4px}
+.sheet-prov{margin:-4px 0 0;font-size:13.5px;background:var(--tbd-bg);color:var(--tbd-ink);border-radius:8px;padding:8px 12px}
+.menu-note.warnnote{background:var(--warn-bg);color:var(--warn);font-weight:600}
+.confirm .btn:not(.danger){color:var(--ink)}
+.fs-page2{max-width:1180px;margin:18px auto 0;background:#fff;color:#111;box-shadow:0 2px 14px rgba(0,0,0,.28);padding:22px 28px;font-family:Calibri,Carlito,Arial,sans-serif;font-size:15px}
+.fs-page2 h4{margin:0 0 4px;font-size:18px}
+.fs-page2 p{margin:0 0 6px}
+.fs-page2 .p2-note{font-size:12px;color:#666;text-transform:uppercase;letter-spacing:.08em}
+.fs-page2 .p2-sub{color:#444;margin-bottom:12px}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:999px;font-weight:600;font-size:14px;z-index:60;box-shadow:var(--shadow)}
 @media (prefers-reduced-motion:no-preference){.overlay .modal{animation:pop .16s ease-out}@keyframes pop{from{transform:translateY(8px);opacity:.6}to{transform:none;opacity:1}}}
 
@@ -659,9 +672,9 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
     <div class="fgrid fgrid4">
       <div class="f c2"><label for="f-vehicle">Mezzo</label><select id="f-vehicle"></select></div>
       <div class="f c2"><label for="f-pax">Passeggeri</label><input id="f-pax" inputmode="numeric" autocomplete="off" placeholder="Es. 45 oppure 180/4"></div>
-      <div class="f c1"><label for="f-start" id="l-start">Data partenza</label><input type="date" id="f-start" required></div>
+      <div class="f c1"><label for="f-start" id="l-start">Data partenza</label><input type="date" id="f-start" min="2000-01-01" max="2099-12-31" required></div>
       <div class="f c1"><label for="f-time">Ora partenza</label><input type="time" id="f-time"></div>
-      <div class="f c1" id="w-end"><label for="f-end">Data rientro</label><input type="date" id="f-end"></div>
+      <div class="f c1" id="w-end"><label for="f-end">Data rientro</label><input type="date" id="f-end" min="2000-01-01" max="2099-12-31"></div>
       <div class="f c1" id="w-time2"><label for="f-time2">Ora rientro</label><input type="time" id="f-time2"></div>
       <div class="f full" id="w-event"><label for="f-event">Evento</label><input id="f-event" placeholder="Es. concerto, artista e luogo"></div>
       <div class="f full csearch"><label for="f-client">Cliente</label><input id="f-client" autocomplete="off" placeholder="Cerca per nome, alias, città o codice" role="combobox" aria-expanded="false" aria-controls="cSug"><div class="csug" id="cSug" role="listbox" hidden></div><div class="cinfo" id="cInfo"></div></div>
@@ -707,6 +720,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
     <div class="mfoot">
       <button type="button" class="btn danger" id="fDelete" hidden>Elimina</button>
       <div class="confirm" id="fConfirm" hidden>Eliminare questa prenotazione? <button type="button" class="btn danger" id="fDeleteYes">Sì, elimina</button><button type="button" class="btn" id="fDeleteNo">Annulla</button></div>
+      <div class="confirm" id="fCloseAsk" hidden>Chiudere senza salvare? Le modifiche andranno perse. <button type="button" class="btn danger" id="fCloseYes">Chiudi senza salvare</button><button type="button" class="btn" id="fCloseNo">Continua a modificare</button></div>
       <span class="spacer"></span>
       <button type="button" class="btn" id="fCancel">Chiudi</button>
       <button type="button" class="btn" id="fSheet">Salva e apri foglio di servizio</button>
@@ -721,6 +735,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
       <h3 id="sheetTitle">Foglio di servizio</h3>
       <label class="sheet-opt"><input type="checkbox" id="sheetFull"> Includi la copia ufficio (prezzi e fatture)</label>
     </div>
+    <p class="sheet-prov" id="sheetProv" hidden>N. foglio <b>provvisorio</b>: la prenotazione non è ancora arrivata in Dropbox, quindi il numero potrebbe cambiare. Il foglio lo riporta (PROVV.); appena torna la connessione il numero viene confermato e il foglio si aggiorna.</p>
     <p class="sheet-hint">Impaginato del modello <b>automatico_2026_neutro</b>. «Stampa» stampa il foglio così come lo vedi (una pagina A4).</p>
     <div class="sheet-scroll"><div id="sheetView"></div></div>
     <div class="sheet-msg" id="sheetMsg" role="status"></div>
@@ -789,6 +804,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
     </form>
     <div class="menu-list" id="mUnlink" hidden>
       <p class="menu-note">Su questo dispositivo verranno cancellati l'accesso a Dropbox e la copia delle prenotazioni. I dati restano in Dropbox e sugli altri dispositivi. Le modifiche non ancora inviate andranno perse.</p>
+      <p class="menu-note warnnote" id="unlinkPend" hidden></p>
     </div>
     <div class="menu-msg" id="menuMsg" role="alert"></div>
     <div class="mfoot" id="menuFoot">

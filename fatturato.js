@@ -4,7 +4,12 @@
   "use strict";
   const COLS = (() => { const a = []; for (let i = 1; i <= 45; i++) { let n = i, s = ""; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } a.push(s); } return a; })();
   const colIdx = (c) => { let n = 0; for (const ch of c) n = n * 26 + ch.charCodeAt(0) - 64; return n; };
-  const xEsc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  // caratteri non ammessi in un file Excel (XML): caratteri di controllo (es. l'a capo di Word, \u000B),
+  // \uFFFE/\uFFFF e metà di caratteri emoji spezzati. Una sola cella con uno di questi rende illeggibile il file.
+  const xmlSafe = (t) => String(t).replace(/\u000B|\u000C/g, "\n").replace(/[\u0000-\u0008\u000E-\u001F\uFFFE\uFFFF]/g, "").replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDFFF]/g, (m) => (m.length === 2 ? m : ""));
+  const xEsc = (t) => xmlSafe(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const XL_MAX = 32767; // caratteri massimi in una cella di Excel
+  const cut = (t) => { t = xmlSafe(t); return t.length > XL_MAX ? t.slice(0, XL_MAX - 1) + "…" : t; };
   const xUn = (t) => t.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n)).replace(/&amp;/g, "&");
   const attr = (tag, name) => { const m = new RegExp("\\s" + name + '="([^"]*)"').exec(tag); return m ? m[1] : null; };
 
@@ -20,10 +25,14 @@
     if (t === "inlineStr") { let s = ""; const r = /<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g; let k; while ((k = r.exec(inner))) s += k[1]; return xUn(s); }
     return v ? xUn(v[1]) : "";
   }
+  // foglio per nome: prima il nome esatto, poi senza badare a maiuscole e spazi, poi un nome che inizia così
+  // (es. "Clienti 2026" per "clienti")
   async function sheetFile(zip, name) {
     const wb = await zip.file("xl/workbook.xml").async("string");
     const rels = await zip.file("xl/_rels/workbook.xml.rels").async("string");
-    const sh = (wb.match(/<sheet\b[^>]*>/g) || []).find((t) => (attr(t, "name") || "").toLowerCase() === name.toLowerCase());
+    const sheets = wb.match(/<sheet\b[^>]*>/g) || [], nm = (t) => xUn(attr(t, "name") || "");
+    const low = name.toLowerCase();
+    const sh = sheets.find((t) => nm(t) === name) || sheets.find((t) => nm(t).trim().toLowerCase() === low) || sheets.find((t) => new RegExp("^\\s*" + low + "\\b", "i").test(nm(t)));
     if (!sh) return null;
     const rid = attr(sh, "r:id");
     const rel = (rels.match(/<Relationship\b[^>]*>/g) || []).find((t) => attr(t, "Id") === rid);
@@ -42,8 +51,8 @@
     const st = s != null ? ' s="' + s + '"' : "";
     if (val == null) return '<c r="' + ref + '"' + st + "/>";
     if (val.f != null) return '<c r="' + ref + '"' + st + (val.str ? ' t="str"' : "") + "><f>" + xEsc(val.f) + "</f></c>";
-    if (val.n != null) return '<c r="' + ref + '"' + st + "><v>" + val.n + "</v></c>";
-    if (val.t != null && val.t !== "") return '<c r="' + ref + '"' + st + ' t="inlineStr"><is><t xml:space="preserve">' + xEsc(val.t) + "</t></is></c>";
+    if (val.n != null) return isFinite(val.n) ? '<c r="' + ref + '"' + st + "><v>" + val.n + "</v></c>" : '<c r="' + ref + '"' + st + "/>";
+    if (val.t != null && val.t !== "") { const t = cut(val.t); return t ? '<c r="' + ref + '"' + st + ' t="inlineStr"><is><t xml:space="preserve">' + xEsc(t) + "</t></is></c>" : '<c r="' + ref + '"' + st + "/>"; }
     return '<c r="' + ref + '"' + st + "/>";
   }
   function formulas(n) {
@@ -56,14 +65,16 @@
       AQ: { f: "agenda!$AH" + n + "-agenda!$AK" + n + "-agenda!$AL" + n + "-agenda!$AM" + n + "-agenda!$AN" + n + "-agenda!$AO" + n + "-agenda!$AP" + n },
     };
   }
-  const serial = (d) => Math.round((Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) - Date.UTC(1899, 11, 30)) / 864e5);
-  const num = (x) => (x === "" || x == null ? null : { n: Number(x) });
+  const serial = (d) => { if (!/^20\d\d-\d\d-\d\d$/.test(String(d || ""))) return NaN; return Math.round((Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) - Date.UTC(1899, 11, 30)) / 864e5); };
+  const num = (x) => (x === "" || x == null || !isFinite(Number(x)) ? null : { n: Number(x) });
+  const validFoglio = (f) => /^\d{8,9}$/.test(String(f == null ? "" : f));
+  const pad2 = (n) => String(n).padStart(2, "0");
   const txt = (x) => (x === "" || x == null ? null : { t: String(x) });
   // Colonne gestite dall'agenda. null = svuota la cella; colonna assente = non toccare.
   function valuesFor(r) {
     const v = {
       A: { n: Number(r.foglio) }, B: txt(r.B), G: txt(r.G), H: txt(r.H),
-      I: r.I ? { n: serial(r.I) } : null, J: r.J ? { n: serial(r.J) } : null,
+      I: r.I && isFinite(serial(r.I)) ? { n: serial(r.I) } : null, J: r.J && isFinite(serial(r.J)) ? { n: serial(r.J) } : null,
       M: txt(r.M), O: txt(r.O), P: num(r.P), Q: num(r.Q), R: num(r.R), Z: txt(r.Z), AA: txt(r.AA),
     };
     if (r.C !== "" && r.C != null) { v.C = isFinite(Number(r.C)) ? { n: Number(r.C) } : { t: String(r.C) }; v.D = "formula"; }
@@ -73,6 +84,19 @@
   }
   const OWN = ["A", "B", "C", "D", "G", "H", "I", "J", "M", "O", "P", "Q", "R", "Z", "AA", "AH", "AI", "AJ"];
 
+  // sposta i riferimenti relativi di una formula (A1, $A1, A$1) di dr righe e dc colonne, come quando Excel
+  // copia una formula; le parti tra virgolette e i nomi di funzione (es. LOG10) non si toccano
+  function shiftFormula(f, dr, dc) {
+    return f.replace(/"(?:[^"]|"")*"|(\$?)([A-Z]{1,3})(\$?)(\d+)/g, (m, c1, col, r1, row, off, s) => {
+      if (m[0] === '"') return m;
+      const prev = off > 0 ? s[off - 1] : "", next = s[off + m.length] || "";
+      if (/[A-Za-z0-9_.]/.test(prev) || /[A-Za-z0-9_(]/.test(next)) return m;
+      let c = col, r = +row;
+      if (!c1 && dc) { let n = colIdx(col) + dc; if (n < 1) return m; c = ""; while (n > 0) { const k = (n - 1) % 26; c = String.fromCharCode(65 + k) + c; n = Math.floor((n - 1) / 26); } }
+      if (!r1 && dr) r += dr;
+      return c1 + c + r1 + r;
+    });
+  }
   function rowCells(rowXml) {
     const cells = {}, re = /<c r="([A-Z]+)\d+"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g; let m;
     while ((m = re.exec(rowXml))) cells[m[1]] = { xml: m[0], s: attr(m[2], "s"), inner: m[3] || "" };
@@ -95,18 +119,47 @@
     const body = selfClosed ? "" : xml.slice(openEnd, b);
     const rowRe = /<row\b[^>]*?(?:\/>|>[\s\S]*?<\/row>)/g, rows = [], byNum = {}; let m;
     while ((m = rowRe.exec(body))) { const n = +attr(m[0].slice(0, m[0].indexOf(">") + 1), "r"); byNum[n] = rows.length; rows.push({ n, xml: m[0] }); }
-    // righe usate e n. foglio presenti
+    // righe usate e n. foglio presenti. Una riga è usata se ha almeno una cella scritta (non una formula):
+    // così una riga dove l'ufficio ha scritto qualcosa (fattura, spese…) non viene mai riusata per un altro servizio.
     const where = {}; let lastUsed = 1;
-    const scan = /<c r="(A|B|C|I)(\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
-    while ((m = scan.exec(body))) { const r = +m[2]; if (r < 2) continue; const v = cellValue(m[3], m[4], sst); if (v === "") continue; if (r > lastUsed) lastUsed = r; if (m[1] === "A") where[String(v).trim().replace(/\.0+$/, "")] = r; }
+    const scan = /<c r="([A-Z]+)(\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
+    while ((m = scan.exec(body))) {
+      const r = +m[2]; if (r < 2 || !m[4] || /<f[\s>\/]/.test(m[4])) continue;
+      const v = cellValue(m[3], m[4], sst); if (String(v).trim() === "") continue;
+      if (r > lastUsed) lastUsed = r;
+      if (m[1] === "A") where[String(v).trim().replace(/\.0+$/, "")] = r;
+    }
     const tplRow = rows.find((x) => x.n === 2) || rows.find((x) => x.n > 1);
     const tpl = tplRow ? rowCells(tplRow.xml) : {};
     let maxRow = rows.length ? rows[rows.length - 1].n : 1;
     let added = 0, updated = 0, cleared = 0;
 
+    // Formula condivisa di Excel (scritta una volta nella cella "madre" e ripresa dalle righe sotto con
+    // <f t="shared" si="N"/>): prima di sovrascrivere la madre, le righe che la usano ricevono la formula per esteso.
+    function unshare(masterRef, fxml) {
+      const si = attr(fxml, "si"), text = xUn((/>([\s\S]*?)<\/f>/.exec(fxml) || [])[1] || "");
+      if (si == null || !text) return;
+      const mm = /^([A-Z]+)(\d+)$/.exec(masterRef); if (!mm) return;
+      const childRe = new RegExp('<f\\b[^>]*\\bt="shared"[^>]*\\bsi="' + si + '"[^>]*/>|<f\\b[^>]*\\bsi="' + si + '"[^>]*\\bt="shared"[^>]*/>');
+      for (const row of rows) {
+        if (!childRe.test(row.xml)) continue;
+        row.xml = row.xml.replace(/<c r="([A-Z]+)(\d+)"([^>]*?)>([\s\S]*?)<\/c>/g, (all, col, rn, at, inner) => {
+          const fm = childRe.exec(inner); if (!fm) return all;
+          const f = shiftFormula(text, +rn - +mm[2], colIdx(col) - colIdx(mm[1]));
+          return '<c r="' + col + rn + '"' + at + ">" + inner.replace(fm[0], "<f>" + xEsc(f) + "</f>") + "</c>";
+        });
+      }
+    }
     function writeRow(r, vals, clearing) {
       let cells, open;
-      if (byNum[r] != null) { const old = rows[byNum[r]].xml; open = old.slice(0, old.indexOf(">") + 1).replace(/\/>$/, ">"); cells = rowCells(old); }
+      if (byNum[r] != null) {
+        cells = rowCells(rows[byNum[r]].xml);
+        for (const c of Object.keys(vals)) {
+          const cur = cells[c], fm = cur && /<f\b[^>]*\bt="shared"[^>]*>[\s\S]*?<\/f>/.exec(cur.inner);
+          if (fm && /\bref="/.test(fm[0]) && vals[c] !== "formula") unshare(c + r, fm[0]);
+        }
+        const old = rows[byNum[r]].xml; open = old.slice(0, old.indexOf(">") + 1).replace(/\/>$/, ">"); cells = rowCells(old);
+      }
       else { open = '<row r="' + r + '" spans="1:45">'; cells = {}; for (const c of COLS) cells[c] = { xml: makeCell(c + r, tpl[c] && tpl[c].s, null), s: tpl[c] && tpl[c].s, inner: "" }; }
       const before = open + Object.keys(cells).sort((x, y) => colIdx(x) - colIdx(y)).map((k) => cells[k].xml).join("") + "</row>";
       const fx = formulas(r);
@@ -126,7 +179,21 @@
       return x !== before;
     }
 
-    const upKeys = new Set(), collisions = [], addedFogli = [], clearedFogli = [];
+    const upKeys = new Set(), collisions = [], addedFogli = [], clearedFogli = [], invalid = [];
+    // la riga contiene dati scritti dall'ufficio (colonne che l'agenda non gestisce)?
+    const FX = ["D", "E", "F", "K", "Y", "AQ"];
+    function officeData(r) {
+      if (byNum[r] == null) return false;
+      const cells = rowCells(rows[byNum[r]].xml);
+      for (const c in cells) {
+        if (OWN.includes(c) || FX.includes(c)) continue;
+        const x = cells[c]; if (!x.inner || /<f[\s>\/]/.test(x.inner)) continue;
+        const am = /<c r="[A-Z]+\d+"([^>]*?)(?:\/>|>)/.exec(x.xml);
+        if (String(cellValue(am ? am[1] : "", x.inner, sst)).trim() !== "") return true;
+      }
+      return false;
+    }
+    const okRow = (row) => row && validFoglio(row.foglio) && isFinite(serial(row.I));
     const known = job.known || null;
     // valori attuali di una riga (tipo, codice cliente, cliente) per riconoscere le righe dell'agenda
     function rowNow(r) {
@@ -148,6 +215,7 @@
     // una riga con lo stesso n. foglio non scritta dall'agenda (es. inserita a mano) non si tocca mai
     const foreign = (key, row) => known && where[key] && !known[key] && !(row && matches(where[key], row));
     for (const row of job.upserts || []) {
+      if (!okRow(row)) { invalid.push(row && row.foglio); continue; }
       const key = String(row.foglio); upKeys.add(key);
       if (foreign(key, row)) { collisions.push(key); continue; }
       const vals = valuesFor(row);
@@ -155,18 +223,55 @@
       else { const r = ++lastUsed; writeRow(r, vals); where[key] = r; added++; addedFogli.push(key); }
     }
     for (const row of job.ensure || []) {
+      if (!okRow(row)) continue;
       const key = String(row.foglio);
       if (upKeys.has(key)) continue;
       if (where[key]) { if (foreign(key, row) && !collisions.includes(key)) collisions.push(key); continue; }
       const r = ++lastUsed; writeRow(r, valuesFor(row)); where[key] = r; added++; addedFogli.push(key);
     }
+    const skipped = [];
+    const it = (d) => (d ? d.slice(8, 10) + "/" + d.slice(5, 7) + "/" + d.slice(0, 4) : "");
+    const annulled = (r) => { const o = rowCells(rows[byNum[r]].xml).O; return !!(o && /ANNULLATO|SPOSTATO/.test(cellValue((/<c r="[A-Z]+\d+"([^>]*?)(?:\/>|>)/.exec(o.xml) || [])[1] || "", o.inner, sst))); };
+    // svuota la riga di un servizio eliminato o spostato
+    const clearedSig = {};
+    function clearRow(key, c) {
+      const r = where[key], vals = {};
+      const sig = rowNow(r); clearedSig[key] = { B: sig.B || "", C: sig.C || "", D: sig.D == null ? null : sig.D };
+      if (officeData(r)) {
+        // l'ufficio ha già scritto qualcosa (fattura, spese…): la riga resta con il suo n. foglio e una nota,
+        // così non viene riusata e si capisce a cosa si riferivano quei dati
+        for (const col of OWN) if (col !== "A") vals[col] = col === "D" ? "formula" : null;
+        const now = new Date(), today = pad2(now.getDate()) + "/" + pad2(now.getMonth() + 1) + "/" + now.getFullYear();
+        const cur = rowNow(r), was = c && c.row ? [c.row.D, it(c.row.I)].filter(Boolean).join(", ") : String(cur.D || "");
+        vals.O = { t: (c && c.moved ? "SPOSTATO in agenda il " + today + " al " + it(c.moved) + " (nuovo n. foglio)" : "ANNULLATO in agenda il " + today) + (was ? " – era: " + was : "") };
+        vals.K = null;
+      } else {
+        // riga senza dati dell'ufficio: si svuota del tutto, formule comprese (niente "1 giorno" su righe vuote)
+        for (const col of OWN) vals[col] = null;
+        for (const col of FX) vals[col] = null;
+      }
+      writeRow(r, vals); delete where[key]; cleared++; clearedFogli.push(key);
+      if (vals.O) where[key] = r; // resta tra i numeri presenti nel file: nessun servizio nuovo lo riprenderà
+    }
     for (const c of job.clears || []) {
       const key = String(c && c.foglio != null ? c.foglio : c);
-      if (upKeys.has(key) || !where[key]) continue;
+      if (upKeys.has(key)) { skipped.push({ foglio: key, why: "aggiornata" }); continue; }
+      if (!where[key]) { skipped.push({ foglio: key, why: "assente" }); continue; }
       // si svuota solo una riga scritta dall'agenda (mai una riga inserita a mano con lo stesso numero)
-      if (known && !known[key] && !(c && c.row && matches(where[key], c.row))) continue;
-      const vals = {}; for (const c of OWN) vals[c] = c === "D" ? "formula" : null;
-      writeRow(where[key], vals); delete where[key]; cleared++; clearedFogli.push(key);
+      if (known && !known[key] && !(c && c.row && matches(where[key], c.row))) { if (!annulled(where[key])) skipped.push({ foglio: key, why: "non riconosciuta", now: rowNow(where[key]), want: c.row && { B: c.row.B, C: c.row.C, D: c.row.D } }); continue; }
+      if (annulled(where[key])) continue;
+      clearRow(key, c);
+    }
+    // pulizia: righe dell'agenda ricomparse o rimaste per servizi che non esistono più (al massimo 50 per volta)
+    let healed = 0;
+    for (const g of job.gone || []) {
+      if (healed >= 50) break;
+      const key = String(g.foglio);
+      if (upKeys.has(key) || !where[key] || annulled(where[key])) continue;
+      // numero già tolto: si toglie di nuovo solo se la riga è proprio quella del servizio eliminato
+      // (una riga scritta a mano dall'ufficio con quel numero, per un altro cliente, non si tocca)
+      if (g.sig && !matches(where[key], g.sig)) continue;
+      clearRow(key, null); healed++;
     }
     lists.fogli = Object.keys(where);
     const agendaChanged = added + updated + cleared > 0;
@@ -174,7 +279,7 @@
     const cli = job.newClients && job.newClients.length ? await addClients(zip, sst, job.newClients, lists) : null;
     const newClients = cli ? cli.results : [];
     const changed = agendaChanged || !!(cli && cli.added);
-    if (!changed) return { changed: false, added, updated, cleared, lists, collisions, addedFogli, clearedFogli, newClients };
+    if (!changed) return { changed: false, added, updated, cleared, lists, collisions, addedFogli, clearedFogli, clearedSig, newClients, invalid, skipped };
 
     if (agendaChanged) {
       rows.sort((x, y) => x.n - y.n);
@@ -196,7 +301,7 @@
       zip.file("xl/_rels/workbook.xml.rels", wr.replace(/<Relationship\b[^>]*calcChain[^>]*\/>/g, ""));
     }
     const out = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE", compressionOptions: { level: 6 } });
-    return { changed: true, buf: out, added, updated, cleared, lists, collisions, addedFogli, clearedFogli, newClients };
+    return { changed: true, buf: out, added, updated, cleared, lists, collisions, addedFogli, clearedFogli, clearedSig, newClients, invalid, skipped };
   }
 
   // la tabella (e il suo filtro) si allarga se servono righe nuove
@@ -206,7 +311,8 @@
     const rels = await zip.file(relsPath).async("string");
     for (const t of rels.match(/<Relationship\b[^>]*>/g) || []) {
       if (!/\/table$/.test(attr(t, "Type") || "")) continue;
-      const tp = ("xl/worksheets/" + attr(t, "Target")).replace(/[^/]+\/\.\.\//g, "");
+      const tg = attr(t, "Target") || "";
+      const tp = tg.startsWith("/") ? tg.slice(1) : ("xl/worksheets/" + tg).replace(/[^/]+\/\.\.\//g, "");
       if (!zip.file(tp)) continue;
       let tx = await zip.file(tp).async("string");
       tx = tx.replace(/(\sref="[A-Z]+\d+:)([A-Z]+)(\d+)/g, (all, pre, col, n) => (+n < maxRow ? pre + col + maxRow : all));
@@ -236,7 +342,8 @@
     const rels = await zip.file(relsPath).async("string");
     for (const t of rels.match(/<Relationship\b[^>]*>/g) || []) {
       if (!/\/table$/.test(attr(t, "Type") || "")) continue;
-      const tp = ("xl/worksheets/" + attr(t, "Target")).replace(/[^/]+\/\.\.\//g, "");
+      const tg = attr(t, "Target") || "";
+      const tp = tg.startsWith("/") ? tg.slice(1) : ("xl/worksheets/" + tg).replace(/[^/]+\/\.\.\//g, "");
       if (!zip.file(tp)) continue;
       let tx = await zip.file(tp).async("string");
       const m = /\sref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/.exec(tx);
