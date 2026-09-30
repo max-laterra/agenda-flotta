@@ -4,7 +4,9 @@
 //   /Agenda Flotta La Terra/giorni/AAAA/AAAA-MM-GG.json   prenotazioni e autisti extra del giorno
 //   /Agenda Flotta La Terra/config/flotta.json            mezzi, targhe
 //   /Agenda Flotta La Terra/config/impostazioni.json      percorso del file fatturato
-//   /Agenda Flotta La Terra/config/accesso.json           codice di accesso (solo impronta cifrata)
+//   /Agenda Flotta La Terra/config/accesso.json           codice di accesso (fino alla 1.7.1)
+//   /Agenda Flotta La Terra/config/utenti.json            utenti (1.8): nomi, ruoli, impronte delle password
+//   /Agenda Flotta La Terra - registro/...                registro accessi e modifiche, dispositivi (vedi accessi.js)
 //   /Agenda Flotta La Terra/Fogli di servizio/AAAA/...    PDF ed Excel dei fogli di servizio
 //
 // Copia sul dispositivo (1.7): le giornate stanno in IndexedDB (spazio ampio), la coda delle modifiche
@@ -20,7 +22,7 @@
   const pad = (n) => String(n).padStart(2, "0");
   const DATE_RE = /^(20\d\d)-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
   const validDate = (d) => DATE_RE.test(String(d || ""));
-  const emptyCache = () => ({ days: {}, cursor: null, fleet: null, settings: null, access: null, lists: null, fat: null });
+  const emptyCache = () => ({ days: {}, cursor: null, fleet: null, settings: null, access: null, users: null, lists: null, fat: null });
 
   let cache = emptyCache();
   let queue = loadLS(QK, { days: [], fat: {}, clients: [] });
@@ -29,7 +31,7 @@
   if (!Array.isArray(queue.clients)) queue.clients = [];
   function loadLS(k, d) { try { const v = JSON.parse(localStorage.getItem(k) || "null"); return v && typeof v === "object" ? Object.assign(d || {}, v) : d; } catch (_) { return d; } }
 
-  const hooks = { onChange() {}, onStatus() {}, onAccessChanged() {}, onNotice() {}, rowFor: null };
+  const hooks = { onChange() {}, onStatus() {}, onAccessChanged() {}, onUsersChanged() {}, onNotice() {}, rowFor: null };
   const status = { online: navigator.onLine, syncing: false, error: null, lastSync: null, storage: null };
   function counts() { return { pending: queue.days.length, fatPending: Object.keys(queue.fat).length + queue.clients.filter((c) => !c.failed).length }; }
   function emitStatus() { hooks.onStatus(Object.assign(counts(), { fat: cache.fat }, status)); }
@@ -375,13 +377,14 @@
       for (const [p, e] of seen) {
         if (e[".tag"] !== "file") continue;
         const isCfg = (n) => p === (P.cfg + "/" + n).toLowerCase();
-        if (!(isCfg("flotta.json") || isCfg("righe-fatturato.json") || isCfg("impostazioni.json") || isCfg("accesso.json"))) continue;
+        if (!(isCfg("flotta.json") || isCfg("righe-fatturato.json") || isCfg("impostazioni.json") || isCfg("accesso.json") || isCfg("utenti.json"))) continue;
         const f = await DBX.download(e.path_lower); if (!f) continue;
         const j = parseJSON(f.buf); if (!j) { notice({ kind: "badcfg", path: e.path_display || p }); continue; }
         if (isCfg("flotta.json")) { cache.fleet = j; touched = true; }
         else if (isCfg("righe-fatturato.json")) { cache.fatShared = j.fogli || {}; cache.fatGone = j.tolti || {}; }
         else if (isCfg("impostazioni.json")) { cache.settings = j; touched = true; }
         else if (isCfg("accesso.json")) { const was = cache.access; cache.access = j; if (was && was.hash !== j.hash) hooks.onAccessChanged(); touched = true; }
+        else if (isCfg("utenti.json")) { if (j.users) { cache.users = j; usersSeen = true; try { hooks.onUsersChanged(j); } catch (_) {} touched = true; } }
       }
       cache.cursor = next; // solo adesso: tutte le voci sono state lette davvero
       cache.lastSync = status.lastSync = Date.now(); status.error = null; status.errorDetail = ""; retryN = 0;
@@ -520,7 +523,8 @@
         gone: gone || [],
         ensure: ensureList.map(hooks.rowFor),
         known: Object.assign({}, cache.fatShared || {}, cache.fatWritten || {}),
-        newClients: (newClients || []).map((x) => ({ tmp: x.tmp, vals: x.vals })),
+        newClients: (newClients || []).filter((x) => x.kind !== "edit").map((x) => ({ tmp: x.tmp, vals: x.vals })),
+        editClients: (newClients || []).filter((x) => x.kind === "edit").map((x) => ({ tmp: x.tmp, code: x.code, vals: x.vals, base: x.base })),
       });
       if (res.skipped && res.skipped.some((x) => x.why === "non riconosciuta")) console.warn("Fatturato: righe non svuotate", JSON.stringify(res.skipped));
       if (res.collisions && res.collisions.length) renumberCollisions(res.collisions);
@@ -570,6 +574,15 @@
   // Un cliente che non si può scrivere (manca il foglio, manca il nome) resta in elenco come "non scritto":
   // non viene riprovato all'infinito e si può annullare.
   function finishClients(res) {
+    // modifiche a clienti esistenti
+    for (const x of res.editClients || []) {
+      const q = queue.clients.find((c) => c.tmp === x.tmp);
+      if (!q) continue;
+      if (x.error) { if (!q.failed) { q.failed = x.error; hooks.onClientError && hooks.onClientError(x.error, q); } continue; }
+      queue.clients = queue.clients.filter((c) => c.tmp !== x.tmp);
+      hooks.onClientEdited && hooks.onClientEdited(q, x);
+    }
+    if ((res.editClients || []).length) persist();
     const results = res.newClients || [];
     if (!results.length) return;
     cache.clientDone = cache.clientDone || {};
@@ -592,6 +605,13 @@
   function addClient(vals, name) {
     const tmp = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     queue.clients.push({ tmp, vals, name, at: Date.now() });
+    persist(); changed(); syncFatturato();
+    return tmp;
+  }
+  // cliente esistente modificato nell'app: solo i campi cambiati (vals) e i loro valori di partenza (base)
+  function editClient(code, vals, base, name) {
+    const tmp = "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    queue.clients.push({ tmp, kind: "edit", code, vals, base, name, at: Date.now() });
     persist(); changed(); syncFatturato();
     return tmp;
   }
@@ -653,6 +673,51 @@
   }
   async function setAccess(a) { await putJSON(ACC(), a); cache.access = a; persist(); }
 
+  // ---------- utenti (1.8) ----------
+  // Un solo file per tutti: lo scrive solo il Master (o l'utente che cambia la propria password).
+  // Ogni scrittura parte dall'ultima versione in Dropbox e non sovrascrive modifiche fatte nel frattempo.
+  const USR = () => P.cfg + "/utenti.json";
+  let usersSeen = false;
+  async function readUsersFile() {
+    const f = await DBX.download(USR());
+    if (!f) return null;
+    if (!f.meta.rev) f.meta = await DBX.metadata(USR());
+    const j = parseJSON(f.buf);
+    if (!j || !j.users) throw { code: "badusers" };
+    return { j, rev: f.meta.rev };
+  }
+  async function fetchUsers() {
+    const r = await readUsersFile();
+    usersSeen = true;
+    if (!r) return null;
+    cache.users = r.j; persist(); return r.j;
+  }
+  // primo Master: non sovrascrive mai un elenco utenti già esistente
+  async function createUsers(u) {
+    const r = await readUsersFile();
+    if (r) { cache.users = r.j; persist(); throw { code: "exists" }; }
+    await DBX.upload(USR(), enc.encode(JSON.stringify(u, null, 1)), "add");
+    cache.users = u; usersSeen = true; persist(); changed();
+    return u;
+  }
+  async function updateUsers(fn) {
+    if (!navigator.onLine) throw { code: "offline" };
+    for (let i = 0; i < 6; i++) {
+      const r = await readUsersFile();
+      if (!r) throw { code: "nousers" };
+      const next = fn(clone(r.j));
+      if (!next) return r.j;
+      next.updatedAt = new Date().toISOString();
+      try {
+        await DBX.upload(USR(), enc.encode(JSON.stringify(next, null, 1)), { update: r.rev });
+        cache.users = next; persist(); changed();
+        try { hooks.onUsersChanged(next); } catch (_) {}
+        return next;
+      } catch (e) { if (e.code !== "conflict") throw e; }
+    }
+    throw { code: "busy" };
+  }
+
   async function saveSheetFile(name, blob, year) {
     const folder = P.sheets + "/" + year;
     await DBX.createFolder(P.sheets).catch(() => {});
@@ -676,13 +741,15 @@
     disable() { enabled = false; writesBlocked = true; clearTimeout(saveTimer); },
     fileFogli, validDate,
     view, mutateDay, pull, flush, watch, setupFolders, syncFatturato, isPending, whenSent, saveNow: writeNow,
-    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, saveSheetFile, reset, addClient, cancelClient, retryClient, dropClient: cancelClient,
+    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, saveSheetFile, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
     bustaMax: (y) => { const m = cache.bustaMax || {}; return m[y] != null ? m[y] : m["*"] || 0; },
     get pendingClients() { return queue.clients.slice(); },
     clientDone: (tmp) => (cache.clientDone || {})[tmp] || null,
     get fleet() { return cache.fleet && cache.fleet.vehicles; },
     get settings() { return cache.settings; },
     get access() { return cache.access; },
+    get users() { return cache.users; },
+    get usersSeen() { return usersSeen; },
     get lists() { return cache.lists; },
     get fat() { return cache.fat; },
     get pending() { return queue.days.length + Object.keys(queue.fat).length + queue.clients.filter((c) => !c.failed).length; },

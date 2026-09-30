@@ -278,8 +278,13 @@
     // clienti nuovi dal pulsante "Nuovo cliente": righe in fondo al foglio "clienti"
     const cli = job.newClients && job.newClients.length ? await addClients(zip, sst, job.newClients, lists) : null;
     const newClients = cli ? cli.results : [];
-    const changed = agendaChanged || !!(cli && cli.added);
-    if (!changed) return { changed: false, added, updated, cleared, lists, collisions, addedFogli, clearedFogli, clearedSig, newClients, invalid, skipped };
+    if (cli && cli.added) { zip.file(cli.path, cli.xml); await growTables(zip, cli.path, cli.maxRow); }
+    // clienti modificati (1.8): solo i campi cambiati, nella riga del cliente
+    const ed = job.editClients && job.editClients.length ? await editClients(zip, job.editClients, lists) : null;
+    const editClientsRes = ed ? ed.results : [];
+    if (ed && ed.changed) zip.file(ed.path, ed.xml);
+    const changed = agendaChanged || !!(cli && cli.added) || !!(ed && ed.changed);
+    if (!changed) return { changed: false, added, updated, cleared, lists, collisions, addedFogli, clearedFogli, clearedSig, newClients, editClients: editClientsRes, invalid, skipped };
 
     if (agendaChanged) {
       rows.sort((x, y) => x.n - y.n);
@@ -288,7 +293,6 @@
       zip.file(path, xml);
       await growTables(zip, path, maxRow);
     }
-    if (cli && cli.added) { zip.file(cli.path, cli.xml); await growTables(zip, cli.path, cli.maxRow); }
     let wb = await zip.file("xl/workbook.xml").async("string");
     wb = wb.replace(/(<definedName name="_xlnm\._FilterDatabase"[^>]*>agenda!\$[A-Z]+\$\d+:\$)([A-Z]+)\$(\d+)/, (all, pre, col, n) => (+n < maxRow ? pre + col + "$" + maxRow : all));
     wb = /<calcPr\b[^>]*fullCalcOnLoad/.test(wb) ? wb : wb.replace(/<calcPr\b([^>]*?)\/>/, '<calcPr$1 fullCalcOnLoad="1"/>');
@@ -301,7 +305,7 @@
       zip.file("xl/_rels/workbook.xml.rels", wr.replace(/<Relationship\b[^>]*calcChain[^>]*\/>/g, ""));
     }
     const out = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE", compressionOptions: { level: 6 } });
-    return { changed: true, buf: out, added, updated, cleared, lists, collisions, addedFogli, clearedFogli, clearedSig, newClients, invalid, skipped };
+    return { changed: true, buf: out, added, updated, cleared, lists, collisions, addedFogli, clearedFogli, clearedSig, newClients, editClients: editClientsRes, invalid, skipped };
   }
 
   // la tabella (e il suo filtro) si allarga se servono righe nuove
@@ -448,6 +452,86 @@
       if (/<cols>/.test(xml) && !new RegExp('<col [^>]*min="' + colIdx(newSdiCol) + '"').test(xml)) xml = xml.replace("</cols>", '<col min="' + colIdx(newSdiCol) + '" max="' + colIdx(newSdiCol) + '" width="16" customWidth="1"/></cols>');
     }
     return { added, results, xml, path, maxRow };
+  }
+
+  // Modifica di clienti esistenti (riga trovata col codice Multi, colonna A). Si scrivono solo i campi cambiati
+  // nell'app; se nel frattempo lo stesso campo è stato cambiato nel file (Excel), resta quello del file.
+  // list: [{tmp, code, vals:{col:{t}|{n}|null, _SDI}, base:{col:"valore di partenza"}}] → results [{tmp, code, applied, conflicts, error}]
+  async function editClients(zip, list, lists) {
+    const path = await sheetFile(zip, "clienti");
+    if (!path || !zip.file(path)) return { changed: 0, results: list.map((x) => ({ tmp: x.tmp, error: "noclienti" })) };
+    const sf = zip.file("xl/sharedStrings.xml"), sst = sf ? parseSST(await sf.async("string")) : [];
+    let xml = await zip.file(path).async("string");
+    const a = xml.indexOf("<sheetData"), b = xml.indexOf("</sheetData>");
+    if (a < 0 || b < 0) return { changed: 0, results: list.map((x) => ({ tmp: x.tmp, error: "noclienti" })) };
+    const openEnd = xml.indexOf(">", a) + 1, head = xml.slice(0, openEnd), tail = xml.slice(b), body = xml.slice(openEnd, b);
+    const rowRe = /<row\b[^>]*?(?:\/>|>[\s\S]*?<\/row>)/g, rows = [], byNum = {}; let m;
+    while ((m = rowRe.exec(body))) { const n = +attr(m[0].slice(0, m[0].indexOf(">") + 1), "r"); byNum[n] = rows.length; rows.push({ n, xml: m[0] }); }
+    const val = (cells, c) => { const x = cells[c]; if (!x) return ""; const am = /<c r="[A-Z]+\d+"([^>]*?)(?:\/>|>)/.exec(x.xml); return String(cellValue(am ? am[1] : "", x.inner, sst)).trim(); };
+    const hdr = {}, rowOfCode = {};
+    for (const r of rows) {
+      const cells = rowCells(r.xml);
+      if (r.n === 1) { for (const c in cells) { const v = val(cells, c); if (v) hdr[c] = v; } continue; }
+      const code = val(cells, "A"); if (!code) continue;
+      const k = /^\d+(\.0+)?$/.test(code) ? String(Number(code)) : code;
+      if (rowOfCode[k] == null) rowOfCode[k] = r.n;
+    }
+    const cols = Object.keys(hdr).sort((x, y) => colIdx(x) - colIdx(y));
+    const colOf = (re) => cols.find((c) => re.test(hdr[c])) || null;
+    let cSdi = colOf(/univoco|\bsdi\b/i), newSdiCol = null;
+    const same = (x, y) => String(x == null ? "" : x).trim().replace(/\s+/g, " ") === String(y == null ? "" : y).trim().replace(/\s+/g, " ");
+    const num = (x) => (x != null && x !== "" && isFinite(Number(x)) ? Number(x) : null);
+    const eq = (x, y) => same(x, y) || (num(x) != null && num(x) === num(y));
+    const results = []; let changed = 0;
+    for (const ed of list) {
+      const k = /^\d+(\.0+)?$/.test(String(ed.code)) ? String(Number(ed.code)) : String(ed.code);
+      const rn = rowOfCode[k];
+      if (rn == null) { results.push({ tmp: ed.tmp, code: ed.code, error: "nocode" }); continue; }
+      const v = Object.assign({}, ed.vals || {}), base = Object.assign({}, ed.base || {});
+      if ("_SDI" in v) {
+        if (!cSdi && v._SDI) { cSdi = COLS[colIdx(cols[cols.length - 1])]; newSdiCol = cSdi; hdr[cSdi] = "Codice univoco"; cols.push(cSdi); }
+        if (cSdi) { v[cSdi] = v._SDI; if (!(cSdi in base)) base[cSdi] = base._SDI || ""; }
+        delete v._SDI;
+      }
+      const row = rows[byNum[rn]], cells = rowCells(row.xml), open = row.xml.slice(0, row.xml.indexOf(">") + 1).replace(/\/>$/, ">");
+      const prevRow = (() => { for (let n = rn - 1; n >= 2; n--) if (byNum[n] != null) return rowCells(rows[byNum[n]].xml); return {}; })();
+      const conflicts = []; let applied = 0;
+      for (const c of Object.keys(v)) {
+        if (c === "A" || !hdr[c]) continue;
+        const want = v[c], wantS = want == null ? "" : String(want.t != null ? want.t : want.n);
+        const now = val(cells, c);
+        if (eq(now, wantS)) continue; // già così
+        if (!eq(now, base[c])) { conflicts.push(hdr[c]); continue; } // cambiato anche nel file: resta quello del file
+        const st = cells[c] && cells[c].s != null ? cells[c].s : prevRow[c] && prevRow[c].s;
+        cells[c] = { xml: makeCell(c + rn, st, wantS === "" ? null : want), s: st, inner: "" };
+        applied++;
+      }
+      if (applied) {
+        row.xml = open + Object.keys(cells).sort((p, q) => colIdx(p) - colIdx(q)).map((x) => cells[x].xml).join("") + "</row>";
+        changed++;
+        // subito nell'elenco dell'app
+        if (lists && lists.clients) {
+          const now = rowCells(row.xml), tv = (c) => { if (!c) return ""; if (v[c] !== undefined && !conflicts.includes(hdr[c])) { const w = v[c]; return w == null ? "" : String(w.t != null ? w.t : w.n); } return val(now, c); };
+          const g = (re) => tv(colOf(re)), cPiva = colOf(/partita\s*iva(?!.*estera)/i);
+          const i = lists.clients.findIndex((x) => String(x[0]) === k);
+          const code = /^\d+$/.test(k) ? Number(k) : k;
+          const rec = [code, tv("B"), tv("C"), g(/citt/i), g(/^telefono/i), cPiva ? tv(cPiva) : "", g(/referente.*nome/i), g(/referente.*tel/i), cols.map((c) => (c === "A" ? String(code) : tv(c)))];
+          if (i >= 0) lists.clients[i] = rec;
+        }
+      }
+      results.push({ tmp: ed.tmp, code: ed.code, applied, conflicts });
+    }
+    if (!changed) return { changed: 0, results };
+    if (newSdiCol) {
+      await addTableColumn(zip, path, rows, byNum, newSdiCol, "Codice univoco");
+      if (lists) lists.clientCols = cols.map((c) => ({ c, h: hdr[c] }));
+    }
+    xml = head + rows.map((x) => x.xml).join("") + tail;
+    if (newSdiCol) {
+      xml = xml.replace(/(<dimension ref="[A-Z]+\d+:)([A-Z]+)(\d+)/, (all, pre, col, n) => (colIdx(col) < colIdx(newSdiCol) ? pre + newSdiCol + n : all));
+      if (/<cols>/.test(xml) && !new RegExp('<col [^>]*min="' + colIdx(newSdiCol) + '"').test(xml)) xml = xml.replace("</cols>", '<col min="' + colIdx(newSdiCol) + '" max="' + colIdx(newSdiCol) + '" width="16" customWidth="1"/></cols>');
+    }
+    return { changed, results, xml, path };
   }
 
   // Clienti (foglio "clienti") e autisti/targhe (foglio "regole")

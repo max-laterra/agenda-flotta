@@ -279,7 +279,13 @@ table.wk{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px;t
 .rep-block{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
 .rep{display:flex;flex-direction:column;gap:6px;width:100%}
 .rep:empty{display:none}
-.rep-row{display:grid;grid-template-columns:1.8fr 1fr 32px;gap:8px;width:100%}
+.rep-row{display:grid;grid-template-columns:1.8fr 1fr 32px;gap:8px;width:100%;position:relative}
+.hsug{position:absolute;left:0;top:calc(100% + 4px);width:min(620px,100%);z-index:40;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.18);max-height:340px;overflow:auto;padding:4px}
+.rep-row .hsug button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;border:0;background:none;padding:7px 10px;border-radius:7px;color:var(--ink);font-size:inherit;line-height:1.3}
+.rep-row .hsug button[aria-selected="true"],.rep-row .hsug button:hover{background:var(--accent-soft)}
+.hsug b{font-weight:600;font-size:14px}.hsug span{font-size:12px;color:var(--ink-3)}
+.hs-h{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);padding:7px 10px 3px}.hs-h i{font-style:normal;font-weight:500;text-transform:none;letter-spacing:0}
+.hs-note{font-size:12.5px;color:var(--ink-2);padding:6px 10px 8px}
 .rep-row input{border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:var(--surface);min-width:0;width:100%}
 .rep-row button{border:1px solid var(--line);background:var(--surface);border-radius:8px;color:var(--ink-3);font-size:16px;line-height:1}
 .linkbtn{background:none;border:0;color:var(--accent);font-weight:600;font-size:13.5px;padding:2px 0}
@@ -288,6 +294,8 @@ table.wk{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px;t
 
 /* finestra foglio di servizio */
 #ovSheet{padding:12px}
+.sheet-kind{font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--surface-2,#f1f3f2);color:var(--ink-3,#555);white-space:nowrap;margin-right:auto}
+.sheet-kind.h{background:#E3F1E4;color:#1F5A2A}
 .modal.sheet-modal{width:100%;max-width:1280px;max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px)}
 .sheet-top{display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap}
 .sheet-opt{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--ink-2)}
@@ -423,6 +431,76 @@ img{max-width:100%}
 .gate-err{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;background:var(--surface-2);border-radius:8px;padding:8px 10px;color:var(--ink-2);max-height:140px;overflow:auto}
 .gate-ver{margin:0;font-size:12px;color:var(--ink-3);text-align:right}
 .appver{font-size:12px;color:var(--ink-3);align-self:center;font-variant-numeric:tabular-nums}
+.gate-lbl{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600;color:var(--ink-2)}
+.who-list{display:flex;flex-wrap:wrap;gap:8px}
+.who-list button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:8px 14px;font-weight:600;font-size:14px;color:var(--ink)}
+.who-list button[aria-checked="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.who-list button small{font-weight:500;opacity:.75;margin-left:4px;font-size:11px}
+.gate-dev{margin:0;font-size:12px;color:var(--ink-3)}
+.f-who{margin:-8px 0 0;font-size:12.5px;color:var(--ink-3)}
+.whoami{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:3px 10px 3px 8px;font-size:12.5px;font-weight:600;color:var(--ink-2);align-self:center;display:inline-flex;gap:5px;align-items:center}
+.whoami::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.whoami.m{border-color:var(--accent);color:var(--accent)}
+.modal.mst-modal{max-width:1180px;max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px)}
+.mst-top{display:flex;justify-content:space-between;align-items:center;gap:10px 16px;flex-wrap:wrap}
+.mst-top h3{margin:0}
+.mst-sec{display:flex;flex-direction:column;gap:12px;min-height:0;overflow:auto}
+.mst-bar{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+.mst-sub{margin:0;font-size:13.5px;color:var(--ink-2);max-width:760px}
+.mst-msg{min-height:1.2em;font-size:13.5px;font-weight:600;color:var(--ok)}
+.mst-msg.err{color:var(--warn)}
+.u-list,.dev-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.u-row,.dev-row{display:grid;grid-template-columns:minmax(160px,1.4fr) 110px 130px minmax(150px,1.2fr) 110px;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);font-size:14px}
+.u-row:first-child,.dev-row:first-child{border-top:0}
+.u-row b,.dev-row b{font-size:14.5px}
+.u-row small,.dev-row small{display:block;color:var(--ink-3);font-size:12px;font-weight:400}
+.pill{display:inline-block;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px;background:var(--surface-2);color:var(--ink-2)}
+.pill.m{background:var(--accent-soft);color:var(--accent)}
+.pill.on{background:var(--ok-bg);color:var(--ok)}
+.pill.off{background:var(--warn-bg);color:var(--warn)}
+.row-act{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.row-act .btn{padding:5px 10px;font-size:13px}
+.dev-row{grid-template-columns:minmax(170px,1.3fr) minmax(170px,1.2fr) 150px 70px 230px}
+.dev-row .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ink-3);margin-right:6px}
+.dev-row .dot.on{background:var(--ok)}
+.dev-row.me{background:color-mix(in srgb,var(--accent-soft) 45%,transparent)}
+.dev-name{border:0;background:none;padding:0;font:inherit;font-weight:700;color:var(--ink);text-align:left}
+.dev-name:hover{text-decoration:underline}
+.u-form{border:1px solid var(--accent);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;background:color-mix(in srgb,var(--accent-soft) 35%,var(--surface))}
+.u-form h4{margin:0;font-size:15px}
+.u-grid{display:grid;grid-template-columns:1.2fr 1.2fr 1fr;gap:10px 14px;align-items:end}
+.u-grid .f{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.u-grid input,.u-grid select,.set-row input,.set-row select,.lg-bar select,.lg-bar input{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface);color:var(--ink);font:inherit;font-size:14px;min-width:0}
+.u-pw{display:flex;gap:6px}.u-pw input{flex:1;font-family:ui-monospace,Menlo,monospace;letter-spacing:.04em}
+.u-active{grid-column:1/-1;font-size:13.5px;display:flex;gap:6px;align-items:center}.u-active small{color:var(--ink-3)}
+.u-note{margin:0;font-size:13px;color:var(--warn);font-weight:600;min-height:0}
+.u-note:empty{display:none}
+.u-actions{display:flex;gap:8px}.u-actions .spacer{flex:1}
+.lg-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.lg-bar input{flex:1;min-width:180px}
+.lg-head,.lg-row{display:grid;grid-template-columns:128px minmax(110px,.8fr) minmax(110px,.8fr) minmax(260px,3fr);gap:10px;padding:8px 12px}
+.lg-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);border-bottom:1px solid var(--line)}
+.lg-list{display:flex;flex-direction:column;overflow:auto;max-height:56vh;border:1px solid var(--line);border-radius:10px}
+.lg-row{border-top:1px solid var(--line);font-size:13.5px;align-items:start}
+.lg-row:first-child{border-top:0}
+.lg-row .t{font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.lg-row .k{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;border-radius:4px;padding:1px 6px;margin-right:6px;background:var(--surface-2);color:var(--ink-2)}
+.lg-row .k.accesso{background:var(--accent-soft);color:var(--accent)}
+.lg-row .k.prenotazione{background:var(--ok-bg);color:var(--ok)}
+.lg-row .k.bad{background:var(--warn-bg);color:var(--warn)}
+.lg-row ul{margin:4px 0 0;padding-left:18px;color:var(--ink-2);font-size:12.5px}
+.lg-row .dv{color:var(--ink-3);font-size:12.5px}
+.lg-empty{padding:18px;color:var(--ink-3);font-size:14px}
+.set-card{border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.set-card h4{margin:0;font-size:15px}
+.set-row{display:flex;gap:8px;flex-wrap:wrap}.set-row input{flex:1;min-width:240px;font-family:ui-monospace,Menlo,monospace}
+.set-msg{margin:0;font-size:13px;font-weight:600;min-height:1.1em}.set-msg.ok{color:var(--ok)}.set-msg.err{color:var(--warn)}
+#cnFields input[readonly]{background:var(--surface-2);color:var(--ink-2);cursor:not-allowed}
+.perm{display:flex;gap:9px;align-items:flex-start;font-size:14px;color:var(--ink-2)}.perm input{margin-top:3px;width:17px;height:17px}.perm b{color:var(--ink)}
+.cli-acts{display:flex;gap:8px;flex-wrap:wrap}
+.set-help{font-size:13px;color:var(--ink-2)}.set-help summary{cursor:pointer;color:var(--accent);font-weight:600}.set-help ol{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.fleet-ro .fleet-list input,.fleet-ro .fleet-list select{pointer-events:none;background:var(--surface-2)}
+@media (max-width:760px){.u-row,.dev-row{grid-template-columns:1fr auto}.u-row>*:nth-child(n+2):not(.row-act),.dev-row>*:nth-child(n+2):not(.row-act){grid-column:1}.u-grid{grid-template-columns:1fr}.lg-head{display:none}.lg-row{grid-template-columns:1fr}.mst-bar{flex-direction:column}}
 .gate-msg{min-height:1.3em;color:var(--warn);font-weight:600;font-size:14px}
 .gate-msg.ok{color:var(--ok)}
 .code-in{font-size:22px;letter-spacing:.18em;text-align:center;border:1.5px solid var(--line);border-radius:10px;padding:12px;background:var(--bg);width:100%}
@@ -563,6 +641,26 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
           <button class="btn primary big" id="gCodeBtn" type="submit">Entra</button>
         </form>
       </div>
+      <div id="gMaster" hidden>
+        <p class="gate-sub">Da questa versione ognuno entra con il <b>proprio nome e la propria password</b>. Il primo account è il <b>Master</b>: aggiunge e toglie gli utenti, vede i dispositivi collegati e il registro, gestisce le impostazioni.</p>
+        <form id="gMasterForm" class="gate-col" autocomplete="off">
+          <label class="gate-lbl" id="gmOldWrap">Codice di accesso usato finora<input class="gate-in" id="gmOld" type="password" autocomplete="current-password"></label>
+          <label class="gate-lbl">Il tuo nome e cognome<input class="gate-in" id="gmName" autocomplete="off"></label>
+          <label class="gate-lbl">Password del Master (almeno 8 caratteri)<input class="gate-in" id="gmPw" type="password" autocomplete="new-password"></label>
+          <label class="gate-lbl">Ripeti la password<input class="gate-in" id="gmPw2" type="password" autocomplete="new-password"></label>
+          <button class="btn primary big" id="gmBtn" type="submit">Crea account Master</button>
+        </form>
+      </div>
+      <div id="gLogin" hidden>
+        <p class="gate-sub">Scegli il tuo nome e scrivi la tua password.</p>
+        <div class="who-list" id="gWho" role="radiogroup" aria-label="Utente"></div>
+        <form id="gLoginForm" class="gate-col" autocomplete="off">
+          <input class="gate-in pw-in" id="gPw" type="password" autocomplete="current-password" aria-label="Password" placeholder="Password">
+          <div><button type="button" class="linkbtn" id="gPwShow">Mostra</button></div>
+          <button class="btn primary big" id="gLoginBtn" type="submit">Entra</button>
+        </form>
+        <p class="gate-dev" id="gDev"></p>
+      </div>
       <div class="gate-msg" id="gMsg" role="alert"></div>
       <p class="gate-ver" id="gVer"></p>
     </div>
@@ -574,7 +672,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 <div class="wrap">
   <header class="top">
     <div class="topline">
-      <div class="brand"><h1>Agenda Flotta</h1><span id="fleetCount">26 mezzi</span><span class="net" id="netStatus" hidden></span><span class="appver" id="appVer"></span></div>
+      <div class="brand"><h1>Agenda Flotta</h1><span id="fleetCount">26 mezzi</span><span class="net" id="netStatus" hidden></span><span class="appver" id="appVer"></span><button type="button" class="whoami" id="whoAmI" hidden></button></div>
       <img class="logo" src="logo.jpg" alt="La Terra" width="1000" height="138">
     </div>
     <div class="controls">
@@ -663,6 +761,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 <div class="overlay" id="ovBooking" hidden>
   <form class="modal" id="fBooking" autocomplete="off">
     <h3 id="fTitle">Nuova prenotazione</h3>
+    <p class="f-who" id="fWho" hidden></p>
     <div class="types" role="radiogroup" aria-label="Tipo di servizio">
       <label class="gita"><input type="radio" name="type" id="t-gita" value="gita"><b>Gita</b><span>Andata e rientro</span></label>
       <label class="tour"><input type="radio" name="type" id="t-tour" value="tour"><b>Tour</b><span>Più giorni</span></label>
@@ -732,11 +831,11 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 <div class="overlay" id="ovSheet" hidden>
   <div class="modal sheet-modal">
     <div class="sheet-top">
-      <h3 id="sheetTitle">Foglio di servizio</h3>
+      <h3 id="sheetTitle">Foglio di servizio</h3><span class="sheet-kind" id="sheetKind"></span>
       <label class="sheet-opt"><input type="checkbox" id="sheetFull"> Includi la copia ufficio (prezzi e fatture)</label>
     </div>
     <p class="sheet-prov" id="sheetProv" hidden>N. foglio <b>provvisorio</b>: la prenotazione non è ancora arrivata in Dropbox, quindi il numero potrebbe cambiare. Il foglio lo riporta (PROVV.); appena torna la connessione il numero viene confermato e il foglio si aggiorna.</p>
-    <p class="sheet-hint">Impaginato del modello <b>automatico_2026_neutro</b>. «Stampa» stampa il foglio così come lo vedi (una pagina A4).</p>
+    <p class="sheet-hint">Impaginato del modello <b id="sheetTpl">automatico_2026_neutro</b>. «Stampa» stampa il foglio così come lo vedi (A4; se il programma non ci sta, anche la pagina 2).</p>
     <div class="sheet-scroll"><div id="sheetView"></div></div>
     <div class="sheet-msg" id="sheetMsg" role="status"></div>
     <div class="mfoot">
@@ -763,7 +862,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 </div>
 <div class="overlay" id="ovClientNew" hidden>
   <form class="modal cn-modal" id="fClient" autocomplete="off" novalidate>
-    <h3>Nuovo cliente</h3>
+    <h3 id="cnTitle">Nuovo cliente</h3>
     <p class="cn-hint" id="cnHint"></p>
     <div class="fgrid" id="cnFields"></div>
     <datalist id="dlCat"></datalist>
@@ -776,10 +875,11 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 <div class="overlay" id="ovFleet" hidden>
   <form class="modal" id="fFleet">
     <h3>Flotta</h3>
+    <p class="menu-note" id="fleetRo" hidden>Solo il Master può modificare la flotta: qui puoi consultarla.</p>
     <p style="margin:0;color:var(--ink-2);font-size:14px">Il mezzo e la targa vanno nelle colonne G e H del fatturato. Le targhe proposte sono quelle del foglio "regole" del tuo file.</p>
     <div class="fleet-head"><span>Nome</span><span>Posti</span><span>Mezzo (Excel)</span><span>Targa</span></div>
     <div class="fleet-list" id="fleetList"></div>
-    <div class="mfoot"><button type="button" class="btn" id="flCancel">Chiudi</button><button type="submit" class="btn primary">Salva flotta</button></div>
+    <div class="mfoot"><button type="button" class="btn" id="flCancel">Chiudi</button><button type="submit" class="btn primary" id="flSave">Salva flotta</button></div>
   </form>
 </div>
 
@@ -791,16 +891,18 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
     <h3>Menu</h3>
     <p class="menu-note" id="menuInfo"></p>
     <div class="menu-list" id="mMain">
-      <button type="button" id="mLock"><b>Blocca l'agenda</b><span>Richiede di nuovo il codice</span></button>
+      <button type="button" id="mMaster" class="mst-only"><b>Pannello Master</b><span>Utenti, dispositivi collegati, registro delle modifiche e impostazioni</span></button>
+      <button type="button" id="mLock"><b>Esci</b><span>Torna alla schermata di accesso, per esempio per cambiare utente</span></button>
       <button type="button" id="mSync"><b>Aggiorna adesso</b><span>Scarica le modifiche degli altri dispositivi e aggiorna il fatturato</span></button>
-      <button type="button" id="mFat"><b>Collega file fatturato</b><span>A inizio anno collega il file del nuovo anno: ogni servizio va nel file del suo anno</span></button>
-      <button type="button" data-pane="mCode"><b>Cambia codice di accesso</b><span>Il nuovo codice vale su tutti i dispositivi</span></button>
-      <button type="button" class="danger" data-pane="mUnlink"><b>Scollega questo dispositivo</b><span>Da usare se il Mac o il telefono non deve più avere accesso</span></button>
+      <button type="button" data-pane="mPw"><b>Cambia la mia password</b><span>Serve la password attuale</span></button>
+      <button type="button" id="mFat" class="mst-only"><b>Collega file fatturato</b><span>A inizio anno collega il file del nuovo anno: ogni servizio va nel file del suo anno</span></button>
+      <button type="button" class="danger mst-only" data-pane="mUnlink"><b>Scollega questo dispositivo</b><span>Da usare se il Mac o il telefono non deve più avere accesso</span></button>
     </div>
-    <form class="menu-list" id="mCode" hidden autocomplete="off">
-      <div class="f"><label for="codeOld">Codice attuale</label><input id="codeOld" type="password" autocomplete="current-password"></div>
-      <div class="f"><label for="codeNew">Nuovo codice (almeno 6 caratteri)</label><input id="codeNew" type="password" autocomplete="new-password"></div>
-      <div class="f"><label for="codeNew2">Ripeti il nuovo codice</label><input id="codeNew2" type="password" autocomplete="new-password"></div>
+    <form class="menu-list" id="mPw" hidden autocomplete="off">
+      <div class="f"><label for="pwOld">Password attuale</label><input id="pwOld" type="password" autocomplete="current-password"></div>
+      <div class="f"><label for="pwNew">Nuova password (almeno 6 caratteri)</label><input id="pwNew" type="password" autocomplete="new-password"></div>
+      <div class="f"><label for="pwNew2">Ripeti la nuova password</label><input id="pwNew2" type="password" autocomplete="new-password"></div>
+      <p class="menu-note">Sugli altri dispositivi dove sei collegato ti verrà chiesta la nuova password.</p>
     </form>
     <div class="menu-list" id="mUnlink" hidden>
       <p class="menu-note">Su questo dispositivo verranno cancellati l'accesso a Dropbox e la copia delle prenotazioni. I dati restano in Dropbox e sugli altri dispositivi. Le modifiche non ancora inviate andranno perse.</p>
@@ -810,10 +912,95 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
     <div class="mfoot" id="menuFoot">
       <button type="button" class="btn back" data-pane="mMain">Indietro</button>
       <span class="spacer"></span>
-      <button type="submit" form="mCode" class="btn primary" id="codeGo">Cambia codice</button>
+      <button type="submit" form="mPw" class="btn primary" id="pwGo">Cambia password</button>
       <button type="button" class="btn danger" id="unlinkGo">Scollega</button>
       <button type="button" class="btn" id="mClose">Chiudi</button>
     </div>
+  </div>
+</div>
+
+<div class="overlay" id="ovMaster" hidden>
+  <div class="modal mst-modal" role="dialog" aria-labelledby="mstTitle">
+    <div class="mst-top">
+      <h3 id="mstTitle">Pannello Master</h3>
+      <div class="seg mst-tabs" role="tablist">
+        <button type="button" data-mt="users" aria-pressed="true">Utenti</button>
+        <button type="button" data-mt="devs" aria-pressed="false">Dispositivi</button>
+        <button type="button" data-mt="log" aria-pressed="false">Registro</button>
+        <button type="button" data-mt="set" aria-pressed="false">Impostazioni</button>
+      </div>
+    </div>
+
+    <section class="mst-sec" id="mtUsers">
+      <div class="mst-bar"><p class="mst-sub">Ognuno entra con il proprio nome e la propria password. Gli <b>utenti</b> lavorano sull'agenda; il <b>Master</b> vede anche questo pannello.</p><button type="button" class="btn primary" id="uNew">+ Nuovo utente</button></div>
+      <form id="uForm" class="u-form" hidden autocomplete="off">
+        <h4 id="uFormTitle">Nuovo utente</h4>
+        <div class="u-grid">
+          <label class="f"><span>Nome e cognome</span><input id="uName" autocomplete="off"></label>
+          <label class="f"><span>Ruolo</span><select id="uRole"><option value="utente">Utente – lavora sull'agenda</option><option value="master">Master – anche utenti, registro e impostazioni</option></select></label>
+          <label class="f"><span id="uPwLbl">Password</span><span class="u-pw"><input id="uPw" autocomplete="off" spellcheck="false"><button type="button" class="btn" id="uGen">Genera</button></span></label>
+          <label class="u-active"><input type="checkbox" id="uActive" checked> Account attivo <small>(se lo disattivi non può più entrare, ma resta nel registro)</small></label>
+        </div>
+        <p class="u-note" id="uNote"></p>
+        <div class="u-actions"><button type="button" class="btn danger" id="uDel">Elimina utente</button><span class="spacer"></span><button type="button" class="btn" id="uCancel">Annulla</button><button type="submit" class="btn primary" id="uSave">Salva</button></div>
+      </form>
+      <div class="u-list" id="uList"></div>
+    </section>
+
+    <section class="mst-sec" id="mtDevs" hidden>
+      <div class="mst-bar"><p class="mst-sub"><b>Disconnetti</b> fa uscire l'utente da quel dispositivo (per rientrare serve la password). <b>Blocca</b> scollega del tutto il dispositivo da Dropbox: per usarlo di nuovo va ricollegato con l'account Dropbox dell'azienda.</p><button type="button" class="btn" id="devReload">Aggiorna elenco</button></div>
+      <div class="dev-list" id="devList"></div>
+    </section>
+
+    <section class="mst-sec" id="mtLog" hidden>
+      <div class="lg-bar">
+        <select id="lgPer" aria-label="Periodo"><option value="0">Oggi</option><option value="6" selected>Ultimi 7 giorni</option><option value="29">Ultimi 30 giorni</option><option value="89">Ultimi 90 giorni</option><option value="364">Ultimo anno</option></select>
+        <select id="lgUser" aria-label="Utente"><option value="">Tutti gli utenti</option></select>
+        <select id="lgKind" aria-label="Tipo"><option value="">Tutte le azioni</option><option value="accesso">Accessi</option><option value="prenotazione">Prenotazioni</option><option value="cliente">Clienti</option><option value="foglio">Fogli di servizio</option><option value="impostazioni">Impostazioni e utenti</option></select>
+        <input id="lgQ" type="search" placeholder="Cerca: cliente, n. foglio, data…" aria-label="Cerca nel registro">
+        <button type="button" class="btn" id="lgCsv">Scarica CSV</button>
+      </div>
+      <div class="lg-head" aria-hidden="true"><span>Quando</span><span>Chi</span><span>Dispositivo</span><span>Azione</span></div>
+      <div class="lg-list" id="lgList"></div>
+    </section>
+
+    <section class="mst-sec" id="mtSet" hidden>
+      <div class="set-card">
+        <h4>Ricerca hotel su Google</h4>
+        <p class="mst-sub">Nel foglio di servizio, scrivendo il nome dell'hotel compare la tendina con gli hotel di Google Maps: scegliendone uno si compilano indirizzo e telefono.</p>
+        <div class="set-row"><input id="setGKey" placeholder="Chiave API di Google (AIza…)" autocomplete="off" spellcheck="false"><button type="button" class="btn" id="setGTest">Prova</button><button type="button" class="btn primary" id="setGSave">Salva</button></div>
+        <p class="set-msg" id="setGMsg"></p>
+        <details class="set-help"><summary>Come si ottiene la chiave (una volta sola, 10 minuti)</summary>
+          <ol>
+            <li>Vai su <b>console.cloud.google.com</b> con un account Google dell'azienda e crea un progetto (es. "Agenda La Terra").</li>
+            <li>Attiva la fatturazione (serve una carta, ma ogni mese i primi 1.000 hotel scelti e le ricerche collegate sono gratuiti).</li>
+            <li>In "API e servizi › Libreria" attiva <b>Places API (New)</b>.</li>
+            <li>In "API e servizi › Credenziali" crea una <b>chiave API</b>. Poi, nella chiave: <i>Restrizioni applicazione</i> = Siti web, aggiungi l'indirizzo dell'agenda (es. <code>https://nome.github.io/*</code>); <i>Restrizioni API</i> = solo Places API (New).</li>
+            <li>In "Quote" di Places API (New) puoi mettere un tetto giornaliero (es. 200): così non si può mai superare la parte gratuita.</li>
+            <li>Copia la chiave qui sopra e premi <b>Prova</b>, poi <b>Salva</b>. Vale per tutti i dispositivi.</li>
+          </ol>
+        </details>
+      </div>
+      <div class="set-card">
+        <h4>Cosa possono fare gli utenti</h4>
+        <p class="mst-sub">Gli utenti lavorano sempre sull'agenda (prenotazioni, fogli di servizio, autisti extra). Qui scegli se possono anche:</p>
+        <label class="perm"><input type="checkbox" id="permClients"> <span><b>Anagrafica clienti</b> – aggiungere clienti nuovi e modificare quelli esistenti</span></label>
+        <label class="perm"><input type="checkbox" id="permFleet"> <span><b>Flotta</b> – modificare nomi, posti e targhe dei mezzi</span></label>
+      </div>
+      <div class="set-card">
+        <h4>Uscita automatica</h4>
+        <p class="mst-sub">Se nessuno usa l'agenda per questo tempo, il dispositivo torna alla schermata di accesso. Utile sui computer condivisi.</p>
+        <div class="set-row"><select id="setLock"><option value="0">Mai</option><option value="15">Dopo 15 minuti</option><option value="30">Dopo 30 minuti</option><option value="60">Dopo 1 ora</option><option value="120">Dopo 2 ore</option><option value="240">Dopo 4 ore</option></select></div>
+      </div>
+      <div class="set-card">
+        <h4>File e flotta</h4>
+        <p class="mst-sub" id="setFatInfo"></p>
+        <div class="set-row"><button type="button" class="btn" id="setFat">Collega file fatturato</button><button type="button" class="btn" id="setFleet">Modifica flotta</button></div>
+      </div>
+    </section>
+
+    <div class="mst-msg" id="mstMsg" role="status"></div>
+    <div class="mfoot"><span class="spacer"></span><button type="button" class="btn" id="mstClose">Chiudi</button></div>
   </div>
 </div>
 
@@ -823,6 +1010,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 <script src="dropbox.js"></script>
 <script src="fatturato.js"></script>
 <script src="store.js"></script>
+<script src="accessi.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

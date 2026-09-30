@@ -176,5 +176,7 @@
     hasKey: () => !!C.dropboxAppKey,
     startLogin, finishLogin, download, upload, listFolder, longpoll, createFolder, remove, search, account, metadata,
     unlink() { save(null); },
+    // revoca il collegamento anche lato Dropbox (dispositivo bloccato dal Master); se non riesce, pazienza
+    async revoke() { try { await rpc("auth/token/revoke", null); } catch (_) {} },
   };
 })();
