@@ -22,7 +22,7 @@
   const pad = (n) => String(n).padStart(2, "0");
   const DATE_RE = /^(20\d\d)-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
   const validDate = (d) => DATE_RE.test(String(d || ""));
-  const emptyCache = () => ({ days: {}, cursor: null, fleet: null, settings: null, access: null, users: null, lists: null, fat: null });
+  const emptyCache = () => ({ days: {}, cursor: null, fleet: null, settings: null, access: null, users: null, regs: null, lists: null, fat: null });
 
   let cache = emptyCache();
   let queue = loadLS(QK, { days: [], fat: {}, clients: [] });
@@ -377,13 +377,15 @@
       for (const [p, e] of seen) {
         if (e[".tag"] !== "file") continue;
         const isCfg = (n) => p === (P.cfg + "/" + n).toLowerCase();
-        if (!(isCfg("flotta.json") || isCfg("righe-fatturato.json") || isCfg("impostazioni.json") || isCfg("accesso.json") || isCfg("utenti.json"))) continue;
+        const regKind = Object.keys(REGF).find((k) => isCfg(REGF[k]));
+        if (!(regKind || isCfg("flotta.json") || isCfg("righe-fatturato.json") || isCfg("impostazioni.json") || isCfg("accesso.json") || isCfg("utenti.json"))) continue;
         const f = await DBX.download(e.path_lower); if (!f) continue;
         const j = parseJSON(f.buf); if (!j) { notice({ kind: "badcfg", path: e.path_display || p }); continue; }
         if (isCfg("flotta.json")) { cache.fleet = j; touched = true; }
         else if (isCfg("righe-fatturato.json")) { cache.fatShared = j.fogli || {}; cache.fatGone = j.tolti || {}; }
         else if (isCfg("impostazioni.json")) { cache.settings = j; touched = true; }
         else if (isCfg("accesso.json")) { const was = cache.access; cache.access = j; if (was && was.hash !== j.hash) hooks.onAccessChanged(); touched = true; }
+        else if (regKind) { cache.regs = Object.assign({}, cache.regs || {}, { [regKind]: j }); touched = true; }
         else if (isCfg("utenti.json")) { if (j.users) { cache.users = j; usersSeen = true; try { hooks.onUsersChanged(j); } catch (_) {} touched = true; } }
       }
       cache.cursor = next; // solo adesso: tutte le voci sono state lette davvero
@@ -718,11 +720,62 @@
     throw { code: "busy" };
   }
 
-  async function saveSheetFile(name, blob, year) {
-    const folder = P.sheets + "/" + year;
-    await DBX.createFolder(P.sheets).catch(() => {});
-    await DBX.createFolder(folder).catch(() => {});
+  // fogli di servizio in cartelle Anno / Mese / Giorno del servizio (es. 2026 / 10 - Ottobre / 01)
+  const MESI = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
+  function sheetFolder(date) {
+    const d = validDate(date) ? date : new Date().toISOString().slice(0, 10);
+    return P.sheets + "/" + d.slice(0, 4) + "/" + d.slice(5, 7) + " - " + MESI[+d.slice(5, 7) - 1] + "/" + d.slice(8, 10);
+  }
+  async function saveSheetFile(name, blob, date) {
+    const folder = sheetFolder(String(date || ""));
+    let p = "";
+    for (const part of folder.split("/").filter(Boolean)) { p += "/" + part; await DBX.createFolder(p).catch(() => {}); }
     return DBX.upload(folder + "/" + name, blob, "overwrite");
+  }
+
+  // ---------- anagrafiche (2.0): referenti, guide, hotel e tendine (note, ruolo) ----------
+  // Un file per anagrafica in config/. Ogni scrittura parte dall'ultima versione in Dropbox (niente
+  // modifiche perse se due persone lavorano insieme); se il file non c'è ancora si crea.
+  const REGF = { referenti: "anagrafica-referenti.json", guide: "anagrafica-guide.json", hotel: "anagrafica-hotel.json", tendine: "tendine.json" };
+  const TENDINE = { note: ["parcheggi", "autista", "3 ore", "extra 1", "extra 2"], ruolo: ["contabile", "ufficio", "operativo", "sul bus"] };
+  function defaultReg(kind) { return kind === "tendine" ? clone(TENDINE) : { rows: [] }; }
+  function reg(kind) { const r = (cache.regs || {})[kind]; return r || defaultReg(kind); }
+  function regLoaded(kind) { return !!(cache.regs && cache.regs[kind]); }
+  async function updateReg(kind, fn) {
+    if (!REGF[kind]) throw { code: "kind" };
+    if (!navigator.onLine) throw { code: "offline" };
+    const path = P.cfg + "/" + REGF[kind];
+    for (let i = 0; i < 6; i++) {
+      const f = await DBX.download(path);
+      if (f && !f.meta.rev) f.meta = await DBX.metadata(path);
+      const cur = f ? parseJSON(f.buf) : null;
+      const next = fn(clone(cur || defaultReg(kind)));
+      if (!next) { if (cur) { cache.regs = Object.assign({}, cache.regs || {}, { [kind]: cur }); persist(); } return cur || defaultReg(kind); }
+      next.updatedAt = new Date().toISOString();
+      try {
+        await DBX.upload(path, enc.encode(JSON.stringify(next, null, 1)), f ? { update: f.meta.rev } : "add");
+        cache.regs = Object.assign({}, cache.regs || {}, { [kind]: next }); persist(); changed();
+        return next;
+      } catch (e) { if (e.code !== "conflict") throw e; }
+    }
+    throw { code: "busy" };
+  }
+
+  // Anagrafiche che questo dispositivo non ha ancora (per esempio create mentre aveva la versione 1.9,
+  // che le saltava): si scaricano una volta. Non scrive niente.
+  async function loadRegs() {
+    if (!navigator.onLine) return false;
+    let got = false;
+    for (const kind of Object.keys(REGF)) {
+      if (cache.regs && cache.regs[kind]) continue;
+      try {
+        const f = await DBX.download(P.cfg + "/" + REGF[kind]);
+        const j = f ? parseJSON(f.buf) : null;
+        if (j && typeof j === "object") { cache.regs = Object.assign({}, cache.regs || {}, { [kind]: j }); got = true; }
+      } catch (_) {}
+    }
+    if (got) { persist(); changed(); }
+    return got;
   }
 
   // Scollega: cancella tutto (anche le modifiche non inviate). Usato solo da "Scollega questo dispositivo".
@@ -741,7 +794,7 @@
     disable() { enabled = false; writesBlocked = true; clearTimeout(saveTimer); },
     fileFogli, validDate,
     view, mutateDay, pull, flush, watch, setupFolders, syncFatturato, isPending, whenSent, saveNow: writeNow,
-    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, saveSheetFile, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
+    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, saveSheetFile, sheetFolder, reg, regLoaded, updateReg, loadRegs, REGF, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
     bustaMax: (y) => { const m = cache.bustaMax || {}; return m[y] != null ? m[y] : m["*"] || 0; },
     get pendingClients() { return queue.clients.slice(); },
     clientDone: (tmp) => (cache.clientDone || {})[tmp] || null,

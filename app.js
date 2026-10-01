@@ -156,12 +156,9 @@ function renderWeek(){
   const cnt=tp=>inWeek.filter(b=>b.type===tp).length;
   const a=parse(mon),z=parse(sun);
   const range=a.getUTCMonth()===z.getUTCMonth()?a.getUTCDate()+"–"+z.getUTCDate()+" "+MN[z.getUTCMonth()]+" "+z.getUTCFullYear():a.getUTCDate()+" "+MN[a.getUTCMonth()].slice(0,3)+" – "+z.getUTCDate()+" "+MN[z.getUTCMonth()].slice(0,3)+" "+z.getUTCFullYear();
-  $("wsign").innerHTML='<div class="date"><small>'+(t>=mon&&t<=sun?"Questa settimana":"Settimana")+'</small>'+range+'</div>'+
-    '<div class="stats">'+
-      '<div class="stat"><b>'+busyAny+"/"+S.fleet.length+'</b><span>Mezzi usati</span></div>'+
-      statsHTML(inWeek)+
-    '</div>'+
-    '<div class="nav"><button id="wPrev" aria-label="Settimana precedente">‹</button><button id="wNext" aria-label="Settimana successiva">›</button></div>';
+  const wr=a.getUTCFullYear()===z.getUTCFullYear()?a.getUTCDate()+" "+MN[a.getUTCMonth()]+" – "+z.getUTCDate()+" "+MN[z.getUTCMonth()]:a.getUTCDate()+" "+MN[a.getUTCMonth()]+" "+a.getUTCFullYear()+" – "+z.getUTCDate()+" "+MN[z.getUTCMonth()]+" "+z.getUTCFullYear();
+  $("wsign").innerHTML='<div class="date"><span>'+wr+'</span>'+(t>=mon&&t<=sun?'<span class="today-tag">Questa settimana</span>':'')+'</div>'+
+    '<div class="sright"><div class="nav"><button id="wPrev" aria-label="Settimana precedente">‹</button><button id="wNext" aria-label="Settimana successiva">›</button></div></div>';
   let h='<colgroup><col class="vcol">'+days.map(()=>"<col>").join("")+'</colgroup><thead><tr><th class="vc">Mezzo</th>';
   for(const ds of days){
     const w=wday(ds),busy=new Set(dayList(ds).map(b=>b.vehicle)).size;
@@ -290,6 +287,7 @@ function renderDay(){
 
 function renderMonth(){
   const k=mkey(S.sel),n=dim(k),all=bookingsAll(),t=todayISO();
+  $("msign").innerHTML='<div class="date"><span>'+MN[+k.slice(5,7)-1]+" "+k.slice(0,4)+'</span></div><div class="sright"><div class="nav"><button id="msPrev" aria-label="Mese precedente">‹</button><button id="msNext" aria-label="Mese successivo">›</button></div></div>';
   let h='<thead><tr><th class="vc">Mezzo</th>';
   for(let d=1;d<=n;d++){const ds=k+"-"+pad(d),w=wday(ds);h+='<th class="'+(w===0?"sun ":"")+(ds===S.sel?"sel":"")+'" data-day="'+ds+'" style="cursor:pointer">'+WD[w].slice(0,1)+'<span class="n">'+d+'</span></th>';}
   h+='</tr></thead><tbody>';
@@ -324,6 +322,7 @@ function handleErr(e){
   if(c==="invalid_argument"){S.readOnly=true;showBanner("Hai accesso in sola lettura: le modifiche non vengono salvate.");renderAll();}
   else if(c==="quota_exceeded")toast("Spazio di archiviazione pieno: elimina le giornate più vecchie.");
   else toast("Salvataggio non riuscito. Riprova tra poco.");
+  ACC.tlog("errore","Salvataggio non riuscito",String(c||(e&&e.message)||e));
 }
 function showBanner(m){notify(m,true);}
 
@@ -347,19 +346,20 @@ function openForm(opts){
   $("t-"+normType(b.type)).checked=true;
   $("f-vehicle").value=b.vehicle;if(!$("f-vehicle").value&&S.fleet[0])$("f-vehicle").value=S.fleet[0].id;$("f-start").value=b.start;$("f-end").value=(b.end&&b.end>=b.start)?b.end:b.start;$("f-end").min=b.start||"";formStart=b.start;
   $("f-time").value=b.time||"";$("f-time2").value=b.time2||"";$("f-client").value=b.client||"";$("f-route").value=b.route||"";
-  $("f-pax").value=b.pax==null?"":b.pax;$("f-event").value=b.event||"";$("f-escort").value=b.escort||"";$("f-driver").value=b.driver||"";$("f-contact").value=b.contact||"";$("f-contactname").value=b.contactName||"";drvPaint("f-driver");drvPaint("f-driver2");
+  $("f-pax").value=b.pax==null?"":b.pax;$("f-event").value=b.event||"";$("f-escort").value=b.escort||"";$("f-driver").value=b.driver||"";$("f-contact").value=b.contact||"";$("f-contactname").value=b.contactName||"";$("f-contactnote").value=b.contactNote||"";$("f-contactrole").innerHTML=tendinaOpts("ruolo",b.contactRole||"");drvPaint("f-driver");drvPaint("f-driver2");
   $("f-status").value=b.status||"confermato";$("f-notes").value=b.notes||"";
   renderClientInfo();syncDrvQ();
-  $("f-saldo").value=b.saldo||"NO";$("f-saldoamt").value=b.saldoAmt==null?"":b.saldoAmt;$("f-npark").value=b.npark||"";$("f-ndriver").value=b.ndriver||"";$("f-n3h").value=b.n3h||"";$("f-nextra").value=b.nextra||"";
-  ["refs","hotels","guides"].forEach(k=>renderRep(k,b[k]||[]));
+  $("f-saldo").value=b.saldo||"NO";$("f-saldoamt").value=b.saldoAmt==null?"":b.saldoAmt;
+  ["refs","hotels","guides"].forEach(k=>renderRep(k,b[k]||[]));renderRep("dnotes",dnotesOf(b));fillPlaceLists();
+  endAuto=false;$("fEditAsk").hidden=true;editConfirmed=false;
   progCache=Array.isArray(b.program)?b.program.slice():[];renderProgram();
   $("fDelete").hidden=!editing;$("fConfirm").hidden=true;$("fCloseAsk").hidden=true;
   [...$("fBooking").elements].forEach(el=>{if(el.id!=="fCancel")el.disabled=S.readOnly;});
-  syncType();checkWarns();
+  formLoading=true;syncType();formLoading=false;checkWarns();
   formOrig=readForm(); // per sapere se l'utente ha cambiato qualcosa e quali campi
   $("ovBooking").hidden=false;setTimeout(()=>$("f-client").focus(),30);
 }
-let formOrig=null,saving=false;
+let formOrig=null,saving=false,editConfirmed=false;
 const FORM_SKIP=["updatedAt","foglio"];
 // campi cambiati dall'utente rispetto a quando il modulo è stato aperto
 function formChanges(){if(!formOrig)return [];const now=readForm();return Object.keys(now).filter(k=>!FORM_SKIP.includes(k)&&JSON.stringify(now[k])!==JSON.stringify(formOrig[k]));}
@@ -425,7 +425,19 @@ $("f-envelope").addEventListener("change",()=>{
 });
 function eur(id){const v=$(id).value;return v===""?"":Math.round(Number(v)*100)/100;}
 function curType(){const r=document.querySelector('input[name="type"]:checked');return r?r.value:"transfer";}
-function syncType(){$("w-tourcash").hidden=!isMulti(curType());if(progReady)renderProgram();const ev=hasEvent(curType());$("w-event").hidden=!ev;$("w-escort").hidden=!ev;$("w-time2").hidden=onlyDeparture(curType());}
+function syncType(){$("w-tourcash").hidden=!isMulti(curType());if(progReady)renderProgram();const ev=hasEvent(curType());$("w-event").hidden=!ev;$("w-time2").hidden=onlyDeparture(curType());syncEndNextDay();}
+// rientro dopo la mezzanotte (es. notturno 17:00 → 01:00): la data di rientro passa da sola al giorno dopo
+let endAuto=false,formLoading=false;
+function syncEndNextDay(){
+  const st=$("f-start").value,t1=$("f-time").value,t2=$("f-time2").value,en=$("f-end").value;
+  const night=!onlyDeparture(curType())&&!!t1&&!!t2&&t2<t1&&validDate(st);
+  if(formLoading){} // prenotazione appena aperta: le date restano quelle salvate
+  else if(night&&(!en||en===st)){$("f-end").value=addDays(st,1);endAuto=true;}
+  else if(!night&&endAuto&&validDate(st)&&en===addDays(st,1)){$("f-end").value=st;endAuto=false;}
+  $("endNext").hidden=!(night&&$("f-end").value===addDays(st,1));
+}
+["f-time","f-time2"].forEach(id=>$(id).addEventListener("change",()=>{syncEndNextDay();checkWarns();}));
+$("f-end").addEventListener("input",()=>{endAuto=false;});
 function readForm(){
   const type=curType(),start=$("f-start").value,T=id=>cleanText($(id).value);
   const client=T("f-client");
@@ -434,10 +446,15 @@ function readForm(){
     event:hasEvent(type)?T("f-event"):"",escort:hasEvent(type)?T("f-escort"):"",
     pax:T("f-pax"),price:eur("f-price"),park:eur("f-park"),meals:eur("f-meals"),advance:isMulti(type)?eur("f-advance"):"",envelope:isMulti(type)?$("f-envelope").value:"",envno:isMulti(type)?T("f-envno"):"",driver:T("f-driver"),driver2:T("f-driver2"),contact:T("f-contact"),contactName:T("f-contactname"),
     status:$("f-status").value,notes:cleanText($("f-notes").value,true),
-    saldo:$("f-saldo").value,saldoAmt:eur("f-saldoamt"),npark:T("f-npark"),ndriver:T("f-ndriver"),n3h:T("f-n3h"),nextra:T("f-nextra"),
-    refs:readRep("refs"),hotels:readRep("hotels"),guides:readRep("guides"),program:readProgram(),
+    contactRole:$("f-contactrole").value,contactNote:T("f-contactnote"),
+    saldo:$("f-saldo").value,saldoAmt:eur("f-saldoamt"),
+    refs:readRep("refs"),hotels:readRep("hotels"),guides:readRep("guides"),program:readProgram(),dnotes:readRep("dnotes"),
     updatedAt:new Date().toISOString()};
 }
+// per i dispositivi con versioni precedenti: le 4 note del foglio anche nei campi di prima
+function withOldNotes(b){return Object.assign(b,noteCells(b));}
+// se cambiano le note, nell'unione con le modifiche di altri vanno anche i 4 campi di prima
+function withOldNoteKeys(patch){return patch.includes("dnotes")?patch.concat(NOTE_OLD.map(x=>x[0]).filter(k=>!patch.includes(k))):patch;}
 // prenotazioni (tranne quella aperta) in corso tra due date
 function overlapping(start,end){
   const out=new Map();if(!validDate(start))return [];
@@ -482,25 +499,119 @@ async function nextSeq(date){
 }
 
 
-// ---------- campi del foglio di servizio ----------
-const REP_PH={refs:["Nome referente (es. Sonia, escursione)","Telefono"],hotels:["Cerca l'hotel o scrivi nome e indirizzo","Telefono"],guides:["Nome guida","Telefono"]};
+// ---------- referenti, guide, hotel e note per l'autista (2.0) ----------
+// Ogni riga ha le sue caselle. Il nome si sceglie dalla tendina collegata all'anagrafica (per gli hotel
+// anche da Google Maps) oppure si scrive. Il referente 1 usa i campi f-contact*, gli altri vanno in "refs".
+const TENDINE_DEF={note:["parcheggi","autista","3 ore","extra 1","extra 2"],ruolo:["contabile","ufficio","operativo","sul bus"]};
+function tendina(kind){const t=STORE.reg("tendine")||{};const l=Array.isArray(t[kind])?t[kind].filter(Boolean):[];return l.length?l:TENDINE_DEF[kind].slice();}
+function tendinaOpts(kind,cur){const l=tendina(kind);if(cur&&!l.includes(cur))l.push(cur);return '<option value=""></option>'+l.map(v=>'<option'+(v===cur?' selected':'')+'>'+esc(v)+'</option>').join("");}
+const rinp=(f,val,attrs)=>'<input data-f="'+f+'" value="'+esc(val==null?"":val)+'"'+(attrs||' autocomplete="off"')+'>';
+const RDEL='<button type="button" data-rdel title="Rimuovi" aria-label="Rimuovi">×</button>';
+const COMBO_ATTR=k=>' data-combo="'+k+'" autocomplete="off" role="combobox" aria-expanded="false"';
+function repRow(k,i,x){
+  x=x||{};
+  if(k==="refs")return '<div class="rep-row prow p-ref">'+
+    '<div class="f pf-name"><label><b>Nome referente '+(i+2)+'</b></label>'+rinp("name",x.name,COMBO_ATTR("ref")+' placeholder="Cerca in anagrafica o scrivi"')+'</div>'+
+    '<div class="f"><label>Ruolo</label><select data-f="role">'+tendinaOpts("ruolo",x.role||"")+'</select></div>'+
+    '<div class="f"><label>Telefono</label>'+rinp("tel",x.tel,' type="tel" inputmode="tel" autocomplete="off"')+'</div>'+
+    '<div class="f"><label>Note</label>'+rinp("note",x.note)+'</div>'+RDEL+'</div>';
+  if(k==="guides")return '<div class="rep-row prow p-guide"'+(x.region?' data-region="'+esc(x.region)+'"':'')+'>'+
+    '<div class="f pf-name"><label><b>Nome guida '+(i+1)+'</b></label>'+rinp("name",x.name,COMBO_ATTR("guide")+' placeholder="Cerca in anagrafica o scrivi"')+'</div>'+
+    '<div class="f"><label>Città</label>'+rinp("city",x.city,' list="dlCities" autocomplete="off"')+'</div>'+
+    '<div class="f"><label>Telefono</label>'+rinp("tel",x.tel,' type="tel" inputmode="tel" autocomplete="off"')+'</div>'+
+    '<div class="f"><label>Note</label>'+rinp("note",x.note)+'</div>'+RDEL+'</div>';
+  if(k==="hotels")return '<div class="rep-row prow p-hotel"'+(x.pid?' data-pid="'+esc(x.pid)+'"':'')+(x.region?' data-region="'+esc(x.region)+'"':'')+'>'+
+    '<div class="f pf-name"><label><b>Nome hotel '+(i+1)+'</b></label>'+rinp("name",x.name,COMBO_ATTR("hotel")+' placeholder="Cerca l\'hotel (anagrafica o Google) o scrivi"')+'</div>'+
+    '<div class="f"><label>Città</label>'+rinp("city",x.city,' list="dlCities" autocomplete="off"')+'</div>'+
+    '<div class="f"><label>Indirizzo</label>'+rinp("addr",x.addr)+'</div>'+
+    '<div class="f"><label>Telefono</label>'+rinp("tel",x.tel,' type="tel" inputmode="tel" autocomplete="off"')+'</div>'+RDEL+'</div>';
+  if(k==="dnotes")return '<div class="rep-row prow p-note"><span class="nlab">Note '+(i+1)+'</span>'+
+    '<div class="f"><label>Causale</label><select data-f="c">'+tendinaOpts("note",x.c||"")+'</select></div>'+
+    '<div class="f"><label>Testo</label>'+rinp("t",x.t,' autocomplete="off" placeholder="Es. parcheggiare al Lumbi, indossare la camicia…"')+'</div>'+RDEL+'</div>';
+  return "";
+}
+// numerazione delle etichette dopo un'aggiunta o una rimozione
+function renumberRep(k){
+  [...$("rep-"+k).querySelectorAll(".rep-row")].forEach((r,i)=>{
+    if(k==="dnotes"){const l=r.querySelector(".nlab");if(l)l.textContent="Note "+(i+1);return;}
+    const b=r.querySelector(".pf-name label b");if(b)b.textContent=(k==="refs"?"Nome referente ":k==="guides"?"Nome guida ":"Nome hotel ")+(i+(k==="refs"?2:1));
+  });
+}
+// hotel delle versioni precedenti: tutto nel nome, "Nome – indirizzo, città" → nome, indirizzo e città separati
+function splitOldHotel(h){
+  if(!h||!h.name||h.addr||h.city||!/ – /.test(h.name))return h;
+  const i=h.name.indexOf(" – "),n=h.name.slice(0,i).trim(),rest=h.name.slice(i+3).trim(),parts=rest.split(/,\s*/).filter(Boolean);
+  if(!n||parts.length<2)return h; // non sembra "indirizzo, città": si lascia com'è
+  const city=parts.pop().trim();
+  return Object.assign({},h,{name:n,addr:parts.join(", ").trim(),city});
+}
 function renderRep(k,list){
+  list=(list||[]).slice();if(k==="hotels")list=list.map(splitOldHotel);if(!list.length&&k!=="refs")list=[{}]; // guide, hotel e note: sempre almeno una riga
   $("rep-"+k).innerHTML=list.map((x,i)=>repRow(k,i,x)).join("");
 }
-function repRow(k,i,x){x=x||{};return '<div class="rep-row"'+(k==="hotels"&&x.pid?' data-pid="'+esc(x.pid)+'"':'')+'><input data-rk="'+k+'" data-rf="name" value="'+esc(x.name||"")+'" placeholder="'+REP_PH[k][0]+'" aria-label="'+REP_PH[k][0]+'"'+(k==="hotels"?' autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"':'')+'><input data-rk="'+k+'" data-rf="tel" value="'+esc(x.tel||"")+'" placeholder="Telefono" inputmode="tel" aria-label="Telefono"><button type="button" data-rdel title="Rimuovi" aria-label="Rimuovi">×</button></div>';}
-function readRep(k){return [...$("rep-"+k).querySelectorAll(".rep-row")].map(r=>{const o={name:cleanText(r.querySelector('[data-rf="name"]').value),tel:cleanText(r.querySelector('[data-rf="tel"]').value)};if(k==="hotels"&&r.dataset.pid)o.pid=r.dataset.pid;return o;}).filter(x=>x.name||x.tel);}
+function readRep(k){
+  return [...$("rep-"+k).querySelectorAll(".rep-row")].map(r=>{
+    const o={};r.querySelectorAll("[data-f]").forEach(el=>{o[el.dataset.f]=cleanText(el.value);});
+    if(k==="hotels"&&r.dataset.pid)o.pid=r.dataset.pid;
+    if((k==="hotels"||k==="guides")&&r.dataset.region)o.region=r.dataset.region;
+    for(const f in o)if(o[f]==="")delete o[f];
+    return o;
+  }).filter(x=>k==="dnotes"?(x.c||x.t):(x.name||x.tel));
+}
+// note per l'autista: dalle 4 caselle delle versioni precedenti alla lista "Causale + testo"
+const NOTE_OLD=[["npark","parcheggi"],["ndriver","autista"],["n3h","3 ore"],["nextra","extra 1"]];
+function dnotesOf(b){if(Array.isArray(b.dnotes))return b.dnotes;const l=[];for(const [f,c] of NOTE_OLD)if(b[f])l.push({c,t:b[f]});return l;}
+// le 4 caselle del foglio di servizio (Note 1° park, 2° autista, 3° 3 ore, 4° extra)
+function noteCells(b){
+  const o={npark:[],ndriver:[],n3h:[],nextra:[]};
+  for(const n of dnotesOf(b)){
+    if(!n||!(n.t||n.c))continue;const c=norm(n.c||"").trim();
+    const key=/^(parcheggi|park)/.test(c)?"npark":c==="autista"?"ndriver":/^3\s*ore/.test(c)?"n3h":"nextra";
+    const pre=key==="nextra"&&n.c&&!/^extra/i.test(n.c)&&n.t?n.c+": ":"";
+    o[key].push(pre+(n.t||n.c));
+  }
+  return {npark:o.npark.join(" · "),ndriver:o.ndriver.join(" · "),n3h:o.n3h.join(" · "),nextra:o.nextra.join(" · ")};
+}
+$("fBooking").addEventListener("click",e=>{
+  const a=e.target.closest("[data-addrep]");
+  if(a){const k=a.dataset.addrep,box=$("rep-"+k);box.insertAdjacentHTML("beforeend",repRow(k,box.children.length,{}));const f=box.lastElementChild.querySelector("input,select");if(f)f.focus();return;}
+  const d=e.target.closest("[data-rdel]");
+  if(d){const r=d.closest(".rep-row"),box=r.parentElement,k=box.id.replace("rep-","");r.remove();if(k!=="refs"&&!box.children.length)box.insertAdjacentHTML("beforeend",repRow(k,0,{}));renumberRep(k);}
+});
 
-// ---------- hotel: tendina con gli hotel già usati e la ricerca su Google ----------
+// ---------- tendine collegate alle anagrafiche (referenti, guide, hotel) e a Google Maps ----------
 // Google Places API (New): suggerimenti mentre scrivi (solo strutture ricettive, in Italia, vicino alla
-// Sicilia) e, alla scelta, nome, indirizzo e telefono. La chiave la inserisce il Master nelle Impostazioni.
+// Sicilia) e, alla scelta, nome, città, indirizzo e telefono. La chiave la inserisce il Master nelle Impostazioni.
 // Suggerimenti e dettagli usano lo stesso "token di sessione": così Google conta una sola ricerca.
-const HS={inp:null,box:null,items:[],idx:-1,timer:null,token:null,seq:0,err:""};
+const CB={inp:null,box:null,items:[],idx:-1,timer:null,token:null,seq:0,err:"",lastG:[],lastQ:""};
 function gKey(){return String(((STORE.settings||{}).googleKey)||"").trim();}
 function newToken(){try{return crypto.randomUUID();}catch(_){return "t"+Date.now().toString(36)+Math.random().toString(36).slice(2);}}
+function regRows(kind){const r=STORE.reg(kind);return r&&Array.isArray(r.rows)?r.rows:[];}
+const nkey=t=>norm(t).replace(/[^a-z0-9]+/g," ").trim();
+// hotel scritti nelle prenotazioni (anche quelli delle versioni precedenti, con l'indirizzo nel nome)
 function knownHotels(){
   const m=new Map();
-  for(const d in S.days){const bk=(S.days[d]&&S.days[d].bookings)||{};for(const id in bk){const x=bk[id];if(!x)continue;for(const h of (x.hotels||[])){if(!h||!h.name)continue;const k=norm(h.name).replace(/[^a-z0-9]+/g," ").trim();const o=m.get(k);if(!o||(!o.tel&&h.tel)||(!o.pid&&h.pid))m.set(k,{name:h.name,tel:h.tel||"",pid:h.pid||"",n:(o?o.n:0)+1});else o.n++;}}}
+  for(const d in S.days){const bk=(S.days[d]&&S.days[d].bookings)||{};for(const id in bk){const x=bk[id];if(!x)continue;for(let h of (x.hotels||[])){if(!h||!h.name)continue;h=splitOldHotel(h);const k=nkey(h.name);const o=m.get(k);if(!o||(!o.tel&&h.tel)||(!o.pid&&h.pid))m.set(k,Object.assign({},h,{n:(o?o.n:0)+1}));else o.n++;}}}
   return [...m.values()];
+}
+function wmatch(hay,words){const ws=norm(hay).split(/[^a-z0-9]+/);return words.every(w=>ws.some(x=>x.startsWith(w)));}
+function cbLocal(kind,q){
+  const words=norm(q).split(/[^a-z0-9]+/).filter(Boolean);
+  if(kind==="ref"){
+    const cli=nkey($("f-client").value),rows=regRows("referenti");
+    let l=words.length?rows.filter(r=>wmatch([r.nome,r.cliente,r.citta,r.tel].join(" "),words)):(cli?rows.filter(r=>nkey(r.cliente)===cli):[]);
+    l=l.slice().sort((a,b)=>((nkey(b.cliente)===cli)-(nkey(a.cliente)===cli))||String(a.nome||"").localeCompare(String(b.nome||""),"it"));
+    return l.slice(0,8).map(r=>({src:"reg",main:r.nome,sec:[r.cliente,r.citta,r.tel].filter(Boolean).join(" · "),fill:{name:r.nome,tel:r.tel||""}}));
+  }
+  if(!words.length)return [];
+  if(kind==="guide"){
+    return regRows("guide").filter(r=>wmatch([r.nome,r.citta,r.regione].join(" "),words)).sort((a,b)=>String(a.nome||"").localeCompare(String(b.nome||""),"it")).slice(0,8)
+      .map(r=>({src:"reg",main:r.nome,sec:[r.citta,r.regione,r.tel].filter(Boolean).join(" · "),fill:{name:r.nome,city:r.citta||"",tel:r.tel||""},region:r.regione||""}));
+  }
+  const reg=regRows("hotel").filter(r=>wmatch([r.nome,r.citta,r.indirizzo].join(" "),words)).map(r=>({src:"reg",main:r.nome,sec:[r.indirizzo,r.citta,r.tel].filter(Boolean).join(" · "),fill:{name:r.nome,city:r.citta||"",addr:r.indirizzo||"",tel:r.tel||""},pid:r.pid||"",region:r.regione||""}));
+  const seen=new Set(reg.map(x=>nkey(x.main)));
+  const old=knownHotels().filter(h=>!seen.has(nkey(h.name))&&wmatch(h.name,words)).sort((a,b)=>b.n-a.n).map(h=>({src:"reg",main:h.name,sec:[h.addr,h.city,h.tel].filter(Boolean).join(" · ")||"già usato",fill:{name:h.name,city:h.city||"",addr:h.addr||"",tel:h.tel||""},pid:h.pid||"",region:h.region||""}));
+  return reg.concat(old).slice(0,6);
 }
 async function gFetch(url,opts,ms){
   const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),ms||8000);
@@ -519,9 +630,14 @@ async function gAutocomplete(q,key,token){
   return (j.suggestions||[]).map(s=>s.placePrediction).filter(Boolean).map(p=>({pid:p.placeId,main:(p.structuredFormat&&p.structuredFormat.mainText&&p.structuredFormat.mainText.text)||(p.text&&p.text.text)||"",sec:(p.structuredFormat&&p.structuredFormat.secondaryText&&p.structuredFormat.secondaryText.text)||""}));
 }
 async function gDetails(pid,key,token){
-  const j=await gFetch("https://places.googleapis.com/v1/places/"+encodeURIComponent(pid)+"?languageCode=it&regionCode=it"+(token?"&sessionToken="+encodeURIComponent(token):""),{headers:{"X-Goog-Api-Key":key,"X-Goog-FieldMask":"id,displayName,shortFormattedAddress,formattedAddress,nationalPhoneNumber,internationalPhoneNumber"}});
-  const addr=(j.shortFormattedAddress||j.formattedAddress||"").replace(/,\s*Italia$/,"");
-  return {pid:j.id||pid,name:((j.displayName&&j.displayName.text)||"")+(addr?" – "+addr:""),tel:j.nationalPhoneNumber||j.internationalPhoneNumber||""};
+  const j=await gFetch("https://places.googleapis.com/v1/places/"+encodeURIComponent(pid)+"?languageCode=it&regionCode=it"+(token?"&sessionToken="+encodeURIComponent(token):""),{headers:{"X-Goog-Api-Key":key,"X-Goog-FieldMask":"id,displayName,shortFormattedAddress,formattedAddress,addressComponents,nationalPhoneNumber,internationalPhoneNumber"}});
+  const comps=j.addressComponents||[],get=t=>{const c=comps.find(x=>(x.types||[]).includes(t));return c?(c.longText||c.shortText||""):"";};
+  let city=get("locality")||get("administrative_area_level_3")||get("postal_town"),addr=[get("route"),get("street_number")].filter(Boolean).join(", ");
+  const region=get("administrative_area_level_1");
+  if(!addr||!city){const parts=(j.shortFormattedAddress||j.formattedAddress||"").replace(/,\s*Italia$/,"").split(/,\s*/).filter(Boolean);
+    if(!city&&parts.length>1)city=parts[parts.length-1].replace(/\s+[A-Z]{2}$/,"").replace(/^\d{5}\s+/,"");
+    if(!addr)addr=parts.slice(0,Math.max(1,parts.length-1)).join(", ");}
+  return {pid:j.id||pid,name:(j.displayName&&j.displayName.text)||"",city,addr,region,tel:j.nationalPhoneNumber||j.internationalPhoneNumber||""};
 }
 function gErrText(e){
   if(!e)return "";
@@ -532,72 +648,82 @@ function gErrText(e){
   if(e.status===429)return "Limite di ricerche Google raggiunto per oggi.";
   return "Ricerca Google non riuscita ("+(e.msg||e.status||"errore")+").";
 }
-function hsClose(){if(HS.box)HS.box.remove();if(HS.inp)HS.inp.setAttribute("aria-expanded","false");HS.box=null;HS.items=[];HS.idx=-1;clearTimeout(HS.timer);}
-function hsRender(google,loading){
-  const inp=HS.inp;if(!inp)return;
-  const q=norm(inp.value).trim(),words=q.split(/[^a-z0-9]+/).filter(Boolean);
-  const local=q.length<2?[]:knownHotels().filter(h=>{const ws=norm(h.name).split(/[^a-z0-9]+/);return words.every(w=>ws.some(x=>x.startsWith(w)));}).sort((a,b)=>b.n-a.n).slice(0,4).map(h=>Object.assign({src:"loc"},h));
-  const g=(google||[]).filter(x=>!local.some(l=>l.pid&&l.pid===x.pid)).slice(0,5).map(x=>Object.assign({src:"g"},x));
-  HS.items=local.concat(g);if(HS.idx>=HS.items.length)HS.idx=-1;
-  if(!HS.box){HS.box=document.createElement("div");HS.box.className="hsug";HS.box.setAttribute("role","listbox");inp.closest(".rep-row").appendChild(HS.box);
-    HS.box.addEventListener("mousedown",e=>{const b=e.target.closest("[data-hi]");e.preventDefault();if(b)hsPick(+b.dataset.hi);});}
+function cbClose(){if(CB.box)CB.box.remove();if(CB.inp)CB.inp.setAttribute("aria-expanded","false");CB.box=null;CB.items=[];CB.idx=-1;clearTimeout(CB.timer);}
+const hsClose=cbClose;
+function cbRender(google,loading){
+  const inp=CB.inp;if(!inp)return;
+  const kind=inp.dataset.combo,q=inp.value.trim();
+  const local=cbLocal(kind,q);
+  const g=kind==="hotel"?(google||[]).filter(x=>!local.some(l=>l.pid&&l.pid===x.pid)).slice(0,5).map(x=>Object.assign({src:"g"},x)):[];
+  CB.items=local.concat(g);if(CB.idx>=CB.items.length)CB.idx=-1;
+  if(!CB.box){CB.box=document.createElement("div");CB.box.className="hsug";CB.box.setAttribute("role","listbox");inp.closest(".prow").appendChild(CB.box);
+    CB.box.addEventListener("mousedown",e=>{const b=e.target.closest("[data-hi]");e.preventDefault();if(b)cbPick(+b.dataset.hi);});}
+  const head={ref:"Anagrafica referenti",guide:"Anagrafica guide",hotel:"Anagrafica hotel"}[kind];
   let h="";
-  if(local.length)h+='<div class="hs-h">Già usati</div>'+local.map((x,i)=>'<button type="button" role="option" data-hi="'+i+'" aria-selected="'+(i===HS.idx)+'"><b>'+esc(x.name)+'</b><span>'+esc(x.tel||"senza telefono")+'</span></button>').join("");
-  if(q.length>=3){
+  if(local.length)h+='<div class="hs-h">'+head+'</div>'+local.map((x,i)=>'<button type="button" role="option" data-hi="'+i+'" aria-selected="'+(i===CB.idx)+'"><b>'+esc(x.main)+'</b><span>'+esc(x.sec||"")+'</span></button>').join("");
+  if(kind==="hotel"&&q.length>=3){
     if(!gKey())h+='<div class="hs-note">'+(isMaster()?'Per cercare gli hotel su Google inserisci la chiave in <b>Pannello Master › Impostazioni</b>.':'Ricerca su Google non attiva: chiedi al Master.')+'</div>';
     else{
       h+='<div class="hs-h">Google Maps'+(loading?' <i>cerco…</i>':'')+'</div>';
-      if(g.length)h+=g.map((x,j)=>{const i=local.length+j;return '<button type="button" role="option" data-hi="'+i+'" aria-selected="'+(i===HS.idx)+'"><b>'+esc(x.main)+'</b><span>'+esc(x.sec)+'</span></button>';}).join("");
-      else if(!loading)h+='<div class="hs-note">'+(HS.err?esc(HS.err):'Nessun hotel trovato su Google con questo nome.')+'</div>';
+      if(g.length)h+=g.map((x,j)=>{const i=local.length+j;return '<button type="button" role="option" data-hi="'+i+'" aria-selected="'+(i===CB.idx)+'"><b>'+esc(x.main)+'</b><span>'+esc(x.sec)+'</span></button>';}).join("");
+      else if(!loading)h+='<div class="hs-note">'+(CB.err?esc(CB.err):'Nessun hotel trovato su Google con questo nome.')+'</div>';
     }
   }
-  if(!h){hsClose();return;}
-  HS.box.innerHTML=h;inp.setAttribute("aria-expanded","true");
-  const r=HS.box.getBoundingClientRect();if(r.bottom>window.innerHeight)HS.box.scrollIntoView({block:"nearest"}); // la tendina deve restare visibile
+  if(!h){cbClose();return;}
+  CB.box.innerHTML=h;inp.setAttribute("aria-expanded","true");
+  const r=CB.box.getBoundingClientRect();if(r.bottom>window.innerHeight)CB.box.scrollIntoView({block:"nearest"}); // la tendina deve restare visibile
 }
-function hsSearch(){
-  const inp=HS.inp;if(!inp)return;const q=inp.value.trim();
-  clearTimeout(HS.timer);HS.err="";
-  if(q.length<3||!gKey()||!navigator.onLine){if(q.length>=3&&gKey()&&!navigator.onLine)HS.err=gErrText({code:"net"});hsRender([],false);return;}
-  hsRender(HS.lastG&&HS.lastQ&&norm(q).startsWith(norm(HS.lastQ))?HS.lastG:[],true);
-  const seq=++HS.seq;
-  HS.timer=setTimeout(async()=>{
-    if(!HS.token)HS.token=newToken();
-    try{const r=await gAutocomplete(q,gKey(),HS.token);if(seq!==HS.seq||HS.inp!==inp)return;HS.lastG=r;HS.lastQ=q;hsRender(r,false);}
-    catch(e){if(seq!==HS.seq)return;HS.err=gErrText(e);HS.lastG=[];hsRender([],false);}
+function cbSearch(){
+  const inp=CB.inp;if(!inp)return;const q=inp.value.trim();
+  clearTimeout(CB.timer);CB.err="";
+  if(inp.dataset.combo!=="hotel"||q.length<3||!gKey()||!navigator.onLine){if(inp.dataset.combo==="hotel"&&q.length>=3&&gKey()&&!navigator.onLine)CB.err=gErrText({code:"net"});cbRender([],false);return;}
+  cbRender(CB.lastG&&CB.lastQ&&norm(q).startsWith(norm(CB.lastQ))?CB.lastG:[],true);
+  const seq=++CB.seq;
+  CB.timer=setTimeout(async()=>{
+    if(!CB.token)CB.token=newToken();
+    try{const r=await gAutocomplete(q,gKey(),CB.token);if(seq!==CB.seq||CB.inp!==inp)return;CB.lastG=r;CB.lastQ=q;cbRender(r,false);}
+    catch(e){if(seq!==CB.seq)return;CB.err=gErrText(e);ACC.tlog("avviso","Ricerca hotel su Google: "+CB.err);CB.lastG=[];cbRender([],false);}
   },300);
 }
-async function hsPick(i){
-  const x=HS.items[i],inp=HS.inp;if(!x||!inp)return;
-  const row=inp.closest(".rep-row"),tel=row.querySelector('[data-rf="tel"]');
-  hsClose();
-  if(x.src==="loc"){inp.value=x.name;if(x.tel)tel.value=x.tel;if(x.pid)row.dataset.pid=x.pid;else delete row.dataset.pid;return;}
-  inp.value=x.main+(x.sec?" – "+x.sec.replace(/,\s*Italia$/,""):"");row.dataset.pid=x.pid;
-  const token=HS.token;HS.token=null; // la sessione di ricerca finisce con la scelta
-  tel.placeholder="Cerco il telefono…";
-  try{const d=await gDetails(x.pid,gKey(),token);if(inp.isConnected){inp.value=d.name||inp.value;if(d.tel)tel.value=d.tel;}}
-  catch(e){toast(gErrText(e));}
-  finally{tel.placeholder="Telefono";}
+// scegliendo una voce si sostituiscono anche i campi che la voce non ha (niente telefono rimasto della scelta precedente)
+function cbFill(row,fill){for(const k in fill){const el=row.querySelector('[data-f="'+k+'"]');if(el&&fill[k]!=null)el.value=fill[k];}}
+async function cbPick(i){
+  const x=CB.items[i],inp=CB.inp;if(!x||!inp)return;
+  const row=inp.closest(".prow");
+  cbClose();
+  if(x.src==="reg"){cbFill(row,x.fill);if(x.pid)row.dataset.pid=x.pid;else delete row.dataset.pid;if(x.region)row.dataset.region=x.region;else delete row.dataset.region;checkWarns();return;}
+  // Google: nome subito, il resto appena arrivano i dettagli
+  inp.value=x.main;row.dataset.pid=x.pid;delete row.dataset.region;
+  ["city","addr","tel"].forEach(f=>{const el=row.querySelector('[data-f="'+f+'"]');if(el)el.value="";});
+  const tel=row.querySelector('[data-f="tel"]');const token=CB.token;CB.token=null; // la sessione di ricerca finisce con la scelta
+  if(tel)tel.placeholder="Cerco il telefono…";
+  try{const d=await gDetails(x.pid,gKey(),token);if(inp.isConnected){cbFill(row,{name:d.name||x.main,city:d.city||"",addr:d.addr||"",tel:d.tel||""});if(d.region)row.dataset.region=d.region;}}
+  catch(e){toast(gErrText(e));ACC.tlog("avviso","Dettagli hotel da Google: "+gErrText(e));}
+  finally{if(tel)tel.placeholder="";}
 }
-$("sheetBox").addEventListener("input",e=>{
-  const t=e.target;if(t.dataset.rk!=="hotels"||t.dataset.rf!=="name")return;
-  const row=t.closest(".rep-row");if(row)delete row.dataset.pid; // testo cambiato a mano: non è più l'hotel di Google
-  if(HS.inp!==t){hsClose();HS.inp=t;}
-  hsSearch();
+$("fBooking").addEventListener("input",e=>{
+  const t=e.target;if(!t.dataset||!t.dataset.combo)return;
+  const row=t.closest(".prow");if(row&&t.dataset.combo==="hotel")delete row.dataset.pid; // nome cambiato a mano: non è più l'hotel di Google
+  if(CB.inp!==t){cbClose();CB.inp=t;}
+  cbSearch();
 });
-$("sheetBox").addEventListener("focusout",e=>{if(e.target===HS.inp)setTimeout(()=>{if(document.activeElement!==HS.inp)hsClose();},150);});
-$("sheetBox").addEventListener("keydown",e=>{
-  if(e.target!==HS.inp||!HS.box)return;const n=HS.items.length;
-  if(e.key==="ArrowDown"&&n){e.preventDefault();HS.idx=(HS.idx+1)%n;hsRender(HS.lastG,false);}
-  else if(e.key==="ArrowUp"&&n){e.preventDefault();HS.idx=HS.idx<=0?n-1:HS.idx-1;hsRender(HS.lastG,false);}
-  else if(e.key==="Enter"&&HS.idx>=0){e.preventDefault();hsPick(HS.idx);}
-  else if(e.key==="Escape"){e.preventDefault();e.stopPropagation();hsClose();}
+$("fBooking").addEventListener("focusin",e=>{const t=e.target;if(!t.dataset||t.dataset.combo!=="ref"||t.value.trim())return;if(CB.inp!==t){cbClose();CB.inp=t;}cbRender([],false);});
+$("fBooking").addEventListener("focusout",e=>{if(e.target===CB.inp)setTimeout(()=>{if(document.activeElement!==CB.inp)cbClose();},150);});
+$("fBooking").addEventListener("keydown",e=>{
+  if(e.target!==CB.inp||!CB.box)return;const n=CB.items.length;
+  if(e.key==="ArrowDown"&&n){e.preventDefault();CB.idx=(CB.idx+1)%n;cbRender(CB.lastG,false);}
+  else if(e.key==="ArrowUp"&&n){e.preventDefault();CB.idx=CB.idx<=0?n-1:CB.idx-1;cbRender(CB.lastG,false);}
+  else if(e.key==="Enter"&&CB.idx>=0){e.preventDefault();cbPick(CB.idx);}
+  else if(e.key==="Escape"){e.preventDefault();e.stopPropagation();cbClose();}
 });
-$("sheetBox").addEventListener("click",e=>{
-  const a=e.target.closest("[data-addrep]");
-  if(a){const k=a.dataset.addrep,box=$("rep-"+k);box.insertAdjacentHTML("beforeend",repRow(k,box.children.length,{}));box.lastElementChild.querySelector("input").focus();return;}
-  const d=e.target.closest("[data-rdel]");if(d)d.closest(".rep-row").remove();
-});
+// città e regioni già usate: suggerimenti nelle caselle Città / Regione
+function fillPlaceLists(){
+  const c=new Set(),r=new Set();
+  for(const k of ["referenti","guide","hotel"])for(const x of regRows(k)){if(x.citta)c.add(x.citta);if(x.regione)r.add(x.regione);}
+  ["Sicilia","Calabria","Campania","Puglia","Lazio","Lombardia","Toscana","Veneto","Piemonte","Emilia-Romagna","Sardegna","Basilicata","Abruzzo","Molise","Marche","Umbria","Liguria","Friuli-Venezia Giulia","Trentino-Alto Adige","Valle d'Aosta"].forEach(x=>r.add(x));
+  $("dlCities").innerHTML=[...c].sort((a,b)=>a.localeCompare(b,"it")).map(x=>'<option value="'+esc(x)+'">').join("");
+  $("dlRegions").innerHTML=[...r].sort((a,b)=>a.localeCompare(b,"it")).map(x=>'<option value="'+esc(x)+'">').join("");
+}
 // programma: una casella per il servizio in giornata, una per ogni giorno nei tour
 let progCache=[],progReady=false;
 function progDays(){
@@ -623,7 +749,7 @@ function renderProgram(){
 }
 // la data di rientro segue la partenza finché non la cambi tu
 let formStart="";
-$("f-start").addEventListener("change",()=>{const st=$("f-start").value,en=$("f-end").value;if(st&&(!en||en<st||en===formStart))$("f-end").value=st;$("f-end").min=st||"";formStart=st;checkWarns();if(isMulti(curType()))renderProgram();});
+$("f-start").addEventListener("change",()=>{const st=$("f-start").value,en=$("f-end").value;if(st&&(!en||en<st||en===formStart||(endAuto&&en===addDays(formStart,1))))$("f-end").value=st;syncEndNextDay();$("f-end").min=st||"";formStart=st;checkWarns();if(isMulti(curType()))renderProgram();});
 $("f-end").addEventListener("change",()=>{if(isMulti(curType()))renderProgram();});
 let openSheetAfterSave=false;
 $("fSheet").onclick=()=>{if(S.readOnly)return;openSheetAfterSave=true;$("fBooking").requestSubmit();};
@@ -649,8 +775,7 @@ function renderSug(){
   box.hidden=false;$("f-client").setAttribute("aria-expanded","true");
 }
 function pickClient(c){
-  formClient={code:c[0],name:c[1]};$("f-client").value=c[1];
-  if(!$("f-contact").value.trim()&&c[4])$("f-contact").value=c[4];
+  formClient={code:c[0],name:c[1]};$("f-client").value=c[1]; // (dalla 2.0 il telefono del cliente non va più nel telefono del referente)
   $("cSug").hidden=true;sugIdx=-1;renderClientInfo();
 }
 function renderClientInfo(){
@@ -763,7 +888,7 @@ function renderClients(){
   if(list.length>cliShown)h+='<button type="button" class="cli-more" data-cli-more="1">Mostra altri ('+(list.length-cliShown).toLocaleString("it-IT")+')</button>';
   $("cliList").innerHTML=h;
 }
-$("btnClients").onclick=()=>openClients();
+// (il pulsante Clienti è nell'Archivio)
 $("cliClose").onclick=()=>{$("ovClients").hidden=true;};
 backdropClose($("ovClients"),()=>{$("ovClients").hidden=true;});backdropClose($("ovClientNew"),()=>closeClientNew());
 $("cliQ").addEventListener("input",()=>{cliShown=150;cliOpenCode=null;renderClients();});
@@ -918,7 +1043,7 @@ function onClientAdded(tmp,info){
   if(!$("ovClients").hidden){cliOpenCode=String(info.code);renderClients();}
 }
 
-$("fBooking").addEventListener("input",e=>{if(e.target.name==="type")syncType();checkWarns();});
+$("fBooking").addEventListener("input",e=>{if(e.target.name==="type")syncType();checkWarns();if(!$("fEditAsk").hidden){$("fEditAsk").hidden=true;openSheetAfterSave=false;}}); // cambi ancora qualcosa: l'elenco delle modifiche si rifà al prossimo «Salva»
 $("fBooking").addEventListener("change",checkWarns);
 $("fBooking").addEventListener("submit",async e=>{
   e.preventDefault();
@@ -927,10 +1052,24 @@ $("fBooking").addEventListener("submit",async e=>{
   if(!b.start){toast("Inserisci la data.");return;}
   if(!validDate(b.start)||!validDate(b.end)){checkWarns();toast("Controlla la data: l'anno deve essere tra 2000 e 2099.");return;}
   if(b.end<b.start||diff(b.start,b.end)>30){toast("Controlla la data di rientro.");return;}
+  // modifica di una prenotazione già salvata: prima si chiede conferma, con l'elenco delle modifiche
+  if(editing&&!editConfirmed){
+    const ch=formChanges().filter(k=>FIELD_LBL[k]);
+    if(!ch.length){
+      const want=openSheetAfterSave,cur=bookingsAll().find(x=>x.id===editing.id);openSheetAfterSave=false;
+      closeForm();if(want&&cur)openSheetConfirmed(cur);else toast("Nessuna modifica da salvare.");
+      return;
+    }
+    $("fEditList").innerHTML=ch.map(k=>'<li><b>'+esc(FIELD_LBL[k])+'</b>: '+esc(logVal(k,formOrig[k]))+' → '+esc(logVal(k,b[k]))+'</li>').join("");
+    $("fEditAsk").hidden=false;$("fCloseAsk").hidden=true;$("fConfirm").hidden=true;setTimeout(()=>$("fEditYes").focus(),30);
+    return;
+  }
+  editConfirmed=false;$("fEditAsk").hidden=true;
+  withOldNotes(b);
   const id=editing?editing.id:("b"+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
   const old=editing&&editing.start,moved=!!(old&&old!==b.start);
   // per le modifiche: versione di partenza e campi cambiati, così non si cancellano le modifiche fatte da altri nel frattempo
-  const meta=editing?{edit:true,base:editing.base,patch:formChanges()}:{};
+  const meta=editing?{edit:true,base:editing.base,patch:withOldNoteKeys(formChanges())}:{};
   const who=meName();
   if(editing){b.by=editing.by;b.byAt=editing.byAt;b.updBy=who;if(meta.patch.length)meta.patch.push("updBy");}
   else{b.by=who;b.byAt=b.updatedAt;}
@@ -945,6 +1084,7 @@ $("fBooking").addEventListener("submit",async e=>{
     writeDayOps(b.start,Object.assign({bookings:{[id]:b}},seqPatch),Object.assign({},meta,moved?{move:true}:{}));
     if(!editing)ACC.log("prenotazione","Nuova prenotazione "+bookingLabel(b),{id});
     else if(logCh.length)ACC.log("prenotazione","Modificata la prenotazione "+bookingLabel(b),{id,ch:logCh});
+    regAutoAdd(b);
     const wantSheet=openSheetAfterSave;
     closeForm();try{document.activeElement&&document.activeElement.blur&&document.activeElement.blur();}catch(_){}
     S.sel=b.start;if(mkey(b.start)!==subMonth)subscribe();renderAll();toast("Prenotazione salvata");
@@ -952,6 +1092,8 @@ $("fBooking").addEventListener("submit",async e=>{
   }catch(err){handleErr(err);}finally{saving=false;$("fSave").disabled=false;$("fSheet").disabled=false;openSheetAfterSave=false;}
 });
 $("fCancel").onclick=tryCloseForm;
+$("fEditYes").onclick=()=>{editConfirmed=true;$("fEditAsk").hidden=true;$("fBooking").requestSubmit();};
+$("fEditNo").onclick=()=>{$("fEditAsk").hidden=true;editConfirmed=false;openSheetAfterSave=false;};
 $("fCloseYes").onclick=closeForm;
 $("fCloseNo").onclick=()=>{$("fCloseAsk").hidden=true;};
 $("fDelete").onclick=()=>{$("fConfirm").hidden=false;$("fDelete").hidden=true;};
@@ -973,7 +1115,7 @@ function openFleet(){
   $("ovFleet").hidden=false;
 }
 let fleetOpen=null;
-$("btnFleet").onclick=openFleet;
+// (la Flotta è nell'Archivio)
 $("fleetList").addEventListener("change",e=>{const m=/^fl-x-(\d+)$/.exec(e.target.id);if(m)$("fl-p-"+m[1]).setAttribute("list","pl"+e.target.value);});
 $("flCancel").onclick=()=>$("ovFleet").hidden=true;
 // Ogni riga è legata al suo mezzo (data-id), non alla posizione nell'elenco. Si salvano solo i campi
@@ -1034,6 +1176,7 @@ $("btnToday").onclick=()=>go(todayISO());
 $("btnNew").onclick=()=>{if(S.readOnly){toast("Accesso in sola lettura");return;}openForm({date:S.sel});};
 $("mPrev").onclick=()=>go(shiftMonth(mkey(S.sel),-1)+"-01");
 $("mNext").onclick=()=>go(shiftMonth(mkey(S.sel),1)+"-01");
+$("msign").addEventListener("click",e=>{if(e.target.id==="msPrev")$("mPrev").click();if(e.target.id==="msNext")$("mNext").click();});
 $("strip").addEventListener("click",e=>{
   if(e.target.closest("#cntToggle")){cntOpen=!cntOpen;try{localStorage.setItem("agenda-conteggi",cntOpen?"1":"0");}catch(_){}renderStrip();const tg=$("cntToggle");if(tg)tg.focus();return;}
   const b=e.target.closest("[data-day]");if(b)go(b.dataset.day);});
@@ -1047,6 +1190,8 @@ $("mgrid").addEventListener("click",e=>{const c=e.target.closest("[data-day]");i
 document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;
   if(!$("ovClientNew").hidden){closeClientNew();return;}
   if(!$("ovClients").hidden){$("ovClients").hidden=true;return;}
+  if(!$("ovReg").hidden){if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest("#regTable"))document.activeElement.blur();$("ovReg").hidden=true;regKind=null;return;}
+  if(!$("ovArch").hidden){$("ovArch").hidden=true;return;}
   if(!$("ovBooking").hidden){if(!$("fCloseAsk").hidden){$("fCloseAsk").hidden=true;return;}tryCloseForm();return;}
   if(!$("ovFleet").hidden)$("ovFleet").hidden=true;$("ovSheet").hidden=true;});
 // clic sullo sfondo scuro: chiude solo se il clic è cominciato e finito sullo sfondo
@@ -1339,7 +1484,15 @@ function tplKind(b,one){
   const rows=n?TPL_ROWS.slice(0,12).concat(Array.from({length:n},(_,i)=>hotelRow(n>1?(i+1)+"° Hotel":"Hotel")),TPL_ROWS.slice(12)):TPL_ROWS;
   return {hotel:n>0,n,rows,file:n?TPL_FILE_H:TPL_FILE,last:TPL_DRIVER_LAST+n,sh:n};
 }
-const hotelTxt=x=>[x.name,x.tel].filter(Boolean).join(" – ");
+// testo dell'hotel nella sua riga (nome – indirizzo, città) e con il telefono (pagina 2)
+const hotelCell=x=>[x.name,[x.addr,x.city].filter(Boolean).join(", ")].filter(Boolean).join(" – ");
+const hotelTxt=x=>[hotelCell(x),x.tel].filter(Boolean).join(" – ");
+// referente: nome (ruolo) · note; guida: nome – città · note
+const refCell=x=>x?[x.name,x.role?"("+x.role+")":""].filter(Boolean).join(" ")+(x.note?" · "+x.note:""):"";
+const guideCell=x=>x?[x.name,x.city].filter(Boolean).join(" – ")+(x.note?" · "+x.note:""):"";
+function ref1Of(b){return {name:b.contactName||"",role:b.contactRole||"",note:b.contactNote||"",tel:b.contact||""};}
+// opzioni della finestra del foglio di servizio
+const SHO={noPlate:false};
 function shClient(b){return b.clientCode!==""&&b.clientCode!=null?clientByCode(b.clientCode):null;}
 function xlSerial(d){return Math.round((Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10))-Date.UTC(1899,11,30))/864e5);}
 const numOrE=x=>x===""||x==null||!isFinite(Number(x))?"":Number(x);
@@ -1369,8 +1522,9 @@ function tplProgramAll(b,all,extraHotels){
     if(!l.length){const t=((b.time?"Ore "+b.time+" ":"")+(b.route||"")).trim();if(t)l=[t];}
     l.forEach((t,i)=>lines.push((i+1)+") "+t));
   }
-  (b.refs||[]).slice(tplRef2(b,shClient(b))?0:1).forEach(x=>{if(x.name||x.tel)lines.push("Referente: "+[x.name,x.tel].filter(Boolean).join(" – "));});
-  (b.guides||[]).slice(2).forEach(x=>{if(x.name||x.tel)lines.push("Guida: "+[x.name,x.tel].filter(Boolean).join(" – "));});
+  // referente 1 e 2 e guide 1 e 2 hanno le loro righe nel modello: gli altri vanno qui
+  (b.refs||[]).slice(1).forEach(x=>{if(x.name||x.tel)lines.push("Referente: "+[refCell(x),x.tel].filter(Boolean).join(" – "));});
+  (b.guides||[]).slice(2).forEach(x=>{if(x.name||x.tel)lines.push("Guida: "+[guideCell(x),x.tel].filter(Boolean).join(" – "));});
   return lines;
 }
 // righe per le 7 caselle del modello (righe 14–20). Se non bastano: nel PDF la settima rimanda alla
@@ -1387,22 +1541,22 @@ function tplValues(b,forPdf,one){
   const v=vehicle(b.vehicle)||{},cl=shClient(b),plate=(v.plate||"").trim(),type=normType(b.type);
   const nr=v.num!=null&&String(v.num).trim()!==""?v.num:(S.regole.numeri||{})[plate],numero=nr==null?"":(/^\d+$/.test(String(nr).trim())?Number(nr):String(nr).trim());
   const nd=diff(b.start,endOf(b))+1,P=numOrE(b.price),Q=numOrE(b.park),R=numOrE(b.meals);
-  const name=cl?cl[1]:(b.client||""),tel=cl&&cl[4]?String(cl[4]):"",refName=cl&&cl[6]?cl[6]:"",refTel=cl&&cl[7]?String(cl[7]):"";
-  const contact=b.contact&&!(cl&&String(cl[4])===b.contact)?b.contact:"";
-  // Referente 2°: il referente della prenotazione (nome + telefono), altrimenti il primo degli "Altri referenti"
-  const r2=tplRef2(b,cl)||(b.refs||[])[0]||{},g=b.guides||[];
+  const name=cl?cl[1]:(b.client||""),tel=cl&&cl[4]?String(cl[4]):"";
+  // referenti della prenotazione (dall'anagrafica referenti): il 1° nella riga "Referente 1°", il 2° nella riga sotto
+  const r1=ref1Of(b),refName=refCell(r1),refTel=r1.tel&&r1.tel!==tel?r1.tel:"",r2=(b.refs||[])[0]||{},g=b.guides||[]; // (prenotazioni vecchie: il telefono del cliente non si ripete)
+  const nc=noteCells(b),busName=v.name||xcatOf(v),plateShown=SHO.noPlate?"":plate;
   const pax=String(b.pax==null?"":b.pax).trim(),kind=v.kind==="van"?"Van":v.kind==="auto"?"Auto":"Bus";
   const drv=realDriver(b.driver),fg=b.provisional?String(b.foglio||"")+" PROVV.":/^\d+$/.test(String(b.foglio||""))?Number(b.foglio):(b.foglio||"");
   const any=P!==""||Q!==""||R!=="";
   const o={
     H4:{v:fg,k:b.provisional?"s":"i"},
-    B6:{v:/^\d+$/.test(pax)?Number(pax):pax,k:/^\d+$/.test(pax)?"i":"s"},C6:{v:kind},D6:{v:xcatOf(v),f:1},F6:{v:numero,k:typeof numero==="number"?"i":"s",f:1},H6:{v:plate,f:1},
+    B6:{v:/^\d+$/.test(pax)?Number(pax):pax,k:/^\d+$/.test(pax)?"i":"s"},C6:{v:kind},D6:{v:busName,f:1},F6:{v:SHO.noPlate?"":numero,k:!SHO.noPlate&&typeof numero==="number"?"i":"s",f:1},H6:{v:plateShown,f:1},
     B7:{v:b.start,k:"d",f:1},D7:{v:endOf(b),k:"d",f:1},F7:{v:nd,k:"i",f:1},H7:{v:drv,f:1},
     B8:{v:name,f:1},H8:{v:tel,f:1},B9:{v:refName,f:1},H9:{v:refTel,f:1},
-    B10:{v:r2.name||""},H10:{v:r2.tel||""},B11:{v:(g[0]||{}).name||""},H11:{v:(g[0]||{}).tel||""},B12:{v:(g[1]||{}).name||""},H12:{v:(g[1]||{}).tel||""},
+    B10:{v:refCell(r2)},H10:{v:r2.tel||""},B11:{v:guideCell(g[0])},H11:{v:(g[0]||{}).tel||""},B12:{v:guideCell(g[1])},H12:{v:(g[1]||{}).tel||""},
     C22:{v:b.saldo==="SI"?"SI":"NO"},D22:{v:numOrE(b.saldoAmt),k:"a"},H22:{v:isMulti(type)?numOrE(b.advance):"",k:"e",f:1},
-    B23:{v:b.npark||""},B24:{v:b.ndriver||""},B25:{v:b.n3h||""},B26:{v:b.nextra||""},
-    B34:{v:TYPE_XL[type]||""},D34:{v:xcatOf(v),f:1},F34:{v:plate,f:1},H34:{v:drv,f:1},
+    B23:{v:nc.npark},B24:{v:nc.ndriver},B25:{v:nc.n3h},B26:{v:nc.nextra},
+    B34:{v:TYPE_XL[type]||""},D34:{v:busName,f:1},F34:{v:plateShown,f:1},H34:{v:drv,f:1},
     B35:{v:b.start,k:"d",f:1},D35:{v:endOf(b),k:"d",f:1},F35:{v:nd,k:"i",f:1},H35:{v:drv,f:1},
     B36:{v:name,f:1},H36:{v:tel,f:1},B37:{v:refName,f:1},H37:{v:refTel,f:1},B38:{v:billItin(b),f:1},
     H39:{v:P,k:"e",f:1},B40:{v:cl&&cl[5]?String(cl[5]):"",f:1},F40:{v:cl?cliField(cl,"sdi"):""},D40:{v:cl?cl[0]:"",k:cl&&typeof cl[0]==="number"?"i":"s",f:1},H40:{v:Q,k:"e",f:1},
@@ -1417,7 +1571,7 @@ function tplValues(b,forPdf,one){
   // dalla riga 13 in giù tutto scende di tante righe quanti sono gli hotel
   const o2={};
   for(const ref in o){const m=/^([A-H])(\d+)$/.exec(ref);o2[m[1]+(+m[2]>=13?+m[2]+K.n:+m[2])]=o[ref];}
-  for(let i=0;i<K.n;i++){o2["B"+(13+i)]={v:(one&&hs.length>1?"1° ":"")+(hs[i].name||"")};o2["H"+(13+i)]={v:hs[i].tel||""};}
+  for(let i=0;i<K.n;i++){o2["B"+(13+i)]={v:(one&&hs.length>1?"1° ":"")+hotelCell(hs[i])};o2["H"+(13+i)]={v:hs[i].tel||""};}
   return o2;
 }
 function tplText(x){
@@ -1459,10 +1613,10 @@ function tplLayout(b,full,measure){
       let tw=measure(t,size,bold),x0=X[i],w=cellW;
       if(al==="l"||(al==="c"&&tw>cellW-6)){al="l";w=regionW;}
       let sz=size,txt=t;
-      if(tw>w-6){sz=Math.max(size*0.72,size*(w-6)/tw);tw=measure(txt,sz,bold);
+      if(tw>w-6){sz=Math.max(size*(val?0.72:0.6),size*(w-6)/tw*0.995);tw=measure(txt,sz,bold); // le etichette del modello si rimpiccioliscono un po' di più: restano intere
         // riga del programma troppo lunga: si accorcia e si rimanda alla pagina 2, dove c'è per intero
         const prog=r>=14+K.sh&&r<=20+K.sh&&i===0,suf=prog?"… (segue a pag. 2)":"…";
-        if(tw>w-6){if(prog)cut=true;let base=txt;while(tw>w-6&&base.length>1){base=base.slice(0,-2);txt=base.replace(/\s+$/,"")+suf;tw=measure(txt,sz,bold);}}}
+        if(tw>w-5.5){if(prog)cut=true;let base=txt;while(tw>w-6&&base.length>1){base=base.slice(0,-2);txt=base.replace(/\s+$/,"")+suf;tw=measure(txt,sz,bold);}}}
       const tx=al==="c"?x0+(w-tw)/2:al==="r"?x0+w-3-tw:x0+3;
       texts.push({x:tx,y:y+h-Math.max(3,(h-sz)/2-1)-sz*0.2,t:txt,size:sz,bold});
     }
@@ -1479,14 +1633,24 @@ function needPage2(b,L){return tplProgramAll(b).length>7||!!(L&&L.cut);} // (gli
 function page2Head(b){
   const v=vehicle(b.vehicle)||{},cl=shClient(b);
   return {title:"Foglio di servizio n. "+(b.foglio||"")+(b.provisional?" (provvisorio)":"")+" – programma completo",
-    sub:[cl?cl[1]:(b.client||""),itDate(b.start)+(endOf(b)!==b.start?" – "+itDate(endOf(b)):""),[v.name,(v.plate||"").trim()].filter(Boolean).join(" "),realDriver(b.driver)?"Autista "+realDriver(b.driver):""].filter(Boolean).join(" · ")};
+    sub:[cl?cl[1]:(b.client||""),itDate(b.start)+(endOf(b)!==b.start?" – "+itDate(endOf(b)):""),[v.name,SHO.noPlate?"":(v.plate||"").trim()].filter(Boolean).join(" "),realDriver(b.driver)?"Autista "+realDriver(b.driver):""].filter(Boolean).join(" · ")};
 }
 function tplPage2HTML(b){
   if(!needPage2(b,tplLayout(b,false,measureCanvas)))return "";
   const h=page2Head(b);
   return '<div class="fs-page2"><p class="p2-note">Pagina 2 del PDF</p><h4>'+esc(h.title)+'</h4><p class="p2-sub">'+esc(h.sub)+'</p>'+tplProgramAll(b,true).map(l=>'<p>'+esc(l)+'</p>').join("")+'</div>';
 }
-const TPL_FONT="Calibri, Carlito, 'Helvetica Neue', Arial, sans-serif";
+const TPL_FONT="AgendaSans, Calibri, Carlito, 'Helvetica Neue', Arial, sans-serif";
+let sheetFontP=null;
+function ensureSheetFont(){
+  if(sheetFontP)return sheetFontP;
+  sheetFontP=loadPdfFonts().then(async F=>{
+    if(!window.FontFace||!document.fonts)return false;
+    const ff=[new FontFace("AgendaSans",b64bytes(F.regular.b64).buffer,{weight:"400"}),new FontFace("AgendaSans",b64bytes(F.bold.b64).buffer,{weight:"700"})];
+    await Promise.all(ff.map(f=>f.load()));ff.forEach(f=>document.fonts.add(f));_mctx=null;return true;
+  }).catch(e=>{ACC.tlog("avviso","Font del foglio di servizio non caricato: uso un font di sistema",String(e&&e.message||e));return false;});
+  return sheetFontP;
+}
 let _mctx=null;
 function measureCanvas(t,size,bold){if(!_mctx)_mctx=document.createElement("canvas").getContext("2d");_mctx.font=(bold?"bold ":"")+size+"px "+TPL_FONT;return _mctx.measureText(t).width;}
 function tplSVG(b,full){
@@ -1667,7 +1831,9 @@ const sheetsOut={}; // prenotazione → n. foglio con cui il foglio di servizio 
 // (un altro operatore potrebbe aver appena usato lo stesso numero) e il foglio lo dice chiaramente.
 function openSheet(b){
   sheetBooking=Object.assign({},b,{provisional:STORE.isPending(b.id)});
+  $("sheetNoPlate").checked=false;SHO.noPlate=false;
   renderSheet();$("sheetMsg").textContent="";
+  ensureSheetFont().then(ok=>{if(ok&&!$("ovSheet").hidden)renderSheet();});
   $("ovSheet").hidden=false;
 }
 function renderSheet(){
@@ -1695,6 +1861,7 @@ function refreshSheetBooking(){
   if(nb.foglio!==sheetBooking.foglio||nb.provisional!==sheetBooking.provisional||nb.updatedAt!==sheetBooking.updatedAt){sheetBooking=nb;renderSheet();}
 }
 $("sheetFull").addEventListener("change",renderSheet);
+$("sheetNoPlate").addEventListener("change",()=>{SHO.noPlate=$("sheetNoPlate").checked;renderSheet();});
 $("sheetClose").onclick=()=>{$("ovSheet").hidden=true;};
 // torna alla prenotazione per cambiare qualcosa (dati aggiornati, anche se modificata da altri)
 $("sheetBack").onclick=()=>{
@@ -1717,7 +1884,7 @@ async function sheetSave(kind){
   }catch(err){
     const c=err&&err.code;
     $("sheetMsg").textContent=c==="tpl"?"Non trovo il modello del foglio di servizio (cartella modelli): controlla di averla caricata su GitHub.":c==="declined"?"Salvataggio annullato.":c==="unavailable"||c==="not_granted"?"Il download non è disponibile in questa vista.":"Non sono riuscito a creare il file. Controlla la connessione e riprova.";
-    console.error(err);
+    console.error(err);ACC.tlog("errore","Foglio di servizio: PDF non creato o non salvato",String((err&&(err.code||err.message))||err));
   }finally{btns.forEach(x=>x.disabled=false);}
 }
 $("sheetPdf").onclick=()=>{sheetSave("pdf");if(sheetBooking)ACC.log("foglio","PDF del foglio di servizio n. "+(sheetBooking.foglio||"")+" «"+(sheetBooking.client||"")+"»"+(tplKind(sheetBooking).hotel?" (versione Hotel)":""),{id:sheetBooking.id});};
@@ -1737,20 +1904,23 @@ async function printSheet(){
     const h=page2Head(b);
     p2='<section class="p2"><h1>'+esc(h.title)+'</h1><p class="sub">'+esc(h.sub)+'</p>'+tplProgramAll(b,true).map(l=>'<p>'+esc(l)+'</p>').join("")+'</section>';
   }
+  let fontCss="";
+  try{const F=await loadPdfFonts();fontCss='@font-face{font-family:AgendaSans;font-weight:400;src:url(data:font/ttf;base64,'+F.regular.b64+') format("truetype")}@font-face{font-family:AgendaSans;font-weight:700;src:url(data:font/ttf;base64,'+F.bold.b64+') format("truetype")}';}catch(_){}
   const html='<!doctype html><html lang="it"><head><meta charset="utf-8"><title>'+esc("Foglio di servizio "+(b.foglio||"")+(b.provisional?" (provvisorio)":""))+'</title>'+
-    '<style>@page{size:A4 portrait;margin:10mm}html,body{margin:0;background:#fff;color:#111;font-family:Calibri,Carlito,Arial,sans-serif}svg{display:block;width:100%;height:auto;max-height:275mm}'+
+    '<style>'+fontCss+'@page{size:A4 portrait;margin:10mm}html,body{margin:0;background:#fff;color:#111;font-family:AgendaSans,Calibri,Carlito,Arial,sans-serif}svg{display:block;width:100%;height:auto;max-height:275mm}'+
     '.p2{break-before:page;page-break-before:always;font-size:12pt}.p2 h1{font-size:15pt;margin:0 0 4pt}.p2 .sub{color:#444;margin:0 0 10pt}.p2 p{margin:0 0 4pt}</style></head><body>'+tplSVG(b,full)+p2+'</body></html>';
   let fr=$("printFrame");
   if(fr)fr.remove();
   fr=document.createElement("iframe");fr.id="printFrame";fr.setAttribute("aria-hidden","true");fr.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
   document.body.appendChild(fr);
   await new Promise(r=>{fr.onload=r;fr.srcdoc=html;});
+  try{await Promise.race([fr.contentDocument.fonts.ready,new Promise(r=>setTimeout(r,1500))]);}catch(_){}
   try{fr.contentWindow.focus();fr.contentWindow.print();}catch(_){toast("Non riesco ad aprire la stampa.");}
 }
 $("sheetPrint").onclick=printSheet;
 
 // ---------- versione ----------
-const APP_VERSION="1.9",APP_DATE="30/09/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="2.0",APP_DATE="01/10/2026";window.AGENDA_VERSION=APP_VERSION;
 $("gVer").textContent="Versione "+APP_VERSION+" · "+APP_DATE;$("appVer").textContent="v"+APP_VERSION;
 
 // ---------- dati: Dropbox ----------
@@ -1766,10 +1936,15 @@ function refreshFromStore(){
   if(!$("app").hidden)renderAll();
   refreshSheetBooking();
   if(!$("app").hidden)setTimeout(migrateFleet2026,300);
+  if(!$("ovReg").hidden&&!$("regTable").contains(document.activeElement))renderReg();
 }
 function fmtTime(t){if(!t)return "";const d=new Date(t);const today=new Date().toDateString()===d.toDateString();return (today?"oggi":d.toLocaleDateString("it-IT",{day:"numeric",month:"short"}))+" alle "+d.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"});}
+let tlLastErr="",tlLastFat="";
 function renderNet(st){
   st=st||STORE.status();
+  if(st.error&&st.error!==tlLastErr&&navigator.onLine)ACC.tlog(st.error==="busy"||st.error==="network"?"avviso":"errore","Dropbox: "+({no_auth:"accesso scaduto o revocato",scope:"permessi mancanti",busy:"occupato, riprovo",network:"non raggiungibile",day:"una giornata non si riesce a salvare"}[st.error]||st.error),st.errorDetail||"");
+  tlLastErr=st.error||"";
+  const fe=st.fat&&st.fat.error||"";if(fe&&fe!==tlLastFat)ACC.tlog("errore","File fatturato: aggiornamento non riuscito ("+fe+")",JSON.stringify((st.fat||{}).files||{}).slice(0,600));tlLastFat=fe;
   const el=$("netStatus");let cls,txt;
   const pend=(st.pending||0),fp=(st.fatPending||0);
   if(!navigator.onLine){cls="off";txt=pend?"Offline · "+pend+(pend===1?" modifica da inviare":" modifiche da inviare"):"Offline";}
@@ -1809,7 +1984,7 @@ STORE.configure({
   rowFor:b=>Object.assign(billRow(Object.assign({},b,{start:b.start})),{tour:isMulti(b.type)}),
   onClientAdded:(tmp,info)=>onClientAdded(tmp,info),
   onClientEdited:(q,x)=>onClientEdited(q,x),
-  onClientError:(c,q)=>{notify((c==="codeexists"?"Codice Multi già usato nel file ("+cliErrText(q)+")":c==="noclienti"?"Nel file fatturato non trovo il foglio «clienti»":c==="noname"?"Manca la ragione sociale":"Errore nel file fatturato")+": il cliente «"+((q&&q.name)||"")+"» non è stato scritto. "+(c==="codeexists"?"Correggilo":"Puoi riprovare o annullarlo")+" da Clienti.",true);if(!$("ovClients").hidden)renderClients();},
+  onClientError:(c,q)=>{ACC.tlog("errore","Cliente non scritto nel fatturato: "+c+" «"+((q&&q.name)||"")+"»");notify((c==="codeexists"?"Codice Multi già usato nel file ("+cliErrText(q)+")":c==="noclienti"?"Nel file fatturato non trovo il foglio «clienti»":c==="noname"?"Manca la ragione sociale":"Errore nel file fatturato")+": il cliente «"+((q&&q.name)||"")+"» non è stato scritto. "+(c==="codeexists"?"Correggilo":"Puoi riprovare o annullarlo")+" da Clienti.",true);if(!$("ovClients").hidden)renderClients();},
   onNotice:onNotice
 });
 // avvisi importanti: restano in alto finché non li chiudi
@@ -1820,6 +1995,7 @@ function notify(msg,sticky){
 }
 function itD(d){return d?(+d.slice(8,10))+"/"+d.slice(5,7)+"/"+d.slice(0,4):"";}
 function onNotice(n){
+  ACC.tlog(n.kind==="badfile"||n.kind==="badcfg"?"errore":"avviso","Avviso sincronizzazione: "+n.kind+(n.date?" "+n.date:"")+(n.client?" «"+n.client+"»":""),n.from?n.from+" → "+n.to:(n.path||""));
   const who=n.client?"«"+n.client+"»":"una prenotazione";
   if(n.kind==="gone")notify("La prenotazione "+who+" del "+itD(n.date)+" era stata eliminata o spostata da un altro dispositivo: la tua modifica non è stata salvata. Controlla e, se serve, ripetila.",true);
   else if(n.kind==="delGone")notify("La prenotazione "+who+" non è stata eliminata: nel frattempo un altro dispositivo l'aveva spostata su un altro giorno. Controlla e, se serve, eliminala di nuovo.",true);
@@ -1853,7 +2029,7 @@ let gateMode="";
 function showGate(mode,o){
   o=o||{};gateMode=mode;
   $("gate").hidden=false;$("app").hidden=true;
-  ["ovBooking","ovFleet","ovMenu","ovSheet","ovClients","ovClientNew","ovMaster"].forEach(id=>{const x=$(id);if(x)x.hidden=true;});
+  ["ovBooking","ovFleet","ovMenu","ovSheet","ovClients","ovClientNew","ovMaster","ovArch","ovReg"].forEach(id=>{const x=$(id);if(x)x.hidden=true;});
   if(typeof hsClose==="function")hsClose();
   ["gLink","gLoad","gFat","gCode","gMaster","gLogin"].forEach(id=>$(id).hidden=true);
   $("gMsg").textContent=o.msg||"";$("gMsg").className="gate-msg"+(o.ok?" ok":"");
@@ -1925,8 +2101,9 @@ function hideGate(){$("gate").hidden=true;$("app").hidden=false;renderAll();rend
 let started=false;
 function unlocked(){
   hideGate();applyRole();refreshFromStore();lastAct=Date.now();
-  if(!started){started=true;STORE.flush();STORE.syncFatturato();STORE.watch();ACC.startBeat();}
+  if(!started){started=true;STORE.flush();STORE.syncFatturato();STORE.watch();ACC.startBeat();ACC.tlog("info","Avvio della versione "+APP_VERSION+" su "+(ACC.devLabel(ACC.device.id)||ACC.device.auto));}
   ACC.beat();ACC.flushLog();
+  setTimeout(()=>{seedRegs();flushRegAdd();},2500);
 }
 // Dalla 1.8: ognuno entra con nome e password (config/utenti.json). Se l'elenco utenti non c'è ancora,
 // si crea il Master: serve il codice di accesso usato finora (se c'era), così non può farlo chiunque.
@@ -2007,7 +2184,8 @@ function applyRole(){
 function renderWho(){
   const U=STORE.users||{users:{}};
   const list=Object.entries(U.users).filter(([,u])=>u.active!==false).sort((a,b)=>a[1].name.localeCompare(b[1].name,"it"));
-  $("gWho").innerHTML=list.map(([id,u])=>'<button type="button" role="radio" data-uid="'+esc(id)+'" aria-checked="'+(id===loginUid)+'">'+esc(u.name)+(u.role==="master"?'<small>Master</small>':'')+'</button>').join("")||'<p class="gate-sub">Nessun utente attivo.</p>';
+  const ini=n=>String(n||"").trim().split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join("")||"?";
+  $("gWho").innerHTML=list.map(([id,u])=>'<button type="button" role="radio" data-uid="'+esc(id)+'" aria-checked="'+(id===loginUid)+'"><span class="av" aria-hidden="true">'+esc(ini(u.name))+'</span><span class="wn">'+esc(u.name)+(u.role==="master"?'<small>Master</small>':'')+'</span></button>').join("")||'<p class="gate-sub">Nessun utente attivo.</p>';
 }
 $("gWho").addEventListener("click",e=>{const b=e.target.closest("[data-uid]");if(!b)return;loginUid=b.dataset.uid;renderWho();$("gMsg").textContent="";$("gPw").focus();});
 $("gPwShow").onclick=()=>{const show=$("gPw").type==="password";$("gPw").type=show?"text":"password";$("gPwShow").textContent=show?"Nascondi":"Mostra";};
@@ -2090,14 +2268,15 @@ setInterval(()=>{
 },20000);
 
 // ---------- registro: cosa è cambiato in una prenotazione ----------
-const FIELD_LBL={type:"Categoria",vehicle:"Mezzo",start:"Data partenza",end:"Data rientro",time:"Ora partenza",time2:"Ora rientro",client:"Cliente",clientCode:"Codice cliente",route:"Itinerario",event:"Evento",escort:"Accompagnatore",pax:"Passeggeri",price:"Prezzo",park:"Parcheggi",meals:"Pasti",advance:"Acconto",envelope:"Busta",envno:"N. busta",driver:"1° autista",driver2:"2° autista",contact:"Referente telefono",contactName:"Referente nome",status:"Stato",notes:"Note",saldo:"Saldo da ricevere",saldoAmt:"€ Saldo",npark:"Note 1° park",ndriver:"Note 2° autista",n3h:"Note 3° 3 ore",nextra:"Note 4° extra",refs:"Altri referenti",hotels:"Hotel",guides:"Guide",program:"Programma"};
+const FIELD_LBL={type:"Categoria",vehicle:"Mezzo",start:"Data partenza",end:"Data rientro",time:"Ora partenza",time2:"Ora rientro",client:"Cliente",clientCode:"Codice cliente",route:"Itinerario",event:"Evento",escort:"Accompagnatore",pax:"Passeggeri",price:"Prezzo",park:"Parcheggi",meals:"Pasti",advance:"Acconto",envelope:"Busta",envno:"N. busta",driver:"1° autista",driver2:"2° autista",contact:"Telefono referente 1",contactName:"Referente 1",contactRole:"Ruolo referente 1",contactNote:"Note referente 1",dnotes:"Note per l'autista",status:"Stato",notes:"Note",saldo:"Saldo da ricevere",saldoAmt:"€ Saldo",npark:"Note 1° park",ndriver:"Note 2° autista",n3h:"Note 3° 3 ore",nextra:"Note 4° extra",refs:"Altri referenti",hotels:"Hotel",guides:"Guide",program:"Programma"};
 function logVal(k,v){
   if(v===""||v==null||(Array.isArray(v)&&!v.filter(Boolean).length))return "—";
-  if(k==="vehicle")return (vehicle(v)||{}).name||String(v);
+  if(k==="vehicle"){const vv=vehicle(v);return vv?vehLabel(vv):String(v);}
   if(k==="type")return TYPES[normType(v)]||v;
   if(k==="start"||k==="end")return itD(v);
   if(["price","park","meals","advance","saldoAmt"].includes(k))return "€ "+money(v);
-  if(k==="refs"||k==="hotels"||k==="guides")return v.map(x=>[x.name,x.tel].filter(Boolean).join(" ")).join("; ").slice(0,160);
+  if(k==="refs"||k==="hotels"||k==="guides")return v.map(x=>[x.name,x.role?"("+x.role+")":"",x.addr,x.city,x.tel,x.note].filter(Boolean).join(" ")).join("; ").slice(0,200);
+  if(k==="dnotes")return v.map(x=>[x.c,x.t].filter(Boolean).join(": ")).join("; ").slice(0,200);
   if(k==="program")return v.filter(Boolean).map(x=>String(x).replace(/\n/g," / ")).join(" | ").slice(0,160);
   const t=String(v).replace(/\s+/g," ");return t.length>120?t.slice(0,117)+"…":t;
 }
@@ -2120,11 +2299,12 @@ function openMaster(tab){
 function setMasterTab(t){
   mstTab=t;
   document.querySelectorAll("[data-mt]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mt===t)));
-  $("mtUsers").hidden=t!=="users";$("mtDevs").hidden=t!=="devs";$("mtLog").hidden=t!=="log";$("mtSet").hidden=t!=="set";
+  $("mtUsers").hidden=t!=="users";$("mtDevs").hidden=t!=="devs";$("mtLog").hidden=t!=="log";$("mtTlog").hidden=t!=="tlog";$("mtSet").hidden=t!=="set";
   renderMasterTab();
   if(t==="log")loadLog();
+  if(t==="tlog")loadTlog();
 }
-function renderMasterTab(){if(mstTab==="users")renderUsers();else if(mstTab==="devs")renderDevices();else if(mstTab==="log")renderLog();else renderSettings();}
+function renderMasterTab(){if(mstTab==="users")renderUsers();else if(mstTab==="devs")renderDevices();else if(mstTab==="log")renderLog();else if(mstTab==="tlog")renderTlog();else renderSettings();}
 document.querySelectorAll("[data-mt]").forEach(b=>b.onclick=()=>{mstMsg("");setMasterTab(b.dataset.mt);});
 $("mMaster").onclick=()=>openMaster();
 $("mstClose").onclick=()=>{$("ovMaster").hidden=true;};
@@ -2273,7 +2453,7 @@ function renderSettings(){
   const st=STORE.settings||{},ff=STORE.fatFiles(),fy=Object.keys(ff).sort();
   if(document.activeElement!==$("setGKey"))$("setGKey").value=st.googleKey||"";
   $("setLock").value=String(st.autoLock||0);
-  const pm=st.perms||{};$("permClients").checked=pm.clients!==false;$("permFleet").checked=pm.fleet!==false;
+  const pm=st.perms||{};$("permClients").checked=pm.clients!==false;$("permFleet").checked=pm.fleet!==false;$("permAnag").checked=pm.anag!==false;
   $("setFatInfo").innerHTML="File fatturato: "+(fy.length?fy.map(y=>(y==="*"?"":y+" → ")+"<b>"+esc(ff[y].name)+"</b>").join(", "):"<b>non collegato</b>")+". Flotta: <b>"+S.fleet.length+" mezzi</b>.";
 }
 function setGMsg(t,c){$("setGMsg").textContent=t||"";$("setGMsg").className="set-msg"+(c?" "+c:"");}
@@ -2293,13 +2473,244 @@ $("setLock").onchange=async()=>{
   try{await STORE.setSettings({autoLock:v});ACC.log("impostazioni","Uscita automatica: "+$("setLock").selectedOptions[0].textContent.toLowerCase());mstMsg("Impostazione salvata per tutti i dispositivi.");}
   catch(_){mstMsg("Non riesco a salvare: serve la connessione a internet.",true);renderSettings();}
 };
-["permClients","permFleet"].forEach(id=>$(id).onchange=async()=>{
-  const perms=Object.assign({},((STORE.settings||{}).perms)||{},{clients:$("permClients").checked,fleet:$("permFleet").checked});
-  try{await STORE.setSettings({perms});ACC.log("impostazioni","Permessi degli utenti: anagrafica clienti "+(perms.clients?"sì":"no")+", flotta "+(perms.fleet?"sì":"no"));mstMsg("Permessi salvati per tutti i dispositivi.");}
+["permClients","permFleet","permAnag"].forEach(id=>$(id).onchange=async()=>{
+  const perms=Object.assign({},((STORE.settings||{}).perms)||{},{clients:$("permClients").checked,fleet:$("permFleet").checked,anag:$("permAnag").checked});
+  try{await STORE.setSettings({perms});ACC.log("impostazioni","Permessi degli utenti: anagrafica clienti "+(perms.clients?"sì":"no")+", flotta "+(perms.fleet?"sì":"no")+", anagrafiche e tendine "+(perms.anag?"sì":"no"));mstMsg("Permessi salvati per tutti i dispositivi.");}
   catch(_){mstMsg("Non riesco a salvare: serve la connessione a internet.",true);renderSettings();}
 });
 $("setFat").onclick=()=>{if(!navigator.onLine){mstMsg("Serve la connessione a internet.",true);return;}$("ovMaster").hidden=true;showGate("fatturato",{fromMenu:true});};
 $("setFleet").onclick=()=>{$("ovMaster").hidden=true;openFleet();};
+
+// ---------- Archivio (2.0): anagrafiche clienti, flotta, referenti, guide, hotel e tendine ----------
+const ARCH=[
+  {k:"clienti",ic:"👥",t:"Anagrafica clienti",n:()=>S.clients.length.toLocaleString("it-IT")+" clienti",open:()=>openClients()},
+  {k:"flotta",ic:"🚌",t:"Anagrafica flotta",n:()=>S.fleet.length+" mezzi",open:()=>openFleet()},
+  {k:"referenti",ic:"☎️",t:"Anagrafica referenti",n:()=>regRows("referenti").length+" referenti",open:()=>openReg("referenti")},
+  {k:"guide",ic:"🧭",t:"Anagrafica guide",n:()=>regRows("guide").length+" guide",open:()=>openReg("guide")},
+  {k:"hotel",ic:"🏨",t:"Anagrafica hotel",n:()=>regRows("hotel").length+" hotel",open:()=>openReg("hotel")},
+  {k:"note",ic:"📝",t:"Tendina note",n:()=>tendina("note").length+" voci (causali delle note per l'autista)",open:()=>openReg("note")},
+  {k:"ruolo",ic:"🏷️",t:"Tendina ruolo",n:()=>tendina("ruolo").length+" voci (ruolo del referente)",open:()=>openReg("ruolo")},
+];
+function openArchive(){
+  $("archGrid").innerHTML=ARCH.map(a=>'<button type="button" class="arch-tile" data-arch="'+a.k+'"><span class="ic" aria-hidden="true">'+a.ic+'</span><b>'+esc(a.t)+'</b><span>'+esc(a.n())+'</span></button>').join("");
+  $("ovArch").hidden=false;
+}
+$("btnArch").onclick=openArchive;
+$("archClose").onclick=()=>{$("ovArch").hidden=true;};
+$("archGrid").addEventListener("click",e=>{const b=e.target.closest("[data-arch]");if(!b)return;const a=ARCH.find(x=>x.k===b.dataset.arch);$("ovArch").hidden=true;a.open();});
+backdropClose($("ovArch"),()=>{$("ovArch").hidden=true;});
+
+// --- editor delle anagrafiche e delle tendine ---
+const REG_COLS={
+  referenti:[["cliente","Cliente","dlCliNames"],["citta","Città","dlCities"],["nome","Nome"],["tel","Telefono"]],
+  guide:[["nome","Nome"],["regione","Regione","dlRegions"],["citta","Città","dlCities"],["tel","Telefono"]],
+  hotel:[["regione","Regione","dlRegions"],["citta","Città","dlCities"],["nome","Nome"],["indirizzo","Indirizzo"],["tel","Telefono"]],
+  note:[["v","Causale"]],ruolo:[["v","Ruolo"]],
+};
+const REG_TITLE={referenti:"Anagrafica referenti",guide:"Anagrafica guide",hotel:"Anagrafica hotel",note:"Tendina note",ruolo:"Tendina ruolo"};
+const REG_NOTE={referenti:"Si scelgono nel modulo della prenotazione (riga Referente). I referenti scritti nelle prenotazioni si aggiungono da soli.",
+  guide:"Si scelgono nel modulo della prenotazione (riga Guida). Le guide scritte nelle prenotazioni si aggiungono da sole.",
+  hotel:"Si scelgono nel modulo della prenotazione (riga Hotel), insieme agli hotel di Google Maps. Gli hotel scritti nelle prenotazioni si aggiungono da soli.",
+  note:"Voci della casella «Causale» delle note per l'autista. Parcheggi, autista e 3 ore vanno nelle righe 1°, 2° e 3° del foglio di servizio; le altre nella 4° (extra).",
+  ruolo:"Voci della casella «Ruolo» del referente."};
+const isTend=k=>k==="note"||k==="ruolo";
+const regFile=k=>isTend(k)?"tendine":k;
+const nrid=()=>"r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+let regKind=null,regNew=[];
+function regList(k){return isTend(k)?tendina(k).map(v=>({id:"v:"+v,v})):regRows(k).slice();}
+function regSort(k,l){
+  if(isTend(k))return l;
+  const key=k==="referenti"?r=>[r.cliente,r.nome]:k==="hotel"?r=>[r.regione,r.citta,r.nome]:r=>[r.nome];
+  return l.sort((a,b)=>{const x=key(a),y=key(b);for(let i=0;i<x.length;i++){const c=String(x[i]||"").localeCompare(String(y[i]||""),"it");if(c)return c;}return 0;});
+}
+function openReg(k){
+  regKind=k;regNew=[];$("regQ").value="";$("regMsg").textContent="";
+  $("regTitle").textContent=REG_TITLE[k];$("regNote").textContent=REG_NOTE[k];
+  if(k==="referenti")$("dlCliNames").innerHTML=S.clients.map(c=>'<option value="'+esc(c[1])+'">').join("");
+  fillPlaceLists();renderReg();$("ovReg").hidden=false;
+}
+function regRO(){return S.readOnly||!canEdit("anag");}
+function renderReg(){
+  const k=regKind;if(!k)return;
+  const cols=REG_COLS[k],ro=regRO(),words=norm($("regQ").value).split(/[^a-z0-9]+/).filter(Boolean);
+  const all=regList(k),list=regSort(k,all.filter(r=>!words.length||wmatch(cols.map(c=>r[c[0]]).join(" "),words)));
+  const tpl=cols.map(c=>c[0]==="indirizzo"||c[0]==="nome"||c[0]==="cliente"||c[0]==="v"?"minmax(160px,1.6fr)":"minmax(110px,1fr)").join(" ")+(ro?"":" 36px");
+  const row=(r,isNew)=>'<div class="reg-row'+(isNew?" new":"")+'" data-id="'+esc(r.id)+'" style="grid-template-columns:'+tpl+'">'+cols.map(c=>'<input data-c="'+c[0]+'" value="'+esc(r[c[0]]||"")+'"'+(c[2]?' list="'+c[2]+'"':'')+(ro?' readonly':'')+' aria-label="'+esc(c[1])+'" autocomplete="off">').join("")+(ro?'':'<button type="button" class="del" data-regdel="'+esc(r.id)+'" title="Elimina" aria-label="Elimina">×</button>')+'</div>';
+  $("regTable").innerHTML='<div class="reg-row hd" style="grid-template-columns:'+tpl+'">'+cols.map(c=>'<span>'+esc(c[1])+'</span>').join("")+(ro?'':'<span></span>')+'</div>'+
+    regNew.map(r=>row(r,true)).join("")+list.map(r=>row(r,false)).join("")+(list.length||regNew.length?'':'<div class="reg-empty">'+(words.length?"Nessun risultato.":"Ancora vuota."+(ro?"":" Premi «+ Nuovo» per aggiungere."))+'</div>');
+  $("regCount").textContent=all.length+(isTend(k)?" voci":"")+(words.length?" · "+list.length+" trovati":"");
+  $("regNew").hidden=ro;
+}
+function regMsg(t,err){$("regMsg").textContent=t||"";$("regMsg").className="reg-msg"+(err?" err":"");}
+$("regQ").addEventListener("input",renderReg);
+$("regNew").onclick=()=>{regNew.unshift({id:"new:"+nrid()});renderReg();const f=$("regTable").querySelector(".reg-row.new input");if(f)f.focus();};
+$("regBack").onclick=()=>{$("ovReg").hidden=true;regKind=null;openArchive();};
+$("regClose").onclick=()=>{$("ovReg").hidden=true;regKind=null;};
+// salvataggio di una riga quando cambi una casella (serve internet: l'anagrafica è condivisa)
+// I salvataggi della stessa riga vanno in fila: se passi subito alla casella dopo mentre la prima
+// si sta ancora salvando, la riga nuova non viene creata due volte.
+$("regTable").addEventListener("change",e=>{
+  const inp=e.target.closest("[data-c]");if(!inp||regRO())return;
+  const rowEl=inp.closest(".reg-row"),k=regKind;
+  (rowEl._dirty=rowEl._dirty||new Set()).add(inp.dataset.c); // si scrivono solo le caselle cambiate qui
+  rowEl._q=(rowEl._q||Promise.resolve()).then(()=>regSaveRow(rowEl,k));
+});
+async function regSaveRow(rowEl,k){
+  const id=rowEl.dataset.id,vals={},dirty=[...(rowEl._dirty||[])];if(rowEl._dirty)rowEl._dirty.clear();
+  rowEl.querySelectorAll("[data-c]").forEach(x=>{vals[x.dataset.c]=cleanText(x.value);});
+  if(!Object.values(vals).some(Boolean))return;
+  if(!navigator.onLine){regMsg("Serve la connessione a internet per salvare l'anagrafica.",true);return;}
+  rowEl.classList.add("saving");
+  try{
+    let newId=id;
+    if(isTend(k)){
+      const v=vals.v,old=id.startsWith("v:")?id.slice(2):null;if(!v)return;
+      await STORE.updateReg("tendine",J=>{const l=Array.isArray(J[k])?J[k]:TENDINE_DEF[k].slice();if(old!=null){const i=l.indexOf(old);if(i>=0)l[i]=v;else if(!l.includes(v))l.push(v);}else if(!l.includes(v))l.push(v);J[k]=[...new Set(l)];return J;});
+      newId="v:"+v;ACC.log("impostazioni",(old!=null?"Tendina "+k+": «"+old+"» → «"+v+"»":"Tendina "+k+": aggiunta «"+v+"»"));
+    }else if(id.startsWith("new:")){
+      newId=nrid();
+      await STORE.updateReg(k,J=>{J.rows=J.rows||[];J.rows.push(Object.assign({id:newId,by:meName(),at:new Date().toISOString()},vals));return J;});
+      ACC.log("impostazioni",REG_TITLE[k]+": aggiunto «"+(vals.nome||vals.cliente||"")+"»");
+    }else{
+      // solo le caselle cambiate su questo dispositivo: le modifiche fatte intanto da altri sulla stessa riga restano
+      let before=null,after=null;if(!dirty.length)return;
+      await STORE.updateReg(k,J=>{const r=(J.rows||[]).find(x=>x.id===id);if(!r)return null;before=Object.assign({},r);for(const f of dirty)r[f]=vals[f]||"";Object.assign(r,{updBy:meName(),updAt:new Date().toISOString()});after=Object.assign({},r);return J;});
+      if(!before){regMsg("Questa riga è stata eliminata da un altro dispositivo: la modifica non è stata salvata.",true);renderReg();return;}
+      ACC.log("impostazioni",REG_TITLE[k]+": modificato «"+(after.nome||after.cliente||"")+"»",{ch:REG_COLS[k].filter(c=>(before[c[0]]||"")!==(after[c[0]]||"")).map(c=>[c[1],before[c[0]]||"",after[c[0]]||""])});
+    }
+    rowEl.dataset.id=newId;rowEl.classList.remove("new");
+    const bt=rowEl.querySelector("[data-regdel]");if(bt)bt.dataset.regdel=newId;
+    regNew=regNew.filter(r=>r.id!==id);
+    regMsg("Salvato.");
+    if(!rowEl.isConnected)renderReg(); // la tabella è stata ridisegnata durante il salvataggio
+    else if(regKind===k&&!$("regQ").value.trim())$("regCount").textContent=regList(k).length+(isTend(k)?" voci":"");
+  }catch(err){regMsg("Non riesco a salvare adesso: riprova.",true);ACC.tlog("errore","Anagrafica "+k+": salvataggio non riuscito",String(err&&(err.code||err.message)||err));}
+  finally{rowEl.classList.remove("saving");}
+}
+$("regTable").addEventListener("click",async e=>{
+  const d=e.target.closest("[data-regdel]");if(!d||regRO())return;
+  const id=d.dataset.regdel,k=regKind;
+  if(id.startsWith("new:")){regNew=regNew.filter(r=>r.id!==id);renderReg();return;}
+  const rowEl=d.closest(".reg-row"),label=[...rowEl.querySelectorAll("[data-c]")].map(x=>x.value).filter(Boolean).join(" · ");
+  if(!confirm("Eliminare «"+label+"»?"))return;
+  if(!navigator.onLine){regMsg("Serve la connessione a internet.",true);return;}
+  try{
+    if(isTend(k)){const v=id.slice(2);await STORE.updateReg("tendine",J=>{J[k]=(Array.isArray(J[k])?J[k]:TENDINE_DEF[k].slice()).filter(x=>x!==v);return J;});}
+    else await STORE.updateReg(k,J=>{J.rows=(J.rows||[]).filter(x=>x.id!==id);return J;});
+    ACC.log("impostazioni",REG_TITLE[k]+": eliminato «"+label+"»");renderReg();regMsg("Eliminato.");
+  }catch(_){regMsg("Non riesco a eliminare adesso: riprova.",true);}
+});
+backdropClose($("ovReg"),()=>{$("ovReg").hidden=true;regKind=null;});
+
+// --- referenti, guide e hotel delle prenotazioni: si aggiungono da soli alle anagrafiche ---
+const REG_KEY={referenti:r=>nkey(r.nome)+"|"+nkey(r.cliente),guide:r=>nkey(r.nome),hotel:r=>nkey(r.nome)+"|"+nkey(r.citta)};
+const RAK="agenda-reg-add";
+function regCandidates(b){
+  const out={referenti:[],guide:[],hotel:[]},cl=shClient(b),cli=cl?cl[1]:(b.client||""),city=cl?cliField(cl,"city"):"";
+  const ctel=cl&&cl[4]?String(cl[4]):"";
+  for(const r of [ref1Of(b)].concat(b.refs||[]))if(r&&r.name)out.referenti.push({cliente:cli,citta:city,nome:r.name,tel:r.tel&&r.tel!==ctel?r.tel:""});
+  for(const g of b.guides||[])if(g&&g.name)out.guide.push({nome:g.name,regione:g.region||"",citta:g.city||"",tel:g.tel||""});
+  for(let h of b.hotels||[])if(h&&h.name){h=splitOldHotel(h);out.hotel.push({regione:h.region||"",citta:h.city||"",nome:h.name,indirizzo:h.addr||"",tel:h.tel||"",pid:h.pid||""});}
+  return out;
+}
+function regAutoAdd(b){
+  if(!canEdit("anag")||S.readOnly)return;
+  let q={};try{q=JSON.parse(localStorage.getItem(RAK)||"{}")||{};}catch(_){}
+  const c=regCandidates(b);
+  for(const k in c){
+    const have=new Set(regRows(k).map(REG_KEY[k]));
+    for(const x of c[k])if(!have.has(REG_KEY[k](x))){(q[k]=q[k]||[]).push(x);have.add(REG_KEY[k](x));}
+  }
+  try{localStorage.setItem(RAK,JSON.stringify(q));}catch(_){}
+  flushRegAdd();
+}
+let regAdding=false;
+async function flushRegAdd(){
+  if(regAdding||!navigator.onLine||!ACC.session())return;
+  const readQ=()=>{try{return JSON.parse(localStorage.getItem(RAK)||"{}")||{};}catch(_){return {};}};
+  let q=readQ();
+  if(!Object.keys(q).some(k=>(q[k]||[]).length))return;
+  regAdding=true;let again=false;
+  try{
+    for(const k of Object.keys(q)){
+      const items=q[k]||[];if(!items.length||!REG_KEY[k])continue;
+      let added=0;
+      await STORE.updateReg(k,J=>{
+        added=0; // (la funzione può ripartire se il file è cambiato nel frattempo)
+        J.rows=J.rows||[];const idx=new Map(J.rows.map(r=>[REG_KEY[k](r),r]));let ch=false;
+        for(const x of items){const o=idx.get(REG_KEY[k](x));
+          if(!o){const r=Object.assign({id:nrid(),by:meName(),at:new Date().toISOString()},x);J.rows.push(r);idx.set(REG_KEY[k](x),r);added++;ch=true;}
+          else for(const f in x)if(x[f]&&!o[f]){o[f]=x[f];ch=true;} // completa i dati mancanti (es. telefono)
+        }
+        return ch?J:null;
+      });
+      if(added)ACC.log("impostazioni",REG_TITLE[k]+": "+added+(added===1?" voce aggiunta":" voci aggiunte")+" dalle prenotazioni");
+      // si tolgono dalla coda solo le voci appena scritte: quelle aggiunte intanto (altra prenotazione salvata) restano
+      const done=new Set(items.map(x=>JSON.stringify(x))),cur=readQ();
+      cur[k]=(cur[k]||[]).filter(x=>!done.has(JSON.stringify(x)));if(!cur[k].length)delete cur[k];
+      try{localStorage.setItem(RAK,JSON.stringify(cur));}catch(_){}
+    }
+    const rest=readQ();again=Object.keys(rest).some(k=>REG_KEY[k]&&(rest[k]||[]).length); // arrivate altre voci intanto
+  }catch(e){again=false;ACC.tlog("avviso","Anagrafiche: aggiunta automatica rimandata",String(e&&(e.code||e.message)||e));}
+  finally{regAdding=false;}
+  if(again)setTimeout(flushRegAdd,1500);
+}
+window.addEventListener("online",()=>setTimeout(flushRegAdd,3000));
+// prima volta con la 2.0: le anagrafiche si riempiono con referenti, guide e hotel già scritti nelle prenotazioni
+let regSeeded=false;
+async function seedRegs(){
+  if(regSeeded||!navigator.onLine||!ACC.session()||!STORE.hasData||$("app").hidden)return;
+  regSeeded=true;
+  await STORE.loadRegs().catch(()=>{}); // anagrafiche e tendine create mentre il dispositivo aveva una versione precedente
+  const all={referenti:[],guide:[],hotel:[]};
+  for(const b of bookingsAll()){
+    const c=regCandidates(b);
+    for(const k in c)for(const x of c[k]){
+      all[k].push(x); // (gli hotel delle versioni precedenti arrivano già divisi da regCandidates)
+    }
+  }
+  for(const k of Object.keys(all)){
+    if(STORE.regLoaded(k)||!all[k].length)continue;
+    try{
+      await STORE.updateReg(k,J=>{
+        if((J.rows||[]).length)return null; // c'è già: non si tocca
+        const seen=new Set();J.rows=[];
+        for(const x of all[k]){const key=REG_KEY[k](x);if(seen.has(key))continue;seen.add(key);J.rows.push(Object.assign({id:nrid(),by:"(dalle prenotazioni)",at:new Date().toISOString()},x));}
+        return J.rows.length?J:null;
+      });
+    }catch(e){regSeeded=false;ACC.tlog("avviso","Anagrafiche: primo riempimento rimandato",String(e&&(e.code||e.message)||e));}
+  }
+}
+
+// ---------- log tecnico nel Pannello Master ----------
+let mstTlog=null,mstTlogKey="";
+function tlRange(){const n=+$("tlPer").value,to=ACC.localDate(),d=new Date();d.setDate(d.getDate()-n);return {from:ACC.localDate(d),to};}
+async function loadTlog(){
+  const r=tlRange(),key=r.from+"|"+r.to;
+  if(mstTlog&&mstTlogKey===key&&Date.now()-mstTlog.at<20000){renderTlog();return;}
+  $("tlList").innerHTML='<div class="lg-empty">Leggo il log da Dropbox…</div>';
+  try{const ev=await ACC.readTlog(r.from,r.to);mstTlog={ev,at:Date.now()};mstTlogKey=key;}
+  catch(_){mstTlog=null;$("tlList").innerHTML='<div class="lg-empty">Non riesco a leggere il log. Controlla la connessione e riprova.</div>';return;}
+  renderTlog();
+}
+function tlFiltered(){
+  if(!mstTlog)return [];
+  const lv=$("tlLev").value,q=norm($("tlQ").value).trim();
+  return mstTlog.ev.filter(e=>(!lv||(lv==="errore"?e.l==="errore":e.l==="errore"||e.l==="avviso"))&&(!q||norm(e.m+" "+(e.d||"")+" "+e.n).includes(q)));
+}
+function renderTlog(){
+  if(!mstTlog)return;
+  const ev=tlFiltered(),max=800;
+  $("tlList").innerHTML=ev.slice(0,max).map(e=>'<div class="lg-row"><span class="t">'+esc(logTime(e.t))+'</span><span>'+esc(e.n||"—")+'</span><span class="dv">'+esc(ACC.devLabel(e.dv)||e.auto||"")+(e.v?" · v"+esc(e.v):"")+'</span><span><span class="k '+esc(e.l)+'">'+esc(e.l)+'</span>'+esc(e.m)+(e.d?'<span class="d">'+esc(e.d)+'</span>':'')+'</span></div>').join("")||'<div class="lg-empty">Nessun messaggio nel periodo scelto. Bene così.</div>';
+}
+["tlLev"].forEach(id=>$(id).addEventListener("change",renderTlog));
+$("tlPer").addEventListener("change",loadTlog);
+$("tlQ").addEventListener("input",()=>{clearTimeout(renderTlog._t);renderTlog._t=setTimeout(renderTlog,150);});
+$("tlTxt").onclick=()=>{
+  const ev=tlFiltered().slice().reverse();
+  const txt=["Agenda Flotta La Terra – log tecnico "+tlRange().from+" / "+tlRange().to,""].concat(ev.map(e=>{const d=new Date(e.t);return d.toLocaleString("it-IT")+" ["+e.l+"] "+(ACC.devLabel(e.dv)||e.auto||e.dv)+(e.n?" · "+e.n:"")+(e.v?" · v"+e.v:"")+" — "+e.m+(e.d?" | "+e.d:"");})).join("\r\n");
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([txt],{type:"text/plain;charset=utf-8"}));a.download="log_agenda_"+tlRange().from+"_"+tlRange().to+".txt";document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
+};
 
 // ---------- flotta: dati aggiornati del 30/09/2026 (una volta sola, su tutti i dispositivi) ----------
 // Ogni riga dei dati nuovi va al mezzo con la stessa targa; se non c'è, al mezzo previsto (se libero),
@@ -2335,7 +2746,7 @@ async function migrateFleet2026(){
 // ---------- file dei fogli di servizio: in Dropbox e sul dispositivo ----------
 async function saveXlsx(blob,filename){
   let where="";
-  try{if(navigator.onLine){await STORE.saveSheetFile(filename,blob,(sheetBooking&&sheetBooking.start||todayISO()).slice(0,4));where="Copia salvata in Dropbox › Fogli di servizio.";}else where="Sei offline: il file è solo su questo dispositivo.";}
+  try{if(navigator.onLine){const sd=(sheetBooking&&sheetBooking.start)||todayISO();await STORE.saveSheetFile(filename,blob,sd);where="Copia salvata in Dropbox › "+STORE.sheetFolder(sd).replace(STORE.BASE+"/","").split("/").join(" › ")+".";}else where="Sei offline: il file è solo su questo dispositivo.";}
   catch(_){where="Non sono riuscito a salvarlo in Dropbox.";}
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);

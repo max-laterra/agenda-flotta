@@ -164,12 +164,13 @@
     return list.filter(Boolean);
   }
   // eventi tra due date (AAAA-MM-GG, comprese), dal più recente
-  async function readLog(from, to) {
+  async function readLog(from, to) { return readDays(from, to, "", logQ); }
+  async function readDays(from, to, sub, localQ) {
     const months = []; let m = from.slice(0, 7);
     while (m <= to.slice(0, 7) && months.length < 25) { months.push(m); const y = +m.slice(0, 4), mo = +m.slice(5, 7); m = mo === 12 ? (y + 1) + "-01" : y + "-" + String(mo + 1).padStart(2, "0"); }
     const files = [];
     for (const mo of months) {
-      for (const e of await listAll(REG() + "/" + mo)) {
+      for (const e of await listAll(REG() + (sub ? "/" + sub : "") + "/" + mo)) {
         const d = /(\d{4}-\d{2}-\d{2})_/.exec(e.name || ""); if (d && d[1] >= from && d[1] <= to) files.push(e);
       }
     }
@@ -177,13 +178,65 @@
     const seen = new Set(), ev = [];
     for (const doc of docs) if (doc && Array.isArray(doc.ev)) for (const e of doc.ev) if (!seen.has(e.id)) { seen.add(e.id); ev.push(Object.assign({ auto: doc.auto || "" }, e)); }
     // eventi di questo dispositivo non ancora arrivati in Dropbox
-    for (const date in logQ.days) if (date >= from && date <= to) for (const e of logQ.days[date].ev) if (!seen.has(e.id)) { seen.add(e.id); ev.push(Object.assign({ auto: device.auto, local: true }, e)); }
+    for (const date in localQ.days) if (date >= from && date <= to) for (const e of localQ.days[date].ev) if (!seen.has(e.id)) { seen.add(e.id); ev.push(Object.assign({ auto: device.auto, local: true }, e)); }
     ev.sort((a, b) => (a.t < b.t ? 1 : -1));
     return ev;
   }
 
-  window.addEventListener("online", () => { flushLog(); });
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushLog(); });
+  // ---------- log tecnico (2.0) ----------
+  // Errori e avvisi (Dropbox, fatturato, errori del programma) per capire cosa è successo su ogni
+  // dispositivo. Il Master lo consulta e lo scarica dal Pannello Master › Log tecnico.
+  //   /Agenda Flotta La Terra - registro/log-tecnico/AAAA-MM/AAAA-MM-GG_<dispositivo>.json
+  const TK = "agenda-tlog-v1";
+  let tq = lsGet(TK, { days: {} });
+  if (!tq || typeof tq.days !== "object") tq = { days: {} };
+  let tTimer = null, tBusy = false, tLast = "", tLastAt = 0;
+  const tPath = (date) => REG() + "/log-tecnico/" + date.slice(0, 7) + "/" + date + "_" + device.id + ".json";
+  function tlog(level, msg, det) {
+    msg = String(msg || "").replace(/\s+/g, " ").slice(0, 400);
+    if (!msg || (msg === tLast && Date.now() - tLastAt < 60000)) return; // niente doppioni a raffica
+    tLast = msg; tLastAt = Date.now();
+    const s = session(), now = new Date(), date = localDate(now);
+    const e = { id: rid("t"), t: now.toISOString(), l: level || "info", m: msg, n: s ? s.name : "", dv: device.id, v: window.AGENDA_VERSION || "" };
+    if (det != null && det !== "") e.d = typeof det === "string" ? det.slice(0, 1500) : JSON.stringify(det).slice(0, 1500);
+    const day = tq.days[date] || (tq.days[date] = { ev: [], loaded: false });
+    day.ev.push(e); if (day.ev.length > 800) day.ev.splice(0, day.ev.length - 800);
+    day.dirty = true;
+    for (const d of Object.keys(tq.days)) if (d < date && !tq.days[d].dirty) delete tq.days[d];
+    lsSet(TK, tq);
+    clearTimeout(tTimer); tTimer = setTimeout(flushT, 8000);
+  }
+  async function flushT() {
+    clearTimeout(tTimer); tTimer = null;
+    if (tBusy || !navigator.onLine || !window.DBX || !DBX.isLinked()) return;
+    tBusy = true;
+    try {
+      const today = localDate();
+      for (const date of Object.keys(tq.days).sort()) {
+        const day = tq.days[date];
+        if (!day.dirty) { if (date < today) delete tq.days[date]; continue; }
+        const path = tPath(date);
+        if (!day.loaded) {
+          const f = await DBX.download(path);
+          if (f) { try { const j = JSON.parse(dec.decode(f.buf)); const have = new Set(day.ev.map((e) => e.id)); for (const e of (j.ev || [])) if (!have.has(e.id)) day.ev.push(e); day.ev.sort((a, b) => (a.t < b.t ? -1 : 1)); } catch (_) {} }
+          day.loaded = true;
+        }
+        const n = day.ev.length;
+        await DBX.upload(path, enc.encode(JSON.stringify({ dev: device.id, auto: device.auto, date, ev: day.ev })), "overwrite");
+        if (day.ev.length === n) day.dirty = false;
+        if (date < today && !day.dirty) delete tq.days[date];
+      }
+      lsSet(TK, tq);
+    } catch (_) { clearTimeout(tTimer); tTimer = setTimeout(flushT, 120000); }
+    finally { tBusy = false; }
+  }
+  async function readTlog(from, to) { await flushT().catch(() => {}); return readDays(from, to, "log-tecnico", tq); }
+
+  window.addEventListener("online", () => { flushLog(); flushT(); });
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") { flushLog(); flushT(); } });
+  // errori del programma: finiscono nel log tecnico
+  window.addEventListener("error", (e) => { try { tlog("errore", "Errore del programma: " + (e.message || "sconosciuto"), (e.filename || "").split("/").pop() + ":" + (e.lineno || "") + ":" + (e.colno || "")); } catch (_) {} });
+  window.addEventListener("unhandledrejection", (e) => { try { const r = e.reason || {}; tlog("errore", "Operazione non riuscita: " + (r.message || r.code || r.summary || String(r)).slice(0, 200), r.stack ? String(r.stack).slice(0, 600) : null); } catch (_) {} });
 
   window.ACC = {
     get device() { return device; }, devLabel, uaLabel, localDate,
@@ -191,6 +244,6 @@
     session, setSession, sessionProblem, refreshSession, login, logout,
     failWait, failAdd, failReset,
     log, amend, flushLog, pendingLog, beat, startBeat, forgetDevice,
-    devices, readLog, REG,
+    devices, readLog, REG, tlog, flushT, readTlog,
   };
 })();

@@ -289,9 +289,26 @@ table.wk{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px;t
 .rep{display:flex;flex-direction:column;gap:6px;width:100%}
 .rep:empty{display:none}
 .rep-row{display:grid;grid-template-columns:1.8fr 1fr 32px;gap:8px;width:100%;position:relative}
+.pblock{display:flex;flex-direction:column;gap:8px;align-items:flex-start;border-top:1px dashed var(--line);padding-top:10px}
+.pblock .rep{display:flex;flex-direction:column;gap:8px;width:100%}
+.prow{display:grid;grid-template-columns:1.5fr 1fr 1fr 1.2fr 32px;gap:8px;width:100%;position:relative;align-items:end}
+.prow.p-ref#ref1row{grid-template-columns:1.5fr 1fr 1fr 1.2fr 32px}
+.prow.p-ref#ref1row::after{content:"";}
+.prow .f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.prow label{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow label b{color:var(--ink);font-weight:800}
+.prow input,.prow select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface);min-width:0;width:100%}
+.prow>button[data-rdel]{border:1px solid var(--line);background:var(--surface);border-radius:8px;color:var(--ink-3);font-size:16px;line-height:1;height:37px}
+.prow.p-note{grid-template-columns:90px 1fr 2.4fr 32px}
+.prow.p-note .nlab{font-weight:800;font-size:13px;color:var(--ink);padding-bottom:10px;white-space:nowrap}
+.drvbox2{border:1px solid var(--line);border-radius:12px;padding:12px 14px;gap:10px;display:flex;flex-direction:column;align-items:flex-start;background:var(--bg)}
+.drvbox2 .money3{width:100%}.fgrid4 .drvbox2 .f>label{white-space:normal;overflow:visible}
+.next-day{font-size:10.5px;font-weight:700;background:var(--notturno-bg,#1d2d42);color:#fff;border-radius:4px;padding:1px 6px;margin-left:4px;letter-spacing:.04em}
+.editask{flex-wrap:wrap;flex-basis:100%;order:-1;background:#FFF8E6;border:1px solid #F0D58C;border-radius:10px;padding:10px 12px;color:var(--ink)}.editask>div{flex:1 1 260px}.editask b{color:var(--warn)}.editask ul{margin:4px 0 0;padding-left:18px;font-size:13px;font-weight:500;color:var(--ink-2);max-height:160px;overflow:auto}
+@media (max-width:760px){.prow,.prow.p-ref#ref1row{grid-template-columns:1fr 1fr}.prow .pf-name{grid-column:1/-1}.prow>button[data-rdel]{grid-column:2;justify-self:end;width:40px}.prow.p-note{grid-template-columns:1fr 1.5fr 40px}.prow.p-note .nlab{grid-column:1/-1;padding:0}.prow.p-note>button[data-rdel]{grid-column:3}}
 .hsug{position:absolute;left:0;top:calc(100% + 4px);width:min(620px,100%);z-index:40;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.18);max-height:340px;overflow:auto;padding:4px}
-.rep-row .hsug button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;border:0;background:none;padding:7px 10px;border-radius:7px;color:var(--ink);font-size:inherit;line-height:1.3}
-.rep-row .hsug button[aria-selected="true"],.rep-row .hsug button:hover{background:var(--accent-soft)}
+.prow .hsug button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;border:0;background:none;padding:7px 10px;border-radius:7px;color:var(--ink);font-size:inherit;line-height:1.3}
+.prow .hsug button[aria-selected="true"],.prow .hsug button:hover{background:var(--accent-soft)}
 .hsug b{font-weight:600;font-size:14px}.hsug span{font-size:12px;color:var(--ink-3)}
 .hs-h{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);padding:7px 10px 3px}.hs-h i{font-style:normal;font-weight:500;text-transform:none;letter-spacing:0}
 .hs-note{font-size:12.5px;color:var(--ink-2);padding:6px 10px 8px}
@@ -299,7 +316,7 @@ table.wk{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px;t
 .rep-row button{border:1px solid var(--line);background:var(--surface);border-radius:8px;color:var(--ink-3);font-size:16px;line-height:1}
 .linkbtn{background:none;border:0;color:var(--accent);font-weight:600;font-size:13.5px;padding:2px 0}
 .notes4{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}
-@media (max-width:520px){.notes4{grid-template-columns:1fr}.rep-row{grid-template-columns:1fr 1fr 32px}}
+@media (max-width:520px){.notes4{grid-template-columns:1fr}.rep-row:not(.prow){grid-template-columns:1fr 1fr 32px}}
 
 /* finestra foglio di servizio */
 #ovSheet{padding:12px}
@@ -308,6 +325,7 @@ table.wk{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px;t
 .modal.sheet-modal{width:100%;max-width:1280px;max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px)}
 .sheet-top{display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap}
 .sheet-opt{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--ink-2)}
+.sheet-opts{display:flex;gap:8px 22px;flex-wrap:wrap;align-items:center}
 .sheet-scroll{flex:1;min-height:0;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#DADFE3;padding:18px}
 .sheet-msg{font-size:14px;color:var(--ink-2);min-height:1.2em}
 .sheet-hint{font-size:12.5px;color:var(--ink-3);margin:-6px 0 0}
@@ -403,7 +421,7 @@ table.bt{border-collapse:collapse;width:100%;min-width:1400px;font-size:13px}
 .banner .bn+.bn{border-top:1px solid color-mix(in srgb,var(--warn) 25%,transparent);padding-top:4px}
 .sheet-prov{margin:-4px 0 0;font-size:13.5px;background:var(--tbd-bg);color:var(--tbd-ink);border-radius:8px;padding:8px 12px}
 .menu-note.warnnote{background:var(--warn-bg);color:var(--warn);font-weight:600}
-.confirm .btn:not(.danger){color:var(--ink)}
+.confirm .btn:not(.danger){color:var(--ink)}.confirm .btn.primary{color:#fff}
 .fs-page2{max-width:1180px;margin:18px auto 0;background:#fff;color:#111;box-shadow:0 2px 14px rgba(0,0,0,.28);padding:22px 28px;font-family:Calibri,Carlito,Arial,sans-serif;font-size:15px}
 .fs-page2 h4{margin:0 0 4px;font-size:18px}
 .fs-page2 p{margin:0 0 6px}
@@ -440,6 +458,24 @@ img{max-width:100%}
 .gate-err{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;background:var(--surface-2);border-radius:8px;padding:8px 10px;color:var(--ink-2);max-height:140px;overflow:auto}
 .gate-ver{margin:0;font-size:12px;color:var(--ink-3);text-align:right}
 .appver{font-size:12px;color:var(--ink-3);align-self:center;font-variant-numeric:tabular-nums}
+/* schermata di accesso (2.0) */
+.gate{background:radial-gradient(circle at 12% 18%,rgba(255,178,26,.28),transparent 42%),radial-gradient(circle at 88% 85%,rgba(192,38,45,.26),transparent 46%),linear-gradient(135deg,#363B41,#5C636B 55%,#2B2F34)}
+.gate-card{max-width:500px;border:0;border-radius:20px;box-shadow:0 30px 80px rgba(0,0,0,.38)}
+.gate-top{align-items:center;text-align:center;padding:26px 24px 18px;background:#fff;gap:8px;border-bottom:4px solid #FFB21A}
+.gate-logo{height:56px}
+.gate-top b{font-size:18px;letter-spacing:.24em;color:#5C636B}
+.gate-body{padding:24px 28px 24px;gap:14px}
+.gate-body h2{font-size:23px}
+.gate .btn.big{padding:12px 14px;font-size:16px;border-radius:11px}
+.gate .gate-in{padding:11px 13px;border-radius:10px;font-size:15px}
+.gate .pw-in{font-size:17px;letter-spacing:.06em}
+.who-list{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+.who-list button{display:flex!important;align-items:center;gap:10px;border-radius:12px!important;padding:8px 12px!important;text-align:left;min-height:52px}
+.who-list .av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;background:#E8EBE5;color:#4B5663;flex:none;letter-spacing:.02em}
+.who-list button[aria-checked="true"] .av{background:#fff;color:var(--accent)}
+.who-list .wn{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+.who-list .wn small{margin:0!important;font-size:11.5px!important;opacity:.8}
+.gate-ver{text-align:center}
 .gate-lbl{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600;color:var(--ink-2)}
 .who-list{display:flex;flex-wrap:wrap;gap:8px}
 .who-list button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:8px 14px;font-weight:600;font-size:14px;color:var(--ink)}
@@ -496,7 +532,9 @@ img{max-width:100%}
 .lg-row .k{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;border-radius:4px;padding:1px 6px;margin-right:6px;background:var(--surface-2);color:var(--ink-2)}
 .lg-row .k.accesso{background:var(--accent-soft);color:var(--accent)}
 .lg-row .k.prenotazione{background:var(--ok-bg);color:var(--ok)}
-.lg-row .k.bad{background:var(--warn-bg);color:var(--warn)}
+.lg-row .k.bad,.lg-row .k.errore{background:var(--warn-bg);color:var(--warn)}
+.lg-row .k.avviso{background:var(--tbd-bg);color:var(--tbd-ink)}
+.lg-row .d{display:block;font-size:12px;color:var(--ink-3);overflow-wrap:anywhere;margin-top:2px}
 .lg-row ul{margin:4px 0 0;padding-left:18px;color:var(--ink-2);font-size:12.5px}
 .lg-row .dv{color:var(--ink-3);font-size:12.5px}
 .lg-empty{padding:18px;color:var(--ink-3);font-size:14px}
@@ -505,6 +543,28 @@ img{max-width:100%}
 .set-row{display:flex;gap:8px;flex-wrap:wrap}.set-row input{flex:1;min-width:240px;font-family:ui-monospace,Menlo,monospace}
 .set-msg{margin:0;font-size:13px;font-weight:600;min-height:1.1em}.set-msg.ok{color:var(--ok)}.set-msg.err{color:var(--warn)}
 #cnFields input[readonly]{background:var(--surface-2);color:var(--ink-2);cursor:not-allowed}
+.modal.arch-modal{max-width:1080px}
+.arch-top,.reg-top{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap}.arch-top h3,.reg-top h3{margin:0}
+.arch-top .spacer,.reg-top .spacer{flex:1}
+.arch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.arch-tile{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:16px 18px;min-height:112px;position:relative;overflow:hidden}
+.arch-tile:hover{border-color:var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.08)}
+.arch-tile .ic{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);font-size:19px}
+.arch-tile b{font-size:16px}.arch-tile span{font-size:13px;color:var(--ink-3)}
+.modal.reg-modal{max-width:1180px;max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px)}
+.reg-count{font-size:13px;color:var(--ink-3)}
+.reg-note{margin:-4px 0 0;font-size:13px;color:var(--ink-3)}
+.reg-table{border:1px solid var(--line);border-radius:10px;overflow:auto;max-height:62vh}
+.reg-row{display:grid;gap:8px;padding:7px 10px;border-top:1px solid var(--line);align-items:center}
+.reg-row:first-child{border-top:0}
+.reg-row.hd{position:sticky;top:0;background:var(--surface-2);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);z-index:1}
+.reg-row input{border:1px solid transparent;border-radius:7px;padding:6px 8px;background:transparent;min-width:0;width:100%;font-size:14px}
+.reg-row input:hover{border-color:var(--line)}.reg-row input:focus{border-color:var(--accent);background:var(--surface)}
+.reg-row.new{background:color-mix(in srgb,var(--accent-soft) 45%,transparent)}
+.reg-row .del{border:1px solid var(--line);background:var(--surface);border-radius:7px;color:var(--ink-3);height:32px}
+.reg-row.saving input{opacity:.6}
+.reg-empty{padding:18px;color:var(--ink-3);font-size:14px}
+.reg-msg{min-height:1.2em;font-size:13.5px;font-weight:600;color:var(--ok)}.reg-msg.err{color:var(--warn)}
 .perm{display:flex;gap:9px;align-items:flex-start;font-size:14px;color:var(--ink-2)}.perm input{margin-top:3px;width:17px;height:17px}.perm b{color:var(--ink)}
 .cli-acts{display:flex;gap:8px;flex-wrap:wrap}
 .set-help{font-size:13px;color:var(--ink-2)}.set-help summary{cursor:pointer;color:var(--accent);font-weight:600}.set-help ol{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
@@ -707,8 +767,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
         <button id="vBill" aria-pressed="false">Fatturato</button>
       </div>
       <button class="btn" id="btnToday">Oggi</button>
-      <button class="btn" id="btnFleet">Flotta</button>
-      <button class="btn" id="btnClients">Clienti</button>
+      <button class="btn" id="btnArch">Archivio</button>
       <button class="btn" id="btnMenu">Menu</button>
       <button class="btn primary" id="btnNew">+ Nuova prenotazione</button>
     </div>
@@ -764,7 +823,10 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
   </section>
 
   <section id="monthView" hidden>
-    <div class="grid-wrap"><table class="mg" id="mgrid"></table></div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="sign" id="msign"></div>
+      <div class="grid-wrap"><table class="mg" id="mgrid"></table></div>
+    </div>
   </section>
 </div>
 
@@ -782,10 +844,11 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
     </div>
     <div class="fgrid fgrid4">
       <div class="f c2"><label for="f-vehicle">Mezzo</label><select id="f-vehicle"></select></div>
-      <div class="f c2"><label for="f-pax">Passeggeri</label><input id="f-pax" inputmode="numeric" autocomplete="off" placeholder="Es. 45 oppure 180/4"></div>
+      <div class="f c1"><label for="f-pax">Passeggeri</label><input id="f-pax" inputmode="numeric" autocomplete="off" placeholder="Es. 45 oppure 180/4"></div>
+      <div class="f c1"><label for="f-status">Stato</label><select id="f-status"><option value="confermato">Confermato</option><option value="opzione">Opzione</option></select></div>
       <div class="f c1"><label for="f-start" id="l-start">Data partenza</label><input type="date" id="f-start" min="2000-01-01" max="2099-12-31" required></div>
       <div class="f c1"><label for="f-time">Ora partenza</label><input type="time" id="f-time"></div>
-      <div class="f c1" id="w-end"><label for="f-end">Data rientro</label><input type="date" id="f-end" min="2000-01-01" max="2099-12-31"></div>
+      <div class="f c1" id="w-end"><label for="f-end">Data rientro <span class="next-day" id="endNext" hidden>giorno dopo</span></label><input type="date" id="f-end" min="2000-01-01" max="2099-12-31"></div>
       <div class="f c1" id="w-time2"><label for="f-time2">Ora rientro</label><input type="time" id="f-time2"></div>
       <div class="f full" id="w-event"><label for="f-event">Evento</label><input id="f-event" placeholder="Es. concerto, artista e luogo"></div>
       <div class="f full csearch"><label for="f-client">Cliente</label><input id="f-client" autocomplete="off" placeholder="Cerca per nome, alias, città o codice" role="combobox" aria-expanded="false" aria-controls="cSug"><div class="csug" id="cSug" role="listbox" hidden></div><div class="cinfo" id="cInfo"></div></div>
@@ -802,35 +865,46 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
       </div>
       <div class="f c2 drvf"><label for="f-driver">1° Autista</label><div class="drvbox"><input id="f-driver" autocomplete="off" placeholder="Scegli dall'elenco" role="combobox" aria-expanded="false" aria-controls="dl-f-driver"><button type="button" class="drvopen" data-drvopen="f-driver" tabindex="-1" aria-label="Apri elenco autisti">▾</button><div class="drvlist" id="dl-f-driver" role="listbox" hidden></div></div><div class="drvq" id="q-driver" hidden><button type="button" data-gen="f-driver">Autista Generico 1</button></div></div>
       <div class="f c2 drvf"><label for="f-driver2">2° Autista</label><div class="drvbox"><input id="f-driver2" autocomplete="off" placeholder="Solo se serve" role="combobox" aria-expanded="false" aria-controls="dl-f-driver2"><button type="button" class="drvopen" data-drvopen="f-driver2" tabindex="-1" aria-label="Apri elenco autisti">▾</button><div class="drvlist" id="dl-f-driver2" role="listbox" hidden></div></div><div class="drvq" id="q-driver2" hidden><button type="button" data-gen="f-driver2">+ Autista Generico 2</button></div></div>
-      <div class="f c2" id="w-escort"><label for="f-escort">Accompagnatore</label><input id="f-escort"></div>
-      <div class="f c2 rowstart"><label for="f-contactname">Referente nome</label><input id="f-contactname" autocomplete="off"></div>
-      <div class="f c1"><label for="f-contact">Referente telefono</label><input id="f-contact" type="tel" inputmode="tel" autocomplete="off"></div>
-      <div class="f c1"><label for="f-status">Stato</label><select id="f-status"><option value="confermato">Confermato</option><option value="opzione">Opzione</option></select></div>
+      <input type="hidden" id="f-escort">
+      <div class="f full pblock" id="pb-refs">
+        <div class="prow p-ref" id="ref1row">
+          <div class="f pf-name"><label for="f-contactname"><b>Nome referente 1</b></label><input id="f-contactname" data-f="name" data-combo="ref" autocomplete="off" role="combobox" aria-expanded="false" placeholder="Cerca in anagrafica o scrivi"></div>
+          <div class="f"><label for="f-contactrole">Ruolo</label><select id="f-contactrole" data-f="role" data-tendina="ruolo"></select></div>
+          <div class="f"><label for="f-contact">Telefono</label><input id="f-contact" data-f="tel" type="tel" inputmode="tel" autocomplete="off"></div>
+          <div class="f"><label for="f-contactnote">Note</label><input id="f-contactnote" data-f="note" autocomplete="off"></div>
+        </div>
+        <div class="rep" id="rep-refs"></div>
+        <button type="button" class="linkbtn" data-addrep="refs">+ Aggiungi referente</button>
+      </div>
+      <div class="f full pblock" id="pb-guides">
+        <div class="rep" id="rep-guides"></div>
+        <button type="button" class="linkbtn" data-addrep="guides">+ Aggiungi guida</button>
+      </div>
+      <div class="f full pblock" id="pb-hotels">
+        <div class="rep" id="rep-hotels"></div>
+        <button type="button" class="linkbtn" data-addrep="hotels">+ Aggiungi hotel</button>
+      </div>
       <div class="f full"><label for="f-notes">Note</label><textarea id="f-notes"></textarea></div>
       <details class="f full sheetbox" id="sheetBox" open>
         <summary>Foglio di servizio per l'autista</summary>
         <div class="sheetbox-in">
           <div class="f"><span class="lbl" id="l-prog">Programma</span><p class="hint" id="progHint">Una riga per ogni tappa, con orario e luogo. Le righe vengono numerate da sole.</p><div id="progWrap"></div></div>
-          <div class="rep-block"><span class="lbl">Altri referenti</span><div class="rep" id="rep-refs"></div><button type="button" class="linkbtn" data-addrep="refs">+ Aggiungi referente</button></div>
-          <div class="rep-block"><span class="lbl">Hotel</span><div class="rep" id="rep-hotels"></div><button type="button" class="linkbtn" data-addrep="hotels">+ Aggiungi hotel</button></div>
-          <div class="rep-block"><span class="lbl">Guide</span><div class="rep" id="rep-guides"></div><button type="button" class="linkbtn" data-addrep="guides">+ Aggiungi guida</button></div>
-          <div class="money3">
-            <div class="f"><label for="f-saldo">Saldo da ricevere</label><select id="f-saldo"><option value="NO">NO</option><option value="SI">SI</option></select></div>
-            <div class="f"><label for="f-saldoamt">€ Saldo</label><input id="f-saldoamt" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
-          </div>
-          <div class="notes4">
-            <div class="f"><label for="f-npark">Note 1° park</label><input id="f-npark" autocomplete="off"></div>
-            <div class="f"><label for="f-ndriver">Note 2° autista</label><input id="f-ndriver" autocomplete="off" placeholder="Es. camicia e cravatta, acqua a bordo"></div>
-            <div class="f"><label for="f-n3h">Note 3° 3 ore</label><input id="f-n3h" autocomplete="off"></div>
-            <div class="f"><label for="f-nextra">Note 4° extra</label><input id="f-nextra" autocomplete="off" placeholder="Es. esporre cartello…"></div>
-          </div>
         </div>
       </details>
+      <div class="f full drvbox2" id="drvBox">
+        <div class="money3">
+          <div class="f"><label for="f-saldo">Saldo da ricevere</label><select id="f-saldo"><option value="NO">NO</option><option value="SI">SI</option></select></div>
+          <div class="f"><label for="f-saldoamt">€ Saldo</label><input id="f-saldoamt" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
+        </div>
+        <div class="rep" id="rep-dnotes"></div>
+        <button type="button" class="linkbtn" data-addrep="dnotes">+ Aggiungi note</button>
+      </div>
     </div>
     <div class="warns" id="fWarns"></div>
     <div class="mfoot">
       <button type="button" class="btn danger" id="fDelete" hidden>Elimina</button>
       <div class="confirm" id="fConfirm" hidden>Eliminare questa prenotazione? <button type="button" class="btn danger" id="fDeleteYes">Sì, elimina</button><button type="button" class="btn" id="fDeleteNo">Annulla</button></div>
+      <div class="confirm editask" id="fEditAsk" hidden><div><b>Confermi le modifiche?</b><ul id="fEditList"></ul></div><button type="button" class="btn primary" id="fEditYes">Conferma modifiche</button><button type="button" class="btn" id="fEditNo">Annulla</button></div>
       <div class="confirm" id="fCloseAsk" hidden>Chiudere senza salvare? Le modifiche andranno perse. <button type="button" class="btn danger" id="fCloseYes">Chiudi senza salvare</button><button type="button" class="btn" id="fCloseNo">Continua a modificare</button></div>
       <span class="spacer"></span>
       <button type="button" class="btn" id="fCancel">Chiudi</button>
@@ -844,7 +918,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
   <div class="modal sheet-modal">
     <div class="sheet-top">
       <h3 id="sheetTitle">Foglio di servizio</h3><span class="sheet-kind" id="sheetKind"></span>
-      <label class="sheet-opt"><input type="checkbox" id="sheetFull"> Includi la copia ufficio (prezzi e fatture)</label>
+      <div class="sheet-opts"><label class="sheet-opt"><input type="checkbox" id="sheetNoPlate"> Nascondi Targa e ID Mezzo</label><label class="sheet-opt"><input type="checkbox" id="sheetFull"> Con la parte contabile</label></div>
     </div>
     <p class="sheet-prov" id="sheetProv" hidden>N. foglio <b>provvisorio</b>: la prenotazione non è ancora arrivata in Dropbox, quindi il numero potrebbe cambiare. Il foglio lo riporta (PROVV.); appena torna la connessione il numero viene confermato e il foglio si aggiorna.</p>
     <p class="sheet-hint">Impaginato del modello <b id="sheetTpl">automatico_2026_neutro</b>. «Stampa» stampa il foglio così come lo vedi (A4; se il programma non ci sta, anche la pagina 2).</p>
@@ -932,6 +1006,24 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
   </div>
 </div>
 
+<div class="overlay" id="ovArch" hidden>
+  <div class="modal arch-modal" role="dialog" aria-labelledby="archTitle">
+    <div class="arch-top"><h3 id="archTitle">Archivio</h3><span class="spacer"></span><button type="button" class="btn" id="archClose">Chiudi</button></div>
+    <div class="arch-grid" id="archGrid"></div>
+  </div>
+</div>
+<div class="overlay" id="ovReg" hidden>
+  <div class="modal reg-modal" role="dialog" aria-labelledby="regTitle">
+    <div class="reg-top"><button type="button" class="btn" id="regBack">‹ Archivio</button><h3 id="regTitle">Anagrafica</h3><span class="reg-count" id="regCount"></span><span class="spacer"></span><button type="button" class="btn primary" id="regNew">+ Nuovo</button></div>
+    <input id="regQ" type="search" class="cli-q" placeholder="Cerca…" autocomplete="off" aria-label="Cerca">
+    <p class="reg-note" id="regNote"></p>
+    <div class="reg-table" id="regTable"></div>
+    <div class="reg-msg" id="regMsg" role="status"></div>
+    <div class="mfoot"><span class="spacer"></span><button type="button" class="btn" id="regClose">Chiudi</button></div>
+  </div>
+</div>
+<datalist id="dlCliNames"></datalist><datalist id="dlCities"></datalist><datalist id="dlRegions"></datalist>
+
 <div class="overlay" id="ovMaster" hidden>
   <div class="modal mst-modal" role="dialog" aria-labelledby="mstTitle">
     <div class="mst-top">
@@ -940,6 +1032,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
         <button type="button" data-mt="users" aria-pressed="true">Utenti</button>
         <button type="button" data-mt="devs" aria-pressed="false">Dispositivi</button>
         <button type="button" data-mt="log" aria-pressed="false">Registro</button>
+        <button type="button" data-mt="tlog" aria-pressed="false">Log tecnico</button>
         <button type="button" data-mt="set" aria-pressed="false">Impostazioni</button>
       </div>
     </div>
@@ -977,6 +1070,17 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
       <div class="lg-list" id="lgList"></div>
     </section>
 
+    <section class="mst-sec" id="mtTlog" hidden>
+      <div class="lg-bar">
+        <select id="tlPer" aria-label="Periodo"><option value="0">Oggi</option><option value="2" selected>Ultimi 3 giorni</option><option value="6">Ultimi 7 giorni</option><option value="29">Ultimi 30 giorni</option></select>
+        <select id="tlLev" aria-label="Livello"><option value="">Tutti i messaggi</option><option value="errore">Solo errori</option><option value="avviso">Errori e avvisi</option></select>
+        <input id="tlQ" type="search" placeholder="Cerca nel log…" aria-label="Cerca nel log">
+        <button type="button" class="btn" id="tlTxt">Scarica il log (.txt)</button>
+      </div>
+      <p class="mst-sub">Messaggi tecnici di tutti i dispositivi (problemi con Dropbox, con il file fatturato, errori del programma). Servono per capire cosa è successo se qualcosa non funziona.</p>
+      <div class="lg-list" id="tlList"></div>
+    </section>
+
     <section class="mst-sec" id="mtSet" hidden>
       <div class="set-card">
         <h4>Ricerca hotel su Google</h4>
@@ -999,6 +1103,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
         <p class="mst-sub">Gli utenti lavorano sempre sull'agenda (prenotazioni, fogli di servizio, autisti extra). Qui scegli se possono anche:</p>
         <label class="perm"><input type="checkbox" id="permClients"> <span><b>Anagrafica clienti</b> – aggiungere clienti nuovi e modificare quelli esistenti</span></label>
         <label class="perm"><input type="checkbox" id="permFleet"> <span><b>Flotta</b> – modificare nomi, posti e targhe dei mezzi</span></label>
+        <label class="perm"><input type="checkbox" id="permAnag"> <span><b>Anagrafiche</b> – referenti, guide, hotel e tendine (note, ruolo)</span></label>
       </div>
       <div class="set-card">
         <h4>Uscita automatica</h4>
