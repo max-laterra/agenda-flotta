@@ -28,7 +28,7 @@
   --sunday:#C0262D; --sunday-bg:#FCE4E3; --sunday-line:#EBA7A5;
   --warn:#B42318; --warn-bg:#FDECEA;
   --tbd:#B86E00; --tbd-bg:#FFF0D1; --tbd-ink:#7A4A00;
-  --sign-bg:#5C636B; --sign-fg:#FFB21A; --sign-dim:#FFD27F;
+  --sign-bg:#5C636B; --sign-fg:#FFB21A; --sign-dim:#FFD27F; --sign-sun:#FF5A5F;
   --shadow:0 10px 30px rgba(18,28,40,.18);
   --sans:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --cond:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
@@ -46,7 +46,7 @@
     --sunday:#FF7B76; --sunday-bg:#3A1B1D; --sunday-line:#6E2F31;
     --warn:#FF8A80; --warn-bg:#3A1B1B;
     --tbd:#F2B34C; --tbd-bg:#3A2A10; --tbd-ink:#F5C872;
-    --sign-bg:#5C636B; --sign-fg:#FFB21A; --sign-dim:#FFD27F;
+    --sign-bg:#5C636B; --sign-fg:#FFB21A; --sign-dim:#FFD27F; --sign-sun:#FF5A5F; --sign-sun:#FF5A5F;
     --shadow:0 10px 30px rgba(0,0,0,.5);
   }
 }
@@ -62,7 +62,7 @@
   --sunday:#FF7B76; --sunday-bg:#3A1B1D; --sunday-line:#6E2F31;
   --warn:#FF8A80; --warn-bg:#3A1B1B;
   --tbd:#F2B34C; --tbd-bg:#3A2A10; --tbd-ink:#F5C872;
-  --sign-bg:#5C636B; --sign-fg:#FFB21A; --sign-dim:#FFD27F;
+  --sign-bg:#5C636B; --sign-fg:#FFB21A; --sign-dim:#FFD27F; --sign-sun:#FF5A5F;
   --shadow:0 10px 30px rgba(0,0,0,.5);
 }
 *{box-sizing:border-box}
@@ -77,6 +77,7 @@ button{cursor:pointer}
 .top{display:flex;flex-direction:column;gap:12px}
 .topline{display:flex;align-items:center;justify-content:space-between;gap:16px}
 .top .controls{justify-content:flex-end}
+.top .bar{display:flex;align-items:center;justify-content:space-between;gap:10px 16px;flex-wrap:wrap}
 .logo{display:block;height:58px;width:auto;max-width:55%;object-fit:contain;background:#fff;border-radius:10px;padding:8px 14px;box-sizing:content-box;border:1px solid var(--line)}
 .seg{max-width:100%;overflow-x:auto}
 .seg button{white-space:nowrap}
@@ -96,7 +97,7 @@ button{cursor:pointer}
 
 /* month bar + day strip */
 .monthbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.monthbar h2{margin:0;font-family:var(--cond);font-weight:600;font-size:22px;text-transform:capitalize;min-width:170px}
+.monthbar h2{margin:0;font-family:var(--cond);font-weight:600;font-size:22px;text-transform:capitalize;min-width:170px;text-align:center}
 .legend{display:flex;gap:6px 12px;flex-wrap:wrap;margin-left:auto;font-size:12.5px;color:var(--ink-2);max-width:760px;justify-content:flex-end}
 .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .strip-wrap{overflow-x:auto;padding-bottom:4px}
@@ -136,10 +137,16 @@ button{cursor:pointer}
 
 /* destination-sign day header */
 .sign{background:var(--sign-bg);color:var(--sign-fg);border-radius:12px;padding:14px 18px;display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px}
-.sign .date{font-family:var(--cond);font-weight:700;font-size:30px;letter-spacing:.04em;text-transform:uppercase;line-height:1.05}
+.sign .date{font-family:var(--cond);font-weight:700;font-size:30px;letter-spacing:.04em;text-transform:uppercase;line-height:1.05;display:flex;align-items:baseline;gap:0 .32em;flex-wrap:wrap}
+.sign.sun .date{color:var(--sign-sun)}
+.sign .today-tag{align-self:center;font-size:12px;letter-spacing:.12em;border:1.5px solid currentColor;border-radius:5px;padding:2px 7px;margin-left:.4em}
+.sign .stats .grp{display:flex;gap:18px}
+.sign .stats .grp+.grp{border-left:1px solid color-mix(in srgb,var(--sign-dim) 55%,transparent);padding-left:26px;margin-left:10px}
 .sign .date small{display:block;font-size:13px;letter-spacing:.14em;color:var(--sign-dim);font-weight:600}
 .sign .sunflag{font-family:var(--cond);font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:13px;background:#C0262D;color:#fff;border-radius:4px;padding:3px 8px}
-.sign .stats{display:flex;gap:18px;flex-wrap:wrap;margin-left:auto}
+.sign .sright{display:flex;align-items:center;gap:14px 22px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+.sign .stats{display:flex;gap:18px 0;flex-wrap:wrap}
+@media (max-width:1500px){.sign .date{font-size:26px}.sign .stats .grp{gap:14px}.sign .stats .grp+.grp{padding-left:18px;margin-left:6px}}
 .stat{display:flex;flex-direction:column}
 .stat b{font-family:var(--cond);font-size:24px;line-height:1;font-variant-numeric:tabular-nums}
 .stat span{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--sign-dim);font-weight:600}
@@ -149,10 +156,12 @@ button{cursor:pointer}
 /* day sheet */
 .sheet{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .sheet.sun{border-color:var(--sunday-line);box-shadow:inset 4px 0 0 var(--sunday)}
-.row{display:grid;grid-template-columns:190px 1fr auto;gap:12px;align-items:start;padding:9px 14px;border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:215px 1fr auto;gap:12px;align-items:start;padding:9px 14px;border-top:1px solid var(--line)}
 .row:first-child{border-top:0}
 .row.busy{background:color-mix(in srgb,var(--surface-2) 45%,transparent)}
 .veh{display:flex;flex-direction:column;gap:2px;padding-top:3px}
+.veh .vl{font-size:15px;white-space:nowrap;display:flex;align-items:center;gap:6px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.veh .vl b{color:var(--ink)}
 .veh .nm{font-weight:700;font-size:15px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .veh .meta{font-size:12.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .badge-h{font-size:11px;font-weight:700;border:1.5px solid var(--accent);color:var(--accent);border-radius:4px;padding:0 5px;line-height:16px}
@@ -182,7 +191,7 @@ button{cursor:pointer}
   .row{grid-template-columns:1fr auto;}
   .row .slots{grid-column:1 / -1;order:3}
   .sign .date{font-size:24px}
-  .sign .stats{margin-left:0}
+  .sign .stats{margin-left:0}.sign .sright{margin-left:0;justify-content:flex-start}.sign .stats .grp+.grp{border-left:0;padding-left:0;margin-left:0}.sign .stats{gap:10px 0;flex-direction:column}
 }
 
 /* extra drivers */
@@ -381,10 +390,10 @@ table.bt{border-collapse:collapse;width:100%;min-width:1400px;font-size:13px}
 @media (max-width:520px){.fgrid{grid-template-columns:1fr}.types{grid-template-columns:1fr 1fr}}
 
 .fleet-list{display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow-y:auto}
-.fleet-row{display:grid;grid-template-columns:1.5fr 60px 1.1fr 1fr;gap:8px}
+.fleet-row{display:grid;grid-template-columns:1.3fr 64px 1.1fr 1fr 90px;gap:8px}
 .fleet-row select{border:1px solid var(--line);border-radius:8px;padding:7px 6px;background:var(--bg);min-width:0;width:100%}
 .fleet-row input{border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:var(--bg);min-width:0;width:100%}
-.fleet-head{display:grid;grid-template-columns:1.5fr 60px 1.1fr 1fr;gap:8px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.fleet-head{display:grid;grid-template-columns:1.3fr 64px 1.1fr 1fr 90px;gap:8px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
 
 .banner{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:6px 8px 6px 14px;font-weight:600;font-size:14px;display:flex;flex-direction:column;gap:4px}
 .banner .bn{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
@@ -523,9 +532,9 @@ img{max-width:100%}
 /* ---- schermo intero su computer ---- */
 @media (min-width:1280px){
   .legend{max-width:none}
-  .row{grid-template-columns:230px 1fr auto;padding:10px 18px}
+  .row{grid-template-columns:240px 1fr auto;padding:10px 18px}
   /* più prenotazioni dello stesso mezzo affiancate invece che una sotto l'altra */
-  .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:8px}
+  .slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(460px,1fr));gap:8px}
   .slots .free{grid-column:1/-1}
   .wk col.vcol{width:200px}
   .wk td.wc{height:52px}
@@ -541,6 +550,15 @@ img{max-width:100%}
   .stat b{font-size:27px}
   .row{grid-template-columns:260px 1fr auto}
   .veh .nm{font-size:16px}
+}
+@media (min-width:900px){
+  .row{align-items:center}
+  .bk{display:flex;align-items:center;gap:12px;white-space:nowrap;overflow:hidden;padding:7px 12px}
+  .bk .what{flex-wrap:nowrap;min-width:0;flex:0 1 auto;overflow:hidden}
+  .bk .what>*{flex:none}
+  .bk .rt{flex:0 1 auto;min-width:60px;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
+  .bk .det{flex:1 1 0;min-width:0;flex-wrap:nowrap;overflow:hidden;gap:0 14px;font-size:13px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+  .bk .det>span{flex:none}
 }
 .gen{background:var(--tbd-bg);color:var(--tbd-ink);border-radius:4px;padding:0 5px;font-weight:600;white-space:nowrap}
 .tbdtxt{color:var(--tbd-ink);font-weight:600;font-size:12px;white-space:nowrap}
@@ -675,6 +693,12 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
       <div class="brand"><h1>Agenda Flotta</h1><span id="fleetCount">26 mezzi</span><span class="net" id="netStatus" hidden></span><span class="appver" id="appVer"></span><button type="button" class="whoami" id="whoAmI" hidden></button></div>
       <img class="logo" src="logo.jpg" alt="La Terra" width="1000" height="138">
     </div>
+    <div class="bar">
+    <div class="monthbar">
+      <button class="btn icon" id="mPrev" aria-label="Mese precedente">‹</button>
+      <h2 id="mTitle"></h2>
+      <button class="btn icon" id="mNext" aria-label="Mese successivo">›</button>
+    </div>
     <div class="controls">
       <div class="seg" role="group" aria-label="Vista">
         <button id="vDay" aria-pressed="true">Giorno</button>
@@ -688,22 +712,10 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
       <button class="btn" id="btnMenu">Menu</button>
       <button class="btn primary" id="btnNew">+ Nuova prenotazione</button>
     </div>
+    </div>
   </header>
 
   <div class="banner" id="banner" hidden></div>
-
-  <div class="monthbar">
-    <button class="btn icon" id="mPrev" aria-label="Mese precedente">‹</button>
-    <h2 id="mTitle"></h2>
-    <button class="btn icon" id="mNext" aria-label="Mese successivo">›</button>
-    <div class="legend">
-      <span><i style="background:var(--gita-fill)"></i>Gita</span>
-      <span><i style="background:var(--tour-fill)"></i>Tour</span>
-      <span><i style="background:var(--notturno-fill)"></i>Notturno</span>
-      <span><i style="background:var(--transfer-fill)"></i>Transfer</span>
-      <span><i style="background:var(--sunday-bg);border:1px solid var(--sunday)"></i>Domenica</span>
-    </div>
-  </div>
 
   <div class="strip-wrap"><div class="strip" id="strip"></div></div>
 
@@ -840,6 +852,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
     <div class="sheet-msg" id="sheetMsg" role="status"></div>
     <div class="mfoot">
       <button type="button" class="btn" id="sheetClose">Chiudi</button>
+      <button type="button" class="btn" id="sheetBack">‹ Torna alla prenotazione</button>
       <span class="spacer"></span>
       <button type="button" class="btn" id="sheetShare" hidden>Invia…</button>
       <button type="button" class="btn" id="sheetPrint">Stampa</button>
@@ -877,7 +890,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
     <h3>Flotta</h3>
     <p class="menu-note" id="fleetRo" hidden>Solo il Master può modificare la flotta: qui puoi consultarla.</p>
     <p style="margin:0;color:var(--ink-2);font-size:14px">Il mezzo e la targa vanno nelle colonne G e H del fatturato. Le targhe proposte sono quelle del foglio "regole" del tuo file.</p>
-    <div class="fleet-head"><span>Nome</span><span>Posti</span><span>Mezzo (Excel)</span><span>Targa</span></div>
+    <div class="fleet-head"><span>Nome</span><span>Posti</span><span>Mezzo (Excel)</span><span>Targa</span><span>ID mezzo</span></div>
     <div class="fleet-list" id="fleetList"></div>
     <div class="mfoot"><button type="button" class="btn" id="flCancel">Chiudi</button><button type="submit" class="btn primary" id="flSave">Salva flotta</button></div>
   </form>

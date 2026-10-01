@@ -3,22 +3,21 @@
 "use strict";
 // ---------- flotta predefinita ----------
 function mk(id,name,seats,kind,h){return {id:id,name:name,seats:seats,kind:kind,plate:"",h:!!h};}
-const DEFAULT_FLEET=[
-  mk("auto","Auto",null,"auto"),
-  mk("van7-1","Van 7 posti · 1",7,"van"), mk("van7-2","Van 7 posti · 2",7,"van"),
-  mk("b19","Bus 19 posti",19,"bus"),
-  mk("b20-1","Bus 20 posti · 1",20,"bus"), mk("b20-2","Bus 20 posti · 2",20,"bus"), mk("b20-3","Bus 20 posti · 3",20,"bus"),
-  mk("b28-1","Bus 28 posti · 1",28,"bus"), mk("b28-2","Bus 28 posti · 2",28,"bus"),
-  mk("b42-1","Bus 42 posti · 1",42,"bus"), mk("b42-2","Bus 42 posti · 2",42,"bus"),
-  mk("b50","Bus 50 posti",50,"bus"),
-  mk("b52-1","Bus 52 posti · 1",52,"bus"), mk("b52-2","Bus 52 posti · 2",52,"bus"), mk("b52-3","Bus 52 posti · 3",52,"bus"), mk("b52-4","Bus 52 posti · 4",52,"bus"),
-  mk("b52h","Bus 52 posti H",52,"bus",true),
-  mk("b54-1","Bus 54 posti · 1",54,"bus"), mk("b54-2","Bus 54 posti · 2",54,"bus"), mk("b54-3","Bus 54 posti · 3",54,"bus"),
-  mk("b58-1","Bus 58 posti · 1",58,"bus"), mk("b58-2","Bus 58 posti · 2",58,"bus"),
-  mk("b64","Bus 64 posti",64,"bus"),
-  mk("b79","Bus 79 posti",79,"bus"),
-  mk("b81-1","Bus 81 posti · 1",81,"bus"), mk("b81-2","Bus 81 posti · 2",81,"bus")
+// Dati della flotta aggiornati (30/09/2026): targa, posti, categoria Excel, ID mezzo, nell'ordine voluto.
+// id = mezzo dell'agenda a cui vanno (le prenotazioni restano legate all'id)
+const FLEET_2026=[
+  ["b81-1","GM701RZ",81,"_81_posti","50"],["b81-2","EY494KH",81,"_81_posti","41"],["b79","AE383RP",79,"_81_posti","16"],
+  ["b64","EB605WA",64,"_64_posti","36"],["b58-1","EL851DX",58,"_58_posti","38"],["b58-2","EL852DX",58,"_58_posti","39"],
+  ["b54-1","BY620WH",54,"_54_posti","23"],["b54-2","BY241WH",54,"_54_posti","24"],["b54-3","FY961BX",54,"_54_posti","34"],
+  ["b52h","DL621AZ","52H","_54_posti","33"],["b52-1","CW410AT",52,"_54_posti","29"],["b52-2","FX264GX",52,"_54_posti","46"],
+  ["b52-3","GP342PL",52,"_54_posti","48"],["b52-4","GZ137ZG",52,"_54_posti","51"],["b50","FE144ZK",50,"_54_posti","43"],
+  ["b42-1","ER949JC",42,"_42_posti","40"],["b42-2","FP990DZ",42,"_42_posti","44"],["b28-1","FD945CT",28,"_28_posti","42"],
+  ["b28-2","GT856XE",28,"_28_posti","49"],["b20-1","EH555MS",20,"_20_posti","35"],["b20-2","FP353BC",20,"_20_posti","45"],
+  ["b20-3","HE096VW",20,"_20_posti","52"],["b19","CY324NW",19,"_20_posti","31"],["van7-1","CY999NW",7,"_7_posti","Viano V"],
+  ["van7-2","GT889XE",7,"_7_posti","Viano N"],["auto","DX285ME",4,"_3_posti","SW"]
 ];
+function fleetRec(r,ord){const h=/H$/i.test(String(r[2])),n=parseInt(r[2],10);return {plate:r[1],seats:n,h,xcat:r[3],num:r[4],ord,name:n+" posti"+(h?" H":"")};}
+const DEFAULT_FLEET=FLEET_2026.map((r,i)=>Object.assign({id:r[0],kind:r[0]==="auto"?"auto":/^van/.test(r[0])?"van":"bus"},fleetRec(r,i+1)));
 const TYPES={gita:"Gita",tour:"Tour",notturno:"Notturno",transfer:"Transfer"};
 // valori della colonna B "Tipo Servizio" del fatturato
 const TYPE_XL={gita:"gita",tour:"tour",notturno:"notturno",transfer:"transfer"};
@@ -103,7 +102,10 @@ function cleanText(t,multi){
 
 // ---------- stato ----------
 // flotta in ordine decrescente di posti (l'auto in fondo)
-function sortFleet(list){return list.map((v,i)=>[v,i]).sort((a,b)=>((b[0].seats||0)-(a[0].seats||0))||(a[1]-b[1])).map(x=>x[0]);}
+function sortFleet(list){return list.map((v,i)=>[v,i]).sort((a,b)=>(a[0].ord&&b[0].ord?a[0].ord-b[0].ord:0)||((b[0].seats||0)-(a[0].seats||0))||(a[1]-b[1])).map(x=>x[0]);}
+// come si vede il mezzo nella vista Giorno: "81 posti - GM701RZ (50)"
+function vehLabelHTML(v){const s=v.seats?v.seats+" posti":"Auto";return '<b>'+esc(s)+'</b>'+(v.h?'<span class="badge-h" title="Accessibile">H</span>':'')+(v.plate?' - '+esc(v.plate):'')+(v.num?' ('+esc(v.num)+')':'');}
+function vehLabel(v){return (v.seats?v.seats+" posti"+(v.h?" H":""):"Auto")+(v.plate?" - "+v.plate:"")+(v.num?" ("+v.num+")":"");}
 const S={fleet:sortFleet(DEFAULT_FLEET),fleetStored:false,days:{},sel:todayISO(),view:"day",readOnly:false,clients:[],regole:{autisti:[],targhe:{},numeri:{}},allDays:null};
 let db=null, unsubDays=null, subMonth=null;
 const $=id=>document.getElementById(id);
@@ -167,7 +169,7 @@ function renderWeek(){
   }
   h+='</tr></thead><tbody>';
   for(const v of S.fleet){
-    h+='<tr><th class="vc"><b>'+esc(v.name)+(v.h?'<span class="badge-h" title="Accessibile">H</span>':"")+'</b><span>'+(v.seats?v.seats+" posti":"Auto")+(v.plate?" · "+esc(v.plate):"")+'</span></th>';
+    h+='<tr><th class="vc"><b>'+esc(v.seats?v.seats+" posti":"Auto")+(v.h?'<span class="badge-h" title="Accessibile">H</span>':"")+'</b><span>'+esc([v.plate,v.num?"("+v.num+")":""].filter(Boolean).join(" "))+'</span></th>';
     for(const ds of days){
       const list=on(ds,v.id);
       let inner="";
@@ -197,10 +199,10 @@ let cntOpen=true;try{cntOpen=localStorage.getItem("agenda-conteggi")!=="0";}catc
 function renderStrip(){
   const k=mkey(S.sel),n=dim(k),all=bookingsAll(),t=todayISO(),nf=S.fleet.length;
   const wkA=S.view==="week"?weekStart(S.sel):"",wkZ=wkA?addDays(wkA,6):"";
-  let g='<div class="lab lg"><button type="button" class="cnt-tg lb" id="cntToggle" aria-expanded="'+cntOpen+'" title="'+(cntOpen?"Nascondi":"Mostra")+' i conteggi (autisti, servizi, pullman)"><b>G</b><small>giorno</small><i>'+(cntOpen?"▲":"▼")+'</i></button></div>';
+  let g='<div class="lab lg"><button type="button" class="cnt-tg lb" id="cntToggle" aria-expanded="'+cntOpen+'" title="'+(cntOpen?"Nascondi":"Mostra")+' i conteggi (autisti, servizi, mezzi)"><b>G</b><small>giorno</small><i>'+(cntOpen?"▲":"▼")+'</i></button></div>';
   let ra='<div class="lab r2" title="Autisti impegnati"><span class="lb"><b>A</b><small>autisti</small></span></div>';
   let rs='<div class="lab r2" title="Servizi del giorno"><span class="lb"><b>S</b><small>servizi</small></span></div>';
-  let rp='<div class="lab r2" title="Pullman (mezzi) impegnati"><span class="lb"><b>P</b><small>pullman</small></span></div>';
+  let rp='<div class="lab r2" title="Mezzi impegnati"><span class="lb"><b>M</b><small>mezzi</small></span></div>';
   for(let d=1;d<=n;d++){
     const ds=k+"-"+pad(d),w=wday(ds);
     const inwk=wkA&&ds>=wkA&&ds<=wkZ;
@@ -242,7 +244,8 @@ function bookingHTML(b,date){
   if(hasEvent(b.type)&&b.escort)det.push("Accompagnatore: "+esc(b.escort));
   if(b.contactName||b.contact)det.push("Ref. "+esc([b.contactName,b.contact].filter(Boolean).join(" ")));
   if(b.notes)det.push(esc(b.notes));
-  return '<button class="bk '+esc(b.type)+(b.status==="opzione"?" opzione":"")+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'">'+
+  const tip=[(b.time||"")+" "+tp,b.client||"",whatToday(b,date)||""].filter(Boolean).join(" · ")+(det.length?"\n"+det.map(x=>x.replace(/<[^>]+>/g,"").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&#39;/g,"'")).join(" · "):"");
+  return '<button class="bk '+esc(b.type)+(b.status==="opzione"?" opzione":"")+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc(tip)+'">'+
     '<span class="when">'+when+'</span>'+
     '<span class="what"><span class="tp">'+tp+'</span>'+(b.status==="opzione"?'<span class="st">Opzione</span>':"")+
     '<span class="cl">'+esc(b.client||"Senza cliente")+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(whatToday(b,date)?'<span class="rt'+(dayProgram(b,date)?" pg":"")+'">'+esc(whatToday(b,date))+'</span>':"")+'</span>'+
@@ -254,24 +257,26 @@ function renderDay(){
   const date=S.sel,w=wday(date),all=bookingsAll(),d=parse(date);
   const today=dayList(date);
   const busy=new Set(today.map(b=>b.vehicle)),dc=dayCounts(date);
+  // giorno e data sulla stessa riga; la domenica in rosso. Numeri: autisti, servizi, mezzi | tipi di servizio
+  $("sign").className="sign"+(w===0?" sun":"");
+  const tcount=Object.keys(STAT_LABELS).map(k=>[k,today.filter(b=>b.type===k).length]).filter(x=>x[1]);
   $("sign").innerHTML=
-    '<div class="date"><small>'+(date===todayISO()?"Oggi · ":"")+WDL[w]+'</small>'+d.getUTCDate()+" "+MN[d.getUTCMonth()]+" "+d.getUTCFullYear()+'</div>'+
-    (w===0?'<span class="sunflag">Domenica</span>':"")+
-    '<div class="stats">'+
-      '<div class="stat"><b>'+busy.size+"/"+S.fleet.length+'</b><span>Mezzi impegnati</span></div>'+
-      '<div class="stat" title="'+(dc.gen?"di cui "+dc.gen+" da assegnare":"")+'"><b>'+dc.a+'</b><span>Autisti</span></div>'+
-      statsHTML(today)+
+    '<div class="date"><span>'+WDL[w]+'</span><span>'+d.getUTCDate()+" "+MN[d.getUTCMonth()]+" "+d.getUTCFullYear()+'</span>'+(date===todayISO()?'<span class="today-tag">Oggi</span>':'')+'</div>'+
+    '<div class="sright"><div class="stats">'+
+      '<div class="grp">'+
+        '<div class="stat" title="'+(dc.gen?"di cui "+dc.gen+" da assegnare":"")+'"><b>'+dc.a+'</b><span>Autisti</span></div>'+
+        '<div class="stat"><b>'+today.length+'</b><span>Servizi</span></div>'+
+        '<div class="stat" title="'+busy.size+" su "+S.fleet.length+' mezzi"><b>'+busy.size+'</b><span>Mezzi</span></div>'+
+      '</div>'+
+      (tcount.length?'<div class="grp">'+tcount.map(([k,n])=>'<div class="stat"><b>'+n+'</b><span>'+(n===1?TYPES[k]:STAT_LABELS[k])+'</span></div>').join("")+'</div>':'')+
     '</div>'+
-    '<div class="nav"><button id="dPrev" aria-label="Giorno precedente">‹</button><button id="dNext" aria-label="Giorno successivo">›</button></div>';
+    '<div class="nav"><button id="dPrev" aria-label="Giorno precedente">‹</button><button id="dNext" aria-label="Giorno successivo">›</button></div></div>';
   $("sheet").className="sheet"+(w===0?" sun":"");
-  let h="",lastG="";
+  let h="";
   for(const v of S.fleet){
-    const g=GROUPS[v.kind]||"Bus";
-    if(g!==lastG){h+='<div class="group-h">'+g+'</div>';lastG=g;}
     const list=on(date,v.id);
     h+='<div class="row'+(list.length?" busy":"")+'">'+
-      '<div class="veh"><span class="nm">'+esc(v.name)+(v.h?'<span class="badge-h" title="Accessibile">H</span>':"")+'</span>'+
-      '<span class="meta">'+(v.seats?v.seats+" posti":"Auto")+(v.plate?" · "+esc(v.plate):"")+'</span></div>'+
+      '<div class="veh"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span></div>'+
       '<div class="slots">'+(list.length?list.map(b=>bookingHTML(b,date)).join(""):'<span class="free">Libero</span>')+'</div>'+
       (S.readOnly?"<span></span>":'<button class="add" data-add="'+v.id+'">+ Aggiungi</button>')+
     '</div>';
@@ -338,7 +343,7 @@ function openForm(opts){
   $("f-price").value=b.price==null?"":b.price;$("f-driver2").value=b.driver2||"";
   $("f-park").value=b.park==null?"":b.park;$("f-meals").value=b.meals==null?"":b.meals;$("f-advance").value=b.advance==null?"":b.advance;$("f-envelope").value=b.envelope||"";$("f-envno").value=b.envno||"";bustaAuto="";
   $("cSug").hidden=true;
-  $("f-vehicle").innerHTML=S.fleet.map(v=>'<option value="'+v.id+'">'+esc(v.name)+(v.plate?" – "+esc(v.plate):"")+'</option>').join("");
+  $("f-vehicle").innerHTML=S.fleet.map(v=>'<option value="'+v.id+'">'+esc(vehLabel(v))+'</option>').join("");
   $("t-"+normType(b.type)).checked=true;
   $("f-vehicle").value=b.vehicle;if(!$("f-vehicle").value&&S.fleet[0])$("f-vehicle").value=S.fleet[0].id;$("f-start").value=b.start;$("f-end").value=(b.end&&b.end>=b.start)?b.end:b.start;$("f-end").min=b.start||"";formStart=b.start;
   $("f-time").value=b.time||"";$("f-time2").value=b.time2||"";$("f-client").value=b.client||"";$("f-route").value=b.route||"";
@@ -959,9 +964,10 @@ $("fDeleteYes").onclick=async()=>{
 // ---------- flotta ----------
 function openFleet(){
   const T=S.regole.targhe||{},N=S.regole.numeri||{};
-  $("dlPlates").innerHTML=XCATS.map(c=>'<datalist id="pl'+c+'">'+(T[c]||[]).map(t=>'<option value="'+esc(t)+'">'+(N[t]?"n. "+esc(N[t]):"")+'</option>').join("")+'</datalist>').join("");
-  fleetOpen={};S.fleet.forEach(v=>{fleetOpen[v.id]={name:v.name,seats:v.seats||null,plate:v.plate||"",xcat:xcatOf(v)};});
-  $("fleetList").innerHTML=S.fleet.map((v,i)=>{const xc=xcatOf(v);return '<div class="fleet-row" data-id="'+esc(v.id)+'"><input id="fl-n-'+i+'" value="'+esc(v.name)+'" aria-label="Nome"><input id="fl-s-'+i+'" type="number" min="1" value="'+(v.seats||"")+'" aria-label="Posti"><select id="fl-x-'+i+'" aria-label="Mezzo (Excel)">'+XCATS.map(c=>'<option'+(c===xc?' selected':'')+'>'+c+'</option>').join("")+'</select><input id="fl-p-'+i+'" list="pl'+xc+'" value="'+esc(v.plate||"")+'" placeholder="Targa" aria-label="Targa" autocomplete="off"></div>';}).join("");
+  const cats=[...new Set(XCATS.concat(Object.keys(T)).concat(S.fleet.map(xcatOf)))].sort((a,b)=>(parseInt(a.replace(/\D/g,""),10)||0)-(parseInt(b.replace(/\D/g,""),10)||0));
+  $("dlPlates").innerHTML=cats.map(c=>'<datalist id="pl'+c+'">'+(T[c]||[]).map(t=>'<option value="'+esc(t)+'">'+(N[t]?"n. "+esc(N[t]):"")+'</option>').join("")+'</datalist>').join("");
+  fleetOpen={};S.fleet.forEach(v=>{fleetOpen[v.id]={name:v.name,seats:v.seats||null,plate:v.plate||"",xcat:xcatOf(v),num:v.num==null?"":String(v.num)};});
+  $("fleetList").innerHTML=S.fleet.map((v,i)=>{const xc=xcatOf(v);return '<div class="fleet-row" data-id="'+esc(v.id)+'"><input id="fl-n-'+i+'" value="'+esc(v.name)+'" aria-label="Nome"><input id="fl-s-'+i+'" type="number" min="1" value="'+(v.seats||"")+'" aria-label="Posti"><select id="fl-x-'+i+'" aria-label="Mezzo (Excel)">'+cats.map(c=>'<option'+(c===xc?' selected':'')+'>'+c+'</option>').join("")+'</select><input id="fl-p-'+i+'" list="pl'+xc+'" value="'+esc(v.plate||"")+'" placeholder="Targa" aria-label="Targa" autocomplete="off"><input id="fl-i-'+i+'" value="'+esc(v.num==null?"":v.num)+'" placeholder="ID" aria-label="ID mezzo" autocomplete="off"></div>';}).join("");
   const ro=!canEdit("fleet");$("fFleet").classList.toggle("fleet-ro",ro);$("fleetRo").hidden=!ro;$("flSave").hidden=ro;
   $("fleetList").querySelectorAll("input,select").forEach(el=>{el.readOnly=ro;if(el.tagName==="SELECT")el.disabled=ro;});
   $("ovFleet").hidden=false;
@@ -979,7 +985,7 @@ $("fFleet").addEventListener("submit",async e=>{
   for(const row of $("fleetList").querySelectorAll(".fleet-row")){
     const id=row.dataset.id,o=fleetOpen[id];if(!o)continue;
     const inp=row.querySelectorAll("input"),sel=row.querySelector("select");
-    const now={name:cleanText(inp[0].value)||o.name,seats:inp[1].value?Number(inp[1].value):null,plate:cleanText(inp[2].value).toUpperCase(),xcat:sel.value};
+    const now={name:cleanText(inp[0].value)||o.name,seats:inp[1].value?Number(inp[1].value):null,plate:cleanText(inp[2].value).toUpperCase(),xcat:sel.value,num:cleanText(inp[3].value)};
     const p={};for(const k in now)if(JSON.stringify(now[k])!==JSON.stringify(o[k]))p[k]=now[k];
     if(Object.keys(p).length)patches[id]=p;
   }
@@ -987,7 +993,7 @@ $("fFleet").addEventListener("submit",async e=>{
   const btn=$("fFleet").querySelector('button[type="submit"]');btn.disabled=true;
   try{
     const vs=await STORE.patchFleet(patches,S.fleet.map(v=>Object.assign({},v,{xcat:xcatOf(v)})));
-    const fch=[];for(const id in patches){const o=fleetOpen[id]||{};for(const k in patches[id])fch.push([(o.name||id)+" – "+({name:"nome",seats:"posti",plate:"targa",xcat:"mezzo Excel"}[k]||k),o[k]==null?"":String(o[k]),String(patches[id][k]==null?"":patches[id][k])]);}
+    const fch=[];for(const id in patches){const o=fleetOpen[id]||{};for(const k in patches[id])fch.push([(o.name||id)+" – "+({name:"nome",seats:"posti",plate:"targa",xcat:"mezzo Excel",num:"ID mezzo"}[k]||k),o[k]==null?"":String(o[k]),String(patches[id][k]==null?"":patches[id][k])]);}
     ACC.log("impostazioni","Modificata la flotta",{ch:fch});
     S.fleet=sortFleet(vs);$("ovFleet").hidden=true;fleetOpen=null;renderAll();toast("Flotta aggiornata");
   }catch(err){toast(err&&err.code==="offline"?"Per modificare la flotta serve la connessione a internet.":"Non riesco a salvare la flotta adesso. Riprova tra poco.");}
@@ -1379,7 +1385,7 @@ function tplProgram(b,forPdf,extraHotels){
 // valori delle caselle. k: s testo, i numero intero, d data, e euro, a euro contabile. f: casella con formula del modello
 function tplValues(b,forPdf,one){
   const v=vehicle(b.vehicle)||{},cl=shClient(b),plate=(v.plate||"").trim(),type=normType(b.type);
-  const nr=(S.regole.numeri||{})[plate],numero=nr==null?"":(/^\d+$/.test(String(nr).trim())?Number(nr):String(nr));
+  const nr=v.num!=null&&String(v.num).trim()!==""?v.num:(S.regole.numeri||{})[plate],numero=nr==null?"":(/^\d+$/.test(String(nr).trim())?Number(nr):String(nr).trim());
   const nd=diff(b.start,endOf(b))+1,P=numOrE(b.price),Q=numOrE(b.park),R=numOrE(b.meals);
   const name=cl?cl[1]:(b.client||""),tel=cl&&cl[4]?String(cl[4]):"",refName=cl&&cl[6]?cl[6]:"",refTel=cl&&cl[7]?String(cl[7]):"";
   const contact=b.contact&&!(cl&&String(cl[4])===b.contact)?b.contact:"";
@@ -1690,6 +1696,13 @@ function refreshSheetBooking(){
 }
 $("sheetFull").addEventListener("change",renderSheet);
 $("sheetClose").onclick=()=>{$("ovSheet").hidden=true;};
+// torna alla prenotazione per cambiare qualcosa (dati aggiornati, anche se modificata da altri)
+$("sheetBack").onclick=()=>{
+  const b0=sheetBooking;if(!b0)return;
+  const b=bookingsAll().find(x=>x.id===b0.id);
+  if(!b){toast("La prenotazione non c'è più (eliminata o spostata).");return;}
+  $("ovSheet").hidden=true;openForm({booking:b});
+};
 backdropClose($("ovSheet"),()=>{$("ovSheet").hidden=true;});
 async function sheetSave(kind){
   if(!sheetBooking)return;
@@ -1737,7 +1750,7 @@ async function printSheet(){
 $("sheetPrint").onclick=printSheet;
 
 // ---------- versione ----------
-const APP_VERSION="1.8",APP_DATE="30/09/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="1.9",APP_DATE="30/09/2026";window.AGENDA_VERSION=APP_VERSION;
 $("gVer").textContent="Versione "+APP_VERSION+" · "+APP_DATE;$("appVer").textContent="v"+APP_VERSION;
 
 // ---------- dati: Dropbox ----------
@@ -1752,6 +1765,7 @@ function refreshFromStore(){
   }
   if(!$("app").hidden)renderAll();
   refreshSheetBooking();
+  if(!$("app").hidden)setTimeout(migrateFleet2026,300);
 }
 function fmtTime(t){if(!t)return "";const d=new Date(t);const today=new Date().toDateString()===d.toDateString();return (today?"oggi":d.toLocaleDateString("it-IT",{day:"numeric",month:"short"}))+" alle "+d.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"});}
 function renderNet(st){
@@ -2286,6 +2300,37 @@ $("setLock").onchange=async()=>{
 });
 $("setFat").onclick=()=>{if(!navigator.onLine){mstMsg("Serve la connessione a internet.",true);return;}$("ovMaster").hidden=true;showGate("fatturato",{fromMenu:true});};
 $("setFleet").onclick=()=>{$("ovMaster").hidden=true;openFleet();};
+
+// ---------- flotta: dati aggiornati del 30/09/2026 (una volta sola, su tutti i dispositivi) ----------
+// Ogni riga dei dati nuovi va al mezzo con la stessa targa; se non c'è, al mezzo previsto (se libero),
+// altrimenti al mezzo libero con i posti più vicini. Le prenotazioni restano legate al loro mezzo.
+let fleetMigrating=false;
+async function migrateFleet2026(){
+  if(fleetMigrating||!navigator.onLine||!ACC.session()||$("app").hidden)return;
+  const cur=STORE.fleet;
+  if(!Array.isArray(cur)||!cur.length)return; // flotta mai modificata: valgono già i dati nuovi
+  if((STORE.settings||{}).fleet2026||cur.some(v=>v.num!=null&&String(v.num)!==""))return;
+  fleetMigrating=true;
+  try{
+    const np=t=>String(t||"").toUpperCase().replace(/\s+/g,"");
+    const free=new Set(cur.map(v=>v.id)),assign={};
+    const recs=FLEET_2026.map((r,i)=>({r,rec:fleetRec(r,i+1),kind:r[0]==="auto"?"auto":/^van/.test(r[0])?"van":"bus"}));
+    for(const x of recs){const v=cur.find(y=>free.has(y.id)&&np(y.plate)&&np(y.plate)===np(x.rec.plate));if(v){assign[v.id]=x;free.delete(v.id);x.done=1;}}
+    for(const x of recs){if(!x.done&&free.has(x.r[0])){assign[x.r[0]]=x;free.delete(x.r[0]);x.done=1;}}
+    for(const x of recs){
+      if(x.done)continue;let best=null;
+      for(const v of cur){if(!free.has(v.id))continue;const kv=v.kind==="auto"?"auto":v.kind==="van"?"van":"bus";const sc=(kv===x.kind?0:1000)+Math.abs((v.seats||0)-x.rec.seats);if(!best||sc<best.sc)best={v,sc};}
+      if(best){assign[best.v.id]=x;free.delete(best.v.id);x.done=1;}
+    }
+    const patches={};for(const id in assign)patches[id]=Object.assign({},assign[id].rec);
+    const vs=await STORE.patchFleet(patches,S.fleet.map(v=>Object.assign({},v,{xcat:xcatOf(v)})));
+    await STORE.setSettings({fleet2026:new Date().toISOString()});
+    S.fleet=sortFleet(vs);renderAll();
+    ACC.log("impostazioni","Flotta aggiornata con i dati del 30/09/2026 ("+Object.keys(patches).length+" mezzi)",{ch:Object.keys(patches).map(id=>{const o=cur.find(v=>v.id===id)||{};return [o.name||id,[o.seats?o.seats+" posti":"",o.plate||""].filter(Boolean).join(" "),vehLabel(Object.assign({},o,patches[id]))];})});
+    notify("Flotta aggiornata con i dati nuovi (targhe, posti, categorie ed ID mezzo). Controlla le prenotazioni già inserite sui mezzi che prima non avevano la targa.",true);
+  }catch(e){console.warn("Aggiornamento flotta non riuscito, riprovo più tardi:",e);}
+  finally{fleetMigrating=false;}
+}
 
 // ---------- file dei fogli di servizio: in Dropbox e sul dispositivo ----------
 async function saveXlsx(blob,filename){

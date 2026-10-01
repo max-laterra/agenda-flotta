@@ -1,5 +1,5 @@
 // Rende l'app utilizzabile senza connessione. Aumenta il numero quando pubblichi una nuova versione.
-const VERSION = "agenda-laterra-1.8";
+const VERSION = "agenda-laterra-1.9";
 const SHELL = ["./", "./index.html", "./app.js", "./config.js", "./dropbox.js", "./store.js", "./accessi.js", "./fatturato.js",
   "./vendor/jszip.min.js", "./vendor/pdf-lib.min.js", "./vendor/font-pdf.js", "./logo.jpg", "./manifest.webmanifest",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./icons/favicon-64.png",
