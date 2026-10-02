@@ -43,7 +43,14 @@
     return hex(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(salt), iterations: iter }, k, 256));
   }
   async function makeSecret(pw) { const salt = hex(crypto.getRandomValues(new Uint8Array(16))); return { salt, iter: ITER, hash: await pbkdf2(pw, salt, ITER), pwAt: new Date().toISOString() }; }
-  async function checkPw(u, pw) { return !!u && !!u.hash && (await pbkdf2(pw, u.salt, u.iter || ITER)) === u.hash; }
+  // Prima del calcolo si controlla che l'utente abbia la forma giusta: un numero di passaggi enorme
+  // scritto apposta nel file bloccherebbe il pulsante «Entra» per ore.
+  function secretOk(u) {
+    if (!u || typeof u.hash !== "string" || typeof u.salt !== "string" || !/^[0-9a-f]{64}$/i.test(u.hash) || !/^[0-9a-f]{16,128}$/i.test(u.salt)) return 0;
+    const it = u.iter == null ? ITER : Number(u.iter);
+    return Number.isInteger(it) && it >= STORE.ITER_MIN && it <= STORE.ITER_MAX ? it : 0;
+  }
+  async function checkPw(u, pw) { const it = secretOk(u); return !!it && (await pbkdf2(String(pw == null ? "" : pw), u.salt, it)) === u.hash.toLowerCase(); }
   // password facili da dettare: niente lettere che si confondono (l/1, O/0)
   function genPassword() {
     const A = "abcdefghjkmnpqrstuvwxyz", N = "23456789", r = crypto.getRandomValues(new Uint32Array(8));
@@ -80,7 +87,13 @@
 
   // ---------- registro ----------
   let logQ = lsGet(LK, { days: {} });
-  if (!logQ || typeof logQ.days !== "object") logQ = { days: {} };
+  // coda sul dispositivo: solo giorni veri con un elenco di eventi (oggetti con id e ora)
+  function okQ(q) {
+    if (!q || typeof q !== "object" || !q.days || typeof q.days !== "object" || Array.isArray(q.days)) return { days: {} };
+    for (const d of Object.keys(q.days)) { const x = q.days[d]; if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !x || typeof x !== "object" || !Array.isArray(x.ev)) delete q.days[d]; else x.ev = x.ev.filter((e) => e && typeof e === "object" && typeof e.id === "string" && typeof e.t === "string"); }
+    return q;
+  }
+  logQ = okQ(logQ);
   let logTimer = null, logBusy = false;
   const dayPath = (date) => REG() + "/" + date.slice(0, 7) + "/" + date + "_" + device.id + ".json";
   // k: tipo (accesso, prenotazione, cliente, foglio, impostazioni, utenti, dispositivi), x: testo, d: dettagli
@@ -107,7 +120,7 @@
         if (!day.loaded) {
           // il file del giorno può esistere già (per esempio dopo aver svuotato il browser): si uniscono gli eventi
           const f = await DBX.download(path);
-          if (f) { try { const j = JSON.parse(dec.decode(f.buf)); const have = new Set(day.ev.map((e) => e.id)); for (const e of (j.ev || [])) if (!have.has(e.id)) day.ev.push(e); day.ev.sort((a, b) => (a.t < b.t ? -1 : 1)); } catch (_) {} }
+          if (f) mergeEv(day, f.buf);
           day.loaded = true;
         }
         const n = day.ev.length;
@@ -161,7 +174,31 @@
   async function devices() {
     const files = await listAll(REG() + "/dispositivi");
     const list = await pool(files, 6, async (e) => { const f = await DBX.download(e.path_lower); return f ? JSON.parse(dec.decode(f.buf)) : null; });
-    return list.filter(Boolean);
+    // solo schede vere, con i campi di testo (un file scritto male non rompe l'elenco dei dispositivi)
+    return list.filter((d) => d && typeof d === "object" && !Array.isArray(d) && typeof d.dev === "string" && d.dev).map((d) => { const o = {}; for (const k of ["dev", "auto", "ua", "ver", "uid", "user", "role", "loginAt", "last", "state"]) o[k] = str(d[k], 300); return o; });
+  }
+  // eventi già presenti nel file del giorno in Dropbox (stesso dispositivo): si uniscono solo quelli validi
+  function mergeEv(day, buf) {
+    try {
+      const j = JSON.parse(dec.decode(buf)), have = new Set(day.ev.map((e) => e && e.id));
+      for (const e0 of (j && Array.isArray(j.ev) ? j.ev : [])) { const e = cleanEv(e0); if (e && !have.has(e.id)) { have.add(e.id); day.ev.push(e); } }
+      day.ev.sort((a, b) => (a.t < b.t ? -1 : 1));
+    } catch (_) {}
+  }
+  // un evento letto da un file: solo oggetti, con testi dove servono testi
+  const str = (v, max) => (typeof v === "string" ? v : typeof v === "number" && isFinite(v) ? String(v) : "").slice(0, max || 2000);
+  function cleanEv(e) {
+    if (!e || typeof e !== "object" || Array.isArray(e)) return null;
+    const o = {};
+    for (const k of ["id", "t", "u", "n", "dv", "k", "x", "l", "m", "v"]) if (k in e) o[k] = str(e[k]);
+    if (!o.id || !o.t) return null;
+    if (typeof e.d === "string") o.d = e.d.slice(0, 2000);
+    else if (e.d && typeof e.d === "object" && !Array.isArray(e.d)) {
+      o.d = {};
+      for (const k of Object.keys(e.d)) { const v = e.d[k]; if (k === "__proto__" || k === "ch") continue; if (typeof v === "string") o.d[k] = v.slice(0, 2000); else if (typeof v === "number" || typeof v === "boolean") o.d[k] = v; }
+      if (Array.isArray(e.d.ch)) o.d.ch = e.d.ch.filter(Array.isArray).slice(0, 200).map((c) => [str(c[0]), str(c[1]), str(c[2])]);
+    }
+    return o;
   }
   // eventi tra due date (AAAA-MM-GG, comprese), dal più recente
   async function readLog(from, to) { return readDays(from, to, "", logQ); }
@@ -176,9 +213,9 @@
     }
     const docs = await pool(files, 6, async (e) => { const f = await DBX.download(e.path_lower); return f ? JSON.parse(dec.decode(f.buf)) : null; });
     const seen = new Set(), ev = [];
-    for (const doc of docs) if (doc && Array.isArray(doc.ev)) for (const e of doc.ev) if (!seen.has(e.id)) { seen.add(e.id); ev.push(Object.assign({ auto: doc.auto || "" }, e)); }
+    for (const doc of docs) if (doc && Array.isArray(doc.ev)) for (const e0 of doc.ev) { const e = cleanEv(e0); if (e && !seen.has(e.id)) { seen.add(e.id); ev.push(Object.assign({ auto: str(doc.auto, 80) }, e)); } }
     // eventi di questo dispositivo non ancora arrivati in Dropbox
-    for (const date in localQ.days) if (date >= from && date <= to) for (const e of localQ.days[date].ev) if (!seen.has(e.id)) { seen.add(e.id); ev.push(Object.assign({ auto: device.auto, local: true }, e)); }
+    for (const date in localQ.days) if (date >= from && date <= to) for (const e0 of (localQ.days[date] && Array.isArray(localQ.days[date].ev) ? localQ.days[date].ev : [])) { const e = cleanEv(e0); if (e && !seen.has(e.id)) { seen.add(e.id); ev.push(Object.assign({ auto: device.auto, local: true }, e)); } }
     ev.sort((a, b) => (a.t < b.t ? 1 : -1));
     return ev;
   }
@@ -189,7 +226,7 @@
   //   /Agenda Flotta La Terra - registro/log-tecnico/AAAA-MM/AAAA-MM-GG_<dispositivo>.json
   const TK = "agenda-tlog-v1";
   let tq = lsGet(TK, { days: {} });
-  if (!tq || typeof tq.days !== "object") tq = { days: {} };
+  tq = okQ(tq);
   let tTimer = null, tBusy = false, tLast = "", tLastAt = 0;
   const tPath = (date) => REG() + "/log-tecnico/" + date.slice(0, 7) + "/" + date + "_" + device.id + ".json";
   function tlog(level, msg, det) {
@@ -218,7 +255,7 @@
         const path = tPath(date);
         if (!day.loaded) {
           const f = await DBX.download(path);
-          if (f) { try { const j = JSON.parse(dec.decode(f.buf)); const have = new Set(day.ev.map((e) => e.id)); for (const e of (j.ev || [])) if (!have.has(e.id)) day.ev.push(e); day.ev.sort((a, b) => (a.t < b.t ? -1 : 1)); } catch (_) {} }
+          if (f) mergeEv(day, f.buf);
           day.loaded = true;
         }
         const n = day.ev.length;
@@ -238,6 +275,7 @@
   window.addEventListener("error", (e) => { try { tlog("errore", "Errore del programma: " + (e.message || "sconosciuto"), (e.filename || "").split("/").pop() + ":" + (e.lineno || "") + ":" + (e.colno || "")); } catch (_) {} });
   window.addEventListener("unhandledrejection", (e) => { try { const r = e.reason || {}; tlog("errore", "Operazione non riuscita: " + (r.message || r.code || r.summary || String(r)).slice(0, 200), r.stack ? String(r.stack).slice(0, 600) : null); } catch (_) {} });
 
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).accessi = "2.1";
   window.ACC = {
     get device() { return device; }, devLabel, uaLabel, localDate,
     makeSecret, checkPw, genPassword, pbkdf2,

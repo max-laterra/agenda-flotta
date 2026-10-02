@@ -82,6 +82,7 @@
         idb = null; status.storage = "noidb";
         const old = loadLS(CK, null); if (old) cache = Object.assign(emptyCache(), old);
       }
+      try { cleanCache(); } catch (_) { cache = emptyCache(); }
       status.lastSync = cache.lastSync || null;
     })());
   }
@@ -245,7 +246,7 @@
       if (cur && !cur.meta.rev) cur.meta = await DBX.metadata(path); // il browser non ha ricevuto la versione del file
       let doc = null;
       if (cur) {
-        try { doc = JSON.parse(dec.decode(cur.buf)); if (!doc || typeof doc !== "object" || Array.isArray(doc)) throw 0; }
+        try { doc = cleanDoc(parseJSON(cur.buf), item.date); if (!doc) throw 0; }
         catch (_) {
           // file della giornata rovinato: se ne conserva una copia e si riparte dall'ultima versione buona
           await DBX.upload(P.cfg + "/file-rovinati/" + item.date + "-" + (cur.meta.rev || Date.now()) + ".json", new Uint8Array(cur.buf), "add").catch(() => {});
@@ -329,7 +330,125 @@
     await Promise.all(Array.from({ length: Math.min(n, items.length) }, worker));
     if (err) throw err;
   }
-  function parseJSON(buf) { try { const j = JSON.parse(dec.decode(buf)); return j && typeof j === "object" ? j : null; } catch (_) { return null; } }
+  // (le chiavi "__proto__" di un file scritto apposta vengono scartate: non devono cambiare il comportamento degli oggetti)
+  function parseJSON(buf) { try { const j = JSON.parse(dec.decode(buf), (k, v) => (k === "__proto__" ? undefined : v)); return j && typeof j === "object" ? j : null; } catch (_) { return null; } }
+
+  // ---------- controllo dei dati letti da Dropbox o dal dispositivo (2.1) ----------
+  // Un file scritto male (a mano, da un altro programma o apposta) non deve mai bloccare l'app né farle
+  // eseguire codice: di ogni file si tiene solo quello che ha la forma giusta, il resto si scarta.
+  const isObj = (x) => !!x && typeof x === "object" && !Array.isArray(x);
+  const badKey = (k) => k === "__proto__" || k === "constructor" || k === "prototype";
+  const txt = (v, max) => (typeof v === "string" ? v : typeof v === "number" && isFinite(v) ? String(v) : "").slice(0, max || 20000);
+  // flotta: solo mezzi veri, con un id semplice (lettere, numeri, - _ .) e i campi del tipo giusto
+  function cleanFleet(list) {
+    if (!Array.isArray(list)) return null;
+    const out = [], seen = new Set();
+    for (const v of list) {
+      if (!isObj(v)) continue;
+      const id = txt(v.id, 60);
+      if (!/^[A-Za-z0-9_.-]{1,40}$/.test(id) || seen.has(id)) continue;
+      seen.add(id);
+      const n = Number(v.seats);
+      const o = Object.assign({}, v, { id, name: txt(v.name, 60), plate: txt(v.plate, 20), kind: v.kind === "van" || v.kind === "auto" ? v.kind : "bus", seats: isFinite(n) && n > 0 && n < 1000 ? Math.round(n) : 0, h: !!v.h });
+      if ("xcat" in v) o.xcat = txt(v.xcat, 60);
+      if ("num" in v) o.num = txt(v.num, 20);
+      if ("ord" in v) { const r = Number(v.ord); if (isFinite(r)) o.ord = r; else delete o.ord; }
+      out.push(o);
+    }
+    return out;
+  }
+  let fleetRaw = null, fleetOk = null;
+  function fleetView() {
+    const raw = cache.fleet && cache.fleet.vehicles;
+    if (raw !== fleetRaw) { fleetRaw = raw; fleetOk = cleanFleet(raw); }
+    return fleetOk && fleetOk.length ? fleetOk : null;
+  }
+  // utenti: solo quelli completi (nome, impronta della password della forma giusta, numero di passaggi ragionevole)
+  const ITER_MIN = 10000, ITER_MAX = 2000000;
+  function cleanUsers(j) {
+    if (!isObj(j) || !isObj(j.users)) return null;
+    // Se anche un solo utente non ha la forma giusta l'elenco intero non vale (resta l'ultimo buono e non
+    // si riscrive niente): scartare in silenzio l'utente guasto vorrebbe dire eliminarlo al primo salvataggio.
+    const users = {}, when = (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T[\d:.]{5,12}Z?$/.test(v) ? v : "");
+    for (const id of Object.keys(j.users)) {
+      const u = j.users[id];
+      if (badKey(id) || !/^[\w.-]{1,60}$/.test(id) || !isObj(u)) return null;
+      const name = txt(u.name, 80).trim(), it = u.iter == null ? 150000 : Number(u.iter);
+      if (!name || !/^[0-9a-f]{16,128}$/i.test(txt(u.salt, 200)) || !/^[0-9a-f]{64}$/i.test(txt(u.hash, 200)) || !Number.isInteger(it) || it < ITER_MIN || it > ITER_MAX) return null;
+      users[id] = Object.assign({}, u, { name, role: u.role === "master" ? "master" : "utente", active: u.active !== false, iter: it, pwAt: when(u.pwAt), created: when(u.created), createdBy: txt(u.createdBy, 80) });
+    }
+    if (!Object.values(users).some((u) => u.role === "master" && u.active)) return null; // un elenco senza Master attivo non è mai scritto dall'app
+    const map = (m, f) => { const o = {}; if (isObj(m)) for (const k of Object.keys(m)) { if (badKey(k) || k.length > 80) continue; const v = f(m[k]); if (v != null) o[k] = v; } return o; };
+    return Object.assign({}, j, {
+      users,
+      kicks: map(j.kicks, (v) => (typeof v === "string" ? v.slice(0, 40) : null)),
+      blocked: map(j.blocked, (v) => (isObj(v) ? { at: txt(v.at, 40), by: txt(v.by, 80) } : v ? { at: "", by: "" } : null)),
+      devices: map(j.devices, (v) => (isObj(v) ? { label: txt(v.label, 40) } : null)),
+    });
+  }
+  // impostazioni: file fatturato collegati (percorso dentro la cartella dell'app), permessi, uscita automatica
+  function cleanSettings(j) {
+    if (!isObj(j)) return null;
+    const o = Object.assign({}, j), files = {};
+    const okPath = (p) => typeof p === "string" && p.startsWith("/") && p.length < 400 && !/(^|\/)\.\.(\/|$)/.test(p);
+    if (isObj(j.files)) for (const y of Object.keys(j.files)) { const f = j.files[y]; if (/^(\*|\d{4})$/.test(y) && isObj(f) && okPath(f.path)) files[y] = Object.assign({}, f, { path: f.path, name: txt(f.name, 200) || f.path.split("/").pop() }); }
+    o.files = files;
+    o.fatturato = okPath(j.fatturato) ? j.fatturato : "";
+    o.fatturatoNome = txt(j.fatturatoNome, 200);
+    o.perms = isObj(j.perms) ? j.perms : {};
+    const al = Number(j.autoLock); o.autoLock = isFinite(al) && al >= 0 && al <= 1440 ? al : 0;
+    o.googleKey = txt(j.googleKey, 200);
+    return o;
+  }
+  const mastersIn = (J) => Object.values((J && J.users) || {}).filter((u) => u && u.role === "master" && u.active !== false).length;
+  // giornate: ogni prenotazione deve essere un oggetto, con testi, numeri ed elenchi del tipo giusto
+  const B_TXT = ["type", "vehicle", "start", "end", "time", "time2", "client", "route", "event", "escort", "driver", "driver2", "contact", "contactName", "contactRole", "contactNote", "status", "notes", "saldo", "npark", "ndriver", "n3h", "nextra", "envelope", "envno", "updatedAt", "by", "byAt", "updBy"];
+  const B_VAL = ["pax", "price", "park", "meals", "advance", "saldoAmt", "clientCode", "foglio"]; // numero o testo
+  const B_ROWS = ["refs", "guides", "hotels", "dnotes"];
+  function cleanBooking(b, date) {
+    if (!isObj(b)) return null;
+    for (const k of B_TXT) if (k in b && typeof b[k] !== "string") b[k] = txt(b[k]);
+    for (const k of B_VAL) if (k in b && typeof b[k] !== "string" && !(typeof b[k] === "number" && isFinite(b[k]))) b[k] = "";
+    for (const k of B_ROWS) if (k in b) b[k] = Array.isArray(b[k]) ? b[k].filter(isObj).map((r) => { for (const f of Object.keys(r)) if (typeof r[f] !== "string") r[f] = txt(r[f]); return r; }) : [];
+    if ("program" in b && typeof b.program !== "string") b.program = Array.isArray(b.program) ? b.program.map((x) => txt(x)) : [];
+    if ("start" in b && !validDate(b.start) && validDate(date)) b.start = date;
+    if (b.end && !validDate(b.end)) b.end = "";
+    return b;
+  }
+  function cleanDoc(doc, date) {
+    if (!isObj(doc)) return null;
+    const bk = {};
+    if (isObj(doc.bookings)) for (const id of Object.keys(doc.bookings)) { if (badKey(id) || id.length > 80) continue; const b = cleanBooking(doc.bookings[id], date); if (b) bk[id] = b; }
+    doc.bookings = bk;
+    if (validDate(date)) { doc.date = date; doc.month = date.slice(0, 7); } // la data è quella del nome del file
+    if ("extra" in doc && typeof doc.extra !== "string") doc.extra = txt(doc.extra);
+    doc.seq = typeof doc.seq === "number" && isFinite(doc.seq) && doc.seq >= 0 ? Math.floor(doc.seq) : 0;
+    if ("applied" in doc) doc.applied = Array.isArray(doc.applied) ? doc.applied.filter((x) => typeof x === "string") : [];
+    return doc;
+  }
+  // anagrafiche: solo le righe che sono oggetti, con testi; tendine: solo elenchi di testi
+  function cleanReg(kind, j) {
+    if (!isObj(j)) return null;
+    if (kind === "tendine") { const o = Object.assign({}, j); for (const k of Object.keys(TENDINE)) if (k in o) o[k] = Array.isArray(o[k]) ? [...new Set(o[k].filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim().slice(0, 200)))] : TENDINE[k].slice(); return o; }
+    const rows = Array.isArray(j.rows) ? j.rows.filter(isObj).map((r) => { for (const f of Object.keys(r)) if (typeof r[f] !== "string") r[f] = txt(r[f], 500); return r; }) : [];
+    rows.forEach((r, i) => { if (!r.id) r.id = "x" + i; }); // righe scritte a mano senza id
+    return Object.assign({}, j, { rows });
+  }
+  // copia sul dispositivo: stesse regole (può venire da una versione precedente o essere stata toccata a mano)
+  function cleanCache() {
+    if (!isObj(cache.days)) cache.days = {};
+    for (const d of Object.keys(cache.days)) { const e = cache.days[d], doc = validDate(d) && isObj(e) ? cleanDoc(e.doc, d) : null; if (doc) e.doc = doc; else delete cache.days[d]; }
+    if (cache.users) cache.users = cleanUsers(cache.users);
+    if (cache.fleet && !isObj(cache.fleet)) cache.fleet = null;
+    if (cache.settings) cache.settings = cleanSettings(cache.settings);
+    if (cache.fatShared && !isObj(cache.fatShared)) cache.fatShared = {};
+    if (cache.fatGone && !isObj(cache.fatGone)) cache.fatGone = {};
+    if (cache.fatWritten && !isObj(cache.fatWritten)) cache.fatWritten = null;
+    if (cache.lists && !isObj(cache.lists)) cache.lists = null;
+    if (cache.regs) { const g = {}; if (isObj(cache.regs)) for (const k of Object.keys(REGF)) { const c = cache.regs[k] ? cleanReg(k, cache.regs[k]) : null; if (c) g[k] = c; } cache.regs = Object.keys(g).length ? g : null; }
+    queue.days = queue.days.filter((it) => isObj(it) && validDate(it.date) && Array.isArray(it.ops)).map((it) => { it.ops = it.ops.filter((op) => isObj(op) && (op.t === "extra" || (typeof op.id === "string" && !badKey(op.id) && (op.t === "del" || (op.t === "put" && isObj(op.b)))))); return it; });
+    queue.clients = queue.clients.filter(isObj);
+  }
 
   // ---------- lettura delle modifiche degli altri dispositivi ----------
   // pull() restituisce true se la lettura è riuscita (se ce n'è già una in corso, aspetta quella)
@@ -360,6 +479,7 @@
         const m = /\/giorni\/\d{4}\/(\d{4}-\d{2}-\d{2})\.json$/.exec(p);
         if (m) {
           const date = m[1];
+          if (!validDate(date)) continue; // nome di file che non è una data vera (es. 9999-99-99.json)
           if (e[".tag"] === "deleted") { if (cache.days[date]) { delete cache.days[date]; changedDays.push(date); touched = true; } continue; }
           if (e[".tag"] !== "file" || (cache.days[date] && cache.days[date].rev === e.rev)) continue;
           jobs.push({ date, e });
@@ -369,7 +489,7 @@
       await pool(jobs, 4, async ({ date, e }) => {
         const f = await DBX.download(e.path_lower);
         if (!f) return;
-        const doc = parseJSON(f.buf);
+        const doc = cleanDoc(parseJSON(f.buf), date);
         if (!doc) { cache.bad = Object.assign({}, cache.bad, { [date]: e.rev }); notice({ kind: "badfile", date }); return; } // si tiene l'ultima versione buona
         if (cache.bad && cache.bad[date]) { delete cache.bad[date]; }
         cache.days[date] = { doc, rev: f.meta.rev || e.rev }; changedDays.push(date); touched = true;
@@ -381,12 +501,12 @@
         if (!(regKind || isCfg("flotta.json") || isCfg("righe-fatturato.json") || isCfg("impostazioni.json") || isCfg("accesso.json") || isCfg("utenti.json"))) continue;
         const f = await DBX.download(e.path_lower); if (!f) continue;
         const j = parseJSON(f.buf); if (!j) { notice({ kind: "badcfg", path: e.path_display || p }); continue; }
-        if (isCfg("flotta.json")) { cache.fleet = j; touched = true; }
-        else if (isCfg("righe-fatturato.json")) { cache.fatShared = j.fogli || {}; cache.fatGone = j.tolti || {}; }
-        else if (isCfg("impostazioni.json")) { cache.settings = j; touched = true; }
-        else if (isCfg("accesso.json")) { const was = cache.access; cache.access = j; if (was && was.hash !== j.hash) hooks.onAccessChanged(); touched = true; }
-        else if (regKind) { cache.regs = Object.assign({}, cache.regs || {}, { [regKind]: j }); touched = true; }
-        else if (isCfg("utenti.json")) { if (j.users) { cache.users = j; usersSeen = true; try { hooks.onUsersChanged(j); } catch (_) {} touched = true; } }
+        if (isCfg("flotta.json")) { if (isObj(j)) { cache.fleet = j; touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); }
+        else if (isCfg("righe-fatturato.json")) { cache.fatShared = isObj(j.fogli) ? j.fogli : {}; cache.fatGone = isObj(j.tolti) ? j.tolti : {}; }
+        else if (isCfg("impostazioni.json")) { const cs = cleanSettings(j); if (cs) { cache.settings = cs; touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); }
+        else if (isCfg("accesso.json")) { if (!isObj(j)) continue; const was = cache.access; cache.access = j; if (was && was.hash !== j.hash) hooks.onAccessChanged(); touched = true; }
+        else if (regKind) { const c = cleanReg(regKind, j); if (c) { cache.regs = Object.assign({}, cache.regs || {}, { [regKind]: c }); touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); }
+        else if (isCfg("utenti.json")) { const cu = cleanUsers(j); if (cu) { cache.users = cu; usersSeen = true; try { hooks.onUsersChanged(cu); } catch (_) {} touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); } // elenco non valido: resta l'ultimo buono
       }
       cache.cursor = next; // solo adesso: tutte le voci sono state lette davvero
       cache.lastSync = status.lastSync = Date.now(); status.error = null; status.errorDetail = ""; retryN = 0;
@@ -446,7 +566,7 @@
   function fatFiles() {
     const s = cache.settings || {};
     const files = Object.assign({}, s.files || {});
-    if (s.fatturato && !Object.values(files).some((f) => f.path.toLowerCase() === s.fatturato.toLowerCase())) {
+    if (typeof s.fatturato === "string" && s.fatturato && !Object.values(files).some((f) => f && typeof f.path === "string" && f.path.toLowerCase() === s.fatturato.toLowerCase())) {
       files[yearOf(s.fatturatoNome || s.fatturato) || "*"] = { path: s.fatturato, name: s.fatturatoNome || s.fatturato.split("/").pop() };
     }
     return files;
@@ -560,7 +680,7 @@
     for (let i = 0; i < 4; i++) {
       try {
         const f = await DBX.download(path);
-        const j = f ? (parseJSON(f.buf) || {}) : {}, cur = j.fogli || {}, gone = j.tolti || {};
+        const j = f ? (parseJSON(f.buf) || {}) : {}, cur = isObj(j.fogli) ? j.fogli : {}, gone = isObj(j.tolti) ? j.tolti : {};
         const before = JSON.stringify([cur, gone]);
         for (const k of add) { cur[k] = 1; }
         for (const k of del) { delete cur[k]; gone[k] = (res.clearedSig && res.clearedSig[k]) || 1; }
@@ -639,7 +759,8 @@
       const f = await DBX.download(path);
       if (f && !f.meta.rev) f.meta = await DBX.metadata(path);
       const cur = f ? parseJSON(f.buf) : null;
-      const vehicles = cur && Array.isArray(cur.vehicles) && cur.vehicles.length ? cur.vehicles : clone(base);
+      const ok = cur ? cleanFleet(cur.vehicles) : null; // dal file si tengono solo i mezzi validi
+      const vehicles = ok && ok.length ? ok : clone(base);
       const changedIds = [];
       for (const id in patches) {
         const v = vehicles.find((x) => x.id === id); if (!v) continue;
@@ -666,7 +787,7 @@
   }
   // codice di accesso
   const ACC = () => P.cfg + "/accesso.json";
-  async function fetchAccess() { const f = await DBX.download(ACC()); if (!f) return null; const a = parseJSON(f.buf); if (a && a.hash) { cache.access = a; persist(); } return a; }
+  async function fetchAccess() { const f = await DBX.download(ACC()); if (!f) return null; const a = parseJSON(f.buf); if (!isObj(a)) return null; if (a.hash) { cache.access = a; persist(); } return a; }
   // primo codice: non sovrascrive mai un codice già esistente
   async function createAccess(a) {
     try { await DBX.upload(ACC(), enc.encode(JSON.stringify(a, null, 1)), "add"); }
@@ -684,8 +805,8 @@
     const f = await DBX.download(USR());
     if (!f) return null;
     if (!f.meta.rev) f.meta = await DBX.metadata(USR());
-    const j = parseJSON(f.buf);
-    if (!j || !j.users) throw { code: "badusers" };
+    const j = cleanUsers(parseJSON(f.buf));
+    if (!j) throw { code: "badusers" };
     return { j, rev: f.meta.rev };
   }
   async function fetchUsers() {
@@ -698,6 +819,7 @@
   async function createUsers(u) {
     const r = await readUsersFile();
     if (r) { cache.users = r.j; persist(); throw { code: "exists" }; }
+    u = cleanUsers(u); if (!u || !mastersIn(u)) throw { code: "badusers" };
     await DBX.upload(USR(), enc.encode(JSON.stringify(u, null, 1)), "add");
     cache.users = u; usersSeen = true; persist(); changed();
     return u;
@@ -707,8 +829,15 @@
     for (let i = 0; i < 6; i++) {
       const r = await readUsersFile();
       if (!r) throw { code: "nousers" };
-      const next = fn(clone(r.j));
-      if (!next) return r.j;
+      const made = fn(clone(r.j));
+      if (!made) return r.j;
+      if (isObj(made) && isObj(made.users) && mastersIn(made) === 0) { cache.users = r.j; persist(); changed(); throw { code: "lastmaster" }; }
+      const next = cleanUsers(made);
+      if (!next) throw { code: "badusers" };
+      // Deve restare sempre almeno un Master attivo. Il controllo è qui, sull'ultima versione letta da
+      // Dropbox (anche quando si riprova dopo una modifica contemporanea): due Master che si tolgono
+      // il ruolo a vicenda nello stesso momento non possono lasciare l'agenda senza Master.
+      if (mastersIn(next) === 0) { cache.users = r.j; persist(); changed(); throw { code: "lastmaster" }; } // (l'elenco sullo schermo si aggiorna)
       next.updatedAt = new Date().toISOString();
       try {
         await DBX.upload(USR(), enc.encode(JSON.stringify(next, null, 1)), { update: r.rev });
@@ -726,7 +855,10 @@
     const d = validDate(date) ? date : new Date().toISOString().slice(0, 10);
     return P.sheets + "/" + d.slice(0, 4) + "/" + d.slice(5, 7) + " - " + MESI[+d.slice(5, 7) - 1] + "/" + d.slice(8, 10);
   }
+  // nome di file sicuro: niente / \ : * ? " < > | né ".." (un n. foglio scritto apposta non fa uscire il file dalla sua cartella)
+  const safeFileName = (n) => String(n || "").replace(/[\u0000-\u001f\/\\:*?"<>|]+/g, "_").replace(/\.{2,}/g, "_").replace(/^[\s._]+/, "").slice(0, 150) || "foglio";
   async function saveSheetFile(name, blob, date) {
+    name = safeFileName(name);
     const folder = sheetFolder(String(date || ""));
     let p = "";
     for (const part of folder.split("/").filter(Boolean)) { p += "/" + part; await DBX.createFolder(p).catch(() => {}); }
@@ -739,7 +871,7 @@
   const REGF = { referenti: "anagrafica-referenti.json", guide: "anagrafica-guide.json", hotel: "anagrafica-hotel.json", tendine: "tendine.json" };
   const TENDINE = { note: ["parcheggi", "autista", "3 ore", "extra 1", "extra 2"], ruolo: ["contabile", "ufficio", "operativo", "sul bus"] };
   function defaultReg(kind) { return kind === "tendine" ? clone(TENDINE) : { rows: [] }; }
-  function reg(kind) { const r = (cache.regs || {})[kind]; return r || defaultReg(kind); }
+  function reg(kind) { const r = (cache.regs || {})[kind]; return isObj(r) ? r : defaultReg(kind); }
   function regLoaded(kind) { return !!(cache.regs && cache.regs[kind]); }
   async function updateReg(kind, fn) {
     if (!REGF[kind]) throw { code: "kind" };
@@ -748,7 +880,7 @@
     for (let i = 0; i < 6; i++) {
       const f = await DBX.download(path);
       if (f && !f.meta.rev) f.meta = await DBX.metadata(path);
-      const cur = f ? parseJSON(f.buf) : null;
+      const cur = f ? cleanReg(kind, parseJSON(f.buf)) : null;
       const next = fn(clone(cur || defaultReg(kind)));
       if (!next) { if (cur) { cache.regs = Object.assign({}, cache.regs || {}, { [kind]: cur }); persist(); } return cur || defaultReg(kind); }
       next.updatedAt = new Date().toISOString();
@@ -770,8 +902,8 @@
       if (cache.regs && cache.regs[kind]) continue;
       try {
         const f = await DBX.download(P.cfg + "/" + REGF[kind]);
-        const j = f ? parseJSON(f.buf) : null;
-        if (j && typeof j === "object") { cache.regs = Object.assign({}, cache.regs || {}, { [kind]: j }); got = true; }
+        const j = f ? cleanReg(kind, parseJSON(f.buf)) : null;
+        if (j) { cache.regs = Object.assign({}, cache.regs || {}, { [kind]: j }); got = true; }
       } catch (_) {}
     }
     if (got) { persist(); changed(); }
@@ -785,6 +917,7 @@
     if (idb) await new Promise((res) => { try { const t = idb.transaction(["days", "meta"], "readwrite"); t.objectStore("days").clear(); t.objectStore("meta").clear(); t.oncomplete = t.onerror = t.onabort = () => res(); } catch (_) { res(); } });
   }
 
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.1";
   window.STORE = {
     BASE, P,
     configure(h) { Object.assign(hooks, h); },
@@ -794,11 +927,11 @@
     disable() { enabled = false; writesBlocked = true; clearTimeout(saveTimer); },
     fileFogli, validDate,
     view, mutateDay, pull, flush, watch, setupFolders, syncFatturato, isPending, whenSent, saveNow: writeNow,
-    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, saveSheetFile, sheetFolder, reg, regLoaded, updateReg, loadRegs, REGF, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
+    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, saveSheetFile, sheetFolder, safeFileName, ITER_MIN, ITER_MAX, reg, regLoaded, updateReg, loadRegs, REGF, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
     bustaMax: (y) => { const m = cache.bustaMax || {}; return m[y] != null ? m[y] : m["*"] || 0; },
     get pendingClients() { return queue.clients.slice(); },
     clientDone: (tmp) => (cache.clientDone || {})[tmp] || null,
-    get fleet() { return cache.fleet && cache.fleet.vehicles; },
+    get fleet() { return fleetView(); },
     get settings() { return cache.settings; },
     get access() { return cache.access; },
     get users() { return cache.users; },

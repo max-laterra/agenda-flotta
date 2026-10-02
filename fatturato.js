@@ -13,6 +13,100 @@
   const xUn = (t) => t.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n)).replace(/&amp;/g, "&");
   const attr = (tag, name) => { const m = new RegExp("\\s" + name + '="([^"]*)"').exec(tag); return m ? m[1] : null; };
 
+  // ---------- limiti di lettura (2.1) ----------
+  // Un file .xlsx è un archivio compresso: uno costruito apposta può "esplodere" in gigabyte e bloccare
+  // l'app (bomba zip), oppure arrivare a metà. Si legge solo fino a un limite ragionevole e si controlla
+  // che il foglio sia intero prima di riscriverlo: nel dubbio il file non si tocca.
+  const MAX_FILE = 25 * 1024 * 1024;   // file .xlsx scaricato (quello vero è meno di 1 MB)
+  const MAX_PART = 20 * 1024 * 1024;   // una parte (foglio, testi) una volta aperta (quella vera: 2–3 MB)
+  const MAX_TOTAL = 120 * 1024 * 1024; // tutte le parti lette in un aggiornamento
+  const MAX_ENTRIES = 5000;
+  async function openZip(buf) {
+    const size = buf ? (buf.byteLength != null ? buf.byteLength : buf.length || 0) : 0;
+    if (!size) throw { code: "badxlsx" };
+    if (size > MAX_FILE) throw { code: "toobig" };
+    // numero di parti scritto in fondo all'archivio: se è enorme non lo si apre nemmeno
+    try {
+      const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf), from = Math.max(0, u8.length - 66000);
+      for (let i = u8.length - 22; i >= from; i--) if (u8[i] === 0x50 && u8[i + 1] === 0x4b && u8[i + 2] === 5 && u8[i + 3] === 6) { const cnt = u8[i + 10] | (u8[i + 11] << 8); if (cnt > MAX_ENTRIES) throw { code: "toobig" }; break; }
+    } catch (e) { if (e && e.code) throw e; }
+    let zip;
+    try { zip = await JSZip.loadAsync(buf); } catch (_) { throw { code: "badxlsx" }; }
+    const names = Object.keys(zip.files);
+    if (names.length > MAX_ENTRIES) throw { code: "toobig" };
+    // dimensione dichiarata delle parti (un archivio onesto la dichiara giusta; quella vera si controlla leggendo)
+    let tot = 0;
+    for (const n of names) { const d = zip.files[n] && zip.files[n]._data, u = d && d.uncompressedSize; if (typeof u === "number") { if (u > MAX_PART) throw { code: "toobig" }; tot += u; } }
+    if (tot > MAX_TOTAL * 2) throw { code: "toobig" };
+    zip._agendaRead = 0;
+    return zip;
+  }
+  // testo di una parte dell'archivio, letto a pezzi: ci si ferma appena supera il limite
+  function readText(zip, path) {
+    const f = zip.file(path);
+    if (!f) return Promise.reject({ code: "badxlsx" });
+    if (zip._agendaTooBig) return Promise.reject({ code: "toobig" });
+    return new Promise((res, rej) => {
+      const parts = []; let n = 0, done = false, st;
+      const fail = (e) => { if (done) return; done = true; try { st.pause(); } catch (_) {} rej(e); };
+      try { st = f.internalStream("uint8array"); } catch (_) { return rej({ code: "badxlsx" }); }
+      st.on("data", (chunk) => {
+        if (done) return;
+        n += chunk.length; zip._agendaRead = (zip._agendaRead || 0) + chunk.length;
+        if (n > MAX_PART || zip._agendaRead > MAX_TOTAL) { zip._agendaTooBig = true; return fail({ code: "toobig" }); }
+        parts.push(chunk);
+      });
+      st.on("error", () => fail({ code: "badxlsx" }));
+      st.on("end", () => {
+        if (done) return; done = true;
+        let text;
+        try { const all = new Uint8Array(n); let o = 0; for (const p of parts) { all.set(p, o); o += p.length; } text = new TextDecoder("utf-8").decode(all); }
+        catch (_) { return rej({ code: "toobig" }); }
+        // ogni parte deve essere XML con i tag aperti e chiusi in ordine: così le ricerche sul testo
+        // restano veloci anche su un file costruito apposta (migliaia di tag lasciati aperti)
+        if (/\.(xml|rels)$/i.test(path) && !balanced(text)) return rej({ code: "badxlsx" });
+        res(text);
+      });
+      st.resume();
+    });
+  }
+  // Controllo veloce (una sola passata) che i tag siano aperti e chiusi in ordine.
+  function balanced(xml) {
+    const st = []; let i = 0;
+    for (;;) {
+      i = xml.indexOf("<", i); if (i < 0) break;
+      const c = xml.charCodeAt(i + 1);
+      if (c === 63) { const j = xml.indexOf("?>", i + 2); if (j < 0) return false; i = j + 2; continue; }          // <?xml … ?>
+      if (c === 33) {                                                                                               // <!-- … --> e <![CDATA[ … ]]>
+        if (xml.startsWith("<!--", i)) { const j = xml.indexOf("-->", i + 4); if (j < 0) return false; i = j + 3; continue; }
+        if (xml.startsWith("<![CDATA[", i)) { const j = xml.indexOf("]]>", i + 9); if (j < 0) return false; i = j + 3; continue; }
+        return false;
+      }
+      const j = xml.indexOf(">", i + 1); if (j < 0) return false;
+      if (c === 47) { if (!st.length || st.pop() !== xml.slice(i + 2, j).trim()) return false; }                    // </nome>
+      else if (xml.charCodeAt(j - 1) !== 47) {                                                                      // <nome …> (non <nome …/>)
+        let k = i + 1; while (k < j) { const ch = xml.charCodeAt(k); if (ch === 32 || ch === 9 || ch === 10 || ch === 13) break; k++; }
+        if (k === i + 1) return false;
+        st.push(xml.slice(i + 1, k)); if (st.length > 100) return false;
+      }
+      i = j + 1;
+    }
+    return st.length === 0;
+  }
+  // il foglio è intero? (un file arrivato a metà o rovinato non va riscritto: si peggiorerebbe)
+  function wholeSheet(xml) {
+    if (typeof xml !== "string" || !/<worksheet[\s>]/.test(xml.slice(0, 2000)) || !/<\/worksheet>\s*$/.test(xml.slice(-200))) return false;
+    const a = xml.indexOf("<sheetData");
+    if (a < 0) return false;
+    const end = xml.indexOf(">", a);
+    if (end < 0) return false;
+    if (xml[end - 1] === "/") return true; // <sheetData/>: foglio vuoto ma intero
+    const b = xml.indexOf("</sheetData>"); if (b < 0 || b !== xml.lastIndexOf("</sheetData>")) return false;
+    const body = xml.slice(end + 1, b);
+    const all = (body.match(/<row\b[^>]*>/g) || []).length, selfClosed = (body.match(/<row\b[^>]*\/>/g) || []).length;
+    return all - selfClosed === (body.match(/<\/row>/g) || []).length;
+  }
+
   function parseSST(xml) {
     const out = [], re = /<si>([\s\S]*?)<\/si>|<si\/>/g; let m;
     while ((m = re.exec(xml))) { const body = (m[1] || "").replace(/<rPh[\s\S]*?<\/rPh>/g, ""); let t = ""; const r2 = /<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g; let k; while ((k = r2.exec(body))) t += k[1]; out.push(xUn(t)); }
@@ -28,8 +122,8 @@
   // foglio per nome: prima il nome esatto, poi senza badare a maiuscole e spazi, poi un nome che inizia così
   // (es. "Clienti 2026" per "clienti")
   async function sheetFile(zip, name) {
-    const wb = await zip.file("xl/workbook.xml").async("string");
-    const rels = await zip.file("xl/_rels/workbook.xml.rels").async("string");
+    const wb = await readText(zip, "xl/workbook.xml");
+    const rels = await readText(zip, "xl/_rels/workbook.xml.rels");
     const sheets = wb.match(/<sheet\b[^>]*>/g) || [], nm = (t) => xUn(attr(t, "name") || "");
     const low = name.toLowerCase();
     const sh = sheets.find((t) => nm(t) === name) || sheets.find((t) => nm(t).trim().toLowerCase() === low) || sheets.find((t) => new RegExp("^\\s*" + low + "\\b", "i").test(nm(t)));
@@ -42,7 +136,7 @@
   }
   async function readGrid(zip, name, cols, sst) {
     const path = await sheetFile(zip, name); if (!path || !zip.file(path)) return null;
-    const xml = await zip.file(path).async("string"), grid = {};
+    const xml = await readText(zip, path), grid = {};
     const re = new RegExp('<c r="(' + cols.join("|") + ')(\\d+)"([^>]*?)(?:/>|>([\\s\\S]*?)</c>)', "g"); let m;
     while ((m = re.exec(xml))) { const v = cellValue(m[3], m[4], sst); if (v !== "") (grid[m[2]] || (grid[m[2]] = {}))[m[1]] = v.trim(); }
     return grid;
@@ -105,15 +199,17 @@
 
   // apply(buf, {upserts:[row], clears:[foglio], ensure:[row]}) → {changed, buf, added, updated, cleared, lists}
   async function apply(buf, job) {
-    const zip = await JSZip.loadAsync(buf);
+    const zip = await openZip(buf);
     const path = await sheetFile(zip, "agenda");
     if (!path || !zip.file(path)) throw { code: "nosheet" };
     const sstF = zip.file("xl/sharedStrings.xml");
-    const sst = sstF ? parseSST(await sstF.async("string")) : [];
+    const sst = sstF ? parseSST(await readText(zip, "xl/sharedStrings.xml")) : [];
     const lists = await readLists(zip, sst);
-    let xml = await zip.file(path).async("string");
+    if (zip._agendaTooBig) throw { code: "toobig" };
+    let xml = await readText(zip, path);
     const a = xml.indexOf("<sheetData"), b = xml.indexOf("</sheetData>");
     if (a < 0) throw { code: "nosheet" };
+    if (!wholeSheet(xml)) throw { code: "badxlsx" }; // foglio «agenda» incompleto o rovinato: il file non si tocca
     const openEnd = xml.indexOf(">", a) + 1, selfClosed = xml[openEnd - 2] === "/";
     const head = xml.slice(0, selfClosed ? a : openEnd), tail = selfClosed ? xml.slice(openEnd) : xml.slice(b + "</sheetData>".length);
     const body = selfClosed ? "" : xml.slice(openEnd, b);
@@ -293,15 +389,15 @@
       zip.file(path, xml);
       await growTables(zip, path, maxRow);
     }
-    let wb = await zip.file("xl/workbook.xml").async("string");
+    let wb = await readText(zip, "xl/workbook.xml");
     wb = wb.replace(/(<definedName name="_xlnm\._FilterDatabase"[^>]*>agenda!\$[A-Z]+\$\d+:\$)([A-Z]+)\$(\d+)/, (all, pre, col, n) => (+n < maxRow ? pre + col + "$" + maxRow : all));
     wb = /<calcPr\b[^>]*fullCalcOnLoad/.test(wb) ? wb : wb.replace(/<calcPr\b([^>]*?)\/>/, '<calcPr$1 fullCalcOnLoad="1"/>');
     zip.file("xl/workbook.xml", wb);
     if (zip.file("xl/calcChain.xml")) {
       zip.remove("xl/calcChain.xml");
-      const ct = await zip.file("[Content_Types].xml").async("string");
+      const ct = await readText(zip, "[Content_Types].xml");
       zip.file("[Content_Types].xml", ct.replace(/<Override\b[^>]*calcChain[^>]*\/>/g, ""));
-      const wr = await zip.file("xl/_rels/workbook.xml.rels").async("string");
+      const wr = await readText(zip, "xl/_rels/workbook.xml.rels");
       zip.file("xl/_rels/workbook.xml.rels", wr.replace(/<Relationship\b[^>]*calcChain[^>]*\/>/g, ""));
     }
     const out = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE", compressionOptions: { level: 6 } });
@@ -312,13 +408,13 @@
   async function growTables(zip, path, maxRow) {
     const relsPath = path.replace(/([^/]+)$/, "_rels/$1.rels");
     if (!zip.file(relsPath)) return;
-    const rels = await zip.file(relsPath).async("string");
+    const rels = await readText(zip, relsPath);
     for (const t of rels.match(/<Relationship\b[^>]*>/g) || []) {
       if (!/\/table$/.test(attr(t, "Type") || "")) continue;
       const tg = attr(t, "Target") || "";
       const tp = tg.startsWith("/") ? tg.slice(1) : ("xl/worksheets/" + tg).replace(/[^/]+\/\.\.\//g, "");
       if (!zip.file(tp)) continue;
-      let tx = await zip.file(tp).async("string");
+      let tx = await readText(zip, tp);
       tx = tx.replace(/(\sref="[A-Z]+\d+:)([A-Z]+)(\d+)/g, (all, pre, col, n) => (+n < maxRow ? pre + col + maxRow : all));
       zip.file(tp, tx);
     }
@@ -328,7 +424,7 @@
     let idx = null;
     const sf = zip.file("xl/sharedStrings.xml");
     if (sf) {
-      let sx = await sf.async("string");
+      let sx = await readText(zip, "xl/sharedStrings.xml");
       idx = +(attr(sx.slice(0, sx.indexOf(">", sx.indexOf("<sst")) + 1), "uniqueCount") || (sx.match(/<si>/g) || []).length);
       sx = sx.replace("</sst>", "<si><t>" + xEsc(name) + "</t></si></sst>")
         .replace(/(<sst\b[^>]*\suniqueCount=")(\d+)/, (a, p, n) => p + (+n + 1)).replace(/(<sst\b[^>]*\scount=")(\d+)/, (a, p, n) => p + (+n + 1));
@@ -343,13 +439,13 @@
     }
     const relsPath = path.replace(/([^/]+)$/, "_rels/$1.rels");
     if (!zip.file(relsPath)) return;
-    const rels = await zip.file(relsPath).async("string");
+    const rels = await readText(zip, relsPath);
     for (const t of rels.match(/<Relationship\b[^>]*>/g) || []) {
       if (!/\/table$/.test(attr(t, "Type") || "")) continue;
       const tg = attr(t, "Target") || "";
       const tp = tg.startsWith("/") ? tg.slice(1) : ("xl/worksheets/" + tg).replace(/[^/]+\/\.\.\//g, "");
       if (!zip.file(tp)) continue;
-      let tx = await zip.file(tp).async("string");
+      let tx = await readText(zip, tp);
       const m = /\sref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/.exec(tx);
       if (!m || m[1] !== "A" || colIdx(m[3]) + 1 !== colIdx(col)) continue; // solo la tabella dei clienti, se finisce proprio prima
       tx = tx.replace(/(\sref="[A-Z]+\d+:)([A-Z]+)(\d+)/g, (a, p, c, n) => p + col + n);
@@ -367,7 +463,8 @@
   async function addClients(zip, sst, list, lists) {
     const path = await sheetFile(zip, "clienti");
     if (!path || !zip.file(path)) return { added: 0, results: list.map((x) => ({ tmp: x.tmp, error: "noclienti" })) };
-    let xml = await zip.file(path).async("string");
+    let xml = await readText(zip, path);
+    if (!wholeSheet(xml)) throw { code: "badxlsx" };
     const a = xml.indexOf("<sheetData"), b = xml.indexOf("</sheetData>");
     if (a < 0 || b < 0) return { added: 0, results: list.map((x) => ({ tmp: x.tmp, error: "noclienti" })) };
     const openEnd = xml.indexOf(">", a) + 1, head = xml.slice(0, openEnd), tail = xml.slice(b), body = xml.slice(openEnd, b);
@@ -460,8 +557,9 @@
   async function editClients(zip, list, lists) {
     const path = await sheetFile(zip, "clienti");
     if (!path || !zip.file(path)) return { changed: 0, results: list.map((x) => ({ tmp: x.tmp, error: "noclienti" })) };
-    const sf = zip.file("xl/sharedStrings.xml"), sst = sf ? parseSST(await sf.async("string")) : [];
-    let xml = await zip.file(path).async("string");
+    const sf = zip.file("xl/sharedStrings.xml"), sst = sf ? parseSST(await readText(zip, "xl/sharedStrings.xml")) : [];
+    let xml = await readText(zip, path);
+    if (!wholeSheet(xml)) throw { code: "badxlsx" };
     const a = xml.indexOf("<sheetData"), b = xml.indexOf("</sheetData>");
     if (a < 0 || b < 0) return { changed: 0, results: list.map((x) => ({ tmp: x.tmp, error: "noclienti" })) };
     const openEnd = xml.indexOf(">", a) + 1, head = xml.slice(0, openEnd), tail = xml.slice(b), body = xml.slice(openEnd, b);
@@ -572,7 +670,8 @@
   }
 
   // Legge solo gli elenchi, senza modificare il file
-  async function lists(buf) { const zip = await JSZip.loadAsync(buf); const sstF = zip.file("xl/sharedStrings.xml"); const sst = sstF ? parseSST(await sstF.async("string")) : []; return readLists(zip, sst); }
+  async function lists(buf) { const zip = await openZip(buf); const sstF = zip.file("xl/sharedStrings.xml"); const sst = sstF ? parseSST(await readText(zip, "xl/sharedStrings.xml")) : []; const out = await readLists(zip, sst); if (zip._agendaTooBig) throw { code: "toobig" }; return out; }
 
-  window.FAT = { apply, lists, COLS, colIdx, xEsc };
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).fatturato = "2.1";
+  window.FAT = { apply, lists, COLS, colIdx, xEsc, openZip, readText, wholeSheet, balanced };
 })();

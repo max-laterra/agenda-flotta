@@ -1,7 +1,10 @@
 <!doctype html>
-<html lang="it">
+<html lang="it" data-v="2.1">
 <head>
 <meta charset="utf-8">
+<!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
+     Niente codice scritto dentro la pagina: anche se un dato arrivasse con del codice dentro, il browser non lo esegue. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com https://notify.dropboxapi.com https://places.googleapis.com; frame-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Agenda Flotta La Terra</title>
 <meta name="theme-color" content="#521A22">
@@ -14,7 +17,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1.5">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" media="print" id="gfonts">
 <style>
 
 :root{
@@ -1092,7 +1095,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
             <li>Vai su <b>console.cloud.google.com</b> con un account Google dell'azienda e crea un progetto (es. "Agenda La Terra").</li>
             <li>Attiva la fatturazione (serve una carta, ma ogni mese i primi 1.000 hotel scelti e le ricerche collegate sono gratuiti).</li>
             <li>In "API e servizi › Libreria" attiva <b>Places API (New)</b>.</li>
-            <li>In "API e servizi › Credenziali" crea una <b>chiave API</b>. Poi, nella chiave: <i>Restrizioni applicazione</i> = Siti web, aggiungi l'indirizzo dell'agenda (es. <code>https://nome.github.io/*</code>); <i>Restrizioni API</i> = solo Places API (New).</li>
+            <li>In "API e servizi › Credenziali" crea una <b>chiave API</b>. Poi, nella chiave: <i>Restrizioni applicazione</i> = Siti web, aggiungi <code id="setGSite">https://nome.github.io/*</code> (il sito dell'agenda, con <code>/*</code> alla fine); <i>Restrizioni API</i> = solo Places API (New).</li>
             <li>In "Quote" di Places API (New) puoi mettere un tetto giornaliero (es. 200): così non si può mai superare la parte gratuita.</li>
             <li>Copia la chiave qui sopra e premi <b>Prova</b>, poi <b>Salva</b>. Vale per tutti i dispositivi.</li>
           </ol>
