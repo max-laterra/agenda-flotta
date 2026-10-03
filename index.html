@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="2.1">
+<html lang="it" data-v="2.2">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -284,7 +284,8 @@ table.wk{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px;t
 .sheetbox-in{display:flex;flex-direction:column;gap:14px;padding:4px 14px 14px}
 .sheetbox .lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
 .sheetbox .hint{margin:2px 0 4px;font-size:12.5px;color:var(--ink-3)}
-.sheetbox textarea{min-height:88px;font-size:14px;line-height:1.45}
+.sheetbox textarea{min-height:190px;font-size:14.5px;line-height:1.5}
+.sheetbox .prog-day textarea{min-height:66px}
 .prog-day{display:flex;flex-direction:column;gap:4px}
 .prog-day b{font-size:13px;color:var(--tour)}
 #progWrap{display:flex;flex-direction:column;gap:10px}
@@ -329,6 +330,9 @@ table.wk{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px;t
 .sheet-top{display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap}
 .sheet-opt{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--ink-2)}
 .sheet-opts{display:flex;gap:8px 22px;flex-wrap:wrap;align-items:center}
+.sheet-opts{margin-left:auto;justify-content:flex-end}
+.sheet-opt.sel span{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.sheet-opt.sel select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink);font:inherit;font-size:14px;max-width:270px}
 .sheet-scroll{flex:1;min-height:0;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#DADFE3;padding:18px}
 .sheet-msg{font-size:14px;color:var(--ink-2);min-height:1.2em}
 .sheet-hint{font-size:12.5px;color:var(--ink-3);margin:-6px 0 0}
@@ -595,14 +599,14 @@ img{max-width:100%}
 /* ---- schermo intero su computer ---- */
 @media (min-width:1280px){
   .legend{max-width:none}
-  .row{grid-template-columns:240px 1fr auto;padding:10px 18px}
+  .row{padding:9px 16px 9px 12px}
   /* più prenotazioni dello stesso mezzo affiancate invece che una sotto l'altra */
-  .slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(460px,1fr));gap:8px}
+  .slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:8px}
   .slots .free{grid-column:1/-1}
   .wk col.vcol{width:200px}
   .wk td.wc{height:52px}
   .wb{font-size:12.5px}
-  .mg .vc{min-width:190px}
+
   .mg th,.mg td{height:36px}
   .cell{height:26px;font-size:12px}
   .extra textarea{min-height:90px}
@@ -611,18 +615,44 @@ img{max-width:100%}
   body{font-size:15.5px}
   .sign .date{font-size:34px}
   .stat b{font-size:27px}
-  .row{grid-template-columns:260px 1fr auto}
+
   .veh .nm{font-size:16px}
 }
-@media (min-width:900px){
-  .row{align-items:center}
-  .bk{display:flex;align-items:center;gap:12px;white-space:nowrap;overflow:hidden;padding:7px 12px}
-  .bk .what{flex-wrap:nowrap;min-width:0;flex:0 1 auto;overflow:hidden}
-  .bk .what>*{flex:none}
-  .bk .rt{flex:0 1 auto;min-width:60px;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
-  .bk .det{flex:1 1 0;min-width:0;flex-wrap:nowrap;overflow:hidden;gap:0 14px;font-size:13px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
-  .bk .det>span{flex:none}
+/* Vista Giorno (2.2): colonna dei mezzi stretta quanto serve; ogni servizio su colonne fisse
+   stato · inizio · fine · durata · cliente · itinerario · autista */
+.row{gap:8px;padding-left:12px}
+@media (min-width:641px){.row{grid-template-columns:var(--vehw,190px) 1fr auto}}
+.bkw{display:flex;align-items:stretch;gap:5px;min-width:0}
+.stt{flex:none;width:30px;min-height:32px;border-radius:8px;border:2px solid;font-weight:800;font-size:17px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.stt.ok{border-color:#1F8A4C;background:#1F8A4C;color:#fff}
+.stt.q{border-color:#D08A00;background:#FFF4D6;color:#7A4E00}
+.stt:hover{filter:brightness(.94)}.stt:disabled{cursor:default;filter:none}
+.bk{flex:1;min-width:0;grid-template-columns:54px 54px 44px minmax(0,1.25fr) minmax(0,2.3fr) minmax(0,1fr);gap:0 8px;align-items:center;padding:7px 10px;white-space:nowrap;overflow:hidden}
+.bkw.opzione .bk{border-style:dashed;border-left-style:solid;border-color:#D08A00}
+.bk .c-t1,.bk .c-t2{font-family:var(--cond);font-weight:700;font-size:17px;font-variant-numeric:tabular-nums;line-height:1.2}
+.bk .c-t2{font-weight:600;opacity:.78}
+.bk .c-du{font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.bk.transfer .c-du{color:var(--transfer)}.bk.gita .c-du{color:var(--gita)}.bk.tour .c-du{color:var(--tour)}.bk.notturno .c-du{color:var(--notturno)}
+.bk .c-cl{font-weight:700;overflow:hidden;text-overflow:ellipsis}
+.bk .c-cl .over{color:var(--warn);font-weight:800}
+.bk .c-rt{color:var(--ink-2);overflow:hidden;text-overflow:ellipsis}
+.bk .c-rt .ev{font-weight:600;color:var(--ev-ink);margin-right:8px}
+.bk .c-dr{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;color:var(--ink-2)}
+.bk.notturno .c-rt,.bk.notturno .c-dr{color:var(--notturno-ink2)}.bk.notturno .c-rt .ev{color:#9CC3FF}
+@media (min-width:900px){.row{align-items:center}}
+@media (max-width:899px){
+  .bk{grid-template-columns:auto auto auto 1fr;gap:2px 10px;white-space:normal}
+  .bk .c-cl,.bk .c-rt,.bk .c-dr{grid-column:1/-1}
+  .bk .c-t2:empty,.bk .c-du:empty,.bk .c-rt:empty,.bk .c-dr:empty{display:none}
 }
+/* elenco dei mezzi nelle viste Settimana e Mese: come nella vista Giorno, su una riga */
+.wk .vc{padding:6px 7px}
+.wk .vc .vl,.mg .vc .vl{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font-size:13.5px;font-weight:500;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.wk .vc .vl b,.mg .vc .vl b{display:inline;font-size:13.5px;color:var(--ink)}
+.mg .vc{min-width:0;width:1%;padding:0 7px}
+.wb .stm{margin-left:auto;flex:none;width:15px;height:15px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;line-height:1}
+.wb .tm{flex:none}.wb .tp{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.wb .stm.ok{background:#1F8A4C;color:#fff}.wb .stm.q{background:#FFF4D6;color:#7A4E00;box-shadow:inset 0 0 0 1px #D08A00}
 .gen{background:var(--tbd-bg);color:var(--tbd-ink);border-radius:4px;padding:0 5px;font-weight:600;white-space:nowrap}
 .tbdtxt{color:var(--tbd-ink);font-weight:600;font-size:12px;white-space:nowrap}
 .drvq{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
@@ -676,7 +706,11 @@ img{max-width:100%}
 .fgrid4 .c2{grid-column:span 2}.fgrid4 .c1{grid-column:span 1}
 @media (max-width:700px){.fgrid.fgrid4{grid-template-columns:repeat(2,minmax(0,1fr))}.fgrid4 .c2,.fgrid4 .rowstart.c2{grid-column:1 / -1}.fgrid4 .f>label{letter-spacing:.02em}}
 .fgrid4 .rowstart.c2{grid-column:1 / span 2}
-.modal#fBooking{max-width:800px}
+.modal#fBooking{max-width:900px}
+/* stato della prenotazione: confermata (verde) o in sospeso (ambra) */
+#f-status.st-q{background:#FFF4D6;border-color:#D08A00;color:#7A4E00;font-weight:700}
+#f-status.st-ok{background:#E3F4E8;border-color:#1F8A4C;color:#145C33;font-weight:700}
+.seg.solo{margin-left:6px}
 .fgrid4 .f>label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* elenco autisti colorato */
 .drvbox{position:relative}
@@ -767,6 +801,8 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
         <button id="vDay" aria-pressed="true">Giorno</button>
         <button id="vWeek" aria-pressed="false">Settimana</button>
         <button id="vMonth" aria-pressed="false">Mese</button>
+      </div>
+      <div class="seg solo" role="group" aria-label="Fatturato">
         <button id="vBill" aria-pressed="false">Fatturato</button>
       </div>
       <button class="btn" id="btnToday">Oggi</button>
@@ -836,23 +872,23 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 </div>
 
 <div class="overlay" id="ovBooking" hidden>
-  <form class="modal" id="fBooking" autocomplete="off">
+  <form class="modal" id="fBooking" autocomplete="off" novalidate>
     <h3 id="fTitle">Nuova prenotazione</h3>
     <p class="f-who" id="fWho" hidden></p>
     <div class="types" role="radiogroup" aria-label="Tipo di servizio">
       <label class="gita"><input type="radio" name="type" id="t-gita" value="gita"><b>Gita</b><span>Andata e rientro</span></label>
       <label class="tour"><input type="radio" name="type" id="t-tour" value="tour"><b>Tour</b><span>Più giorni</span></label>
       <label class="notturno"><input type="radio" name="type" id="t-notturno" value="notturno"><b>Notturno</b><span>Concerti, serate</span></label>
-      <label class="transfer"><input type="radio" name="type" id="t-transfer" value="transfer"><b>Transfer</b><span>Solo ora di partenza</span></label>
+      <label class="transfer"><input type="radio" name="type" id="t-transfer" value="transfer"><b>Transfer</b><span>Trasferimento</span></label>
     </div>
     <div class="fgrid fgrid4">
       <div class="f c2"><label for="f-vehicle">Mezzo</label><select id="f-vehicle"></select></div>
       <div class="f c1"><label for="f-pax">Passeggeri</label><input id="f-pax" inputmode="numeric" autocomplete="off" placeholder="Es. 45 oppure 180/4"></div>
-      <div class="f c1"><label for="f-status">Stato</label><select id="f-status"><option value="confermato">Confermato</option><option value="opzione">Opzione</option></select></div>
+      <div class="f c1"><label for="f-status">Stato</label><select id="f-status"><option value="opzione">? In sospeso</option><option value="confermato">✓ Confermato</option></select></div>
       <div class="f c1"><label for="f-start" id="l-start">Data partenza</label><input type="date" id="f-start" min="2000-01-01" max="2099-12-31" required></div>
-      <div class="f c1"><label for="f-time">Ora partenza</label><input type="time" id="f-time"></div>
+      <div class="f c1"><label for="f-time">Ora partenza</label><input type="time" id="f-time" step="900"></div>
       <div class="f c1" id="w-end"><label for="f-end">Data rientro <span class="next-day" id="endNext" hidden>giorno dopo</span></label><input type="date" id="f-end" min="2000-01-01" max="2099-12-31"></div>
-      <div class="f c1" id="w-time2"><label for="f-time2">Ora rientro</label><input type="time" id="f-time2"></div>
+      <div class="f c1" id="w-time2"><label for="f-time2">Ora rientro</label><input type="time" id="f-time2" step="900"></div>
       <div class="f full" id="w-event"><label for="f-event">Evento</label><input id="f-event" placeholder="Es. concerto, artista e luogo"></div>
       <div class="f full csearch"><label for="f-client">Cliente</label><input id="f-client" autocomplete="off" placeholder="Cerca per nome, alias, città o codice" role="combobox" aria-expanded="false" aria-controls="cSug"><div class="csug" id="cSug" role="listbox" hidden></div><div class="cinfo" id="cInfo"></div></div>
       <div class="f full"><label for="f-route">Anteprima itinerario</label><input id="f-route" placeholder="Es. Ragusa → Aeroporto Catania"></div>
@@ -867,7 +903,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
         <div class="f"><label for="f-envno">N. busta</label><input id="f-envno" autocomplete="off" inputmode="numeric" placeholder="automatico con SI"></div>
       </div>
       <div class="f c2 drvf"><label for="f-driver">1° Autista</label><div class="drvbox"><input id="f-driver" autocomplete="off" placeholder="Scegli dall'elenco" role="combobox" aria-expanded="false" aria-controls="dl-f-driver"><button type="button" class="drvopen" data-drvopen="f-driver" tabindex="-1" aria-label="Apri elenco autisti">▾</button><div class="drvlist" id="dl-f-driver" role="listbox" hidden></div></div><div class="drvq" id="q-driver" hidden><button type="button" data-gen="f-driver">Autista Generico 1</button></div></div>
-      <div class="f c2 drvf"><label for="f-driver2">2° Autista</label><div class="drvbox"><input id="f-driver2" autocomplete="off" placeholder="Solo se serve" role="combobox" aria-expanded="false" aria-controls="dl-f-driver2"><button type="button" class="drvopen" data-drvopen="f-driver2" tabindex="-1" aria-label="Apri elenco autisti">▾</button><div class="drvlist" id="dl-f-driver2" role="listbox" hidden></div></div><div class="drvq" id="q-driver2" hidden><button type="button" data-gen="f-driver2">+ Autista Generico 2</button></div></div>
+      <div class="f c2 drvf"><label for="f-driver2">2° Autista</label><div class="drvbox"><input id="f-driver2" autocomplete="off" placeholder="Solo se serve" role="combobox" aria-expanded="false" aria-controls="dl-f-driver2"><button type="button" class="drvopen" data-drvopen="f-driver2" tabindex="-1" aria-label="Apri elenco autisti">▾</button><div class="drvlist" id="dl-f-driver2" role="listbox" hidden></div></div></div>
       <input type="hidden" id="f-escort">
       <div class="f full pblock" id="pb-refs">
         <div class="prow p-ref" id="ref1row">
@@ -887,13 +923,13 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
         <div class="rep" id="rep-hotels"></div>
         <button type="button" class="linkbtn" data-addrep="hotels">+ Aggiungi hotel</button>
       </div>
-      <div class="f full"><label for="f-notes">Note</label><textarea id="f-notes"></textarea></div>
       <details class="f full sheetbox" id="sheetBox" open>
         <summary>Foglio di servizio per l'autista</summary>
         <div class="sheetbox-in">
           <div class="f"><span class="lbl" id="l-prog">Programma</span><p class="hint" id="progHint">Una riga per ogni tappa, con orario e luogo. Le righe vengono numerate da sole.</p><div id="progWrap"></div></div>
         </div>
       </details>
+      <div class="f full" id="w-notes" hidden><label for="f-notes">Note (scritte con le versioni precedenti)</label><textarea id="f-notes"></textarea></div>
       <div class="f full drvbox2" id="drvBox">
         <div class="money3">
           <div class="f"><label for="f-saldo">Saldo da ricevere</label><select id="f-saldo"><option value="NO">NO</option><option value="SI">SI</option></select></div>
@@ -920,11 +956,15 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 <div class="overlay" id="ovSheet" hidden>
   <div class="modal sheet-modal">
     <div class="sheet-top">
-      <h3 id="sheetTitle">Foglio di servizio</h3><span class="sheet-kind" id="sheetKind"></span>
-      <div class="sheet-opts"><label class="sheet-opt"><input type="checkbox" id="sheetNoPlate"> Nascondi Targa e ID Mezzo</label><label class="sheet-opt"><input type="checkbox" id="sheetFull"> Con la parte contabile</label></div>
+      <h3 id="sheetTitle">Foglio di servizio</h3>
+      <div class="sheet-opts">
+        <label class="sheet-opt sel" title="Cosa scrivere nella casella Cliente del foglio per l'autista. Nella parte contabile resta sempre la ragione sociale."><span>Intestazione</span><select id="sheetName"><option value="cliente">Cliente</option><option value="alias">Alias</option></select></label>
+        <label class="sheet-opt"><input type="checkbox" id="sheetNoPlate"> Nascondi Targa e ID Mezzo</label>
+        <label class="sheet-opt sel"><span>Stampa</span><select id="sheetPart"><option value="driver">Solo foglio per l'autista</option><option value="full">Con la parte contabile</option><option value="office">Solo parte contabile</option></select></label>
+      </div>
     </div>
     <p class="sheet-prov" id="sheetProv" hidden>N. foglio <b>provvisorio</b>: la prenotazione non è ancora arrivata in Dropbox, quindi il numero potrebbe cambiare. Il foglio lo riporta (PROVV.); appena torna la connessione il numero viene confermato e il foglio si aggiorna.</p>
-    <p class="sheet-hint">Impaginato del modello <b id="sheetTpl">automatico_2026_neutro</b>. «Stampa» stampa il foglio così come lo vedi (A4; se il programma non ci sta, anche la pagina 2).</p>
+    <p class="sheet-hint">Impaginato del modello <b>automatico_2026_neutro</b>. «Stampa» stampa il foglio così come lo vedi (A4; se qualcosa non ci sta, anche la pagina 2).</p>
     <div class="sheet-scroll"><div id="sheetView"></div></div>
     <div class="sheet-msg" id="sheetMsg" role="status"></div>
     <div class="mfoot">
@@ -945,7 +985,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
     </div>
     <input id="cliQ" class="cli-q" type="search" placeholder="Cerca per nome, alias, città, P.IVA, codice fiscale, telefono, e-mail, referente o codice" autocomplete="off" aria-label="Cerca cliente">
     <div class="cli-pending" id="cliPending" hidden></div>
-    <div class="cli-head" aria-hidden="true"><span>Cod.</span><span>Ragione sociale</span><span>Città</span><span>P.IVA / C.F.</span><span>Telefono</span><span>E-mail</span><span>Referente</span></div>
+    <div class="cli-head" aria-hidden="true"><span>Cod.</span><span>Ragione sociale</span><span>Città</span><span>P.IVA / C.F.</span><span>Telefono</span><span>E-mail</span><span>Alias</span></div>
     <div class="cli-list" id="cliList" role="list"></div>
     <div class="mfoot"><span class="cli-note" id="cliNote"></span><span class="spacer"></span><button type="button" class="btn" id="cliClose">Chiudi</button></div>
   </div>

@@ -1,9 +1,8 @@
 // Rende l'app utilizzabile senza connessione. Aumenta il numero quando pubblichi una nuova versione.
-const VERSION = "agenda-laterra-2.1";
+const VERSION = "agenda-laterra-2.2";
 const SHELL = ["./", "./index.html", "./app.js", "./config.js", "./dropbox.js", "./store.js", "./accessi.js", "./fatturato.js",
   "./vendor/jszip.min.js", "./vendor/pdf-lib.min.js", "./vendor/font-pdf.js", "./logo.jpg", "./manifest.webmanifest",
-  "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./icons/favicon-64.png",
-  "./modelli/automatico_2026_neutro.xlsx", "./modelli/neutro_versione_hotel.xlsx"];
+  "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./icons/favicon-64.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => { e.waitUntil((async () => { for (const k of await caches.keys()) if (k !== VERSION) await caches.delete(k); await self.clients.claim(); })()); });
 const timeout = (p, ms) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error("timeout")), ms))]);

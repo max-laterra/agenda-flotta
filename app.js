@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="2.1",APP_DATE="02/10/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="2.2",APP_DATE="02/10/2026";window.AGENDA_VERSION=APP_VERSION;
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -149,8 +149,23 @@ function cleanText(t,multi){
 // ---------- stato ----------
 // flotta in ordine decrescente di posti (l'auto in fondo)
 function sortFleet(list){return (Array.isArray(list)?list:[]).filter(v=>v&&typeof v==="object"&&!Array.isArray(v)).map((v,i)=>[v,i]).sort((a,b)=>(a[0].ord&&b[0].ord?a[0].ord-b[0].ord:0)||((b[0].seats||0)-(a[0].seats||0))||(a[1]-b[1])).map(x=>x[0]);}
-// come si vede il mezzo nella vista Giorno: "81 posti - GM701RZ (50)"
-function vehLabelHTML(v){const s=v.seats?v.seats+" posti":"Auto";return '<b>'+esc(s)+'</b>'+(v.h?'<span class="badge-h" title="Accessibile">H</span>':'')+(v.plate?' - '+esc(v.plate):'')+(v.num?' ('+esc(v.num)+')':'');}
+// come si vede il mezzo nell'elenco a sinistra delle viste Giorno, Settimana e Mese: "81 p. - GM701RZ (50)"
+function vehLabelHTML(v){const s=v.seats?v.seats+" p.":"Auto";return '<b>'+esc(s)+'</b>'+(v.h?'<span class="badge-h" title="Accessibile">H</span>':'')+(v.plate?' - '+esc(v.plate):'')+(v.num?' ('+esc(v.num)+')':'');}
+// larghezza della colonna dei mezzi: quanto basta per l'etichetta più lunga, così il resto è per i servizi
+let _vw={k:"",w:{}};
+function vehColW(px){
+  const key=S.fleet.map(v=>[v.seats,v.h?1:0,v.plate,v.num].join("|")).join(";")+"@"+px;
+  if(_vw.k!==key||!_vw.w[px]){
+    if(_vw.k.split("@")[0]!==key.split("@")[0])_vw={k:key,w:{}};
+    const cx=document.createElement("canvas").getContext("2d"),ff=getComputedStyle(document.body).fontFamily||"sans-serif";let mx=0;
+    for(const v of S.fleet){cx.font="700 "+px+"px "+ff;let w=cx.measureText(v.seats?v.seats+" p.":"Auto").width;cx.font="400 "+px+"px "+ff;w+=cx.measureText((v.plate?" - "+v.plate:"")+(v.num?" ("+v.num+")":"")).width+(v.h?28:0);if(w>mx)mx=w;}
+    _vw.k=key;_vw.w[px]=Math.ceil(mx)+8;
+  }
+  return _vw.w[px];
+}
+// nome con cui il cliente compare nelle viste: l'alias, quando c'è
+function dispClient(b){const c=b.clientCode!==""&&b.clientCode!=null?clientByCode(b.clientCode):null;return (c&&c[2]?String(c[2]):"")||b.client||"Senza cliente";}
+const pending=b=>b.status==="opzione"; // prenotazione in sospeso (da confermare)
 function vehLabel(v){return (v.seats?v.seats+" posti"+(v.h?" H":""):"Auto")+(v.plate?" - "+v.plate:"")+(v.num?" ("+v.num+")":"");}
 const S={fleet:sortFleet(DEFAULT_FLEET),fleetStored:false,days:{},sel:todayISO(),view:"day",readOnly:false,clients:[],regole:{autisti:[],targhe:{},numeri:{}},allDays:null};
 let db=null, unsubDays=null, subMonth=null;
@@ -205,23 +220,23 @@ function renderWeek(){
   const wr=a.getUTCFullYear()===z.getUTCFullYear()?a.getUTCDate()+" "+MN[a.getUTCMonth()]+" – "+z.getUTCDate()+" "+MN[z.getUTCMonth()]:a.getUTCDate()+" "+MN[a.getUTCMonth()]+" "+a.getUTCFullYear()+" – "+z.getUTCDate()+" "+MN[z.getUTCMonth()]+" "+z.getUTCFullYear();
   $("wsign").innerHTML='<div class="date"><span>'+wr+'</span>'+(t>=mon&&t<=sun?'<span class="today-tag">Questa settimana</span>':'')+'</div>'+
     '<div class="sright"><div class="nav"><button id="wPrev" aria-label="Settimana precedente">‹</button><button id="wNext" aria-label="Settimana successiva">›</button></div></div>';
-  let h='<colgroup><col class="vcol">'+days.map(()=>"<col>").join("")+'</colgroup><thead><tr><th class="vc">Mezzo</th>';
+  let h='<colgroup><col class="vcol" style="width:'+(vehColW(13.5)+14)+'px">'+days.map(()=>"<col>").join("")+'</colgroup><thead><tr><th class="vc">Mezzo</th>';
   for(const ds of days){
     const w=wday(ds),busy=new Set(dayList(ds).map(b=>b.vehicle)).size;
     h+='<th class="'+(w===0?"sun ":"")+(ds===t?"today ":"")+(ds===S.sel?"sel":"")+'" data-goday="'+ds+'" title="Apri la giornata"><span class="wdn">'+WDL[w]+'</span><span class="dnum">'+parse(ds).getUTCDate()+" "+MN[parse(ds).getUTCMonth()].slice(0,3)+'</span><span class="occ">'+busy+"/"+S.fleet.length+' impegnati</span></th>';
   }
   h+='</tr></thead><tbody>';
   for(const v of S.fleet){
-    h+='<tr><th class="vc"><b>'+esc(v.seats?v.seats+" posti":"Auto")+(v.h?'<span class="badge-h" title="Accessibile">H</span>':"")+'</b><span>'+esc([v.plate,v.num?"("+v.num+")":""].filter(Boolean).join(" "))+'</span></th>';
+    h+='<tr><th class="vc"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span></th>';
     for(const ds of days){
       const list=on(ds,v.id);
       let inner="";
       for(const b of list){
         let tp=TYPES[b.type]||"",tm=b.time||"";
         if(spans(b)){const tot=diff(b.start,endOf(b))+1,i=diff(b.start,ds)+1;tp+=" "+i+"/"+tot;if(i>1)tm=i===tot&&b.time2?b.time2:"";}
-        inner+='<button class="wb '+esc(b.type)+(b.status==="opzione"?" opzione":"")+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc((b.foglio?"n. "+b.foglio+" · ":"")+(b.client||"")+(b.event?" – "+b.event:"")+(whatToday(b,ds)?" – "+whatToday(b,ds):"")+(b.driver?" · Autista: "+b.driver:"")+(b.escort?" · Accompagnatore: "+b.escort:""))+'">'+
-          '<span class="l1">'+(tm?'<span class="tm">'+esc(tm)+'</span>':"")+'<span class="tp">'+tp+'</span></span>'+
-          '<span class="cl">'+esc(b.client||"Senza cliente")+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(whatToday(b,ds)?'<span class="rt'+(dayProgram(b,ds)?" pg":"")+'">'+esc(whatToday(b,ds))+'</span>':"")+'</button>';
+        inner+='<button class="wb '+esc(b.type)+(pending(b)?" opzione":"")+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc((pending(b)?"IN SOSPESO · ":"Confermata · ")+(b.foglio?"n. "+b.foglio+" · ":"")+(b.client||"")+(b.event?" – "+b.event:"")+(whatToday(b,ds)?" – "+whatToday(b,ds):"")+(b.driver?" · Autista: "+b.driver:"")+(b.escort?" · Accompagnatore: "+b.escort:""))+'">'+
+          '<span class="l1">'+(tm?'<span class="tm">'+esc(tm)+'</span>':"")+'<span class="tp">'+tp+'</span><span class="stm '+(pending(b)?"q":"ok")+'" aria-hidden="true">'+(pending(b)?"?":"✓")+'</span></span>'+
+          '<span class="cl">'+esc(dispClient(b))+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(whatToday(b,ds)?'<span class="rt'+(dayProgram(b,ds)?" pg":"")+'">'+esc(whatToday(b,ds))+'</span>':"")+'</button>';
       }
       if(!S.readOnly)inner+='<span class="plus">+ Aggiungi</span>';
       h+='<td class="wc'+(wday(ds)===0?" sun":"")+'" data-addv="'+esc(v.id)+'" data-addd="'+esc(ds)+'"><div class="wcell">'+inner+'</div></td>';
@@ -265,35 +280,42 @@ function renderStrip(){
   if(cur){const w=st.parentElement;const l=cur.offsetLeft-w.clientWidth/2+cur.clientWidth/2;w.scrollLeft=Math.max(0,l);}
 }
 
+// Vista Giorno: ogni servizio su una riga a colonne fisse (non si vedono, ma i dati restano incolonnati):
+// stato · inizio · fine · durata · cliente (o alias) · itinerario · autista. Il resto è nel riquadro al passaggio del mouse.
 function bookingHTML(b,date){
   const v=vehicle(b.vehicle);
-  let when=esc(b.time||"—");
-  let tp=TYPES[b.type]||"Servizio";
-  if(spans(b)){const tot=diff(b.start,endOf(b))+1,i=diff(b.start,date)+1;tp+=" · giorno "+i+" di "+tot;
-    if(i>1)when=i===tot&&b.time2?"rientro":(isMulti(b.type)?"in tour":"in corso");}
+  const tot=diff(b.start,endOf(b))+1,i=diff(b.start,date)+1,multi=tot>1;
+  const hrs=durHours(b)!=null; // gita o transfer a ore: l'ora di rientro si vede anche il giorno di partenza
+  const t1=!multi||i===1?(b.time||""):"",t2=!multi||i===tot||hrs?(b.time2||""):"";
+  const tp=(TYPES[b.type]||"Servizio")+(multi?" · giorno "+i+" di "+tot:"");
   const det=[];
-  if(b.foglio)det.push('<span class="fg">n. '+esc(b.foglio)+'</span>');
-  if(spans(b))det.push(short(b.start)+" → "+short(endOf(b)));
-  if(b.time2&&!onlyDeparture(b.type))det.push("Rientro "+esc(b.time2));
-  if(b.pax!==""&&b.pax!=null){const over=v&&v.seats&&/^\d+$/.test(String(b.pax))&&+b.pax>v.seats;det.push('<span class="'+(over?"over":"")+'">'+esc(b.pax)+(v&&v.seats?"/"+v.seats:"")+" pax"+(over?" · oltre capienza":"")+"</span>");}
-  const dh=driversHTML(b);if(dh)det.push("Autista: "+dh);
+  if(b.foglio)det.push("n. "+b.foglio);
+  if(multi)det.push(short(b.start)+" → "+short(endOf(b)));
+  if(b.pax!==""&&b.pax!=null){const over=v&&v.seats&&/^\d+$/.test(String(b.pax))&&+b.pax>v.seats;det.push(b.pax+(v&&v.seats?"/"+v.seats:"")+" pax"+(over?" · oltre capienza":""));}
   const eu=x=>Number(x).toLocaleString("it-IT",{minimumFractionDigits:2,maximumFractionDigits:2});
   const has=x=>x!==""&&x!=null;
   if(has(b.price))det.push("Noleggio € "+eu(b.price));
   if(has(b.park))det.push("Parcheggi € "+eu(b.park));
   if(has(b.meals))det.push("Pasti € "+eu(b.meals));
   if(isMulti(b.type)&&has(b.advance))det.push("Anticipo € "+eu(b.advance));
-  if(isMulti(b.type)&&b.envelope)det.push("Busta "+esc(b.envelope)+(b.envno?" n. "+esc(b.envno):""));
-  if(hasEvent(b.type)&&b.escort)det.push("Accompagnatore: "+esc(b.escort));
-  if(b.contactName||b.contact)det.push("Ref. "+esc([b.contactName,b.contact].filter(Boolean).join(" ")));
-  if(b.notes)det.push(esc(b.notes));
-  const tip=[(b.time||"")+" "+tp,b.client||"",whatToday(b,date)||""].filter(Boolean).join(" · ")+(det.length?"\n"+det.map(x=>x.replace(/<[^>]+>/g,"").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&#39;/g,"'")).join(" · "):"");
-  return '<button class="bk '+esc(b.type)+(b.status==="opzione"?" opzione":"")+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc(tip)+'">'+
-    '<span class="when">'+when+'</span>'+
-    '<span class="what"><span class="tp">'+tp+'</span>'+(b.status==="opzione"?'<span class="st">Opzione</span>':"")+
-    '<span class="cl">'+esc(b.client||"Senza cliente")+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(whatToday(b,date)?'<span class="rt'+(dayProgram(b,date)?" pg":"")+'">'+esc(whatToday(b,date))+'</span>':"")+'</span>'+
-    (det.length?'<span class="det">'+det.map(x=>"<span>"+x+"</span>").join("")+'</span>':"")+
-    '</button>';
+  if(isMulti(b.type)&&b.envelope)det.push("Busta "+b.envelope+(b.envno?" n. "+b.envno:""));
+  if(hasEvent(b.type)&&b.escort)det.push("Accompagnatore: "+b.escort);
+  if(b.contactName||b.contact)det.push("Ref. "+[b.contactName,b.contact].filter(Boolean).join(" "));
+  if(b.notes)det.push(b.notes);
+  const dtx=[b.driver,b.driver2].map(x=>String(x||"").trim()).filter(Boolean).join(" + ");if(dtx)det.unshift("Autista: "+dtx);
+  const what=[hasEvent(b.type)&&b.event?b.event:"",whatToday(b,date)||""].filter(Boolean),name=dispClient(b),drv=driversHTML(b);
+  const tip=[(pending(b)?"IN SOSPESO":"Confermata")+" · "+tp,(b.client||"")+(name!==(b.client||"Senza cliente")?" ("+name+")":""),what.join(" – ")].filter(Boolean).join(" · ")+(det.length?"\n"+det.join(" · "):"");
+  const over=v&&v.seats&&/^\d+$/.test(String(b.pax||""))&&+b.pax>v.seats;
+  return '<div class="bkw '+esc(b.type)+(pending(b)?" opzione":"")+'">'+
+    '<button type="button" class="stt '+(pending(b)?"q":"ok")+'" data-conf="'+esc(b.id)+'" data-start="'+esc(b.start)+'"'+(S.readOnly?" disabled":"")+' title="'+(pending(b)?"In sospeso: clic per confermare":"Confermata: clic per rimetterla in sospeso")+'" aria-label="'+(pending(b)?"In sospeso: conferma la prenotazione":"Confermata: rimetti in sospeso")+'">'+(pending(b)?"?":"✓")+'</button>'+
+    '<button type="button" class="bk '+esc(b.type)+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc(tip)+'">'+
+    '<span class="c-t1">'+esc(t1||(multi&&i>1?"":"—"))+'</span>'+
+    '<span class="c-t2">'+esc(t2)+'</span>'+
+    '<span class="c-du">'+esc(durShort(b,date))+'</span>'+
+    '<span class="c-cl">'+(over?'<span class="over" title="Passeggeri oltre la capienza">!</span> ':'')+esc(name)+'</span>'+
+    '<span class="c-rt'+(dayProgram(b,date)?" pg":"")+'">'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+esc(whatToday(b,date)||"")+'</span>'+
+    '<span class="c-dr">'+drv+'</span>'+
+    '</button></div>';
 }
 
 function renderDay(){
@@ -315,6 +337,7 @@ function renderDay(){
     '</div>'+
     '<div class="nav"><button id="dPrev" aria-label="Giorno precedente">‹</button><button id="dNext" aria-label="Giorno successivo">›</button></div></div>';
   $("sheet").className="sheet"+(w===0?" sun":"");
+  $("sheet").style.setProperty("--vehw",vehColW(15)+"px");
   let h="";
   for(const v of S.fleet){
     const list=on(date,v.id);
@@ -324,7 +347,10 @@ function renderDay(){
       (S.readOnly?"<span></span>":'<button class="add" data-add="'+esc(v.id)+'">+ Aggiungi</button>')+
     '</div>';
   }
+  // la vista viene ridisegnata anche da sola (sincronizzazione): chi usa la tastiera non deve perdere il punto
+  const af=document.activeElement,keep=af&&af!==document.body&&$("sheet").contains(af)?Object.assign({},af.dataset):null;
   $("sheet").innerHTML=h;
+  if(keep){const k=keep.conf!=null?"conf":keep.edit!=null?"edit":keep.add!=null?"add":"";if(k)for(const el of $("sheet").querySelectorAll("[data-"+k+"]"))if(el.dataset[k]===keep[k]&&(el.dataset.start||"")===(keep.start||"")){el.focus({preventScroll:true});break;}}
   const ta=$("extraText");
   if(document.activeElement!==ta){ta.value=(S.days[date]&&S.days[date].extra)||"";}
   ta.readOnly=S.readOnly;
@@ -338,17 +364,17 @@ function renderMonth(){
   for(let d=1;d<=n;d++){const ds=k+"-"+pad(d),w=wday(ds);h+='<th class="'+(w===0?"sun ":"")+(ds===S.sel?"sel":"")+'" data-day="'+ds+'" style="cursor:pointer">'+WD[w].slice(0,1)+'<span class="n">'+d+'</span></th>';}
   h+='</tr></thead><tbody>';
   for(const v of S.fleet){
-    h+='<tr><th class="vc">'+esc(v.name)+(v.plate?'<small>'+esc(v.plate)+'</small>':"")+'</th>';
+    h+='<tr><th class="vc"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span></th>';
     for(let d=1;d<=n;d++){
       const ds=k+"-"+pad(d),w=wday(ds),list=on(ds,v.id);
       let inner="",tip=[];
       if(list.length){
         const b=list[0];let cls="cell "+b.type;
         if(spans(b)){const s=b.start===ds,e=endOf(b)===ds;cls+=s&&e?"":s?" first":e?" last":" mid";}
-        if(list.every(x=>x.status==="opzione"))cls+=" opz";
+        if(list.every(pending))cls+=" opz";
         const lab=list.length>1?list.length:(spans(b)?(b.start===ds?MONTH_LAB[b.type]:""):(MONTH_LAB[b.type]||""));
         inner='<div class="'+cls+'">'+lab+'</div>';
-        tip=list.map(x=>(TYPES[x.type]||"")+(x.time?" "+x.time:"")+" – "+(x.client||"")+(x.event?" · "+x.event:"")+(whatToday(x,ds)?" ("+whatToday(x,ds)+")":""));
+        tip=list.map(x=>(pending(x)?"? ":"✓ ")+(TYPES[x.type]||"")+(x.time?" "+x.time:"")+" – "+dispClient(x)+(x.event?" · "+x.event:"")+(whatToday(x,ds)?" ("+whatToday(x,ds)+")":""));
       }
       h+='<td class="c'+(w===0?" sun":"")+(ds===S.sel?" sel":"")+'" data-day="'+ds+'" title="'+esc(ds.split("-").reverse().join("/")+(tip.length?"\n"+tip.join("\n"):" – libero"))+'">'+inner+'</td>';
     }
@@ -378,7 +404,7 @@ function showBanner(m){notify(m,true);}
 let editing=null; // {id,start}
 function openForm(opts){
   opts=opts||{};
-  const b=opts.booking||{type:"transfer",vehicle:opts.vehicle||S.fleet[0].id,start:opts.date||S.sel,end:"",time:"",time2:"",client:"",clientCode:"",route:"",event:"",escort:"",pax:"",price:"",driver:GEN1,driver2:"",contact:"",status:"confermato",notes:""};
+  const b=opts.booking||{type:"gita",vehicle:opts.vehicle||S.fleet[0].id,start:opts.date||S.sel,end:"",time:"",time2:"",client:"",clientCode:"",route:"",event:"",escort:"",pax:"",price:"",driver:GEN1,driver2:"",contact:"",status:"opzione",notes:""}; // (nuova: Gita, in sospeso finché non la confermi)
   editing=opts.booking?{id:b.id,start:b.start,foglio:b.foglio||"",base:b.updatedAt||null,by:b.by||"",byAt:b.byAt||"",updBy:b.updBy||"",updAt:b.updatedAt||""}:null;progReady=false;
   // solo il Master vede chi ha creato e modificato la prenotazione
   const wh=editing&&isMaster()?[editing.by?"Creata da "+editing.by+(editing.byAt?" "+fmtTime(editing.byAt):""):"",editing.updBy?"ultima modifica di "+editing.updBy+(editing.updAt?" "+fmtTime(editing.updAt):""):""].filter(Boolean).join(" · "):"";
@@ -393,11 +419,13 @@ function openForm(opts){
   $("f-vehicle").value=b.vehicle;if(!$("f-vehicle").value&&S.fleet[0])$("f-vehicle").value=S.fleet[0].id;$("f-start").value=b.start;$("f-end").value=(b.end&&b.end>=b.start)?b.end:b.start;$("f-end").min=b.start||"";formStart=b.start;
   $("f-time").value=b.time||"";$("f-time2").value=b.time2||"";$("f-client").value=b.client||"";$("f-route").value=b.route||"";
   $("f-pax").value=b.pax==null?"":b.pax;$("f-event").value=b.event||"";$("f-escort").value=b.escort||"";$("f-driver").value=b.driver||"";$("f-contact").value=b.contact||"";$("f-contactname").value=b.contactName||"";$("f-contactnote").value=b.contactNote||"";$("f-contactrole").innerHTML=tendinaOpts("ruolo",b.contactRole||"");drvPaint("f-driver");drvPaint("f-driver2");
-  $("f-status").value=b.status||"confermato";$("f-notes").value=b.notes||"";
+  $("f-status").value=b.status==="opzione"?"opzione":"confermato";paintStatus();
+  // la casella Note non c'è più nel modulo: resta visibile solo nelle prenotazioni che hanno già un testo lì
+  $("f-notes").value=b.notes||"";$("w-notes").hidden=!String(b.notes||"").trim();
   renderClientInfo();syncDrvQ();
   $("f-saldo").value=b.saldo||"NO";$("f-saldoamt").value=b.saldoAmt==null?"":b.saldoAmt;
   ["refs","hotels","guides"].forEach(k=>renderRep(k,b[k]||[]));renderRep("dnotes",dnotesOf(b));fillPlaceLists();
-  endAuto=false;$("fEditAsk").hidden=true;editConfirmed=false;
+  endAuto=false;$("fEditAsk").hidden=true;editConfirmed=false;openSheetAfterSave=false;
   progCache=Array.isArray(b.program)?b.program.slice():[];renderProgram();
   $("fDelete").hidden=!editing;$("fConfirm").hidden=true;$("fCloseAsk").hidden=true;
   [...$("fBooking").elements].forEach(el=>{if(el.id!=="fCancel")el.disabled=S.readOnly;});
@@ -448,9 +476,11 @@ function drvPick(id,name){$(id).value=name;drvRender(id,false);drvPaint(id);sync
   box.addEventListener("mousedown",e=>{const b=e.target.closest("[data-drv]");if(b){e.preventDefault();drvPick(id,b.dataset.drv);}});
 });
 document.querySelectorAll("[data-drvopen]").forEach(b=>b.addEventListener("mousedown",e=>{e.preventDefault();const id=b.dataset.drvopen,box=$("dl-"+id);if(box.hidden){$(id).focus();drvIdx=-1;drvRender(id,true);}else drvRender(id,false);}));
-function syncDrvQ(){$("q-driver").hidden=!!$("f-driver").value.trim()||S.readOnly;$("q-driver2").hidden=!!$("f-driver2").value.trim()||S.readOnly;}
+function paintStatus(){const el=$("f-status");el.classList.toggle("st-q",el.value==="opzione");el.classList.toggle("st-ok",el.value!=="opzione");}
+function syncDrvQ(){$("q-driver").hidden=!!$("f-driver").value.trim()||S.readOnly;}
 ["f-driver","f-driver2"].forEach(id=>$(id).addEventListener("input",syncDrvQ));
 fillDrivers();
+$("f-status").addEventListener("change",paintStatus);
 document.querySelectorAll("[data-gen]").forEach(bt=>bt.addEventListener("click",()=>{const id=bt.dataset.gen;$(id).value=id==="f-driver"?GEN1:GEN2;drvPaint(id);syncDrvQ();}));
 // N. busta: con "Busta SI" propone il numero successivo (per anno), modificabile
 let bustaAuto="";
@@ -471,12 +501,12 @@ $("f-envelope").addEventListener("change",()=>{
 });
 function eur(id){const v=$(id).value;return v===""?"":Math.round(Number(v)*100)/100;}
 function curType(){const r=document.querySelector('input[name="type"]:checked');return r?r.value:"transfer";}
-function syncType(){$("w-tourcash").hidden=!isMulti(curType());if(progReady)renderProgram();const ev=hasEvent(curType());$("w-event").hidden=!ev;$("w-time2").hidden=onlyDeparture(curType());syncEndNextDay();}
+function syncType(){$("w-tourcash").hidden=!isMulti(curType());if(progReady)renderProgram();const ev=hasEvent(curType());$("w-event").hidden=!ev;$("w-time2").hidden=false;syncEndNextDay();}
 // rientro dopo la mezzanotte (es. notturno 17:00 → 01:00): la data di rientro passa da sola al giorno dopo
 let endAuto=false,formLoading=false;
 function syncEndNextDay(){
   const st=$("f-start").value,t1=$("f-time").value,t2=$("f-time2").value,en=$("f-end").value;
-  const night=!onlyDeparture(curType())&&!!t1&&!!t2&&t2<t1&&validDate(st);
+  const night=!!t1&&!!t2&&t2<t1&&validDate(st);
   if(formLoading){} // prenotazione appena aperta: le date restano quelle salvate
   else if(night&&(!en||en===st)){$("f-end").value=addDays(st,1);endAuto=true;}
   else if(!night&&endAuto&&validDate(st)&&en===addDays(st,1)){$("f-end").value=st;endAuto=false;}
@@ -488,7 +518,7 @@ function readForm(){
   const type=curType(),start=$("f-start").value,T=id=>cleanText($(id).value);
   const client=T("f-client");
   return {type:type,vehicle:$("f-vehicle").value,start:start,end:$("f-end").value||start,
-    time:$("f-time").value,time2:onlyDeparture(type)?"":$("f-time2").value,client:client,clientCode:formClient&&formClient.name===client?formClient.code:"",route:T("f-route"),
+    time:$("f-time").value,time2:$("f-time2").value,client:client,clientCode:formClient&&formClient.name===client?formClient.code:"",route:T("f-route"),
     event:hasEvent(type)?T("f-event"):"",escort:hasEvent(type)?T("f-escort"):"",
     pax:T("f-pax"),price:eur("f-price"),park:eur("f-park"),meals:eur("f-meals"),advance:isMulti(type)?eur("f-advance"):"",envelope:isMulti(type)?$("f-envelope").value:"",envno:isMulti(type)?T("f-envno"):"",driver:T("f-driver"),driver2:T("f-driver2"),contact:T("f-contact"),contactName:T("f-contactname"),
     status:$("f-status").value,notes:cleanText($("f-notes").value,true),
@@ -940,12 +970,12 @@ function renderClients(){
     const piva=cliField(c,"piva"),cf=cliField(c,"cf"),city=cliField(c,"city"),prov=cliField(c,"prov"),mail=cliField(c,"mail");
     h+='<button type="button" class="cli-row" role="listitem" data-cli="'+esc(c[0])+'" aria-expanded="'+open+'">'+
       '<span class="cd">'+cliMark(String(c[0]),words)+'</span>'+
-      '<span class="nm"><b>'+cliMark(c[1],words)+'</b>'+(c[2]?'<small>'+cliMark(c[2],words)+'</small>':'')+'</span>'+
+      '<span class="nm"><b>'+cliMark(c[1],words)+'</b></span>'+
       '<span>'+cliMark(city+(prov?" ("+prov+")":""),words)+'</span>'+
       '<span>'+cliMark(piva||cf,words)+'</span>'+
       '<span>'+cliMark(c[4]||"",words)+'</span>'+
       '<span>'+cliMark(mail,words)+'</span>'+
-      '<span>'+cliMark([c[6],c[7]].filter(Boolean).join(" · "),words)+'</span></button>';
+      '<span class="al">'+cliMark(c[2]||"",words)+'</span></button>';
     if(open){
       h+='<div class="cli-det"><dl>'+cols.map((x,i)=>'<div><dt>'+esc(cliLabel(x))+'</dt><dd'+(row[i]?'':' class="none"')+'>'+(row[i]?esc(row[i]):"—")+'</dd></div>').join("")+'</dl>'+
         (S.readOnly?'':'<div class="cli-acts">'+(canEdit("clients")?'<button type="button" class="btn" data-cli-edit="'+esc(c[0])+'">Modifica dati</button>':'')+'<button type="button" class="btn primary" data-cli-book="'+esc(c[0])+'">Nuova prenotazione per questo cliente</button></div>')+'</div>';
@@ -1114,10 +1144,17 @@ $("fBooking").addEventListener("change",checkWarns);
 $("fBooking").addEventListener("submit",async e=>{
   e.preventDefault();
   if(S.readOnly||saving||$("ovBooking").hidden)return; // niente doppi invii (doppio clic, Invio ripetuto)
+  // Il modulo ha "novalidate" perché gli orari vanno a passi di 15 minuti ma si possono anche scrivere a mano
+  // (07:40): i controlli del browser su numeri, date e orari scritti male o a metà si fanno qui.
+  for(const el of e.target.elements){
+    const v=el.validity;if(!v||v.valid||el.disabled||!el.willValidate||el.offsetParent===null)continue;
+    if(el.type==="time"&&!v.badInput)continue;
+    $("fEditAsk").hidden=true;editConfirmed=false;openSheetAfterSave=false;el.reportValidity();return;
+  }
   const b=readForm();
-  if(!b.start){toast("Inserisci la data.");return;}
-  if(!validDate(b.start)||!validDate(b.end)){checkWarns();toast("Controlla la data: l'anno deve essere tra 2000 e 2099.");return;}
-  if(b.end<b.start||diff(b.start,b.end)>30){toast("Controlla la data di rientro.");return;}
+  if(!b.start){openSheetAfterSave=false;toast("Inserisci la data.");return;}
+  if(!validDate(b.start)||!validDate(b.end)){openSheetAfterSave=false;checkWarns();toast("Controlla la data: l'anno deve essere tra 2000 e 2099.");return;}
+  if(b.end<b.start||diff(b.start,b.end)>30){openSheetAfterSave=false;toast("Controlla la data di rientro.");return;}
   // modifica di una prenotazione già salvata: prima si chiede conferma, con l'elenco delle modifiche
   if(editing&&!editConfirmed){
     const ch=formChanges().filter(k=>FIELD_LBL[k]);
@@ -1249,6 +1286,7 @@ $("strip").addEventListener("click",e=>{
 $("sign").addEventListener("click",e=>{if(e.target.id==="dPrev")go(addDays(S.sel,-1));if(e.target.id==="dNext")go(addDays(S.sel,1));});
 $("sheet").addEventListener("click",e=>{
   const a=e.target.closest("[data-add]");if(a){openForm({vehicle:a.dataset.add,date:S.sel});return;}
+  const cf=e.target.closest("[data-conf]");if(cf){toggleConfirm(cf.dataset.conf,cf.dataset.start);return;}
   const ed=e.target.closest("[data-edit]");
   if(ed){const b=bookingsAll().find(x=>x.id===ed.dataset.edit&&x.start===ed.dataset.start);if(b)openForm({booking:b});}
 });
@@ -1277,12 +1315,12 @@ function billNote(b){
   const p=[];
   if(b.notes)p.push(b.notes);
   if(b.time)p.push("Partenza "+b.time);
-  if(b.time2&&!onlyDeparture(b.type))p.push("Rientro "+b.time2);
+  if(b.time2)p.push("Rientro "+b.time2);
   if(b.pax!==""&&b.pax!=null)p.push(b.pax+" pax");
   if(hasEvent(b.type)&&b.escort)p.push("Accompagnatore: "+b.escort);
   const cl=b.clientCode!==""&&b.clientCode!=null?clientByCode(b.clientCode):null;
   if(b.contactName||(b.contact&&!(cl&&cl[4]===b.contact)))p.push("Ref. "+[b.contactName,b.contact&&!(cl&&cl[4]===b.contact)?b.contact:""].filter(Boolean).join(" "));
-  if(b.status==="opzione")p.push("OPZIONE");
+  if(b.status==="opzione")p.unshift("IN SOSPESO"); // per primo: nella casella del foglio non deve essere tagliato
   return p.join(" · ");
 }
 function billItin(b){return hasEvent(b.type)&&b.event?b.event+(b.route?" – "+b.route:""):(b.route||"");}
@@ -1535,49 +1573,68 @@ async function readLists(zip,sst){
   return out;
 }
 // ---------- foglio di servizio: modello "automatico_2026_neutro.xlsx" ----------
-// Il file Excel del modello NON viene modificato: l'app riempie solo le caselle da compilare
-// e il valore già calcolato delle formule (che restano quelle del modello).
-const TPL_FILE="modelli/automatico_2026_neutro.xlsx",TPL_FILE_H="modelli/neutro_versione_hotel.xlsx";
-const TPL_COLS=[11.42578125,12.42578125,6,12.140625,7.42578125,10.28515625,9.140625,13.28515625];
+// L'impaginato del modello è scritto qui sotto (TPL_COLS, TPL_ROWS): il file Excel non serve sul sito
+// e dalla 2.2 non viene più pubblicato (i modelli vecchi contenevano una copia dei dati del fatturato).
+const TPL_COLS=[9.7109375,11.42578125,6,12.140625,7.42578125,10.28515625,6.140625,13.28515625];
 const TPL_LETTERS="ABCDEFGH";
-const TPL_ROWS=[[20.0,{"A":{"t":" La Terra s.r.l. - Via Archimede 285C - 97100 - Ragusa - tel. 0932/626240 - Aut. Reg. Sicilia","z":15,"bd":"l1t1"},"B":{"z":15,"bd":"t1"},"C":{"z":15,"bd":"t1"},"D":{"z":15,"bd":"t1"},"E":{"z":15,"bd":"t1"},"F":{"z":15,"bd":"t1"},"G":{"z":15,"bd":"t1"},"H":{"z":15,"bd":"r1t1"}}],[20.0,{"A":{"t":"www.laterra.it - info@laterra.it - laterrasrl@pec.it - univoco M5UXCR1 - p. iva 00826460883","z":15,"bd":"l1b1"},"B":{"z":15,"bd":"b1"},"C":{"z":15,"bd":"b1"},"D":{"z":15,"bd":"b1"},"E":{"z":15,"bd":"b1"},"F":{"z":15,"bd":"b1"},"G":{"z":15,"bd":"b1"},"H":{"z":15,"bd":"r1b1"}}],[12.0,{}],[19,{"A":{"t":"ESTREMI DEL CONTRATTO CON IL CLIENTE E FOGLIO DI SERVIZIO NUMERO","al":"l","bd":"l1t1b1"},"B":{"bd":"t1b1"},"C":{"bd":"t1b1"},"D":{"bd":"t1b1"},"E":{"bd":"t1b1"},"F":{"bd":"t1b1"},"G":{"bd":"t1b1"},"H":{"bd":"l1r1t1b1"}}],[12.0,{"A":{"z":13},"B":{"z":13},"C":{"z":13},"D":{"z":13},"E":{"z":13},"F":{"z":13},"G":{"z":13},"H":{"z":13,"al":"r"}}],[19,{"A":{"t":"Passeggeri","bd":"l1t1b1"},"B":{"f":"a","al":"c","bd":"t1b1"},"C":{"t":"Bus","f":"a","bd":"l1t1b1"},"D":{"fx":1,"al":"c","bd":"t1b1"},"E":{"t":"Numero","bd":"l1t1b1"},"F":{"fx":1,"al":"c","bd":"r1t1b1"},"G":{"t":"Targa","bd":"t1b1"},"H":{"fx":1,"al":"c","bd":"r1t1b1"}}],[19,{"A":{"t":"Inizio","bd":"l1t1b1"},"B":{"fx":1,"al":"l","bd":"t1b1"},"C":{"t":"Fine","bd":"l1t1b1"},"D":{"fx":1,"al":"l","bd":"r1t1b1"},"E":{"t":"Giorni","bd":"l1t1b1"},"F":{"fx":1,"al":"c","bd":"r1t1b1"},"G":{"t":"Autista","bd":"l1t1b1"},"H":{"fx":1,"al":"c","bd":"r1t1b1"}}],[19,{"A":{"t":"Cliente","bd":"l1t1b1"},"B":{"fx":1,"b":1,"bd":"t1b1"},"C":{"bd":"t1b1"},"D":{"bd":"t1b1"},"E":{"bd":"t1b1"},"F":{"bd":"t1b1"},"G":{"t":"Telefono","bd":"l1t1b1"},"H":{"fx":1,"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Referente 1°","bd":"l1t1b1"},"B":{"fx":1,"al":"l","bd":"t1b1"},"C":{"al":"c","bd":"t1b1"},"D":{"al":"c","bd":"t1b1"},"E":{"al":"c","bd":"t1b1"},"F":{"al":"c","bd":"t1b1"},"G":{"t":"Telefono","bd":"l1t1b1"},"H":{"fx":1,"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Referente 2°","bd":"l1t1b1"},"B":{"f":"a","al":"c","bd":"t1b1"},"C":{"f":"a","al":"c","bd":"t1b1"},"D":{"f":"a","al":"c","bd":"t1b1"},"E":{"f":"a","al":"c","bd":"t1b1"},"F":{"f":"a","al":"c","bd":"t1b1"},"G":{"t":"Telefono","bd":"l1t1b1"},"H":{"f":"a","al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Guida 1°","bd":"l1t1b1"},"B":{"f":"a","al":"c","bd":"t1b1"},"C":{"f":"a","al":"c","bd":"t1b1"},"D":{"f":"a","al":"c","bd":"t1b1"},"E":{"f":"a","al":"c","bd":"t1b1"},"F":{"f":"a","al":"c","bd":"t1b1"},"G":{"t":"Telefono","bd":"l1t1b1"},"H":{"f":"a","al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Guida 2°","bd":"l1t1b1"},"B":{"f":"a","al":"c","bd":"t1b1"},"C":{"f":"a","al":"c","bd":"t1b1"},"D":{"f":"a","al":"c","bd":"t1b1"},"E":{"f":"a","al":"c","bd":"t1b1"},"F":{"f":"a","al":"c","bd":"t1b1"},"G":{"t":"Telefono","bd":"l1t1b1"},"H":{"f":"a","al":"l","bd":"r1t1b1"}}],[13.0,{"A":{"z":15},"B":{"z":15},"C":{"z":15},"D":{"z":15},"E":{"z":15},"F":{"z":15},"G":{"z":15},"H":{"z":15}}],[19,{"A":{"f":"a","al":"l","bd":"l1t1b2"},"B":{"bd":"t1b2"},"C":{"bd":"t1b2"},"D":{"bd":"t1b2"},"E":{"bd":"t1b2"},"F":{"bd":"t1b2"},"G":{"bd":"t1b2"},"H":{"bd":"r1t1b2"}}],[19,{"A":{"bd":"l1t2b2"},"B":{"bd":"t2b2"},"C":{"bd":"t2b2"},"D":{"bd":"t2b2"},"E":{"bd":"t2b2"},"F":{"bd":"t2b2"},"G":{"bd":"t2b2"},"H":{"bd":"r1t2b2"}}],[19,{"A":{"bd":"l1t2b2"},"B":{"bd":"t2b2"},"C":{"bd":"t2b2"},"D":{"bd":"t2b2"},"E":{"bd":"t2b2"},"F":{"bd":"t2b2"},"G":{"bd":"t2b2"},"H":{"bd":"r1t2b2"}}],[19,{"A":{"bd":"l1t2b2"},"B":{"bd":"t2b2"},"C":{"bd":"t2b2"},"D":{"bd":"t2b2"},"E":{"bd":"t2b2"},"F":{"bd":"t2b2"},"G":{"bd":"t2b2"},"H":{"bd":"r1t2b2"}}],[19,{"A":{"bd":"l1t2b2"},"B":{"bd":"t2b2"},"C":{"bd":"t2b2"},"D":{"bd":"t2b2"},"E":{"bd":"t2b2"},"F":{"bd":"t2b2"},"G":{"bd":"t2b2"},"H":{"bd":"r1t2b2"}}],[19,{"A":{"bd":"l1t2b2"},"B":{"bd":"t2b2"},"C":{"bd":"t2b2"},"D":{"bd":"t2b2"},"E":{"bd":"t2b2"},"F":{"bd":"t2b2"},"G":{"bd":"t2b2"},"H":{"bd":"r1t2b2"}}],[19,{"A":{"bd":"l1t2b1"},"B":{"bd":"t2b1"},"C":{"bd":"t2b1"},"D":{"bd":"t2b1"},"E":{"bd":"t2b1"},"F":{"bd":"t2b1"},"G":{"bd":"t2b1"},"H":{"bd":"r1t2b1"}}],[12.0,{"C":{"bd":"b1"}}],[19,{"A":{"t":"Saldo da ricevere","bd":"l1t1b1"},"B":{"bd":"t1b1"},"C":{"t":"NO","f":"g","al":"c"},"D":{"f":"a","al":"l","bd":"r1t1b1"},"E":{"t":"Acconto La Terra","bd":"l1t1b1"},"F":{"bd":"t1b1"},"G":{"bd":"t1b1"},"H":{"fx":1,"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Note 1° park","bd":"l1t1b1"},"B":{"f":"a","bd":"t1b1"},"C":{"f":"a","bd":"t1b1"},"D":{"f":"a","bd":"t1b1"},"E":{"f":"a","bd":"t1b1"},"F":{"f":"a","bd":"t1b1"},"G":{"f":"a","bd":"t1b1"},"H":{"f":"a","bd":"r1t1b1"}}],[19,{"A":{"t":"Note 2° autis","bd":"l1t1b1"},"B":{"f":"a","bd":"t1b1"},"C":{"f":"a","bd":"t1b1"},"D":{"f":"a","bd":"t1b1"},"E":{"f":"a","bd":"t1b1"},"F":{"f":"a","bd":"t1b1"},"G":{"f":"a","bd":"t1b1"},"H":{"f":"a","bd":"r1t1b1"}}],[19,{"A":{"t":"Note 3° 3 ore","bd":"l1t1b1"},"B":{"f":"a","bd":"t1b1"},"C":{"f":"a","bd":"t1b1"},"D":{"f":"a","bd":"t1b1"},"E":{"f":"a","bd":"t1b1"},"F":{"f":"a","bd":"t1b1"},"G":{"f":"a","bd":"t1b1"},"H":{"f":"a","bd":"r1t1b1"}}],[19,{"A":{"t":"Note 4° extra","bd":"l1t1b1"},"B":{"f":"a","bd":"t1b1"},"C":{"f":"a","bd":"t1b1"},"D":{"f":"a","bd":"t1b1"},"E":{"f":"a","bd":"t1b1"},"F":{"f":"a","bd":"t1b1"},"G":{"f":"a","bd":"t1b1"},"H":{"f":"a","bd":"r1t1b1"}}],[12.0,{}],[12.0,{}],[20.0,{"A":{"t":"Autista firma","bd":"l1t1"},"B":{"bd":"t1"},"C":{"bd":"t1"},"D":{"bd":"r1t1"},"E":{"t":"Azienda firma","bd":"l1t1"},"F":{"bd":"t1"},"G":{"z":15,"bd":"t1"},"H":{"z":15,"bd":"r1t1"}}],[20.0,{"A":{"z":15,"bd":"l1"},"B":{"z":15},"C":{"z":15},"D":{"z":15,"bd":"r1"},"E":{"z":15,"bd":"l1"},"F":{"z":15},"G":{"z":15},"H":{"z":15,"bd":"r1"}}],[20.0,{"A":{"z":15,"bd":"l1b1"},"B":{"z":15,"bd":"b1"},"C":{"z":15,"bd":"b1"},"D":{"z":15,"bd":"r1b1"},"E":{"z":15,"bd":"l1b1"},"F":{"z":15,"bd":"b1"},"G":{"z":15,"bd":"b1"},"H":{"z":15,"bd":"r1b1"}}],[20.0,{}],[20.0,{"A":{"bd":"t3"},"B":{"bd":"t3"},"C":{"bd":"t3"},"D":{"bd":"t3"},"E":{"bd":"t3"},"F":{"bd":"t3"},"G":{"bd":"t3"},"H":{"bd":"t3"}}],[20.0,{"A":{"t":"Servizio","bd":"l1t1b1"},"B":{"f":"a","al":"l","bd":"t1b1"},"C":{"t":"Bus","bd":"l1t1b1"},"D":{"fx":1,"bd":"t1b1"},"E":{"t":"Targa","bd":"l1t1b1"},"F":{"fx":1,"bd":"r1t1b1"},"G":{"t":"Autista","bd":"t1b1"},"H":{"fx":1,"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Inizio","bd":"l1t1b1"},"B":{"fx":1,"al":"l","bd":"r1t1b1"},"C":{"t":"Fine","bd":"t1b1"},"D":{"fx":1,"al":"l","bd":"r1t1b1"},"E":{"t":"Giorni","bd":"t1b1"},"F":{"fx":1,"al":"l","bd":"r1"},"G":{"t":"Ore","bd":"l1t1b1"},"H":{"fx":1,"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Cliente","bd":"l1t1b1"},"B":{"fx":1,"bd":"t1b1"},"C":{"bd":"t1b1"},"D":{"bd":"t1b1"},"E":{"bd":"t1b1"},"F":{"bd":"t1b1"},"G":{"t":"Telefono","bd":"l1t1b1"},"H":{"fx":1,"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Referente","bd":"l1t1b1"},"B":{"fx":1,"bd":"t1b1"},"C":{"bd":"t1b1"},"D":{"bd":"t1b1"},"E":{"bd":"t1b1"},"F":{"bd":"t1b1"},"G":{"t":"Telefono","bd":"l1t1b1"},"H":{"fx":1,"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Itinerario","bd":"l1t1"},"B":{"fx":1,"bd":"t1"},"C":{"bd":"t1"},"D":{"bd":"t1"},"E":{"bd":"t1"},"F":{"bd":"t1"},"G":{"bd":"t1"},"H":{"bd":"r1t1"}}],[19,{"A":{"t":"Causale","bd":"l1t1b1"},"B":{"f":"a","bd":"t1b1"},"C":{"f":"a","bd":"t1b1"},"D":{"f":"a","bd":"t1b1"},"E":{"f":"a","bd":"t1b1"},"F":{"f":"a","bd":"t1b1"},"G":{"t":"Prezzo i.c.","bd":"l1t1b1"},"H":{"fx":1,"al":"r","bd":"r1t1b1"}}],[19,{"A":{"t":"Partita Iva","bd":"l1t1b1"},"B":{"fx":1,"al":"l","bd":"r1t1b1"},"C":{"t":"Multi","bd":"l1t1b1"},"D":{"fx":1,"al":"l","bd":"r1t1b1"},"E":{"t":"SDI","bd":"l1t1b1"},"F":{"f":"a","bd":"r1t1b1"},"G":{"t":"Parcheggi","bd":"l1t1b1"},"H":{"fx":1,"al":"r","bd":"r1t1b1"}}],[19,{"A":{"t":"Fattura acc.","bd":"l1t1b1"},"B":{"fx":1,"al":"l","bd":"r1t1b1"},"C":{"t":"Del","bd":"l1t1b1"},"D":{"fx":1,"al":"l","bd":"r1t1b1"},"E":{"t":"Euro","bd":"l1t1b1"},"F":{"fx":1,"al":"l","bd":"r1t1b1"},"G":{"t":"Pasti","bd":"l1t1b1"},"H":{"fx":1,"al":"r","bd":"r1t1b1"}}],[19,{"A":{"t":"Fattura sald","bd":"l1t1b1"},"B":{"fx":1,"al":"l","bd":"r1t1b1"},"C":{"t":"Del","bd":"l1t1b1"},"D":{"fx":1,"al":"l","bd":"r1t1b1"},"E":{"t":"Euro","bd":"l1t1b1"},"F":{"fx":1,"al":"l","bd":"r1t1b1"},"G":{"t":"Varie ","bd":"l1t1b1"},"H":{"fx":1,"al":"r","bd":"r1t1b1"}}],[19,{"A":{"t":"Note A","bd":"l1"},"B":{"fx":1},"G":{"t":"Totale","bd":"l1t1b1"},"H":{"fx":1,"al":"r","bd":"r1t1b1"}}],[19,{"A":{"t":"Note B","bd":"l1t1b1"},"B":{"fx":1,"bd":"t1b1"},"C":{"bd":"t1b1"},"D":{"bd":"t1b1"},"E":{"bd":"t1b1"},"F":{"bd":"r1t1b1"},"G":{"t":"Contratto","bd":"l1t1b1"},"H":{"fx":1,"bd":"r1t1b1"}}]];
-const TPL_DRIVER_LAST=31; // righe 1–31: copia per l'autista; 32–44: copia ufficio
-// Modello "versione Hotel" (neutro_versione_hotel.xlsx): identico al neutro con in più la riga 13
-// "Hotel | Telefono" (stessa grafica della riga 12); da lì in giù tutto scende di una riga.
-// Con più hotel (anteprima, PDF e stampa) ogni hotel ha la sua riga, una sotto l'altra: 1° Hotel, 2° Hotel…
-function hotelRow(label){return [TPL_ROWS[11][0],Object.assign(JSON.parse(JSON.stringify(TPL_ROWS[11][1])),{A:Object.assign({},TPL_ROWS[11][1].A,{t:label})})];}
-function hotelsOf(b){return ((b&&b.hotels)||[]).filter(x=>x&&(x.name||x.tel));}
-// quale modello: con almeno un hotel si usa la versione Hotel. one: una sola riga Hotel (file Excel del modello)
-function tplKind(b,one){
-  const n=Math.min(hotelsOf(b).length,one?1:12);
-  const rows=n?TPL_ROWS.slice(0,12).concat(Array.from({length:n},(_,i)=>hotelRow(n>1?(i+1)+"° Hotel":"Hotel")),TPL_ROWS.slice(12)):TPL_ROWS;
-  return {hotel:n>0,n,rows,file:n?TPL_FILE_H:TPL_FILE,last:TPL_DRIVER_LAST+n,sh:n};
-}
-// testo dell'hotel nella sua riga (nome – indirizzo, città) e con il telefono (pagina 2)
+// Impaginato del modello (versione del 02/10/2026): una voce per riga del file Excel. fx: casella che compila
+// l'app; m: quante colonne può occupare il testo (caselle unite); bd: bordi (1 nero, 2 grigio, 3 tratteggio
+// di taglio, 4 e 5 bianchi); f: sfondo (a azzurrino, g grigio).
+const TPL_ROWS=[[20.0,{"A":{"t":" La Terra s.r.l. - Via Archimede 285C - 97100 - Ragusa - tel. 0932/626240 - Aut. Reg. Sicilia","z":15,"bd":"l1t1"},"B":{"z":15,"bd":"t1"},"C":{"z":15,"bd":"t1"},"D":{"z":15,"bd":"t1"},"E":{"z":15,"bd":"t1"},"F":{"z":15,"bd":"t1"},"G":{"z":15,"bd":"t1"},"H":{"z":15,"bd":"r1t1"}}],[20.0,{"A":{"t":"www.laterra.it - info@laterra.it - laterrasrl@pec.it - univoco M5UXCR1 - p. iva 00826460883","z":15,"bd":"l1b1"},"B":{"z":15,"bd":"b1"},"C":{"z":15,"bd":"b1"},"D":{"z":15,"bd":"b1"},"E":{"z":15,"bd":"b1"},"F":{"z":15,"bd":"b1"},"G":{"z":15,"bd":"b1"},"H":{"z":15,"bd":"r1b1"}}],[12.0,{}],[19,{"A":{"t":"ESTREMI DEL CONTRATTO CON IL CLIENTE E FOGLIO DI SERVIZIO NUMERO","al":"l","bd":"l1t1b1"},"B":{"bd":"t1b1"},"C":{"bd":"t1b1"},"D":{"bd":"t1b1"},"E":{"bd":"t1b1"},"F":{"bd":"t1b1"},"G":{"bd":"t1b1"},"H":{"bd":"l1r1t1b1"}}],[12.0,{"A":{"z":13},"B":{"z":13},"C":{"z":13},"D":{"z":13},"E":{"z":13},"F":{"z":13},"G":{"z":13},"H":{"z":13,"al":"r"}}],[19,{"A":{"t":"Passeggeri","bd":"l1t1b1"},"B":{"f":"a","al":"c","bd":"t1b1"},"C":{"t":"Bus","f":"a","bd":"l1t1b1"},"D":{"al":"c","bd":"t1b1"},"E":{"t":"Numero","bd":"l1t1b1"},"F":{"fx":1,"al":"l","bd":"r1t1b1"},"G":{"t":"Targa","bd":"t1b1"},"H":{"al":"c","bd":"r1t1b1"}}],[19,{"A":{"t":"Inizio","bd":"l1t1b1"},"B":{"fx":1,"al":"l","bd":"t1b1"},"C":{"t":"Fine","bd":"l1t1b1"},"D":{"al":"l","bd":"r1t1b1"},"E":{"t":"Durata","bd":"l1t1b1"},"F":{"al":"c","bd":"r1t1b1"},"G":{"t":"Autista","bd":"l1t1b1"},"H":{"al":"c","bd":"r1t1b1"}}],[19,{"A":{"t":"Cliente","bd":"l1t1b1"},"B":{"b":1,"bd":"t1"},"C":{"bd":"t1b1"},"D":{"bd":"t1b1"},"E":{"bd":"t1b1"},"F":{"bd":"t1b1"},"G":{"t":"Tel.","bd":"l1t1b1"},"H":{"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Referente 1","bd":"l1t1b1"},"B":{"fx":1,"al":"l","bd":"l5r5t1b1","m":1},"C":{"fx":1,"al":"l","bd":"l5t1b1","m":2},"D":{"bd":"t1b1"},"E":{"fx":1,"al":"l","bd":"t1b1","m":2},"F":{"bd":"r1t1b1"},"G":{"t":"Tel.","bd":"l1t1b1"},"H":{"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Referente 2","bd":"l1t1b1"},"B":{"fx":1,"f":"a","al":"l","bd":"l4r4t1b1","m":1},"C":{"fx":1,"al":"l","bd":"l5t1b1","m":2},"D":{"bd":"t1b1"},"E":{"fx":1,"al":"l","bd":"t1b1","m":2},"F":{"bd":"r1t1b1"},"G":{"t":"Tel.","bd":"l1t1b1"},"H":{"f":"a","al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Guida 1","bd":"l1t1b1"},"B":{"fx":1,"f":"a","al":"l","bd":"l4r4t1b1","m":1},"C":{"fx":1,"al":"l","bd":"l5t1b1","m":2},"D":{"bd":"t1b1"},"E":{"fx":1,"al":"l","bd":"t1b1","m":2},"F":{"bd":"r1t1b1"},"G":{"t":"Tel.","bd":"l1t1b1"},"H":{"f":"a","al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Guida 2","bd":"l1t1b1"},"B":{"fx":1,"f":"a","al":"l","bd":"l4r4t1b1","m":1},"C":{"fx":1,"al":"l","bd":"l5t1b1","m":2},"D":{"bd":"t1b1"},"E":{"fx":1,"al":"l","bd":"t1b1","m":2},"F":{"bd":"r1t1b1"},"G":{"t":"Tel.","bd":"l1t1b1"},"H":{"f":"a","al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Hotel 1","bd":"l1t1b1"},"B":{"fx":1,"f":"a","al":"l","bd":"l4r4t1b1","m":1},"C":{"fx":1,"al":"l","bd":"l5t1b1","m":2},"D":{"bd":"t1b1"},"E":{"fx":1,"al":"l","bd":"t1b1","m":2},"F":{"bd":"r1t1b1"},"G":{"t":"Tel.","bd":"l1t1b1"},"H":{"f":"a","al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Hotel 2","bd":"l1t1b1"},"B":{"fx":1,"f":"a","al":"l","bd":"l4r4t1b1","m":1},"C":{"fx":1,"al":"l","bd":"l5t1b1","m":2},"D":{"bd":"t1b1"},"E":{"fx":1,"al":"l","bd":"t1b1","m":2},"F":{"bd":"r1t1b1"},"G":{"t":"Tel.","bd":"l1t1b1"},"H":{"f":"a","al":"l","bd":"r1t1b1"}}],[13.0,{"A":{"z":15},"B":{"z":15},"C":{"z":15},"D":{"z":15},"E":{"z":15},"F":{"z":15},"G":{"z":15},"H":{"z":15}}],[19,{"A":{"f":"a","al":"l","bd":"l1t1b2"},"B":{"bd":"t1b2"},"C":{"bd":"t1b2"},"D":{"bd":"t1b2"},"E":{"bd":"t1b2"},"F":{"bd":"t1b2"},"G":{"bd":"t1b2"},"H":{"bd":"r1t1b2"}}],[19,{"A":{"bd":"l1t2b2"},"B":{"bd":"t2b2"},"C":{"bd":"t2b2"},"D":{"bd":"t2b2"},"E":{"bd":"t2b2"},"F":{"bd":"t2b2"},"G":{"bd":"t2b2"},"H":{"bd":"r1t2b2"}}],[19,{"A":{"bd":"l1t2b2"},"B":{"bd":"t2b2"},"C":{"bd":"t2b2"},"D":{"bd":"t2b2"},"E":{"bd":"t2b2"},"F":{"bd":"t2b2"},"G":{"bd":"t2b2"},"H":{"bd":"r1t2b2"}}],[19,{"A":{"bd":"l1t2b2"},"B":{"bd":"t2b2"},"C":{"bd":"t2b2"},"D":{"bd":"t2b2"},"E":{"bd":"t2b2"},"F":{"bd":"t2b2"},"G":{"bd":"t2b2"},"H":{"bd":"r1t2b2"}}],[19,{"A":{"bd":"l1t2b2"},"B":{"bd":"t2b2"},"C":{"bd":"t2b2"},"D":{"bd":"t2b2"},"E":{"bd":"t2b2"},"F":{"bd":"t2b2"},"G":{"bd":"t2b2"},"H":{"bd":"r1t2b2"}}],[19,{"A":{"bd":"l1t2b2"},"B":{"bd":"t2b2"},"C":{"bd":"t2b2"},"D":{"bd":"t2b2"},"E":{"bd":"t2b2"},"F":{"bd":"t2b2"},"G":{"bd":"t2b2"},"H":{"bd":"r1t2b2"}}],[19,{"A":{"bd":"l1t2b1"},"B":{"bd":"t2b1"},"C":{"bd":"t2b1"},"D":{"bd":"t2b1"},"E":{"bd":"t2b1"},"F":{"bd":"t2b1"},"G":{"bd":"t2b1"},"H":{"bd":"r1t2b1"}}],[12.0,{"C":{"bd":"b1"}}],[19,{"A":{"t":"Saldo da ricevere","bd":"l1t1b1"},"B":{"bd":"t1b1"},"C":{"t":"NO","f":"g","al":"c"},"D":{"f":"a","al":"l","bd":"r1t1b1"},"E":{"t":"Acconto La Terra","bd":"l1t1b1"},"F":{"bd":"t1b1"},"G":{"bd":"t1b1"},"H":{"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Note 1","bd":"l1t1b1"},"B":{"fx":1,"f":"a","bd":"t1b1","m":1},"C":{"f":"a","bd":"t1b1"},"D":{"f":"a","bd":"t1b1"},"E":{"f":"a","bd":"t1b1"},"F":{"f":"a","bd":"t1b1"},"G":{"f":"a","bd":"t1b1"},"H":{"f":"a","bd":"r1t1b1"}}],[19,{"A":{"t":"Note 2","bd":"l1t1b1"},"B":{"fx":1,"f":"a","bd":"t1b1","m":1},"C":{"f":"a","bd":"t1b1"},"D":{"f":"a","bd":"t1b1"},"E":{"f":"a","bd":"t1b1"},"F":{"f":"a","bd":"t1b1"},"G":{"f":"a","bd":"t1b1"},"H":{"f":"a","bd":"r1t1b1"}}],[19,{"A":{"t":"Note 3","bd":"l1t1b1"},"B":{"fx":1,"f":"a","bd":"t1b1","m":1},"C":{"f":"a","bd":"t1b1"},"D":{"f":"a","bd":"t1b1"},"E":{"f":"a","bd":"t1b1"},"F":{"f":"a","bd":"t1b1"},"G":{"f":"a","bd":"t1b1"},"H":{"f":"a","bd":"r1t1b1"}}],[19,{"A":{"t":"Note 4","bd":"l1t1b1"},"B":{"fx":1,"f":"a","bd":"t1b1","m":1},"C":{"f":"a","bd":"t1b1"},"D":{"f":"a","bd":"t1b1"},"E":{"f":"a","bd":"t1b1"},"F":{"f":"a","bd":"t1b1"},"G":{"f":"a","bd":"t1b1"},"H":{"f":"a","bd":"r1t1b1"}}],[19,{"A":{"bd":"t1b1"},"B":{"bd":"t1b1"},"C":{"bd":"t1b1"},"D":{"bd":"t1b1"},"E":{"bd":"t1b1"},"F":{"bd":"t1b1"},"G":{"bd":"t1b1"},"H":{"bd":"t1b1"}}],[20.0,{"A":{"t":"Autista firma","bd":"l1t1"},"B":{"bd":"t1"},"C":{"bd":"t1"},"D":{"bd":"r1t1"},"E":{"t":"Azienda firma","bd":"l1t1"},"F":{"bd":"t1"},"G":{"z":15,"bd":"t1"},"H":{"z":15,"bd":"r1t1"}}],[20.0,{"A":{"z":15,"bd":"l1"},"B":{"z":15},"C":{"z":15},"D":{"z":15,"bd":"r1"},"E":{"z":15,"bd":"l1"},"F":{"z":15},"G":{"z":15},"H":{"z":15,"bd":"r1"}}],[20.0,{"A":{"z":15,"bd":"l1b1"},"B":{"z":15,"bd":"b1"},"C":{"z":15,"bd":"b1"},"D":{"z":15,"bd":"r1b1"},"E":{"z":15,"bd":"l1b1"},"F":{"z":15,"bd":"b1"},"G":{"z":15,"bd":"b1"},"H":{"z":15,"bd":"r1b1"}}],[20.0,{}],[20.0,{"A":{"bd":"t3"},"B":{"bd":"t3"},"C":{"bd":"t3"},"D":{"bd":"t3"},"E":{"bd":"t3"},"F":{"bd":"t3"},"G":{"bd":"t3"},"H":{"bd":"t3"}}],[20.0,{"A":{"t":"Servizio","bd":"l1t1b1"},"B":{"f":"a","al":"l","bd":"t1b1"},"C":{"t":"Bus","bd":"l1t1b1"},"D":{"bd":"t1b1"},"E":{"t":"Targa","bd":"l1t1b1"},"F":{"bd":"r1t1b1"},"G":{"t":"Autista","bd":"t1b1"},"H":{"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Inizio","bd":"l1t1b1"},"B":{"al":"l","bd":"r1t1b1"},"C":{"t":"Fine","bd":"t1b1"},"D":{"al":"l","bd":"r1t1b1"},"E":{"t":"Giorni","bd":"t1b1"},"F":{"al":"l","bd":"r1"},"G":{"t":"Ore","bd":"l1t1b1"},"H":{"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Cliente","bd":"l1t1b1"},"B":{"bd":"t1b1"},"C":{"bd":"t1b1"},"D":{"bd":"t1b1"},"E":{"bd":"t1b1"},"F":{"bd":"t1b1"},"G":{"t":"Telefono","bd":"l1t1b1"},"H":{"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Referente","bd":"l1t1b1"},"B":{"bd":"t1b1"},"C":{"bd":"t1b1"},"D":{"bd":"t1b1"},"E":{"bd":"t1b1"},"F":{"bd":"t1b1"},"G":{"t":"Telefono","bd":"l1t1b1"},"H":{"al":"l","bd":"r1t1b1"}}],[19,{"A":{"t":"Itinerario","bd":"l1t1"},"B":{"bd":"t1"},"C":{"bd":"t1"},"D":{"bd":"t1"},"E":{"bd":"t1"},"F":{"bd":"t1"},"G":{"bd":"t1"},"H":{"bd":"r1t1"}}],[19,{"A":{"t":"Causale","bd":"l1t1b1"},"B":{"f":"a","bd":"t1b1"},"C":{"f":"a","bd":"t1b1"},"D":{"f":"a","bd":"t1b1"},"E":{"f":"a","bd":"t1b1"},"F":{"f":"a","bd":"t1b1"},"G":{"t":"Prezzo i.c.","bd":"l1t1b1"},"H":{"al":"r","bd":"r1t1b1"}}],[19,{"A":{"t":"Partita Iva","bd":"l1t1b1"},"B":{"al":"l","bd":"r1t1b1"},"C":{"t":"Multi","bd":"l1t1b1"},"D":{"al":"l","bd":"r1t1b1"},"E":{"t":"SDI","bd":"l1t1b1"},"F":{"f":"a","bd":"r1t1b1"},"G":{"t":"Parcheggi","bd":"l1t1b1"},"H":{"al":"r","bd":"r1t1b1"}}],[19,{"A":{"t":"Fattura acc.","bd":"l1t1b1"},"B":{"al":"l","bd":"r1t1b1"},"C":{"t":"Del","bd":"l1t1b1"},"D":{"fx":1,"al":"l","bd":"r1t1b1"},"E":{"t":"Euro","bd":"l1t1b1"},"F":{"fx":1,"al":"l","bd":"r1t1b1"},"G":{"t":"Pasti","bd":"l1t1b1"},"H":{"al":"r","bd":"r1t1b1"}}],[19,{"A":{"t":"Fattura sald","bd":"l1t1b1"},"B":{"al":"l","bd":"r1t1b1"},"C":{"t":"Del","bd":"l1t1b1"},"D":{"fx":1,"al":"l","bd":"r1t1b1"},"E":{"t":"Euro","bd":"l1t1b1"},"F":{"fx":1,"al":"l","bd":"r1t1b1"},"G":{"t":"Varie ","bd":"l1t1b1"},"H":{"al":"r","bd":"r1t1b1"}}],[19,{"A":{"t":"Note A","bd":"l1"},"G":{"t":"Totale","bd":"l1t1b1"},"H":{"al":"r","bd":"r1t1b1"}}],[19,{"A":{"t":"Note B","bd":"l1t1b1"},"B":{"fx":1,"bd":"t1b1"},"C":{"bd":"t1b1"},"D":{"bd":"t1b1"},"E":{"bd":"t1b1"},"F":{"bd":"r1t1b1"},"G":{"t":"Contratto","bd":"l1t1b1"},"H":{"bd":"r1t1b1"}}]];
+// righe del modello da cui si copiano le righe che possono ripetersi
+const TR={ref1:9,ref2:10,guide:11,hotel:13,note:25};
+// gli hotel scritti con le versioni prima della 2.0 ("Nome – indirizzo, città" tutto nel nome) si dividono nelle colonne del foglio
+function hotelsOf(b){return ((b&&b.hotels)||[]).filter(x=>x&&(x.name||x.tel)).map(splitOldHotel);}
+function guidesOf(b){return ((b&&b.guides)||[]).filter(x=>x&&(x.name||x.tel));}
+function notesOf(b){return dnotesOf(b).filter(n=>n&&(n.t||n.c));}
+// testo dell'hotel (nome – indirizzo, città) per la pagina 2 e per il registro
 const hotelCell=x=>[x.name,[x.addr,x.city].filter(Boolean).join(", ")].filter(Boolean).join(" – ");
 const hotelTxt=x=>[hotelCell(x),x.tel].filter(Boolean).join(" – ");
 // referente: nome (ruolo) · note; guida: nome – città · note
 const refCell=x=>x?[x.name,x.role?"("+x.role+")":""].filter(Boolean).join(" ")+(x.note?" · "+x.note:""):"";
 const guideCell=x=>x?[x.name,x.city].filter(Boolean).join(" – ")+(x.note?" · "+x.note:""):"";
 function ref1Of(b){return {name:b.contactName||"",role:b.contactRole||"",note:b.contactNote||"",tel:b.contact||""};}
-// opzioni della finestra del foglio di servizio
-const SHO={noPlate:false};
+// opzioni della finestra del foglio di servizio. alias: nella casella Cliente del foglio per l'autista
+// si scrive l'alias (quando il cliente ne ha uno); nella parte contabile resta sempre la ragione sociale.
+const SHO={noPlate:false,alias:false};
 function shClient(b){return b.clientCode!==""&&b.clientCode!=null?clientByCode(b.clientCode):null;}
-function xlSerial(d){return Math.round((Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10))-Date.UTC(1899,11,30))/864e5);}
 const numOrE=x=>x===""||x==null||!isFinite(Number(x))?"":Number(x);
-function tplRef2(b,cl){
-  const tel=b.contact&&!(cl&&String(cl[4])===b.contact)?b.contact:"";
-  if(b.contactName)return {name:b.contactName,tel};
-  if(tel)return {name:tel,tel:""}; // prenotazioni vecchie: nome e telefono nella stessa casella
-  return null;
+// referenti della prenotazione, in ordine: il 1° (riga Referente 1 del modulo) e gli altri
+function refsOf(b){
+  const cl=shClient(b),ctel=cl&&cl[4]?String(cl[4]):"",r1=ref1Of(b);
+  if(r1.tel&&r1.tel===ctel)r1.tel=""; // prenotazioni vecchie: il telefono del cliente non si ripete
+  return [r1].concat((b&&b.refs)||[]).filter(x=>x&&(x.name||x.tel||x.role||x.note));
 }
-// programma completo: una riga per tappa (o per giorno nei tour), più referenti, hotel e guide in più
-function tplProgramAll(b,all,extraHotels){
+// Struttura del foglio per questa prenotazione. Il modello ha 2 righe per referenti, guide e hotel e 4 per le
+// note: se ne servono di più si aggiungono sotto (Referente 3 sotto il 2, e così via); le note hanno tante
+// righe quante sono (senza note resta solo «Note 1», vuota).
+function tplPlan(b){
+  const P={refs:refsOf(b),gs:guidesOf(b),hs:hotelsOf(b),ns:notesOf(b)};
+  const cap=(n,min)=>Math.max(min,Math.min(n,12));
+  P.nR=cap(P.refs.length,2);P.nG=cap(P.gs.length,2);P.nH=cap(P.hs.length,2);P.nN=cap(P.ns.length,1);
+  P.over=P.refs.length>12||P.gs.length>12||P.hs.length>12||P.ns.length>12;
+  const row=(src,label)=>[TPL_ROWS[src-1][0],Object.assign({},TPL_ROWS[src-1][1],{A:Object.assign({},TPL_ROWS[src-1][1].A,{t:label})})];
+  const rows=TPL_ROWS.slice(0,8);
+  P.rRef=rows.length+1;for(let i=0;i<P.nR;i++)rows.push(row(i?TR.ref2:TR.ref1,"Referente "+(i+1)));
+  P.rGuide=rows.length+1;for(let i=0;i<P.nG;i++)rows.push(row(TR.guide,"Guida "+(i+1)));
+  P.rHotel=rows.length+1;for(let i=0;i<P.nH;i++)rows.push(row(TR.hotel,"Hotel "+(i+1)));
+  rows.push(TPL_ROWS[14]);
+  P.rProg=rows.length+1;rows.push(...TPL_ROWS.slice(15,22)); // 7 righe del programma
+  rows.push(TPL_ROWS[22]);
+  P.rSaldo=rows.length+1;rows.push(TPL_ROWS[23]);
+  P.rNote=rows.length+1;for(let i=0;i<P.nN;i++)rows.push(row(TR.note,"Note "+(i+1)));
+  rows.push(TPL_ROWS[28]);rows.push(...TPL_ROWS.slice(29,32)); // spazio e firme
+  P.last=rows.length; // fin qui la copia per l'autista
+  rows.push(TPL_ROWS[32],TPL_ROWS[33]); // riga vuota e linea di taglio
+  P.rOff=rows.length+1;rows.push(...TPL_ROWS.slice(34)); // parte contabile (11 righe)
+  P.rows=rows;
+  return P;
+}
+// programma completo: una riga per tappa (o per giorno nei tour). all (pagina 2): in testa gli hotel e in
+// fondo referenti e guide, tutti per esteso.
+function tplProgramAll(b,all){
   const lines=[],prog=Array.isArray(b.program)?b.program:[];
-  // versione Hotel: gli hotel hanno le loro righe sotto le guide; nella pagina 2 (all) si ripetono in testa.
-  // extra: hotel che non trovano riga (solo nel file Excel, che ha una riga Hotel sola)
-  const hs=hotelsOf(b);
-  (all?hs:(extraHotels||[])).forEach(x=>lines.push((hs.length>1?(hs.indexOf(x)+1)+"° ":"")+"Hotel: "+hotelTxt(x)));
+  if(all)hotelsOf(b).forEach((x,i)=>lines.push("Hotel "+(i+1)+": "+hotelTxt(x)));
   const clean=t=>String(t||"").split("\n").map(x=>x.trim()).filter(Boolean);
   if(hasEvent(b.type)&&(b.event||b.escort))lines.push([b.event?"Evento: "+b.event:"",b.escort?"Accompagnatore: "+b.escort:""].filter(Boolean).join(" – "));
   if(isMulti(b.type)){
@@ -1591,57 +1648,80 @@ function tplProgramAll(b,all,extraHotels){
     if(!l.length){const t=((b.time?"Ore "+b.time+" ":"")+(b.route||"")).trim();if(t)l=[t];}
     l.forEach((t,i)=>lines.push((i+1)+") "+t));
   }
-  // referente 1 e 2 e guide 1 e 2 hanno le loro righe nel modello: gli altri vanno qui
-  (b.refs||[]).slice(1).forEach(x=>{if(x.name||x.tel)lines.push("Referente: "+[refCell(x),x.tel].filter(Boolean).join(" – "));});
-  (b.guides||[]).slice(2).forEach(x=>{if(x.name||x.tel)lines.push("Guida: "+[guideCell(x),x.tel].filter(Boolean).join(" – "));});
+  if(all){
+    refsOf(b).forEach((x,i)=>lines.push("Referente "+(i+1)+": "+[refCell(x),x.tel].filter(Boolean).join(" – ")));
+    guidesOf(b).forEach((x,i)=>lines.push("Guida "+(i+1)+": "+[guideCell(x),x.tel].filter(Boolean).join(" – ")));
+    notesOf(b).forEach((x,i)=>lines.push("Note "+(i+1)+": "+[x.c,x.t].filter(Boolean).join(" – ")));
+  }
   return lines;
 }
-// righe per le 7 caselle del modello (righe 14–20). Se non bastano: nel PDF la settima rimanda alla
-// pagina 2, dove c'è il programma completo; nell'Excel la settima contiene tutto il resto.
-function tplProgram(b,forPdf,extraHotels){
-  const lines=tplProgramAll(b,false,extraHotels);
+// righe per le 7 caselle del programma. Se non bastano la settima rimanda alla pagina 2, dove c'è tutto.
+function tplProgram(b){
+  const lines=tplProgramAll(b,false);
   if(lines.length<=7)return lines;
   const head=lines.slice(0,6);
-  head.push(forPdf?"▸ Il programma continua a pagina 2 (altre "+(lines.length-6)+" righe)":lines.slice(6).join(" · "));
+  head.push("▸ Il programma continua a pagina 2 (altre "+(lines.length-6)+" righe)");
   return head;
 }
-// valori delle caselle. k: s testo, i numero intero, d data, e euro, a euro contabile. f: casella con formula del modello
-function tplValues(b,forPdf,one){
+// ---------- durata del servizio ----------
+// Gite e transfer di un giorno: ore tra partenza e rientro. Tour, notturni e servizi di più giorni: giorni.
+const hoursType=t=>{t=normType(t);return t==="gita"||t==="transfer";};
+function durMin(b){
+  const m=t=>{const p=/^(\d{1,2}):(\d{2})/.exec(String(t||""));return p?+p[1]*60+ +p[2]:null;};
+  const a=m(b.time),z=m(b.time2);if(a==null||z==null)return null;
+  const d=diff(b.start,endOf(b))*1440+z-a;return d>0?d:null;
+}
+function durHours(b){if(!hoursType(b.type))return null;const m=durMin(b);return m!=null&&m<=1440?m:null;}
+// sul foglio di servizio: "9 ore", "9 ore 30'", "3 giorni"
+function durText(b){
+  const m=durHours(b);
+  if(m!=null){const h=Math.floor(m/60),r=m%60;return [h?h+(h===1?" ora":" ore"):"",r?r+"'":""].filter(Boolean).join(" ");}
+  const nd=diff(b.start,endOf(b))+1;return nd+(nd===1?" giorno":" giorni");
+}
+// nelle viste: "9h", "9h30", oppure il giorno del servizio ("2/3")
+function durShort(b,date){
+  const m=durHours(b);
+  if(m!=null)return Math.floor(m/60)+"h"+(m%60?pad(m%60):""); // anche se passa la mezzanotte (es. 23:30 → 00:45)
+  if(spans(b)||!hoursType(b.type)){const tot=diff(b.start,endOf(b))+1;return Math.min(tot,Math.max(1,diff(b.start,date)+1))+"/"+tot;}
+  return "";
+}
+// valori delle caselle. k: s testo, i numero intero, d data, e euro, a euro contabile
+function tplValues(b){
+  const P=tplPlan(b),o={};
   const v=vehicle(b.vehicle)||{},cl=shClient(b),plate=(v.plate||"").trim(),type=normType(b.type);
   const nr=v.num!=null&&String(v.num).trim()!==""?v.num:(S.regole.numeri||{})[plate],numero=nr==null?"":(/^\d+$/.test(String(nr).trim())?Number(nr):String(nr).trim());
-  const nd=diff(b.start,endOf(b))+1,P=numOrE(b.price),Q=numOrE(b.park),R=numOrE(b.meals);
-  const name=cl?cl[1]:(b.client||""),tel=cl&&cl[4]?String(cl[4]):"";
-  // referenti della prenotazione (dall'anagrafica referenti): il 1° nella riga "Referente 1°", il 2° nella riga sotto
-  const r1=ref1Of(b),refName=refCell(r1),refTel=r1.tel&&r1.tel!==tel?r1.tel:"",r2=(b.refs||[])[0]||{},g=b.guides||[]; // (prenotazioni vecchie: il telefono del cliente non si ripete)
-  const nc=noteCells(b),busName=v.name||xcatOf(v),plateShown=SHO.noPlate?"":plate;
+  const nd=diff(b.start,endOf(b))+1,pr=numOrE(b.price),pk=numOrE(b.park),ml=numOrE(b.meals);
+  const name=cl?cl[1]:(b.client||""),tel=cl&&cl[4]?String(cl[4]):"",alias=cl&&cl[2]?String(cl[2]):"";
+  const busName=v.name||xcatOf(v),plateShown=SHO.noPlate?"":plate;
   const pax=String(b.pax==null?"":b.pax).trim(),kind=v.kind==="van"?"Van":v.kind==="auto"?"Auto":"Bus";
   const drv=realDriver(b.driver),fg=b.provisional?String(b.foglio||"")+" PROVV.":/^\d+$/.test(String(b.foglio||""))?Number(b.foglio):(b.foglio||"");
-  const any=P!==""||Q!==""||R!=="";
-  const o={
-    H4:{v:fg,k:b.provisional?"s":"i"},
-    B6:{v:/^\d+$/.test(pax)?Number(pax):pax,k:/^\d+$/.test(pax)?"i":"s"},C6:{v:kind},D6:{v:busName,f:1},F6:{v:SHO.noPlate?"":numero,k:!SHO.noPlate&&typeof numero==="number"?"i":"s",f:1},H6:{v:plateShown,f:1},
-    B7:{v:b.start,k:"d",f:1},D7:{v:endOf(b),k:"d",f:1},F7:{v:nd,k:"i",f:1},H7:{v:drv,f:1},
-    B8:{v:name,f:1},H8:{v:tel,f:1},B9:{v:refName,f:1},H9:{v:refTel,f:1},
-    B10:{v:refCell(r2)},H10:{v:r2.tel||""},B11:{v:guideCell(g[0])},H11:{v:(g[0]||{}).tel||""},B12:{v:guideCell(g[1])},H12:{v:(g[1]||{}).tel||""},
-    C22:{v:b.saldo==="SI"?"SI":"NO"},D22:{v:numOrE(b.saldoAmt),k:"a"},H22:{v:isMulti(type)?numOrE(b.advance):"",k:"e",f:1},
-    B23:{v:nc.npark},B24:{v:nc.ndriver},B25:{v:nc.n3h},B26:{v:nc.nextra},
-    B34:{v:TYPE_XL[type]||""},D34:{v:busName,f:1},F34:{v:plateShown,f:1},H34:{v:drv,f:1},
-    B35:{v:b.start,k:"d",f:1},D35:{v:endOf(b),k:"d",f:1},F35:{v:nd,k:"i",f:1},H35:{v:drv,f:1},
-    B36:{v:name,f:1},H36:{v:tel,f:1},B37:{v:refName,f:1},H37:{v:refTel,f:1},B38:{v:billItin(b),f:1},
-    H39:{v:P,k:"e",f:1},B40:{v:cl&&cl[5]?String(cl[5]):"",f:1},F40:{v:cl?cliField(cl,"sdi"):""},D40:{v:cl?cl[0]:"",k:cl&&typeof cl[0]==="number"?"i":"s",f:1},H40:{v:Q,k:"e",f:1},
-    B41:{v:"",f:1},D41:{v:"",f:1},F41:{v:"",f:1},H41:{v:R,k:"e",f:1},
-    B42:{v:"",f:1},D42:{v:"",f:1},F42:{v:"",f:1},H42:{v:any?0:"",k:"e",f:1},
-    B43:{v:"",f:1},H43:{v:(P||0)+(Q||0)+(R||0),k:"e",f:1},B44:{v:billNote(b),f:1},H44:{v:fg,k:b.provisional?"s":"i",f:1},
-  };
-  const hs=hotelsOf(b),K=tplKind(b,one);
-  tplProgram(b,forPdf,hs.slice(K.n)).forEach((t,i)=>{o["A"+(14+i)]={v:t};});
-  for(let i=14;i<=20;i++)if(!o["A"+i])o["A"+i]={v:""};
-  if(!K.n)return o;
-  // dalla riga 13 in giù tutto scende di tante righe quanti sono gli hotel
-  const o2={};
-  for(const ref in o){const m=/^([A-H])(\d+)$/.exec(ref);o2[m[1]+(+m[2]>=13?+m[2]+K.n:+m[2])]=o[ref];}
-  for(let i=0;i<K.n;i++){o2["B"+(13+i)]={v:(one&&hs.length>1?"1° ":"")+hotelCell(hs[i])};o2["H"+(13+i)]={v:hs[i].tel||""};}
-  return o2;
+  const any=pr!==""||pk!==""||ml!=="",hm=durHours(b);
+  const put=(col,row,val)=>{o[col+row]=val;};
+  put("H",4,{v:fg,k:b.provisional?"s":"i"});
+  put("B",6,{v:/^\d+$/.test(pax)?Number(pax):pax,k:/^\d+$/.test(pax)?"i":"s"});put("C",6,{v:kind});put("D",6,{v:busName});
+  put("F",6,{v:SHO.noPlate?"":numero,k:"s"});put("H",6,{v:plateShown});
+  put("B",7,{v:b.start,k:"d"});put("D",7,{v:endOf(b),k:"d"});put("F",7,{v:durText(b)});put("H",7,{v:drv});
+  put("B",8,{v:SHO.alias&&alias?alias:name});put("H",8,{v:tel});
+  P.refs.slice(0,P.nR).forEach((x,i)=>{const r=P.rRef+i;put("B",r,{v:x.role||""});put("C",r,{v:x.name||""});put("E",r,{v:x.note||""});put("H",r,{v:x.tel||""});});
+  P.gs.slice(0,P.nG).forEach((x,i)=>{const r=P.rGuide+i;put("B",r,{v:x.city||""});put("C",r,{v:x.name||""});put("E",r,{v:x.note||""});put("H",r,{v:x.tel||""});});
+  P.hs.slice(0,P.nH).forEach((x,i)=>{const r=P.rHotel+i;put("B",r,{v:x.city||""});put("C",r,{v:x.name||""});put("E",r,{v:x.addr||""});put("H",r,{v:x.tel||""});});
+  tplProgram(b).forEach((t,i)=>put("A",P.rProg+i,{v:t}));
+  put("C",P.rSaldo,{v:b.saldo==="SI"?"SI":"NO"});put("D",P.rSaldo,{v:numOrE(b.saldoAmt),k:"a"});put("H",P.rSaldo,{v:isMulti(type)?numOrE(b.advance):"",k:"e"});
+  P.ns.slice(0,P.nN).forEach((x,i)=>{put("B",P.rNote+i,{v:x.c||""});put("C",P.rNote+i,{v:x.t||""});});
+  // parte contabile: sempre la ragione sociale del cliente, mai l'alias
+  const r=P.rOff,r1=P.refs[0]||{};
+  put("B",r,{v:TYPE_XL[type]||""});put("D",r,{v:busName});put("F",r,{v:plateShown});put("H",r,{v:drv});
+  put("B",r+1,{v:b.start,k:"d"});put("D",r+1,{v:endOf(b),k:"d"});put("F",r+1,{v:nd,k:"s"});put("H",r+1,{v:hm==null?"":Math.floor(hm/60)+(hm%60?":"+pad(hm%60):"")});
+  put("B",r+2,{v:name});put("H",r+2,{v:tel});
+  put("B",r+3,{v:refCell(r1)});put("H",r+3,{v:r1.tel||""});
+  put("B",r+4,{v:billItin(b)});
+  put("H",r+5,{v:pr,k:"e"});
+  put("B",r+6,{v:cl&&cl[5]?String(cl[5]):""});put("D",r+6,{v:cl?cl[0]:"",k:"s"});put("F",r+6,{v:cl?cliField(cl,"sdi"):""});put("H",r+6,{v:pk,k:"e"});
+  put("D",r+7,{v:""});put("F",r+7,{v:""});put("H",r+7,{v:ml,k:"e"});
+  put("D",r+8,{v:""});put("F",r+8,{v:""});put("H",r+8,{v:any?0:"",k:"e"});
+  put("H",r+9,{v:any?(pr||0)+(pk||0)+(ml||0):"",k:"e"});
+  put("B",r+10,{v:billNote(b)});put("H",r+10,{v:fg,k:b.provisional?"s":"i"});
+  return {vals:o,P};
 }
 function tplText(x){
   if(!x||x.v===""||x.v==null)return "";
@@ -1650,62 +1730,69 @@ function tplText(x){
   if(x.k==="a")return money(x.v)+" €";
   return String(x.v);
 }
-// Disegno del modello (unità: pixel del foglio Excel a 100%). Usato da anteprima e PDF.
-function tplLayout(b,full,measure){
-  const K=tplKind(b),vals=tplValues(b,true),last=full?K.rows.length:K.last;let cut=false;
+// Disegno del modello (unità: pixel del foglio Excel a 100%). Usato da anteprima, PDF e stampa.
+// part: "driver" solo la copia per l'autista, "full" anche la parte contabile, "office" solo la parte contabile.
+function tplLayout(b,part,measure){
+  const {vals,P}=tplValues(b),rows=P.rows;let cut=P.over;
+  const first=part==="office"?P.rOff:1,last=part==="driver"?P.last:rows.length;
   const X=[0];TPL_COLS.forEach(w=>X.push(X[X.length-1]+Math.round(w*9+5)));
   const fills=[],lines=[],texts=[];let y=0;
-  const FILLC={a:"#F6FDFC",g:"#E5ECEB"};
-  for(let r=1;r<=last;r++){
-    const [hpt,cells]=K.rows[r-1],h=hpt*4/3;
+  const FILLC={a:"#F6FDFC",g:"#E5ECEB"},LINEC={1:"#000000",2:"#AEAAAA",3:"#000000",4:"#FFFFFF",5:"#FFFFFF"};
+  for(let r=first;r<=last;r++){
+    const [hpt,cells]=rows[r-1],h=hpt*4/3;
     const content=[];
     for(let i=0;i<8;i++){
       const L=TPL_LETTERS[i],c=cells[L]||{},val=vals[L+r];
       const t=val?tplText(val):(c.t!=null&&!c.fx?String(c.t):"");
       content.push({c,t,val});
-      const sr="C"+(22+K.sh),cf=L+r==="D"+(22+K.sh)&&vals[sr]&&vals[sr].v==="SI"?"#C6E0B4":null; // come la formattazione condizionale del modello
+      const cf=r===P.rSaldo&&L==="D"&&vals["C"+r]&&vals["C"+r].v==="SI"?"#C6E0B4":null; // come la formattazione condizionale del modello
       if(c.f||cf)fills.push({x:X[i],y,w:X[i+1]-X[i],h,c:cf||FILLC[c.f]});
       const bd=c.bd||"";
-      for(const m of bd.matchAll(/([lrtb])([123])/g)){
-        const s=m[1],k=m[2],col=k==="2"?"#AEAAAA":"#000000",dash=k==="3",wd=k==="3"?2:1;
+      for(const m of bd.matchAll(/([lrtb])([1-5])/g)){
+        const s=m[1],k=m[2],dash=k==="3",wd=k==="3"||k==="5"?2:1;
         const x1=s==="r"?X[i+1]:X[i],x2=s==="l"?X[i]:X[i+1],y1=s==="b"?y+h:y,y2=s==="t"?y:y+h;
-        lines.push({x1,y1,x2:s==="l"||s==="r"?x1:x2,y2:s==="t"||s==="b"?y1:y2,c:col,dash,w:wd});
+        lines.push({x1,y1,x2:s==="l"||s==="r"?x1:x2,y2:s==="t"||s==="b"?y1:y2,c:LINEC[k],dash,w:wd,white:k==="4"||k==="5"});
       }
     }
     for(let i=0;i<8;i++){
       const {c,t,val}=content[i];if(!t)continue;
       const size=(c.z||14)*4/3,bold=!!c.b,isNum=val&&val.k&&val.k!=="s"&&typeof val.v==="number";
       let al=c.al||(isNum?"r":"l");
-      // come in Excel: il testo a sinistra si allunga sulle caselle vuote a destra
+      // come in Excel: il testo a sinistra si allunga sulle caselle vuote a destra (nelle caselle unite solo fin lì)
       let j=i+1;while(j<8&&!content[j].t)j++;
+      if(c.m)j=Math.min(8,i+c.m);
       const cellW=X[i+1]-X[i],regionW=X[j]-X[i];
       let tw=measure(t,size,bold),x0=X[i],w=cellW;
       if(al==="l"||(al==="c"&&tw>cellW-6)){al="l";w=regionW;}
       let sz=size,txt=t;
-      if(tw>w-6){sz=Math.max(size*(val?0.72:0.6),size*(w-6)/tw*0.995);tw=measure(txt,sz,bold); // le etichette del modello si rimpiccioliscono un po' di più: restano intere
-        // riga del programma troppo lunga: si accorcia e si rimanda alla pagina 2, dove c'è per intero
-        const prog=r>=14+K.sh&&r<=20+K.sh&&i===0,suf=prog?"… (segue a pag. 2)":"…";
-        if(tw>w-5.5){if(prog)cut=true;let base=txt;while(tw>w-6&&base.length>1){base=base.slice(0,-2);txt=base.replace(/\s+$/,"")+suf;tw=measure(txt,sz,bold);}}}
+      if(tw>w-6){
+        // prima si rimpicciolisce (etichette e caselle strette un po' di più: restano intere). La misura del
+        // browser non è sempre proporzionale alla grandezza, quindi si ricontrolla finché il testo ci sta.
+        const minSz=size*(val&&!c.m?0.72:0.6);
+        for(let n=0;n<8&&tw>w-6&&sz>minSz;n++){sz=Math.max(minSz,sz*Math.min(0.995,(w-6)/tw*0.995));tw=measure(txt,sz,bold);}
+        // ancora troppo lungo: si accorcia e si rimanda alla pagina 2, dove c'è per intero
+        const prog=r>=P.rProg&&r<=P.rProg+6&&i===0,dyn=!!val&&((r>=P.rRef&&r<P.rHotel+P.nH)||(r>=P.rNote&&r<P.rNote+P.nN)),p2=prog||!!c.m||dyn,suf=prog?"… (segue a pag. 2)":"…";
+        if(tw>w-6){if(p2&&part!=="office")cut=true;let base=txt;while(tw>w-6&&base.length>1){base=base.slice(0,-2);txt=base.replace(/\s+$/,"")+suf;tw=measure(txt,sz,bold);}}}
       const tx=al==="c"?x0+(w-tw)/2:al==="r"?x0+w-3-tw:x0+3;
       texts.push({x:tx,y:y+h-Math.max(3,(h-sz)/2-1)-sz*0.2,t:txt,size:sz,bold});
     }
     y+=h;
   }
-  // la linea di taglio tratteggiata va disegnata tutta d'un pezzo
-  const dashed=lines.filter(l=>l.dash),solid=lines.filter(l=>!l.dash),rowsY={};
+  // la linea di taglio tratteggiata va disegnata tutta d'un pezzo; le righe bianche stanno sotto le nere
+  const dashed=lines.filter(l=>l.dash),solid=lines.filter(l=>!l.dash).sort((a,b)=>(b.white?1:0)-(a.white?1:0)),rowsY={};
   for(const l of dashed){const k=l.y1;rowsY[k]=rowsY[k]?{x1:Math.min(rowsY[k].x1,l.x1),x2:Math.max(rowsY[k].x2,l.x2)}:{x1:l.x1,x2:l.x2};}
-  for(const k in rowsY)solid.push({x1:rowsY[k].x1,y1:+k,x2:rowsY[k].x2,y2:+k,c:"#000000",dash:true,w:2});
-  return {W:X[8],H:y,fills,lines:solid,texts,cut,hotel:K.hotel};
+  if(part!=="office")for(const k in rowsY)solid.push({x1:rowsY[k].x1,y1:+k,x2:rowsY[k].x2,y2:+k,c:"#000000",dash:true,w:2});
+  return {W:X[8],H:y,fills,lines:solid,texts,cut,part};
 }
-// serve la pagina 2? (programma più lungo delle 7 righe del modello o righe tagliate)
-function needPage2(b,L){return tplProgramAll(b).length>7||!!(L&&L.cut);} // (gli hotel hanno le loro righe)
+// serve la pagina 2? (programma più lungo delle 7 righe del modello o testi tagliati). Mai per la sola parte contabile.
+function needPage2(b,L){return (!L||L.part!=="office")&&(tplProgramAll(b).length>7||!!(L&&L.cut));}
 function page2Head(b){
-  const v=vehicle(b.vehicle)||{},cl=shClient(b);
+  const v=vehicle(b.vehicle)||{},cl=shClient(b),alias=cl&&cl[2]?String(cl[2]):"";
   return {title:"Foglio di servizio n. "+(b.foglio||"")+(b.provisional?" (provvisorio)":"")+" – programma completo",
-    sub:[cl?cl[1]:(b.client||""),itDate(b.start)+(endOf(b)!==b.start?" – "+itDate(endOf(b)):""),[v.name,SHO.noPlate?"":(v.plate||"").trim()].filter(Boolean).join(" "),realDriver(b.driver)?"Autista "+realDriver(b.driver):""].filter(Boolean).join(" · ")};
+    sub:[SHO.alias&&alias?alias:(cl?cl[1]:(b.client||"")),itDate(b.start)+(endOf(b)!==b.start?" – "+itDate(endOf(b)):""),[v.name,SHO.noPlate?"":(v.plate||"").trim()].filter(Boolean).join(" "),realDriver(b.driver)?"Autista "+realDriver(b.driver):""].filter(Boolean).join(" · ")};
 }
-function tplPage2HTML(b){
-  if(!needPage2(b,tplLayout(b,false,measureCanvas)))return "";
+function tplPage2HTML(b,part){
+  if(!needPage2(b,tplLayout(b,part||"driver",measureCanvas)))return "";
   const h=page2Head(b);
   return '<div class="fs-page2"><p class="p2-note">Pagina 2 del PDF</p><h4>'+esc(h.title)+'</h4><p class="p2-sub">'+esc(h.sub)+'</p>'+tplProgramAll(b,true).map(l=>'<p>'+esc(l)+'</p>').join("")+'</div>';
 }
@@ -1722,8 +1809,8 @@ function ensureSheetFont(){
 }
 let _mctx=null;
 function measureCanvas(t,size,bold){if(!_mctx)_mctx=document.createElement("canvas").getContext("2d");_mctx.font=(bold?"bold ":"")+size+"px "+TPL_FONT;return _mctx.measureText(t).width;}
-function tplSVG(b,full){
-  const L=tplLayout(b,full,measureCanvas);
+function tplSVG(b,part){
+  const L=tplLayout(b,part,measureCanvas);
   let s='<svg class="fs-page" viewBox="-6 -6 '+(L.W+12)+' '+(L.H+12)+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Anteprima del foglio di servizio">';
   s+='<rect x="-6" y="-6" width="'+(L.W+12)+'" height="'+(L.H+12)+'" fill="#fff"/>';
   for(const f of L.fills)s+='<rect x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" fill="'+f.c+'"/>';
@@ -1819,14 +1906,14 @@ function wrapText(t,font,size,maxW,conv){
   }
   return out;
 }
-async function tplPDF(b,full){
+async function tplPDF(b,part){
   const PL=await loadPdfLib(),{PDFDocument,StandardFonts,rgb}=PL;
   const pdf=await PDFDocument.create();
   pdf.setTitle("Foglio di servizio "+(b.foglio||"")+(b.provisional?" (provvisorio)":""));pdf.setAuthor("La Terra s.r.l.");
   let reg,bold,HK=1,conv=t=>String(t==null?"":t);
   try{const F=await loadPdfFonts();reg=customFont(pdf,PL,F.regular,"AGENDA+AgendaSans-Regular");bold=customFont(pdf,PL,F.bold,"AGENDB+AgendaSans-Bold");}
   catch(e){console.warn("Font del PDF non disponibile, uso Helvetica:",e);reg=await pdf.embedFont(StandardFonts.Helvetica);bold=await pdf.embedFont(StandardFonts.HelveticaBold);HK=0.88;conv=pdfTxt;} // Helvetica è più larga di Calibri
-  const L=tplLayout(b,full,(t,size,bd)=>(bd?bold:reg).widthOfTextAtSize(conv(t),size*HK));
+  const L=tplLayout(b,part,(t,size,bd)=>(bd?bold:reg).widthOfTextAtSize(conv(t),size*HK));
   const PW=595.28,PH=841.89,M=28.35,k=Math.min((PW-2*M)/L.W,(PH-2*M)/L.H);
   const page=pdf.addPage([PW,PH]),X=x=>M+x*k,Y=y=>PH-M-y*k;
   const hex=h=>rgb(parseInt(h.slice(1,3),16)/255,parseInt(h.slice(3,5),16)/255,parseInt(h.slice(5,7),16)/255);
@@ -1851,38 +1938,6 @@ async function tplPDF(b,full){
   return new Blob([await pdf.save()],{type:"application/pdf"});
 }
 
-// --- Excel: il file del modello, con le sole caselle compilate ---
-function tplSetCell(xml,ref,val){
-  const m=new RegExp('<c r="'+ref+'"([^>]*?)(?:/>|>([\\s\\S]*?)</c>)').exec(xml);
-  if(!m)return xml;
-  const attrs=m[1].replace(/\s+t="[^"]*"/,""),fm=/<f[\s\S]*?(?:<\/f>|\/>)/.exec(m[2]||"");
-  const v=val.v,empty=v===""||v==null,num=val.k==="d"?xlSerial(v):Number(v);
-  const isNum=!empty&&val.k&&val.k!=="s"&&isFinite(num);
-  const txt=xEsc(String(empty?"":v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,""));
-  let out;
-  if(fm)out=isNum?'<c r="'+ref+'"'+attrs+'>'+fm[0]+'<v>'+num+'</v></c>':'<c r="'+ref+'"'+attrs+' t="str">'+fm[0]+'<v>'+txt+'</v></c>';
-  else if(empty)out='<c r="'+ref+'"'+attrs+'/>';
-  else out=isNum?'<c r="'+ref+'"'+attrs+'><v>'+num+'</v></c>':'<c r="'+ref+'"'+attrs+' t="inlineStr"><is><t xml:space="preserve">'+txt+'</t></is></c>';
-  return xml.slice(0,m.index)+out+xml.slice(m.index+m[0].length);
-}
-async function tplXLSX(b){
-  const JSZip=await loadJSZip();
-  let r;try{r=await fetch(tplKind(b).file,{cache:"no-cache"});}catch(_){r=null;}
-  if(!r||!r.ok)throw {code:"tpl"};
-  const zip=await JSZip.loadAsync(await r.arrayBuffer()),p="xl/worksheets/sheet1.xml";
-  let xml=await zip.file(p).async("string");
-  const vals=tplValues(b,false,true),sstF=zip.file("xl/sharedStrings.xml");
-  const sst=sstF?[...(await sstF.async("string")).matchAll(/<si>([\s\S]*?)<\/si>/g)].map(m=>[...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x=>x[1]).join("")):[];
-  for(const ref in vals){
-    const cur=new RegExp('<c r="'+ref+'"[^>]*t="s"[^>]*><v>(\\d+)</v></c>').exec(xml);
-    if(cur&&sst[+cur[1]]===xEsc(String(vals[ref].v)))continue; // es. "Bus" o "NO" già presenti nel modello
-    xml=tplSetCell(xml,ref,vals[ref]);
-  }
-  zip.file(p,xml);
-  for(const n of Object.keys(zip.files))if(zip.files[n].dir)delete zip.files[n]; // stesso elenco di file del modello
-  return zip.generateAsync({type:"blob",compression:"DEFLATE",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-}
-
 // --- nome file come nell'archivio: 26092602_cliente_x_destinazione ---
 function slug(t){return norm(pdfTxt(t)).replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"").slice(0,40);}
 function sheetFileName(b){
@@ -1900,9 +1955,15 @@ let sheetBooking=null;
 const sheetsOut={}; // prenotazione → n. foglio con cui il foglio di servizio è già stato salvato o inviato
 // Il n. foglio è definitivo solo quando la prenotazione è arrivata in Dropbox: prima è "provvisorio"
 // (un altro operatore potrebbe aver appena usato lo stesso numero) e il foglio lo dice chiaramente.
+// quale parte del foglio: "driver" (solo foglio per l'autista), "full" (con la parte contabile), "office" (solo quella)
+function sheetPart(){const v=$("sheetPart").value;return v==="full"||v==="office"?v:"driver";}
+const PART_SUFFIX={driver:"",full:"_completo",office:"_contabile"},PART_LOG={driver:"",full:" (con la parte contabile)",office:" (solo parte contabile)"};
 function openSheet(b){
   sheetBooking=Object.assign({},b,{provisional:STORE.isPending(b.id)});
-  $("sheetNoPlate").checked=false;SHO.noPlate=false;
+  $("sheetNoPlate").checked=false;SHO.noPlate=false;$("sheetPart").value="driver";
+  // Cliente o alias nell'intestazione: la scelta resta quella dell'ultima volta su questo dispositivo
+  let al=false;try{al=localStorage.getItem("agenda-sheet-alias")==="1";}catch(_){}
+  SHO.alias=al;
   renderSheet();$("sheetMsg").textContent="";
   ensureSheetFont().then(ok=>{if(ok&&!$("ovSheet").hidden)renderSheet();});
   $("ovSheet").hidden=false;
@@ -1910,9 +1971,14 @@ function openSheet(b){
 function renderSheet(){
   const b=sheetBooking;if(!b)return;
   $("sheetTitle").textContent="Foglio di servizio n. "+(b.foglio||"")+(b.provisional?" (provvisorio)":"");
-  $("sheetKind").textContent=tplKind(b).hotel?"Versione Hotel":"Versione senza hotel";$("sheetKind").className="sheet-kind"+(tplKind(b).hotel?" h":"");$("sheetTpl").textContent=tplKind(b).hotel?"neutro_versione_hotel":"automatico_2026_neutro";
   $("sheetProv").hidden=!b.provisional;
-  $("sheetView").innerHTML=tplSVG(b,$("sheetFull").checked)+tplPage2HTML(b);
+  // intestazione: l'alias si può scegliere solo se il cliente ne ha uno
+  const cl=shClient(b),alias=cl&&cl[2]?String(cl[2]):"",sel=$("sheetName");
+  sel.options[1].disabled=!alias;sel.options[1].textContent=alias?"Alias: "+alias:"Alias (il cliente non ne ha)";
+  sel.options[0].textContent="Cliente: "+(cl?cl[1]:(b.client||"—"));
+  sel.value=SHO.alias&&alias?"alias":"cliente";
+  const part=sheetPart();
+  $("sheetView").innerHTML=tplSVG(b,part)+tplPage2HTML(b,part);
 }
 // dopo "Salva e apri foglio di servizio": si aspetta (al massimo 10 secondi) la conferma del numero
 async function openSheetConfirmed(b){
@@ -1931,7 +1997,8 @@ function refreshSheetBooking(){
   const nb=Object.assign({},cur,{provisional:STORE.isPending(cur.id)});
   if(nb.foglio!==sheetBooking.foglio||nb.provisional!==sheetBooking.provisional||nb.updatedAt!==sheetBooking.updatedAt){sheetBooking=nb;renderSheet();}
 }
-$("sheetFull").addEventListener("change",renderSheet);
+$("sheetPart").addEventListener("change",renderSheet);
+$("sheetName").addEventListener("change",()=>{SHO.alias=$("sheetName").value==="alias";try{localStorage.setItem("agenda-sheet-alias",SHO.alias?"1":"0");}catch(_){}renderSheet();});
 $("sheetNoPlate").addEventListener("change",()=>{SHO.noPlate=$("sheetNoPlate").checked;renderSheet();});
 $("sheetClose").onclick=()=>{$("ovSheet").hidden=true;};
 // torna alla prenotazione per cambiare qualcosa (dati aggiornati, anche se modificata da altri)
@@ -1945,33 +2012,33 @@ backdropClose($("ovSheet"),()=>{$("ovSheet").hidden=true;});
 async function sheetSave(kind){
   if(!sheetBooking)return;
   refreshSheetBooking();
-  const full=$("sheetFull").checked,btns=[$("sheetPdf"),$("sheetPrint")];btns.forEach(x=>x.disabled=true);
+  const part=sheetPart(),btns=[$("sheetPdf"),$("sheetPrint")];btns.forEach(x=>x.disabled=true);
   $("sheetMsg").textContent="Preparo il file…";
   try{
-    const blob=kind==="pdf"?await tplPDF(sheetBooking,full):await tplXLSX(sheetBooking);
-    const where=await saveXlsx(blob,sheetFileName(sheetBooking)+(full&&kind==="pdf"?"_completo":"")+(sheetBooking.provisional?"_PROVVISORIO":"")+"."+kind);
+    const blob=await tplPDF(sheetBooking,part);
+    const where=await saveXlsx(blob,sheetFileName(sheetBooking)+PART_SUFFIX[part]+(sheetBooking.provisional?"_PROVVISORIO":"")+".pdf");
     sheetsOut[sheetBooking.id]=String(sheetBooking.foglio);
-    $("sheetMsg").textContent=(kind==="pdf"?"PDF pronto. ":"File Excel pronto. ")+where;
+    $("sheetMsg").textContent="PDF pronto. "+where;
   }catch(err){
     const c=err&&err.code;
-    $("sheetMsg").textContent=c==="tpl"?"Non trovo il modello del foglio di servizio (cartella modelli): controlla di averla caricata su GitHub.":c==="declined"?"Salvataggio annullato.":c==="unavailable"||c==="not_granted"?"Il download non è disponibile in questa vista.":"Non sono riuscito a creare il file. Controlla la connessione e riprova.";
+    $("sheetMsg").textContent=c==="declined"?"Salvataggio annullato.":c==="unavailable"||c==="not_granted"?"Il download non è disponibile in questa vista.":"Non sono riuscito a creare il file. Controlla la connessione e riprova.";
     console.error(err);ACC.tlog("errore","Foglio di servizio: PDF non creato o non salvato",String((err&&(err.code||err.message))||err));
   }finally{btns.forEach(x=>x.disabled=false);}
 }
-$("sheetPdf").onclick=()=>{sheetSave("pdf");if(sheetBooking)ACC.log("foglio","PDF del foglio di servizio n. "+(sheetBooking.foglio||"")+" «"+(sheetBooking.client||"")+"»"+(tplKind(sheetBooking).hotel?" (versione Hotel)":""),{id:sheetBooking.id});};
+$("sheetPdf").onclick=()=>{sheetSave("pdf");if(sheetBooking)ACC.log("foglio","PDF del foglio di servizio n. "+(sheetBooking.foglio||"")+" «"+(sheetBooking.client||"")+"»"+PART_LOG[sheetPart()],{id:sheetBooking.id});};
 // Stampa: il foglio come nell'anteprima (A4); se il programma non ci sta, anche la pagina 2 come nel PDF
 async function printSheet(){
   if(!sheetBooking)return;
   refreshSheetBooking();
-  const b=sheetBooking,full=$("sheetFull").checked,ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+  const b=sheetBooking,full=sheetPart(),ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
   sheetsOut[b.id]=String(b.foglio);
-  ACC.log("foglio","Stampa del foglio di servizio n. "+(b.foglio||"")+" «"+(b.client||"")+"»"+(tplKind(b).hotel?" (versione Hotel)":""),{id:b.id});
+  ACC.log("foglio","Stampa del foglio di servizio n. "+(b.foglio||"")+" «"+(b.client||"")+"»"+PART_LOG[full],{id:b.id});
   if(ios){ // su iPhone/iPad si stampa dal PDF (Condividi › Stampa)
     try{const blob=await tplPDF(b,full);const u=URL.createObjectURL(blob);window.open(u,"_blank");setTimeout(()=>URL.revokeObjectURL(u),60000);}catch(_){toast("Non riesco a preparare la stampa.");}
     return;
   }
   let p2="";
-  if(needPage2(b,tplLayout(b,false,measureCanvas))){
+  if(needPage2(b,tplLayout(b,full,measureCanvas))){
     const h=page2Head(b);
     p2='<section class="p2"><h1>'+esc(h.title)+'</h1><p class="sub">'+esc(h.sub)+'</p>'+tplProgramAll(b,true).map(l=>'<p>'+esc(l)+'</p>').join("")+'</section>';
   }
@@ -2088,6 +2155,18 @@ function onNotice(n){
   else if(n.kind==="badcfg")notify("Il file "+(n.path||"di configurazione")+" in Dropbox non è valido (forse è stato modificato a mano): continuo con l'ultima versione buona. Per sistemarlo: su dropbox.com apri il file › Cronologia delle versioni e ripristina una versione precedente.",true);
 }
 // extra: per le prenotazioni {edit, base, patch, move}; per le eliminazioni {move: nuova data}
+// Conferma (o rimette in sospeso) una prenotazione con un clic sul riquadro della vista Giorno.
+// Si scrive solo lo stato: le modifiche fatte intanto da altri sugli altri campi restano.
+function toggleConfirm(id,start){
+  if(S.readOnly){toast("Accesso in sola lettura");return;}
+  const doc=S.days[start],cur=doc&&doc.bookings&&doc.bookings[id];if(!cur){toast("La prenotazione non c'è più (eliminata o spostata).");return;}
+  const was=pending(cur),b=Object.assign({},cur,{status:was?"confermato":"opzione",updatedAt:new Date().toISOString(),updBy:meName()});
+  try{
+    writeDayOps(start,{bookings:{[id]:b}},{edit:true,only:true,base:cur.updatedAt||null,patch:["status","updBy"]});
+    ACC.log("prenotazione",(was?"Confermata":"Rimessa in sospeso")+" la prenotazione "+bookingLabel(Object.assign({start},b)),{id,ch:[["Stato",was?"in sospeso":"confermato",was?"confermato":"in sospeso"]]});
+    renderAll();toast(was?"Prenotazione confermata":"Prenotazione rimessa in sospeso");
+  }catch(err){handleErr(err);}
+}
 function writeDayOps(date,patch,extra){
   const ops=[];extra=extra||{};
   if(patch.bookings)for(const k in patch.bookings)ops.push(patch.bookings[k]===null?Object.assign({t:"del",id:k},extra.move&&typeof extra.move==="string"?{move:extra.move}:{},extra.client!=null?{client:extra.client}:{}):Object.assign({t:"put",id:k,b:patch.bookings[k],assign:!!patch.assign},extra));
@@ -2356,6 +2435,7 @@ function logVal(k,v){
   if(v===""||v==null||(Array.isArray(v)&&!v.filter(Boolean).length))return "—";
   if(k==="vehicle"){const vv=vehicle(v);return vv?vehLabel(vv):String(v);}
   if(k==="type")return TYPES[normType(v)]||v;
+  if(k==="status")return v==="opzione"?"in sospeso":"confermato";
   if(k==="start"||k==="end")return itD(v);
   if(["price","park","meals","advance","saldoAmt"].includes(k))return "€ "+money(v);
   if(k==="refs"||k==="hotels"||k==="guides")return v.map(x=>[x.name,x.role?"("+x.role+")":"",x.addr,x.city,x.tel,x.note].filter(Boolean).join(" ")).join("; ").slice(0,200);
@@ -2840,11 +2920,11 @@ async function saveXlsx(blob,filename){
 async function shareSheet(){
   if(!sheetBooking)return;
   try{
-    const blob=await tplPDF(sheetBooking,$("sheetFull").checked);
-    const file=new File([blob],sheetFileName(sheetBooking)+(sheetBooking.provisional?"_PROVVISORIO":"")+".pdf",{type:"application/pdf"});
+    const part=sheetPart(),blob=await tplPDF(sheetBooking,part);
+    const file=new File([blob],sheetFileName(sheetBooking)+PART_SUFFIX[part]+(sheetBooking.provisional?"_PROVVISORIO":"")+".pdf",{type:"application/pdf"});
     await navigator.share({files:[file],title:"Foglio di servizio n. "+(sheetBooking.foglio||"")});
     sheetsOut[sheetBooking.id]=String(sheetBooking.foglio);
-    ACC.log("foglio","Inviato il foglio di servizio n. "+(sheetBooking.foglio||"")+" «"+(sheetBooking.client||"")+"»",{id:sheetBooking.id});
+    ACC.log("foglio","Inviato il foglio di servizio n. "+(sheetBooking.foglio||"")+" «"+(sheetBooking.client||"")+"»"+PART_LOG[part],{id:sheetBooking.id});
     $("sheetMsg").textContent="Inviato.";
   }catch(e){if(e&&e.name!=="AbortError")$("sheetMsg").textContent="Invio non riuscito: scarica il PDF e allegalo.";}
 }

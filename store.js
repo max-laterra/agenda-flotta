@@ -155,15 +155,19 @@
         // modifica di una prenotazione che qui non c'è più: eliminata o spostata da un altro dispositivo
         if (strict && op.edit && !op.move && !prev) { notes.push({ kind: "gone", id: op.id, client: op.b && op.b.client, date: doc.date }); continue; }
         let b = clone(op.b);
-        if (strict && op.edit && prev && Array.isArray(op.patch) && (prev.updatedAt || null) !== (op.base || null)) {
+        const stale = (prev && prev.updatedAt || null) !== (op.base || null);
+        if (op.edit && prev && Array.isArray(op.patch) && (op.only || (strict && stale))) {
           // qualcun altro l'ha modificata dopo che il modulo era stato aperto: si tengono le sue modifiche
-          // e si applicano solo i campi cambiati qui
+          // e si applicano solo i campi cambiati qui. Con "only" (conferma con un clic) si scrivono sempre
+          // e solo quei campi: due clic di seguito non rimettono i valori vecchi degli altri campi.
           const merged = clone(prev), clash = [];
           for (const k of op.patch) { merged[k] = clone(op.b[k]); }
-          merged.updatedAt = op.b.updatedAt;
+          // dopo un'unione la versione prende un'ora nuova: così anche le modifiche successive ancora in coda su
+          // questo dispositivo (fatte sulla copia vecchia) vengono unite campo per campo invece di sovrascrivere
+          merged.updatedAt = strict && stale ? new Date().toISOString() : op.b.updatedAt;
           if (op.assign && op.b.foglio) merged.foglio = op.b.foglio;
           b = merged;
-          notes.push({ kind: "merged", id: op.id, client: b.client, date: doc.date, fields: op.patch.slice(), clash });
+          if (strict && stale) notes.push({ kind: "merged", id: op.id, client: b.client, date: doc.date, fields: op.patch.slice(), clash });
         }
         const pre = yymmdd(doc.date);
         // una modifica non cambia mai il n. foglio: resta quello già assegnato (magari rinumerato nel frattempo)
@@ -187,7 +191,7 @@
         // se la prenotazione cambia numero, la riga vecchia si svuota; non quando il numero era di una riga scritta a mano
         if (prev && prev.foglio && prev.foglio !== b.foglio && !op.renumber) fat.push({ act: "clear", foglio: prev.foglio, b: Object.assign({ id: op.id }, prev) });
         doc.bookings[op.id] = b;
-        fat.push({ act: "upsert", foglio: b.foglio, b: Object.assign({ id: op.id }, b) });
+        fat.push({ act: "upsert", foglio: b.foglio, b: Object.assign({ id: op.id }, b, { start: b.start || doc.date }) });
       } else if (op.t === "del") {
         const prev = doc.bookings[op.id];
         if (!prev) {
@@ -917,7 +921,7 @@
     if (idb) await new Promise((res) => { try { const t = idb.transaction(["days", "meta"], "readwrite"); t.objectStore("days").clear(); t.objectStore("meta").clear(); t.oncomplete = t.onerror = t.onabort = () => res(); } catch (_) { res(); } });
   }
 
-  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.1";
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.2";
   window.STORE = {
     BASE, P,
     configure(h) { Object.assign(hooks, h); },
