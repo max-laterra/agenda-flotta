@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="2.3.1">
+<html lang="it" data-v="2.4">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -729,6 +729,107 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 :root[data-theme="dark"] .drv-g{color:#7FD39B}:root[data-theme="dark"] .drv-r{color:#FF9C9C}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .drv-g{color:#7FD39B}:root:not([data-theme="light"]) .drv-r{color:#FF9C9C}}
 [hidden]{display:none!important}
+
+/* ---- 2.4: bozze di fattura e sezione Contabilità ---- */
+.bill-inv{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;border-top:1px dashed var(--line);padding-top:12px}
+.bill-inv>b{font-family:var(--cond);font-size:17px;text-transform:uppercase;letter-spacing:.04em;margin-right:4px}
+.bill-inv .hint{font-size:13px;color:var(--ink-3);flex:1 1 320px}
+.bill-inv .btn:disabled{opacity:.55;cursor:default}
+.bt th.selc,.bt td.selc{width:34px;padding-right:0;text-align:center;cursor:pointer}
+.bt td.selc input{width:17px;height:17px;cursor:pointer;accent-color:var(--accent)}
+.bt tbody tr.sel{background:color-mix(in srgb,var(--accent-soft) 70%,transparent)}
+/* i due tasti restano sempre a portata di mano anche quando la tabella è più larga dello schermo */
+.bt td.acts,#btable thead th:last-child{position:sticky;right:0}
+.bt td.acts{background:var(--surface);box-shadow:-8px 0 8px -8px rgba(0,0,0,.18);white-space:nowrap}
+.bt tbody tr:hover td.acts,.bt tbody tr.sel td.acts{background:color-mix(in srgb,var(--accent-soft) 70%,var(--surface))}
+.bt td.acts .mini{display:block;width:100%;text-align:center}.bt td.acts .mini+.mini{margin-top:5px}
+.bt td.acts .sub{text-align:center;margin-top:3px}
+.bt .mini.inv{color:#135C33;border-color:#9CCFB0;background:#F1FAF4}
+:root[data-theme="dark"] .bt .mini.inv{color:#8FE0B0;border-color:#2F6B48;background:transparent}
+.inv-foot{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap}.inv-foot .spacer{flex:1}
+.inv-msg{font-size:14px;color:var(--ink-2)}.inv-msg.ok{color:var(--ok);font-weight:600}.inv-msg.err{color:var(--warn);font-weight:600}
+.linkbtn{border:0;background:none;color:var(--accent);font-weight:600;font-size:13.5px;padding:2px 0;text-align:left}
+.linkbtn:hover{text-decoration:underline}
+.modal.cont-modal{max-width:1180px;max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px)}
+.cont-body{overflow:auto;display:flex;flex-direction:column;gap:12px;min-height:300px;padding:2px}
+.ct-note{margin:0;font-size:13.5px;color:var(--ink-2)}.ct-note b{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;font-weight:600;background:var(--surface-2);border-radius:4px;padding:1px 4px;white-space:nowrap}
+.ct-h{margin:8px 0 0;font-size:15px}
+.ct-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 12px}.ct-grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.ct-grid .w2{grid-column:span 2}
+.ct-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;align-items:start}
+.ct-table{border:1px solid var(--line);border-radius:10px;overflow:auto}
+.ct-row{display:grid;gap:8px;padding:7px 10px;border-top:1px solid var(--line);align-items:start}
+.ct-row:first-child{border-top:0}
+.ct-row.hd{background:var(--surface-2);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.ct-row.ct-iva{grid-template-columns:minmax(150px,1.3fr) 90px minmax(170px,1.6fr) minmax(150px,1.6fr) 38px}
+.ct-row.ct-cau{grid-template-columns:minmax(140px,1fr) minmax(150px,.9fr) minmax(240px,2.6fr) minmax(140px,.9fr) 38px}
+.ct-row input,.ct-row select,.ct-row textarea{border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--bg);min-width:0;width:100%;font-size:14px}
+.ct-row textarea{resize:vertical;min-height:52px;font-family:inherit;line-height:1.35}
+.ct-row select:disabled{opacity:.45}
+.modal.inv-modal{max-width:1500px;max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);gap:10px}
+.inv-tabs{display:none}
+.inv-grid{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);gap:14px;min-height:0;flex:1 1 auto;overflow:hidden}
+.inv-form{overflow:auto;display:flex;flex-direction:column;gap:10px;padding:2px 4px 2px 2px;min-height:0}
+.inv-prev{overflow:auto;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px;min-height:0}
+.inv-prev-h{margin:0 0 8px;font-size:12px;color:var(--ink-3)}
+.iv-sec{border:1px solid var(--line);border-radius:10px;padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px}
+.iv-sec h4{margin:0;font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-2)}.iv-sec h4 small{font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink-3);margin-left:6px}
+.iv-grid{display:grid;gap:8px 10px}.iv-grid.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.iv-grid .w2{grid-column:span 2}.iv-grid .w4{grid-column:1/-1}
+.iv-grid .f input,.iv-grid .f select{padding:6px 8px}
+.iv-out{display:block;border:1px dashed var(--line);border-radius:8px;padding:6px 8px;font-size:13.5px;color:var(--ink-2);min-height:33px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.iv-out .miss{color:var(--warn);font-weight:600}
+.inv-form input[data-t="up"]{text-transform:uppercase}
+.iv-pair{display:flex;gap:4px}.iv-pair .cc{width:46px;flex:none;text-align:center}
+.iv-bar{display:flex;gap:6px 16px;align-items:center;flex-wrap:wrap;font-size:13.5px;color:var(--ink-2)}
+.iv-bar select{border:1px solid var(--line);border-radius:7px;padding:4px 6px;background:var(--bg);margin-left:4px}
+.iv-rows{border:1px solid var(--line);border-radius:8px;overflow:auto}
+.iv-row{display:grid;grid-template-columns:22px minmax(170px,1fr) 58px 96px 58px 132px 84px 70px;gap:6px;padding:6px 8px;border-top:1px solid var(--line);align-items:start}
+.iv-row.hd{border-top:0;background:var(--surface-2);font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);align-items:center}
+.iv-row .n{font-size:12px;color:var(--ink-3);padding-top:7px}
+.iv-row textarea,.iv-row input,.iv-row select{border:1px solid var(--line);border-radius:7px;padding:6px 7px;background:var(--bg);min-width:0;width:100%;font-size:13.5px}
+.iv-row textarea{resize:vertical;min-height:72px;font-family:inherit;line-height:1.3}
+.iv-row input[type=number]{text-align:right}
+.iv-row select.miss{border-color:var(--warn);color:var(--warn);font-weight:600}
+.iv-row .tot,.iv-row .r{text-align:right}.iv-row .tot{font-variant-numeric:tabular-nums;font-weight:600;padding-top:7px}
+.iv-row .ops{display:flex;gap:4px;justify-content:flex-end}.iv-row .ops .btn{padding:4px 7px;min-width:30px}
+.iv-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.iv-add select{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--surface);font-weight:600;font-size:14px;max-width:260px}
+.iv-quick span{display:flex;gap:6px;flex-wrap:wrap}.iv-quick .btn{padding:5px 9px;font-size:13px}
+.inv-totals{display:flex;gap:6px 22px;flex-wrap:wrap;justify-content:flex-end;font-size:14.5px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.inv-totals b{color:var(--ink)}.inv-totals .tot{font-size:17px}.inv-totals .tot b{font-size:19px}
+.inv-issues{font-size:13.5px;max-height:88px;overflow:auto;border-top:1px dashed var(--line);padding-top:6px}
+.inv-issues ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px}
+.inv-issues li.err{color:var(--warn);font-weight:600}.inv-issues li.warn{color:var(--ink-2)}.inv-issues .ok{margin:0;color:var(--ok);font-weight:600}
+.inv-badge{display:inline-block;border-radius:5px;padding:1px 7px;font-size:12px;font-weight:700;background:#FFF4D6;color:#7A4E00;white-space:nowrap}
+.inv-badge.xml{background:#DCF3E4;color:#135C33}
+.inv-list{max-height:62vh}.inv-list .empty{padding:26px;text-align:center;color:var(--ink-3);margin:0}
+/* il foglio dell'anteprima: sempre nero su bianco, come la fattura */
+.inv-paper{background:#fff;color:#111;border:1px solid #c9d0ce;box-shadow:0 2px 10px rgba(0,0,0,.12);padding:14px 14px 18px;font:11px/1.35 Arial,Helvetica,sans-serif;min-width:520px}
+.fe h5{margin:0 0 3px;font-size:11px}
+.fe-parti{display:grid;grid-template-columns:1fr 1fr;border:1px solid #000;margin-bottom:10px}
+.fe-parti>div{padding:5px 8px;min-width:0;overflow-wrap:anywhere}.fe-parti>div+div{border-left:1px solid #000}
+.fe-t{width:100%;border-collapse:collapse;margin:0 0 12px}
+.fe-t caption{border:1px solid #000;border-bottom:0;font-weight:700;padding:3px}
+.fe-t th{border:1px solid #000;font-weight:400;padding:3px 5px;font-size:10px}
+.fe-t td{padding:4px 5px;text-align:right;vertical-align:top;border-left:1px solid #000;border-right:1px solid #000;font-variant-numeric:tabular-nums}
+.fe-t tbody tr:last-child td{border-bottom:1px solid #000}
+.fe-t .l{text-align:left}.fe-doc td{text-align:center;font-weight:700}
+.fe-righe td.l{white-space:pre-wrap;overflow-wrap:anywhere}
+.fe-bozza{letter-spacing:.1em;color:#7A4E00;background:#FFF4D6;border-radius:3px;padding:0 5px}.fe-miss{color:#b00020;font-weight:700}
+@media (max-width:1100px){
+  .inv-tabs{display:inline-flex}
+  .inv-grid{grid-template-columns:1fr}
+  .inv-grid[data-tab="dati"] .inv-prev,.inv-grid[data-tab="ante"] .inv-form{display:none}
+}
+@media (max-width:760px){
+  .ct-grid,.ct-grid.two,.iv-grid.g4{grid-template-columns:1fr 1fr}.iv-grid .w2,.ct-grid .w2{grid-column:1/-1}
+  .ct-row.ct-iva,.ct-row.ct-cau{grid-template-columns:1fr 1fr}.ct-row.hd{display:none}.ct-row textarea{grid-column:1/-1}
+  .iv-row{grid-template-columns:22px 1fr 1fr 1fr}.iv-row.hd{display:none}.iv-row textarea{grid-column:2/-1}.iv-row .tot{grid-column:2/4;text-align:left}.iv-row .n{grid-row:1}
+  .bt td.acts{position:static;box-shadow:none}
+  #contTabs{max-width:100%;overflow-x:auto}#contTabs button{white-space:nowrap}
+  .inv-foot .btn{padding:6px 9px;font-size:13px}.inv-totals{font-size:13.5px}.inv-totals .tot b{font-size:17px}
+  .inv-issues{max-height:44px}
+}
 </style>
 </head>
 <body>
@@ -859,6 +960,13 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
         <button class="bill-act" id="billCopy"><b>Copia righe</b><span>Per incollarle a mano in un altro file Excel, nella colonna A della prima riga vuota.</span></button>
       </div>
       <div class="bill-msg" id="billMsg" role="status"></div>
+      <div class="bill-inv" id="billInv" hidden>
+        <b>Fatture</b>
+        <button type="button" class="btn primary" id="invSel" disabled>Bozza fattura di più servizi</button>
+        <button type="button" class="btn" id="invSelClear" hidden>Togli la selezione</button>
+        <button type="button" class="btn" id="invList">Bozze fattura</button>
+        <span class="hint">Per un solo servizio usa «Bozza Fattura» sulla sua riga. Per una fattura unica di più servizi dello stesso cliente spunta le caselle a sinistra.</span>
+      </div>
     </div>
     <div class="grid-wrap"><table class="bt" id="btable"></table></div>
   </section>
@@ -1057,6 +1165,39 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
     <div class="arch-grid" id="archGrid"></div>
   </div>
 </div>
+<div class="overlay" id="ovCont" hidden>
+  <div class="modal cont-modal" role="dialog" aria-labelledby="contTitle">
+    <div class="reg-top"><h3 id="contTitle">Contabilità</h3>
+      <div class="seg" id="contTabs" role="tablist">
+        <button type="button" data-ct-tab="az" aria-pressed="true">Dati societari</button>
+        <button type="button" data-ct-tab="iva" aria-pressed="false">Aliquote IVA</button>
+        <button type="button" data-ct-tab="cau" aria-pressed="false">Causali</button>
+        <button type="button" data-ct-tab="opz" aria-pressed="false">Pagamento, sconti, arrotondamenti</button>
+      </div></div>
+    <div class="cont-body" id="contBody"></div>
+    <div class="inv-foot"><span class="inv-msg" id="contMsg" role="status"></span><span class="spacer"></span><button type="button" class="btn" id="contClose">Chiudi</button><button type="button" class="btn primary" id="contSave">Salva</button></div>
+  </div>
+</div>
+<div class="overlay" id="ovInvList" hidden>
+  <div class="modal reg-modal" role="dialog" aria-labelledby="invListTitle">
+    <div class="reg-top"><h3 id="invListTitle">Bozze fattura</h3><span class="reg-count" id="invListCount"></span><span class="spacer"></span><button type="button" class="btn primary" id="invListNew" hidden>+ Nuova bozza per questi servizi</button><button type="button" class="btn" id="invListAll" hidden>Tutte le bozze</button><button type="button" class="btn" id="invListClose">Chiudi</button></div>
+    <input id="invQ" type="search" class="cli-q" placeholder="Cerca per cliente, n. foglio, numero…" autocomplete="off" aria-label="Cerca tra le bozze">
+    <div class="grid-wrap inv-list" id="invListBody"></div>
+  </div>
+</div>
+<div class="overlay" id="ovInv" hidden>
+  <div class="modal inv-modal" role="dialog" aria-labelledby="invTitle">
+    <div class="reg-top"><h3 id="invTitle">Bozza fattura</h3><span class="reg-count" id="invState"></span><span class="spacer"></span>
+      <div class="seg inv-tabs" id="invTabs"><button type="button" data-it="dati" aria-pressed="true">Dati</button><button type="button" data-it="ante" aria-pressed="false">Anteprima</button></div></div>
+    <div class="inv-grid" id="invGrid" data-tab="dati">
+      <form class="inv-form" id="invForm" novalidate autocomplete="off"></form>
+      <div class="inv-prev"><p class="inv-prev-h">Anteprima – come la vedrà il cliente nella fattura dell'Agenzia delle Entrate</p><div class="inv-paper" id="invPaper"></div></div>
+    </div>
+    <div class="inv-totals" id="invTotals"></div>
+    <div class="inv-issues" id="invIssues" role="status"></div>
+    <div class="inv-foot"><button type="button" class="btn danger" id="invDel" hidden>Elimina bozza</button><span class="inv-msg" id="invMsg" role="status"></span><span class="spacer"></span><button type="button" class="btn" id="invClose">Chiudi</button><button type="button" class="btn" id="invPrint">Stampa anteprima</button><button type="button" class="btn" id="invSave">Salva bozza</button><button type="button" class="btn primary" id="invXml">Crea file XML</button></div>
+  </div>
+</div>
 <div class="overlay" id="ovReg" hidden>
   <div class="modal reg-modal" role="dialog" aria-labelledby="regTitle">
     <div class="reg-top"><button type="button" class="btn" id="regBack">‹ Archivio</button><h3 id="regTitle">Anagrafica</h3><span class="reg-count" id="regCount"></span><span class="spacer"></span><button type="button" class="btn primary" id="regNew">+ Nuovo</button></div>
@@ -1107,7 +1248,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
       <div class="lg-bar">
         <select id="lgPer" aria-label="Periodo"><option value="0">Oggi</option><option value="6" selected>Ultimi 7 giorni</option><option value="29">Ultimi 30 giorni</option><option value="89">Ultimi 90 giorni</option><option value="364">Ultimo anno</option></select>
         <select id="lgUser" aria-label="Utente"><option value="">Tutti gli utenti</option></select>
-        <select id="lgKind" aria-label="Tipo"><option value="">Tutte le azioni</option><option value="accesso">Accessi</option><option value="prenotazione">Prenotazioni</option><option value="cliente">Clienti</option><option value="foglio">Fogli di servizio</option><option value="impostazioni">Impostazioni e utenti</option></select>
+        <select id="lgKind" aria-label="Tipo"><option value="">Tutte le azioni</option><option value="accesso">Accessi</option><option value="prenotazione">Prenotazioni</option><option value="cliente">Clienti</option><option value="foglio">Fogli di servizio</option><option value="fattura">Fatture e contabilità</option><option value="impostazioni">Impostazioni e utenti</option></select>
         <input id="lgQ" type="search" placeholder="Cerca: cliente, n. foglio, data…" aria-label="Cerca nel registro">
         <button type="button" class="btn" id="lgCsv">Scarica CSV</button>
       </div>
@@ -1149,6 +1290,8 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
         <label class="perm"><input type="checkbox" id="permClients"> <span><b>Anagrafica clienti</b> – aggiungere clienti nuovi e modificare quelli esistenti</span></label>
         <label class="perm"><input type="checkbox" id="permFleet"> <span><b>Flotta</b> – modificare nomi, posti e targhe dei mezzi</span></label>
         <label class="perm"><input type="checkbox" id="permAnag"> <span><b>Anagrafiche</b> – referenti, guide, hotel e tendine (note, ruolo)</span></label>
+        <label class="perm"><input type="checkbox" id="permInv"> <span><b>Bozze di fattura</b> – preparare le bozze dalla vista Fatturato e creare il file XML per la contabilità</span></label>
+        <label class="perm"><input type="checkbox" id="permCont"> <span><b>Contabilità</b> – modificare dati societari, aliquote IVA, causali, pagamento, sconti e arrotondamenti (Archivio › Contabilità)</span></label>
       </div>
       <div class="set-card">
         <h4>Uscita automatica</h4>
@@ -1172,6 +1315,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 <script src="config.js"></script>
 <script src="dropbox.js"></script>
 <script src="fatturato.js"></script>
+<script src="fatture.js"></script>
 <script src="store.js"></script>
 <script src="accessi.js"></script>
 <script src="app.js"></script>

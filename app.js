@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="2.3.1",APP_DATE="06/10/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="2.4",APP_DATE="06/10/2026";window.AGENDA_VERSION=APP_VERSION;
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -26,7 +26,7 @@ if(framed){stopPage("Agenda Flotta La Terra","Per sicurezza l'agenda non si può
 {
   const F=window.AGENDA_FILES||{},bad=[];
   if(document.documentElement.getAttribute("data-v")!==APP_VERSION)bad.push("index.html");
-  for(const f of ["dropbox","fatturato","store","accessi"])if(F[f]!==APP_VERSION)bad.push(f+".js");
+  for(const f of ["dropbox","fatturato","fatture","store","accessi"])if(F[f]!==APP_VERSION)bad.push(f+".js");
   let n=0;try{n=+sessionStorage.getItem("agenda-upd-try")||0;}catch(_){}
   if(bad.length){
     // ricaricando, ogni file viene richiesto di nuovo al sito (la copia per l'uso offline non si cancella:
@@ -1295,6 +1295,9 @@ document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;
   if(!$("ovClientNew").hidden){closeClientNew();return;}
   if(!$("ovClients").hidden){$("ovClients").hidden=true;return;}
   if(!$("ovReg").hidden){if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest("#regTable"))document.activeElement.blur();$("ovReg").hidden=true;regKind=null;return;}
+  if(!$("ovCont").hidden){closeContab();return;}
+  if(!$("ovInv").hidden){closeInvoice();return;}
+  if(!$("ovInvList").hidden){$("ovInvList").hidden=true;invPending=null;return;}
   if(!$("ovArch").hidden){$("ovArch").hidden=true;return;}
   if(!$("ovBooking").hidden){if(!$("fCloseAsk").hidden){$("fCloseAsk").hidden=true;return;}tryCloseForm();return;}
   if(!$("ovFleet").hidden)$("ovFleet").hidden=true;$("ovSheet").hidden=true;});
@@ -1363,12 +1366,17 @@ async function renderBill(){
   $("billTitle").textContent="Fatturato · "+(all?"tutti i servizi":MN[+k.slice(5,7)-1]+" "+k.slice(0,4));
   let rows;try{rows=await rowsForRange();}catch(err){$("btable").innerHTML='<tbody><tr><td class="empty">Impossibile leggere le prenotazioni. Riprova.</td></tr></tbody>';return;}
   if(S.view!=="bill")return;
-  const head='<thead><tr><th>N. foglio</th><th>Tipo servizio</th><th>Cliente</th><th>Mezzo</th><th>Targa</th><th>Inizio</th><th>Fine</th><th>Itinerario</th><th>1° autista</th><th>2° autista</th><th class="r">€ Noleggio</th><th class="r">€ Parcheggi</th><th class="r">€ Pasti</th><th class="r">€ Totale</th><th>Anticipo / busta</th><th></th></tr></thead>';
-  if(!rows.length){$("btable").innerHTML=head+'<tbody><tr><td class="empty" colspan="16">Nessun servizio '+(all?"in agenda":"in questo mese")+'.</td></tr></tbody>';return;}
+  const inv=canInv(),all0=inv?bookingsAll().concat(S.allDays?billSourceAll():[]):[],dmap=inv?draftMap():null;
+  if(inv){const ok=new Set(all0.map(invKey));for(const k of [...invSel])if(!ok.has(k))invSel.delete(k);}
+  renderInvBar();
+  const head='<thead><tr>'+(inv?'<th class="selc" title="Spunta i servizi da mettere in una fattura unica"></th>':"")+'<th>N. foglio</th><th>Tipo servizio</th><th>Cliente</th><th>Mezzo</th><th>Targa</th><th>Inizio</th><th>Fine</th><th>Itinerario</th><th>1° autista</th><th>2° autista</th><th class="r">€ Noleggio</th><th class="r">€ Parcheggi</th><th class="r">€ Pasti</th><th class="r">€ Totale</th><th>Anticipo / busta</th><th></th></tr></thead>';
+  if(!rows.length){$("btable").innerHTML=head+'<tbody><tr><td class="empty" colspan="'+(inv?17:16)+'">Nessun servizio '+(all?"in agenda":"in questo mese")+'.</td></tr></tbody>';return;}
   const sum=k=>rows.reduce((a,r)=>a+(r[k]===""?0:r[k]),0),tot=rows.reduce((a,r)=>a+billTotal(r),0);
   $("btable").innerHTML=head+'<tbody>'+rows.map(r=>{
     const c=r.C!==""?clientByCode(r.C):null;
-    return '<tr data-bid="'+esc(r.id)+'" data-bstart="'+esc(r.start)+'">'+
+    const dr=dmap?(dmap.get(r.id)||[]):[],key=r.id+"|"+r.start;
+    return '<tr data-bid="'+esc(r.id)+'" data-bstart="'+esc(r.start)+'"'+(invSel.has(key)?' class="sel"':"")+'>'+
+      (inv?'<td class="selc"><input type="checkbox" data-invsel="1" aria-label="Seleziona il servizio n. '+esc(r.foglio)+' per una fattura unica"'+(invSel.has(key)?" checked":"")+'></td>':"")+
       '<td class="num"><b>'+esc(r.foglio)+'</b></td>'+
       '<td><span class="tip" style="border-color:var(--'+esc(r.type)+'-fill)">'+esc(r.B)+'</span></td>'+
       '<td>'+esc(r.D||"—")+(r.C!==""?'<span class="sub">Cod. '+esc(r.C)+(c&&c[2]?' · '+esc(c[2]):'')+'</span>':'<span class="sub miss">senza codice cliente</span>')+'</td>'+
@@ -1378,10 +1386,17 @@ async function renderBill(){
       '<td>'+esc(r.M)+(r.O?'<span class="sub">'+esc(r.O)+'</span>':'')+'</td>'+
       '<td>'+(r.Z?esc(r.Z):r.dz?'<span class="tbdtxt">da assegnare</span>':"")+'</td><td>'+(r.AA?esc(r.AA):r.daa?'<span class="tbdtxt">da assegnare</span>':"")+'</td>'+
       '<td class="num r">'+money(r.P)+'</td><td class="num r">'+money(r.Q)+'</td><td class="num r">'+money(r.R)+'</td><td class="num r"><b>'+(r.P===""&&r.Q===""&&r.R===""?"":money(billTotal(r)))+'</b></td>'+
-      '<td class="num">'+(r.AH!==""?"€ "+money(r.AH):"")+(r.AI?'<span class="sub">Busta '+esc(r.AI)+(r.AJ?" n. "+esc(r.AJ):"")+'</span>':"")+'</td><td><button type="button" class="mini" data-fs="1">Foglio di servizio</button></td></tr>';
-  }).join("")+'</tbody><tfoot><tr><td colspan="10">'+rows.length+' servizi</td><td class="num r">'+money(sum("P"))+'</td><td class="num r">'+money(sum("Q"))+'</td><td class="num r">'+money(sum("R"))+'</td><td class="num r">'+money(tot)+'</td><td class="num">'+(sum("AH")?"€ "+money(sum("AH")):"")+'</td><td></td></tr></tfoot>';
+      '<td class="num">'+(r.AH!==""?"€ "+money(r.AH):"")+(r.AI?'<span class="sub">Busta '+esc(r.AI)+(r.AJ?" n. "+esc(r.AJ):"")+'</span>':"")+'</td><td class="acts"><button type="button" class="mini" data-fs="1">Foglio di servizio</button>'+(inv?'<button type="button" class="mini inv" data-inv="1">Bozza Fattura</button>'+(dr.length?'<span class="sub">'+(dr.some(d=>d.xmlAt)?"XML creato":"bozza salvata")+(dr.length>1?" ("+dr.length+")":"")+'</span>':""):"")+'</td></tr>';
+  }).join("")+'</tbody><tfoot><tr><td colspan="'+(inv?11:10)+'">'+rows.length+' servizi</td><td class="num r">'+money(sum("P"))+'</td><td class="num r">'+money(sum("Q"))+'</td><td class="num r">'+money(sum("R"))+'</td><td class="num r">'+money(tot)+'</td><td class="num">'+(sum("AH")?"€ "+money(sum("AH")):"")+'</td><td></td></tr></tfoot>';
 }
-$("btable").addEventListener("click",e=>{const tr=e.target.closest("[data-bid]");if(!tr)return;const b=bookingsAll().concat(S.allDays?billSourceAll():[]).find(x=>x.id===tr.dataset.bid&&x.start===tr.dataset.bstart);if(!b)return;if(e.target.closest("[data-fs]"))openSheet(b);else openForm({booking:b});});
+$("btable").addEventListener("click",e=>{const tr=e.target.closest("[data-bid]");if(!tr)return;const b=bookingsAll().concat(S.allDays?billSourceAll():[]).find(x=>x.id===tr.dataset.bid&&x.start===tr.dataset.bstart);if(!b)return;
+  const cb=e.target.closest("[data-invsel]");
+  if(cb||e.target.closest("td.selc")){ // casella per la fattura unica: non apre la prenotazione
+    const box=cb||tr.querySelector("[data-invsel]"),k=invKey(b);if(!cb)box.checked=!box.checked;
+    if(box.checked){const cur=invSelBookings()[0];if(cur&&!sameClient(cur,b)){box.checked=false;toast("In una fattura unica vanno servizi dello stesso cliente.");return;}invSel.add(k);}else invSel.delete(k);
+    tr.classList.toggle("sel",box.checked);renderInvBar();return;
+  }
+  if(e.target.closest("[data-inv]"))openInvoice([b]);else if(e.target.closest("[data-fs]"))openSheet(b);else openForm({booking:b});});
 function billSourceAll(){const out=[];for(const date in S.allDays){const bk=(S.allDays[date]||{}).bookings||{};for(const id in bk){const b=bk[id];if(b&&typeof b==="object")out.push(Object.assign({},b,{id:id,start:b.start||date,type:normType(b.type)}));}}return out;}
 $("billRange").addEventListener("change",()=>{S.allDays=null;renderBill();});
 function billMsg(t,cls){const m=$("billMsg");m.textContent=t;m.className="bill-msg"+(cls?" "+cls:"");}
@@ -2232,7 +2247,7 @@ let gateMode="";
 function showGate(mode,o){
   o=o||{};gateMode=mode;
   $("gate").hidden=false;$("app").hidden=true;
-  ["ovBooking","ovFleet","ovMenu","ovSheet","ovClients","ovClientNew","ovMaster","ovArch","ovReg"].forEach(id=>{const x=$(id);if(x)x.hidden=true;});
+  ["ovBooking","ovFleet","ovMenu","ovSheet","ovClients","ovClientNew","ovMaster","ovArch","ovReg","ovInv","ovInvList","ovCont"].forEach(id=>{const x=$(id);if(x)x.hidden=true;});INV=null;CT=null;ctOrig=null;ctDirty=false;invPending=null;invSel.clear();
   if(typeof hsClose==="function")hsClose();
   ["gLink","gLoad","gFat","gCode","gMaster","gLogin"].forEach(id=>$(id).hidden=true);
   $("gMsg").textContent=o.msg||"";$("gMsg").className="gate-msg"+(o.ok?" ok":"");
@@ -2621,7 +2636,7 @@ $("devList").addEventListener("click",async e=>{
   }catch(_){mstMsg("Operazione non riuscita: controlla la connessione e riprova.",true);}
 });
 // registro
-const LOG_KIND={accesso:"Accesso",prenotazione:"Prenotazione",cliente:"Cliente",foglio:"Foglio",impostazioni:"Impostazioni",utenti:"Utenti",dispositivi:"Dispositivi"};
+const LOG_KIND={accesso:"Accesso",prenotazione:"Prenotazione",cliente:"Cliente",foglio:"Foglio",fattura:"Fattura",impostazioni:"Impostazioni",utenti:"Utenti",dispositivi:"Dispositivi"};
 function logRange(){const n=+$("lgPer").value,to=ACC.localDate(),d=new Date();d.setDate(d.getDate()-n);return {from:ACC.localDate(d),to};}
 async function loadLog(){
   const r=logRange(),key=r.from+"|"+r.to;
@@ -2664,7 +2679,7 @@ function renderSettings(){
   if(document.activeElement!==$("setGKey"))$("setGKey").value=st.googleKey||"";
   $("setGSite").textContent=location.origin+"/*";
   $("setLock").value=String(st.autoLock||0);
-  const pm=st.perms||{};$("permClients").checked=pm.clients!==false;$("permFleet").checked=pm.fleet!==false;$("permAnag").checked=pm.anag!==false;
+  const pm=st.perms||{};$("permClients").checked=pm.clients!==false;$("permFleet").checked=pm.fleet!==false;$("permAnag").checked=pm.anag!==false;$("permInv").checked=pm.inv!==false;$("permCont").checked=pm.contab===true;
   $("setFatInfo").innerHTML="File fatturato: "+(fy.length?fy.map(y=>(y==="*"?"":y+" → ")+"<b>"+esc(ff[y].name)+"</b>").join(", "):"<b>non collegato</b>")+". Flotta: <b>"+S.fleet.length+" mezzi</b>.";
 }
 function setGMsg(t,c){$("setGMsg").textContent=t||"";$("setGMsg").className="set-msg"+(c?" "+c:"");}
@@ -2684,13 +2699,455 @@ $("setLock").onchange=async()=>{
   try{await STORE.setSettings({autoLock:v});ACC.log("impostazioni","Uscita automatica: "+$("setLock").selectedOptions[0].textContent.toLowerCase());mstMsg("Impostazione salvata per tutti i dispositivi.");}
   catch(_){mstMsg("Non riesco a salvare: serve la connessione a internet.",true);renderSettings();}
 };
-["permClients","permFleet","permAnag"].forEach(id=>$(id).onchange=async()=>{
-  const perms=Object.assign({},((STORE.settings||{}).perms)||{},{clients:$("permClients").checked,fleet:$("permFleet").checked,anag:$("permAnag").checked});
-  try{await STORE.setSettings({perms});ACC.log("impostazioni","Permessi degli utenti: anagrafica clienti "+(perms.clients?"sì":"no")+", flotta "+(perms.fleet?"sì":"no")+", anagrafiche e tendine "+(perms.anag?"sì":"no"));mstMsg("Permessi salvati per tutti i dispositivi.");}
+["permClients","permFleet","permAnag","permInv","permCont"].forEach(id=>$(id).onchange=async()=>{
+  const perms=Object.assign({},((STORE.settings||{}).perms)||{},{clients:$("permClients").checked,fleet:$("permFleet").checked,anag:$("permAnag").checked,inv:$("permInv").checked,contab:$("permCont").checked});
+  try{await STORE.setSettings({perms});ACC.log("impostazioni","Permessi degli utenti: anagrafica clienti "+(perms.clients?"sì":"no")+", flotta "+(perms.fleet?"sì":"no")+", anagrafiche e tendine "+(perms.anag?"sì":"no")+", bozze di fattura "+(perms.inv?"sì":"no")+", contabilità "+(perms.contab?"sì":"no"));mstMsg("Permessi salvati per tutti i dispositivi.");}
   catch(_){mstMsg("Non riesco a salvare: serve la connessione a internet.",true);renderSettings();}
 });
 $("setFat").onclick=()=>{if(!navigator.onLine){mstMsg("Serve la connessione a internet.",true);return;}$("ovMaster").hidden=true;showGate("fatturato",{fromMenu:true});};
 $("setFleet").onclick=()=>{$("ovMaster").hidden=true;openFleet();};
+
+// ---------- Contabilità e bozze di fattura (2.4) ----------
+// I conti e il file XML sono in fatture.js (FATTURE); qui ci sono le finestre: la sezione Contabilità
+// (Archivio), la bozza con l'anteprima, l'elenco delle bozze e i tasti nella vista Fatturato.
+const FT=window.FATTURE;
+// permessi decisi dal Master: le bozze di fattura di serie sì, la sezione Contabilità di serie no
+function canInv(){if(isMaster())return true;const p=((STORE.settings||{}).perms)||{};return p.inv!==false;}
+function canCont(){if(isMaster())return true;const p=((STORE.settings||{}).perms)||{};return p.contab===true;}
+const eur2=n=>Number(n||0).toLocaleString("it-IT",{minimumFractionDigits:2,maximumFractionDigits:2});
+const optList=(o,sel)=>Object.keys(o).map(k=>'<option value="'+esc(k)+'"'+(k===sel?" selected":"")+'>'+esc(o[k])+'</option>').join("");
+function setPath(o,path,v){const p=path.split(".");let x=o;for(let i=0;i<p.length-1;i++){if(!x[p[i]]||typeof x[p[i]]!=="object")x[p[i]]={};x=x[p[i]];}x[p[p.length-1]]=v;}
+function getPath(o,path){let x=o;for(const k of path.split(".")){if(x==null)return "";x=x[k];}return x==null?"":x;}
+const inpVal=el=>el.type==="checkbox"?el.checked:el.dataset.t==="num"?(el.value===""?0:Number(el.value)):el.dataset.t==="up"?el.value.toUpperCase():el.value;
+
+// ----- sezione Contabilità -----
+let CT=null,ctOrig=null,ctTab="az",ctDirty=false; // ctOrig: com'era quando si è aperta la finestra
+const CT_AZ=[["nome","Denominazione",2],["piva","Partita IVA"],["cf","Codice fiscale"],["regime","Regime fiscale","sel",()=>Object.fromEntries(Object.entries(FT.REGIMI).map(([k,v])=>[k,k+" – "+v]))],["sdi","Codice univoco (SDI)"],["pec","PEC"],["tel","Telefono"],
+  ["indirizzo","Indirizzo (via e numero)",2],["cap","CAP"],["comune","Comune"],["prov","Provincia (sigla)"],["nazione","Nazione (sigla)"],["email","E-mail"],
+  ["iban","IBAN",2],["banca","Banca"],["abi","ABI"],["cab","CAB"],["bic","BIC / SWIFT"],["beneficiario","Intestatario del conto (se diverso)",2],
+  ["reaUfficio","REA – provincia"],["reaNumero","REA – numero"],["capitale","Capitale sociale €"],["socioUnico","Soci","sel",()=>({"":"non indicato",SU:"socio unico",SM:"più soci"})],["liquidazione","Stato","sel",()=>({LN:"non in liquidazione",LS:"in liquidazione"})]];
+function openContab(){
+  if(!canCont()){toast("La sezione Contabilità è riservata: la apre il Master o chi è autorizzato da lui.");return;}
+  CT=STORE.contab();ctOrig=STORE.contab();ctTab="az";ctDirty=false;renderContab();$("ovCont").hidden=false;ctMsg("");
+  if(!STORE.contabLoaded)ctMsg("Sono i dati di partenza (quelli già stampati sul foglio di servizio): controllali, aggiungi IBAN e banca e premi «Salva».");
+}
+function ctMsg(t,cls){const m=$("contMsg");m.textContent=t||"";m.className="inv-msg"+(cls?" "+cls:"");}
+function aliqOpts(C,sel,blank){return (blank?'<option value=""'+(sel?"":" selected")+'>'+esc(blank)+'</option>':"")+C.aliquote.map(a=>'<option value="'+esc(a.id)+'"'+(a.id===sel?" selected":"")+'>'+esc(a.nome)+'</option>').join("");}
+function renderContab(){
+  document.querySelectorAll("#contTabs [data-ct-tab]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.ctTab===ctTab));
+  const C=CT;let h="";
+  if(ctTab==="az"){
+    h='<p class="ct-note">Sono i dati che finiscono nella fattura come «cedente/prestatore». IBAN e banca compaiono nel pagamento.</p><div class="ct-grid">'+CT_AZ.map(([k,l,w,o])=>'<div class="f'+(w===2?" w2":"")+'"><label for="ct-'+k+'">'+esc(l)+'</label>'+(w==="sel"?'<select id="ct-'+k+'" data-ct="azienda.'+k+'">'+optList(o(),C.azienda[k])+'</select>':'<input id="ct-'+k+'" data-ct="azienda.'+k+'" value="'+esc(C.azienda[k])+'" autocomplete="off">')+'</div>').join("")+'</div>';
+  }else if(ctTab==="iva"){
+    h='<p class="ct-note">Le aliquote tra cui scegliere su ogni riga della fattura. Con 0% serve la «natura» (per esempio N2.2 fuori campo IVA) e conviene scrivere il riferimento che deve comparire in fattura.</p>'+
+      '<div class="ct-table"><div class="ct-row hd ct-iva"><span>Nome</span><span>% IVA</span><span>Natura (solo con 0%)</span><span>Riferimento normativo</span><span></span></div>'+
+      C.aliquote.map((a,i)=>'<div class="ct-row ct-iva"><input data-ctl="aliquote.'+i+'.nome" value="'+esc(a.nome)+'" aria-label="Nome"><input data-ctl="aliquote.'+i+'.perc" data-t="num" type="number" min="0" max="100" step="0.01" value="'+esc(a.perc)+'" aria-label="Percentuale"><select data-ctl="aliquote.'+i+'.natura" aria-label="Natura"'+(a.perc>0?" disabled":"")+'><option value="">–</option>'+Object.keys(FT.NATURE).map(n=>'<option value="'+n+'"'+(a.natura===n&&!(a.perc>0)?" selected":"")+'>'+n+' – '+esc(FT.NATURE[n])+'</option>').join("")+'</select><input data-ctl="aliquote.'+i+'.rif" value="'+esc(a.rif)+'" aria-label="Riferimento normativo"><button type="button" class="btn icon" data-ctdel="aliquote.'+i+'" aria-label="Elimina aliquota" title="Elimina">×</button></div>').join("")+
+      '</div><button type="button" class="btn" data-ctadd="aliquote">+ Aggiungi aliquota</button>';
+  }else if(ctTab==="cau"){
+    h='<p class="ct-note">I testi con cui l\'agenda prepara le righe. Tra parentesi graffe ci sono i dati presi dal servizio: <b>{MEZZO}</b> <b>{DATA}</b> <b>{PERIODO}</b> <b>{MESE}</b> <b>{ITINERARIO}</b> <b>{EVENTO}</b> <b>{PAX}</b> <b>{TARGA}</b> <b>{FOGLIO}</b>. «Si usa per» dice quando l\'agenda la sceglie da sola; le altre si aggiungono a mano dalla bozza.</p>'+
+      '<div class="ct-table"><div class="ct-row hd ct-cau"><span>Nome</span><span>Si usa per</span><span>Testo della riga</span><span>Aliquota</span><span></span></div>'+
+      C.causali.map((c,i)=>'<div class="ct-row ct-cau"><input data-ctl="causali.'+i+'.nome" value="'+esc(c.nome)+'" aria-label="Nome"><select data-ctl="causali.'+i+'.uso" aria-label="Si usa per">'+optList(FT.USI,c.uso)+'</select><textarea data-ctl="causali.'+i+'.testo" rows="2" aria-label="Testo">'+esc(c.testo)+'</textarea><select data-ctl="causali.'+i+'.aliq" aria-label="Aliquota">'+aliqOpts(C,c.aliq,"da scegliere ogni volta")+'</select><button type="button" class="btn icon" data-ctdel="causali.'+i+'" aria-label="Elimina causale" title="Elimina">×</button></div>').join("")+
+      '</div><button type="button" class="btn" data-ctadd="causali">+ Aggiungi causale</button>'+
+      '<h4 class="ct-h">Come si scrive il mezzo ({MEZZO})</h4><div class="ct-grid">'+[["bus","Pullman"],["van","Van / minibus"],["auto","Auto"]].map(([k,l])=>'<div class="f"><label for="ct-mz-'+k+'">'+l+'</label><input id="ct-mz-'+k+'" data-ct="mezzi.'+k+'" value="'+esc(C.mezzi[k])+'"></div>').join("")+'</div>';
+  }else{
+    const O=C.opzioni;
+    h='<div class="ct-cards"><div class="set-card"><h4>Prezzi e descrizioni</h4>'+
+      '<label class="perm"><input type="checkbox" data-ct="opzioni.lordi"'+(O.lordi?" checked":"")+'> <span><b>I prezzi dell\'agenda sono IVA compresa</b> – la bozza ricava l\'imponibile per scorporo (es. 600,00 → 545,45 + 54,55)</span></label>'+
+      '<label class="perm"><input type="checkbox" data-ct="opzioni.maiuscole"'+(O.maiuscole?" checked":"")+'> <span><b>Descrizioni in maiuscolo</b>, come nelle vostre fatture</span></label>'+
+      '<div class="f"><label for="ct-tipo">Tipo di documento proposto</label><select id="ct-tipo" data-ct="opzioni.tipo">'+optList(Object.fromEntries(Object.entries(FT.TIPI_DOC).map(([k,v])=>[k,k+" – "+v])),O.tipo)+'</select></div></div>'+
+      '<div class="set-card"><h4>Pagamento</h4><div class="ct-grid two"><div class="f"><label for="ct-mod">Modalità</label><select id="ct-mod" data-ct="opzioni.mod">'+optList(FT.MOD_PAG,O.mod)+'</select></div><div class="f"><label for="ct-cond">Condizioni</label><select id="ct-cond" data-ct="opzioni.cond">'+optList(FT.COND_PAG,O.cond)+'</select></div>'+
+      '<div class="f"><label for="ct-gg">Scadenza: giorni dalla data fattura</label><input id="ct-gg" data-ct="opzioni.giorni" data-t="num" type="number" min="0" max="365" step="1" value="'+esc(O.giorni)+'"></div><div class="f"><label for="ct-ggpa">Enti pubblici: giorni</label><input id="ct-ggpa" data-ct="opzioni.giorniPA" data-t="num" type="number" min="0" max="365" step="1" value="'+esc(O.giorniPA)+'"></div></div>'+
+      '<label class="perm"><input type="checkbox" data-ct="opzioni.splitPA"'+(O.splitPA?" checked":"")+'> <span><b>Enti pubblici: scissione dei pagamenti</b> – l\'ente paga solo l\'imponibile, l\'IVA la versa lui</span></label></div>'+
+      '<div class="set-card"><h4>Sconti e arrotondamenti</h4><div class="ct-grid two"><div class="f"><label for="ct-sc">Sconto proposto su ogni fattura (%)</label><input id="ct-sc" data-ct="opzioni.scontoPerc" data-t="num" type="number" min="0" max="100" step="0.01" value="'+esc(O.scontoPerc)+'"></div><div class="f"><label for="ct-bollo">Importo del bollo (€)</label><input id="ct-bollo" data-ct="opzioni.bolloImporto" data-t="num" type="number" min="0" max="100" step="0.01" value="'+esc(O.bolloImporto)+'"></div>'+
+      '<div class="f"><label for="ct-arr">Arrotondamento del totale</label><select id="ct-arr" data-ct="opzioni.arrot">'+optList(FT.ARROT,O.arrot)+'</select></div><div class="f"><label for="ct-arrv">Verso</label><select id="ct-arrv" data-ct="opzioni.arrotVerso">'+optList(FT.VERSI,O.arrotVerso)+'</select></div></div>'+
+      '<p class="mst-sub">Sono i valori proposti: su ogni bozza sconto e arrotondamento si possono cambiare o togliere.</p></div></div>';
+  }
+  $("contBody").innerHTML=h;
+}
+function ctRead(e){
+  const el=e.target,p=el.dataset.ct||el.dataset.ctl;if(!p||!CT)return;
+  setPath(CT,p,inpVal(el));ctDirty=true;ctMsg("");
+  // % cambiata: la natura serve solo con lo 0%
+  if(e.type==="change"&&/^aliquote\.\d+\.perc$/.test(p))renderContab();
+}
+$("contBody").addEventListener("input",ctRead);$("contBody").addEventListener("change",ctRead);
+$("contBody").addEventListener("click",e=>{
+  const add=e.target.closest("[data-ctadd]"),del=e.target.closest("[data-ctdel]");if(!CT||(!add&&!del))return;
+  if(add){if(add.dataset.ctadd==="aliquote")CT.aliquote.push({id:FT.newId("a").slice(0,20),nome:"",perc:0,natura:"N2.2",rif:""});else CT.causali.push({id:FT.newId("c").slice(0,20),nome:"",uso:"libera",testo:"",aliq:""});}
+  else{const [k,i]=del.dataset.ctdel.split(".");if(k==="aliquote"&&CT.aliquote.length<=1){ctMsg("Deve restare almeno un'aliquota.","err");return;}CT[k].splice(+i,1);}
+  ctDirty=true;renderContab();
+  if(add){const rows=$("contBody").querySelectorAll(".ct-row:not(.hd)"),last=rows[rows.length-1];if(last){const f=last.querySelector("input");if(f)f.focus();}}
+});
+$("contTabs").addEventListener("click",e=>{const b=e.target.closest("[data-ct-tab]");if(!b)return;ctTab=b.dataset.ctTab;renderContab();});
+function closeContab(){if(ctDirty&&!confirm("Chiudere senza salvare le modifiche alla Contabilità?"))return;$("ovCont").hidden=true;CT=null;ctOrig=null;ctDirty=false;}
+$("contClose").onclick=closeContab;backdropClose($("ovCont"),closeContab);
+$("contSave").onclick=async()=>{
+  if(!CT||S.readOnly)return;
+  if(!canCont()){ctMsg("Non hai più il permesso di modificare la Contabilità.","err");return;}
+  $("contSave").disabled=true;ctMsg("Salvo…");
+  try{
+    const before=STORE.contab(),mine=CT,orig=ctOrig||before,J=x=>JSON.stringify(x);
+    // sopra l'ultima versione in Dropbox si mettono solo le voci cambiate in questa finestra: se intanto un altro
+    // dispositivo ha salvato (per esempio l'IBAN) le sue modifiche restano
+    CT=await STORE.updateContab(cur=>{
+      for(const sec of ["azienda","opzioni","mezzi"])for(const k of Object.keys(mine[sec]||{}))if(J(mine[sec][k])!==J((orig[sec]||{})[k]))cur[sec][k]=mine[sec][k];
+      for(const sec of ["aliquote","causali"])if(J(mine[sec])!==J(orig[sec]))cur[sec]=mine[sec];
+      return cur;
+    });
+    ctOrig=STORE.contab();ctDirty=false;renderContab();
+    const ch=[];if(JSON.stringify(before.azienda)!==JSON.stringify(CT.azienda))ch.push("dati societari");if(JSON.stringify(before.aliquote)!==JSON.stringify(CT.aliquote))ch.push("aliquote");if(JSON.stringify(before.causali)!==JSON.stringify(CT.causali)||JSON.stringify(before.mezzi)!==JSON.stringify(CT.mezzi))ch.push("causali");if(JSON.stringify(before.opzioni)!==JSON.stringify(CT.opzioni))ch.push("pagamento, sconti e arrotondamenti");
+    ACC.log("fattura","Contabilità: salvate le impostazioni"+(ch.length?" ("+ch.join(", ")+")":""));
+    ctMsg("Salvato per tutti i dispositivi.","ok");
+  }catch(err){ctMsg(err&&err.code==="offline"?"Serve la connessione a internet.":"Non riesco a salvare: riprova tra poco.","err");}
+  finally{$("contSave").disabled=false;}
+};
+
+// ----- dai servizi alla bozza -----
+const invKey=b=>b.id+"|"+b.start;
+function invService(b){
+  const v=vehicle(b.vehicle)||{};
+  return {id:b.id,start:b.start,end:endOf(b),type:normType(b.type),foglio:String(b.foglio||""),itin:billItin(b),event:b.event||"",pax:b.pax,client:b.client||"",vehicle:{kind:v.kind,seats:v.seats,plate:(v.plate||"").trim()},price:Number(b.price)||0,park:Number(b.park)||0,meals:Number(b.meals)||0};
+}
+// dati del cliente dall'anagrafica (foglio "clienti" del fatturato)
+function invClient(b){
+  const c=b.clientCode!==""&&b.clientCode!=null?clientByCode(b.clientCode):null;
+  if(!c)return {code:"",nome:b.client||""};
+  const f=k=>String(cliField(c,k)||"").trim(),est=f("pivaEst").toUpperCase().replace(/[^A-Z0-9]/g,"");
+  let paese="IT",piva=idNorm(f("piva"));
+  if(!piva&&/^[A-Z]{2}[A-Z0-9]{2,}$/.test(est)){paese=est.slice(0,2);piva=est.slice(2);}
+  let comune=f("city"),prov=f("prov").toUpperCase();const m=/^(.*?)\s*\(([A-Za-z]{2})\)\s*$/.exec(comune);if(m){comune=m[1];if(!prov)prov=m[2].toUpperCase();}
+  const cf=idNorm(f("cf"));
+  return {code:String(c[0]),nome:c[1]||b.client||"",paese,piva,cf:piva&&cf===piva?"":cf,sdi:f("sdi").toUpperCase(),pec:f("pec"),indirizzo:f("addr"),cap:f("cap"),comune,prov,nazione:paese};
+}
+// I servizi di una bozza come sono adesso in agenda. Un servizio spostato di giorno tiene il suo id ma cambia
+// data (e n. foglio): si ritrova lo stesso. missing: i n. foglio dei servizi che non ci sono più.
+function invBookings(d){
+  const all=bookingsAll().concat(S.allDays?billSourceAll():[]),out=[],missing=[];
+  for(const s of d.servizi||[]){const b=all.find(x=>x.id===s.id&&x.start===s.start)||all.find(x=>x.id===s.id);if(b){if(!out.includes(b))out.push(b);}else missing.push(s.foglio||s.start);}
+  out.missing=missing;return out;
+}
+const sameClient=(a,b)=>(a.clientCode!==""&&a.clientCode!=null)||(b.clientCode!==""&&b.clientCode!=null)?String(a.clientCode)===String(b.clientCode):norm(a.client||"")===norm(b.client||"");
+// bozze per servizio (id della prenotazione → bozze, la più recente per prima): si costruisce una volta per ogni disegno della tabella
+function draftMap(){
+  const m=new Map(),list=STORE.drafts().sort((a,z)=>String(z.updatedAt||z.createdAt).localeCompare(String(a.updatedAt||a.createdAt)));
+  for(const d of list)for(const s of d.servizi){if(!m.has(s.id))m.set(s.id,[]);if(!m.get(s.id).includes(d))m.get(s.id).push(d);}
+  return m;
+}
+
+// ----- la bozza -----
+let INV=null; // {d: bozza, rev: versione del file quando è stata aperta, isNew, dirty, edits, scadAuto, touched}
+let invPending=null; // servizi per cui si è chiesta una bozza mentre ne esistono già: si sceglie dall'elenco
+function openInvoice(list,forceNew){
+  if(!canInv()){toast("Le bozze di fattura sono riservate: chiedi al Master.");return;}
+  list=list.filter(Boolean);if(!list.length)return;
+  if(list.some(b=>!sameClient(b,list[0]))){toast("Per una fattura unica i servizi devono essere dello stesso cliente.");return;}
+  // ci sono già bozze con questi servizi: si mostrano, con la possibilità di farne un'altra (es. acconto e saldo)
+  if(!forceNew){const ids=new Set(list.map(b=>b.id)),old=STORE.drafts().filter(d=>d.servizi.some(s=>ids.has(s.id)));if(old.length){invPending=list;openInvList(old.map(d=>d.id));return;}}
+  invPending=null;
+  const C=STORE.contab(),d=FT.newDraft(list.map(invService),invClient(list[0]),C,{today:todayISO(),by:meName()});
+  INV={d,rev:"",isNew:true,dirty:true,edits:0,scadAuto:true,touched:false};showInvoice();
+}
+function openDraft(id){
+  if(!canInv()){toast("Le bozze di fattura sono riservate: chiedi al Master.");return;}
+  const d=STORE.draft(id);if(!d){toast("La bozza non c'è più.");return;}
+  INV={d,rev:STORE.draftRev(id),isNew:false,dirty:false,edits:0,scadAuto:false,touched:true};showInvoice();
+}
+function showInvoice(){$("ovInvList").hidden=true;invTab("dati");renderInvForm();renderInvLive();invMsg("");$("ovInv").hidden=false;}
+function invMsg(t,cls){const m=$("invMsg");m.textContent=t||"";m.className="inv-msg"+(cls?" "+cls:"");}
+function invTab(t){document.querySelectorAll("#invTabs [data-it]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.it===t));$("invGrid").dataset.tab=t;}
+$("invTabs").addEventListener("click",e=>{const b=e.target.closest("[data-it]");if(b)invTab(b.dataset.it);});
+const ivF=(id,label,inner,cls)=>'<div class="f'+(cls?" "+cls:"")+'"><label for="'+id+'">'+label+'</label>'+inner+'</div>';
+const ivI=(id,path,v,extra)=>'<input id="'+id+'" data-m="'+path+'" value="'+esc(v)+'" autocomplete="off"'+(extra||"")+'>';
+function invRowsHTML(){
+  const d=INV.d,C=STORE.contab();
+  return d.righe.map((r,i)=>'<div class="iv-row" data-rid="'+esc(r.id)+'"><span class="n">'+(i+1)+'</span>'+
+    '<textarea data-rk="desc" rows="2" aria-label="Descrizione riga '+(i+1)+'" maxlength="1000">'+esc(r.desc)+'</textarea>'+
+    '<input data-rk="qta" data-t="num" type="number" min="0" step="any" value="'+esc(r.qta)+'" aria-label="Quantità">'+
+    '<input data-rk="prezzo" data-t="num" type="number" step="0.01" value="'+esc(r.prezzo)+'" aria-label="Prezzo">'+
+    '<input data-rk="sc" data-t="num" type="number" min="0" max="100" step="0.01" value="'+esc(r.sc||"")+'" placeholder="0" aria-label="Sconto %">'+
+    '<select data-rk="aliq" aria-label="Aliquota IVA"'+(r.aliq?"":' class="miss"')+'>'+aliqOpts(C,r.aliq,"scegli…")+'</select>'+
+    '<span class="tot" data-rtot="'+esc(r.id)+'"></span>'+
+    '<span class="ops"><button type="button" class="btn icon" data-rup="'+esc(r.id)+'" aria-label="Sposta su" title="Sposta su"'+(i?"":" disabled")+'>↑</button><button type="button" class="btn icon" data-rdel="'+esc(r.id)+'" aria-label="Elimina riga" title="Elimina riga">×</button></span></div>').join("");
+}
+function renderInvForm(){
+  const d=INV.d,C=STORE.contab(),c=d.cliente,pa=c.pa;
+  $("invTitle").textContent="Bozza fattura"+(c.nome?" · "+c.nome:"");
+  const fogli=d.servizi.map(s=>s.foglio).filter(Boolean);
+  let h='<section class="iv-sec"><h4>Documento</h4><div class="iv-grid g4">'+
+    ivF("iv-tipo","Tipo",'<select id="iv-tipo" data-m="tipo">'+optList(FT.TIPI_DOC,d.tipo)+'</select>')+
+    ivF("iv-data","Data",'<input id="iv-data" data-m="data" type="date" min="2000-01-01" max="2099-12-31" value="'+esc(d.data)+'">')+
+    ivF("iv-numero","Numero",ivI("iv-numero","numero",d.numero,' maxlength="20" placeholder="lo assegna la contabilità"'))+
+    ivF("iv-serv","Servizi",'<output id="iv-serv" class="iv-out">'+(fogli.length?esc(fogli.length>3?fogli.slice(0,3).join(", ")+" … ("+fogli.length+")":fogli.join(", ")):"nessun servizio collegato")+'</output>')+
+    ivF("iv-causale","Causale del documento (facoltativa)",ivI("iv-causale","causale",d.causale,' maxlength="400" placeholder="Es. Vs. ordine, riferimento pratica…"'),"w4")+'</div></section>';
+  h+='<section class="iv-sec"><h4>Cliente <small>dall\'anagrafica clienti'+(c.code?" · codice "+esc(c.code):"")+'</small></h4><div class="iv-grid g4">'+
+    ivF("iv-c-nome","Denominazione",ivI("iv-c-nome","cliente.nome",c.nome,' maxlength="80"'),"w2")+
+    ivF("iv-c-piva","Partita IVA",'<span class="iv-pair">'+ivI("iv-c-paese","cliente.paese",c.paese,' data-t="up" maxlength="2" aria-label="Paese della partita IVA" class="cc"')+ivI("iv-c-piva","cliente.piva",c.piva,' maxlength="28"')+'</span>')+
+    ivF("iv-c-cf","Codice fiscale",ivI("iv-c-cf","cliente.cf",c.cf,' data-t="up" maxlength="16"'))+
+    ivF("iv-c-ind","Indirizzo",ivI("iv-c-ind","cliente.indirizzo",c.indirizzo,' maxlength="60"'),"w2")+
+    ivF("iv-c-cap","CAP",ivI("iv-c-cap","cliente.cap",c.cap,' maxlength="5" inputmode="numeric"'))+
+    ivF("iv-c-comune","Comune",ivI("iv-c-comune","cliente.comune",c.comune,' maxlength="60"'))+
+    ivF("iv-c-prov","Provincia",ivI("iv-c-prov","cliente.prov",c.prov,' data-t="up" maxlength="2"'))+
+    ivF("iv-c-naz","Nazione",ivI("iv-c-naz","cliente.nazione",c.nazione,' data-t="up" maxlength="2"'))+
+    ivF("iv-c-sdi",pa?"Codice univoco ufficio":"Codice destinatario",ivI("iv-c-sdi","cliente.sdi",c.sdi,' data-t="up" maxlength="7"'))+
+    ivF("iv-c-pec","PEC",ivI("iv-c-pec","cliente.pec",c.pec,' maxlength="256" type="email"'))+
+    '<label class="perm w4"><input type="checkbox" id="iv-c-pa" data-m="cliente.pa"'+(pa?" checked":"")+'> <span><b>Ente pubblico</b> (scuole, comuni…): codice ufficio di 6 caratteri, fattura in formato PA</span></label></div>'+
+    '<div class="iv-grid g4 iv-pa"'+(pa||d.pa.ordNum||d.pa.cig||d.pa.cup||d.pa.split?"":" hidden")+' id="ivPa">'+
+    ivF("iv-ordnum","Ordine n.",ivI("iv-ordnum","pa.ordNum",d.pa.ordNum,' maxlength="20"'))+
+    ivF("iv-orddata","Ordine del",'<input id="iv-orddata" data-m="pa.ordData" type="date" min="2000-01-01" max="2099-12-31" value="'+esc(d.pa.ordData)+'">')+
+    ivF("iv-cig","CIG",ivI("iv-cig","pa.cig",d.pa.cig,' data-t="up" maxlength="15"'))+
+    ivF("iv-cup","CUP",ivI("iv-cup","pa.cup",d.pa.cup,' data-t="up" maxlength="15"'))+
+    '<label class="perm w4"><input type="checkbox" id="iv-split" data-m="pa.split"'+(d.pa.split?" checked":"")+'> <span><b>Scissione dei pagamenti</b> – l\'ente paga solo l\'imponibile</span></label></div>'+
+    (pa||d.pa.ordNum||d.pa.cig||d.pa.cup||d.pa.split?"":'<button type="button" class="linkbtn" id="ivPaShow">+ Ordine d\'acquisto / CIG / CUP</button>')+'</section>';
+  h+='<section class="iv-sec"><h4>Righe</h4><div class="iv-bar">'+
+    '<label>Prezzi <select id="iv-lordi" data-m="lordi" data-t="bool"><option value="1"'+(d.lordi?" selected":"")+'>IVA compresa (come in agenda)</option><option value="0"'+(d.lordi?"":" selected")+'>IVA esclusa</option></select></label>'+
+    (d.servizi.length>1?'<label>Noleggio <select id="iv-modo" data-m="modo"><option value="riepilogo"'+(d.modo==="riepilogo"?" selected":"")+'>una riga riepilogativa</option><option value="singole"'+(d.modo==="singole"?" selected":"")+'>una riga per servizio</option></select></label>':"")+
+    (d.servizi.length?'<button type="button" class="linkbtn" id="ivRegen" title="Rifà le righe partendo dai dati dei servizi come sono adesso in agenda">↻ Rifai le righe dai servizi</button>':"")+'</div>'+
+    '<div class="iv-rows"><div class="iv-row hd"><span>N.</span><span>Descrizione</span><span>Q.tà</span><span id="ivPriceHd">Prezzo</span><span>Sc. %</span><span>IVA</span><span class="r">Imponibile</span><span></span></div><div id="ivRows">'+invRowsHTML()+'</div></div>'+
+    '<div class="iv-add"><button type="button" class="btn" data-radd="libera">+ Riga</button><select id="ivCau" aria-label="Causale da aggiungere"><option value="">+ Riga da causale…</option>'+C.causali.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.nome)+'</option>').join("")+'</select><button type="button" class="btn" data-radd="sconto">+ Sconto in euro</button></div></section>';
+  h+='<section class="iv-sec"><h4>Sconto, arrotondamento, bollo</h4><div class="iv-grid g4">'+
+    ivF("iv-sconto",'Sconto sulla fattura (%) <small title="Lo sconto vale per il noleggio e le righe scritte a mano; non per i rimborsi spese e il bollo">· non sui rimborsi</small>','<input id="iv-sconto" data-m="scontoPerc" data-t="num" type="number" min="0" max="100" step="0.01" value="'+esc(d.scontoPerc||"")+'" placeholder="0">')+
+    ivF("iv-arrot","Arrotondamento (€)",'<input id="iv-arrot" data-m="arrot" data-t="num" type="number" min="-1000" max="1000" step="0.01" value="'+(d.arrotAuto||d.arrotStep?"":esc(d.arrot))+'" placeholder="'+arrotHint(d,C)+'">')+
+    '<div class="f w2 iv-quick"><label>Porta il totale a</label><span><button type="button" class="btn" data-arr="1" aria-pressed="'+(d.arrotStep===1)+'">euro intero</button><button type="button" class="btn" data-arr="0.5" aria-pressed="'+(d.arrotStep===0.5)+'">50 cent</button><button type="button" class="btn" data-arr="0.1" aria-pressed="'+(d.arrotStep===0.1)+'">10 cent</button><button type="button" class="btn" data-arr="0">togli</button></span></div>'+
+    '<label class="perm w2"><input type="checkbox" id="iv-bollo" data-m="bollo"'+(d.bollo?" checked":"")+'> <span><b>Bollo virtuale</b> di € '+eur2(C.opzioni.bolloImporto)+' assolto da noi</span></label>'+
+    '<label class="perm w2"><input type="checkbox" id="iv-bolloadd" data-m="bolloAddebita"'+(d.bolloAddebita?" checked":"")+(d.bollo?"":" disabled")+'> <span>…e addebitato al cliente con una riga</span></label></div></section>';
+  h+='<section class="iv-sec"><h4>Pagamento</h4><div class="iv-grid g4">'+
+    ivF("iv-mod","Modalità",'<select id="iv-mod" data-m="pagamento.mod">'+optList(FT.MOD_PAG,d.pagamento.mod)+'</select>')+
+    ivF("iv-cond","Condizioni",'<select id="iv-cond" data-m="pagamento.cond">'+optList(FT.COND_PAG,d.pagamento.cond)+'</select>')+
+    ivF("iv-scad","Scadenza",'<input id="iv-scad" data-m="pagamento.scad" type="date" min="2000-01-01" max="2099-12-31" value="'+esc(d.pagamento.scad)+'">')+
+    ivF("iv-iban","Coordinate bancarie",'<output id="iv-iban" class="iv-out">'+(C.azienda.iban?esc(C.azienda.iban):'<span class="miss">manca l\'IBAN (Contabilità)</span>')+'</output>')+'</div></section>';
+  $("invForm").innerHTML=h;
+  $("invDel").hidden=INV.isNew;
+}
+const arrotHint=(d,C)=>d.arrotStep===1?"all'euro":d.arrotStep===0.5?"ai 50 cent":d.arrotStep===0.1?"ai 10 cent":C.opzioni.arrot==="no"||!d.arrotAuto?"0,00":"automatico";
+// totali, anteprima e controlli: si rifanno a ogni tasto, senza toccare i campi in cui si sta scrivendo
+function renderInvLive(){
+  if(!INV)return;
+  const d=INV.d,C=STORE.contab(),k=FT.calc(d,C),issues=FT.validate(d,C),errs=issues.filter(x=>x.lv==="err");
+  for(const l of k.lines){const el=$("invForm").querySelector('[data-rtot="'+(window.CSS&&CSS.escape?CSS.escape(l.id):l.id)+'"]');if(el)el.textContent=eur2(l.tot);}
+  const ph=$("ivPriceHd");if(ph)ph.textContent=d.lordi?"Prezzo IVA compr.":"Prezzo netto";
+  $("invTotals").innerHTML='<span>Imponibile <b>'+eur2(k.imponibile)+'</b></span><span>IVA <b>'+eur2(k.imposta)+'</b></span>'+(k.arrot?'<span>Arrot. <b>'+eur2(k.arrot)+'</b></span>':"")+'<span class="tot">Totale <b>€ '+eur2(k.totale)+'</b></span>'+(k.split?'<span>Da pagare <b>€ '+eur2(k.daPagare)+'</b></span>':"");
+  $("invPaper").innerHTML=invoiceHTML(d,k,C);
+  issues.sort((a,b)=>(a.lv==="err"?0:1)-(b.lv==="err"?0:1));
+  $("invIssues").innerHTML=issues.length?'<ul>'+issues.map(x=>'<li class="'+x.lv+'">'+(x.lv==="err"?"Da correggere: ":"Nota: ")+esc(x.msg)+'</li>').join("")+'</ul>':'<p class="ok">Tutto in ordine: il file XML si può creare.</p>';
+  const off=S.readOnly||!canInv(); // permesso tolto mentre la bozza è aperta: si può ancora guardare, non salvare né creare il file
+  $("invXml").disabled=!!errs.length||off;$("invXml").title=errs.length?"Prima correggi le voci segnate in rosso":"";
+  $("invSave").disabled=off;$("invDel").disabled=off;
+  $("invState").textContent=d.xmlAt?"File XML creato il "+itD(d.xmlAt.slice(0,10))+(d.xmlBy?" da "+d.xmlBy:"")+(INV.dirty?" · modifiche non salvate":""):INV.isNew?"Nuova (non ancora salvata)":INV.dirty?"Modifiche non salvate":"Bozza salvata"+(d.updatedAt?" il "+itD(d.updatedAt.slice(0,10)):"");
+}
+// l'anteprima ha la stessa disposizione della fattura dell'Agenzia delle Entrate (quella dei PDF che ricevono i clienti)
+function invoiceHTML(d,k,C){
+  const A=C.azienda,c=d.cliente,dt=x=>FT.itLong(x),li=(l,v)=>v?'<div>'+l+': <b>'+esc(v)+'</b></div>':"";
+  const dest=c.pa?c.sdi:c.nazione!=="IT"?"XXXXXXX":/^[A-Z0-9]{7}$/.test(c.sdi)?c.sdi:c.pec?"Indicata PEC":"0000000";
+  let h='<div class="fe"><div class="fe-parti"><div><h5>Cedente/prestatore (fornitore)</h5>'+li("Identificativo fiscale ai fini IVA",A.paese+A.piva)+li("Codice fiscale",A.cf)+li("Denominazione",A.nome)+li("Regime fiscale",A.regime+" ("+(FT.REGIMI[A.regime]||"").toLowerCase()+")")+li("Indirizzo",[A.indirizzo,A.civico].filter(Boolean).join(", "))+'<div>Comune: <b>'+esc(A.comune)+'</b> Provincia: <b>'+esc(A.prov)+'</b></div><div>Cap: <b>'+esc(A.cap)+'</b> Nazione: <b>'+esc(A.nazione)+'</b></div>'+li("Telefono",A.tel)+'</div>'+
+    '<div><h5>Cessionario/committente (cliente)</h5>'+li("Identificativo fiscale ai fini IVA",c.piva?c.paese+c.piva:"")+li("Codice fiscale",c.cf)+li("Denominazione",c.nome)+li("Indirizzo",[c.indirizzo,c.civico].filter(Boolean).join(", "))+'<div>Comune: <b>'+esc(c.comune)+'</b> Provincia: <b>'+esc(c.prov)+'</b></div><div>Cap: <b>'+esc(c.nazione==="IT"&&/^\d{5}$/.test(c.cap)?c.cap:"00000")+'</b> Nazione: <b>'+esc(c.nazione)+'</b></div>'+(dest==="Indicata PEC"?li("Pec",c.pec):"")+'</div></div>';
+  h+='<table class="fe-t fe-doc"><thead><tr><th>Tipologia documento</th><th>Numero documento</th><th>Data documento</th><th>Codice destinatario</th></tr></thead><tbody><tr><td>'+esc(d.tipo)+' ('+esc((FT.TIPI_DOC[d.tipo]||"").toLowerCase())+')</td><td>'+(String(d.numero||"").trim()?esc(d.numero):'<span class="fe-bozza">BOZZA</span>')+'</td><td>'+esc(dt(d.data))+'</td><td>'+esc(dest)+'</td></tr></tbody></table>';
+  const ord=d.pa.ordNum||d.pa.cig||d.pa.cup?"Vs.Ord. "+(d.pa.ordNum||"")+(d.pa.ordData?" del "+dt(d.pa.ordData):"")+(d.pa.cup?" CUP: "+d.pa.cup:"")+(d.pa.cig?" CIG: "+d.pa.cig:""):"";
+  h+='<table class="fe-t fe-righe"><thead><tr><th class="l">Descrizione</th><th>Quantità</th><th>Prezzo unitario</th><th>Sconto o magg.</th><th>%IVA</th><th>Prezzo totale</th></tr></thead><tbody>'+
+    (ord?'<tr><td class="l" colspan="6">'+esc(ord)+'</td></tr>':"")+(String(d.causale||"").trim()?'<tr><td class="l" colspan="6">'+esc(d.causale)+'</td></tr>':"")+
+    (k.lines.length?k.lines.map(l=>'<tr><td class="l">'+esc(l.desc)+'</td><td>'+eur2(l.qta)+'</td><td>'+Number(l.unit).toLocaleString("it-IT",{minimumFractionDigits:2,maximumFractionDigits:6})+'</td><td>'+([l.sc,l.docSc].filter(Boolean).map(x=>"SC "+eur2(x)+"%").join(" + "))+'</td><td>'+(l.aliqOk?(l.perc>0?eur2(l.perc):esc(l.natura)):'<span class="fe-miss">?</span>')+'</td><td>'+eur2(l.tot)+'</td></tr>').join(""):'<tr><td class="l" colspan="6">Nessuna riga</td></tr>')+'</tbody></table>';
+  h+='<table class="fe-t"><caption>RIEPILOGHI IVA</caption><thead><tr><th class="l">esigibilità iva / riferimenti normativi</th><th>%IVA</th><th>Totale imponibile</th><th>Totale imposta</th></tr></thead><tbody>'+
+    k.riepilogo.map(r=>'<tr><td class="l">'+(r.esigibilita==="S"?"S (scissione dei pagamenti)":r.esigibilita==="I"?"I (esigibilità immediata)":esc(r.rif||FT.NATURE[r.natura]||""))+'</td><td>'+(r.perc>0?eur2(r.perc):esc(r.natura||"?"))+'</td><td>'+eur2(r.imponibile)+'</td><td>'+eur2(r.imposta)+'</td></tr>').join("")+'</tbody></table>';
+  h+='<table class="fe-t"><caption>TOTALI</caption><thead><tr><th>Importo bollo</th><th>Sconto/Maggiorazione</th><th>Arr.</th><th>Totale documento</th></tr></thead><tbody><tr><td>'+(k.bollo?eur2(k.bollo)+" (virtuale)":"")+'</td><td>'+(k.sconto?"SC "+eur2(k.sconto)+"%":"")+'</td><td>'+(k.arrot?eur2(k.arrot):"")+'</td><td><b>'+eur2(k.totale)+'</b></td></tr></tbody></table>';
+  const pg=d.pagamento;
+  h+='<table class="fe-t"><thead><tr><th class="l">Modalità pagamento</th><th class="l">Coordinate bancarie</th><th class="l">Istituto</th><th>Data scadenza</th><th>Importo</th></tr></thead><tbody><tr><td class="l">'+esc(pg.mod)+' '+esc(FT.MOD_PAG[pg.mod]||"")+'</td><td class="l">'+(pg.mod==="MP05"&&A.iban?"IBAN "+esc(A.iban)+(A.abi||A.cab?"<br>ABI "+esc(A.abi)+" - CAB "+esc(A.cab):""):"")+'</td><td class="l">'+(pg.mod==="MP05"?esc(A.banca):"")+'</td><td>'+esc(dt(pg.scad))+'</td><td>'+eur2(k.daPagare)+'</td></tr></tbody></table></div>';
+  return h;
+}
+function invTouch(){INV.dirty=true;INV.edits++;renderInvLive();}
+function invRegen(ask){
+  const d=INV.d,list=invBookings(d);
+  if(!list.length){invMsg("Non trovo più in agenda i servizi di questa bozza.","err");return false;}
+  // se ne manca qualcuno non si rifà niente: una fattura con un servizio in meno e lo stesso elenco sarebbe sbagliata
+  if(list.missing.length){invMsg("Non trovo più in agenda "+(list.missing.length===1?"il servizio n. ":"i servizi n. ")+list.missing.join(", ")+" (eliminat"+(list.missing.length===1?"o":"i")+"?): le righe restano come sono. Correggile a mano o fai una bozza nuova.","err");return false;}
+  if(ask&&INV.touched&&!confirm("Rifaccio le righe partendo dai servizi: quelle scritte o corrette a mano vanno perse. Continuo?"))return false;
+  d.servizi=list.map(b=>({id:b.id,start:b.start,foglio:String(b.foglio||"")})); // un servizio spostato di giorno: data e n. foglio di adesso
+  d.righe=FT.linesFor(list.map(invService),STORE.contab(),d.modo);d.bolloAddebita=false;INV.touched=false;
+  const cb=$("iv-bolloadd");if(cb)cb.checked=false;
+  $("ivRows").innerHTML=invRowsHTML();invTouch();return true;
+}
+function invPaChanged(){
+  const d=INV.d,C=STORE.contab(),pa=d.cliente.pa;
+  d.pa.split=pa&&C.opzioni.splitPA;
+  if(INV.scadAuto&&FT.okDate(d.data))d.pagamento.scad=FT.addDays(d.data,pa?C.opzioni.giorniPA:C.opzioni.giorni);
+}
+function invInput(e){
+  if(!INV)return;const el=e.target,d=INV.d,C=STORE.contab();
+  const row=el.closest("[data-rid]");
+  if(row&&el.dataset.rk){
+    const r=d.righe.find(x=>x.id===row.dataset.rid);if(!r)return;
+    let rv=inpVal(el);
+    if(el.dataset.rk==="prezzo"&&r.tipo==="sconto")rv=-Math.abs(rv); // lo sconto in euro toglie sempre, con o senza il segno meno
+    r[el.dataset.rk]=rv;INV.touched=true;if(el.dataset.rk==="aliq")el.classList.toggle("miss",!el.value);
+    invTouch();return;
+  }
+  const p=el.dataset.m;if(!p)return;
+  let v=inpVal(el);if(el.dataset.t==="bool")v=el.value==="1";
+  if(p==="arrot"){d.arrotStep=0;d.arrotAuto=el.value===""&&C.opzioni.arrot!=="no";d.arrot=el.value===""?0:Number(el.value)||0;el.placeholder=arrotHint(d,C);document.querySelectorAll("#invForm [data-arr]").forEach(b=>b.setAttribute("aria-pressed","false"));invTouch();return;}
+  setPath(d,p,v);
+  if(p==="pagamento.scad")INV.scadAuto=false;
+  // la scadenza segue la data senza ridisegnare il modulo (scrivendo la data a mano il cursore resta dov'è)
+  if(p==="data"&&INV.scadAuto&&FT.okDate(d.data)){d.pagamento.scad=FT.addDays(d.data,d.cliente.pa?C.opzioni.giorniPA:C.opzioni.giorni);const sc=$("iv-scad");if(sc)sc.value=d.pagamento.scad;}
+  if(e.type==="change"){
+    let redraw=false;
+    if(p==="cliente.sdi"){const pa=FT.isPA(d.cliente);if(pa!==d.cliente.pa){d.cliente.pa=pa;invPaChanged();redraw=true;}}
+    if(p==="cliente.pa"){invPaChanged();redraw=true;}
+    if(p==="modo"){if(invRegen(true)!==true){d.modo=d.modo==="riepilogo"?"singole":"riepilogo";redraw=true;}}
+    if(p==="bollo"){if(!d.bollo&&d.bolloAddebita){d.bolloAddebita=false;d.righe=d.righe.filter(r=>r.tipo!=="bollo");}redraw=true;}
+    if(p==="bolloAddebita"){
+      d.righe=d.righe.filter(r=>r.tipo!=="bollo");
+      if(d.bolloAddebita){const n1=C.aliquote.find(a=>a.natura==="N1");d.righe.push({id:FT.newId("r"),tipo:"bollo",desc:"IMPOSTA DI BOLLO ASSOLTA IN MODO VIRTUALE",qta:1,prezzo:C.opzioni.bolloImporto,sc:0,aliq:n1?n1.id:"",fogli:[]});}
+      redraw=true;
+    }
+    if(redraw){const keep=el.id;renderInvForm();const again=keep&&$(keep);if(again)again.focus();}
+  }
+  invTouch();
+}
+$("invForm").addEventListener("input",invInput);$("invForm").addEventListener("change",invInput);
+$("invForm").addEventListener("submit",e=>e.preventDefault());
+$("invForm").addEventListener("click",e=>{
+  if(!INV)return;const d=INV.d,C=STORE.contab(),t=e.target;
+  if(t.closest("#ivPaShow")){$("ivPa").hidden=false;t.closest("#ivPaShow").remove();$("iv-ordnum").focus();return;}
+  if(t.closest("#ivRegen")){invRegen(true);return;}
+  const arr=t.closest("[data-arr]");
+  if(arr){
+    // si ricorda il passo, non l'importo: se poi cambiano i prezzi il totale resta arrotondato
+    const st=Number(arr.dataset.arr);
+    d.arrotStep=[0.1,0.5,1].includes(st)?st:0;d.arrotAuto=false;d.arrot=0;
+    const f=$("iv-arrot");f.value="";f.placeholder=arrotHint(d,C);
+    document.querySelectorAll("#invForm [data-arr]").forEach(b=>b.setAttribute("aria-pressed",String(!!d.arrotStep&&Number(b.dataset.arr)===d.arrotStep)));
+    invTouch();return;
+  }
+  const add=t.closest("[data-radd]"),del=t.closest("[data-rdel]"),up=t.closest("[data-rup]");
+  if(add){
+    const first=d.righe.find(r=>r.aliq);
+    d.righe.push(add.dataset.radd==="sconto"?{id:FT.newId("r"),tipo:"sconto",desc:C.opzioni.maiuscole?"SCONTO":"Sconto",qta:1,prezzo:-0,sc:0,aliq:first?first.aliq:"",fogli:[]}:{id:FT.newId("r"),tipo:"libera",desc:"",qta:1,prezzo:0,sc:0,aliq:"",fogli:[]});
+  }else if(del){d.righe=d.righe.filter(r=>r.id!==del.dataset.rdel);if(!d.righe.some(r=>r.tipo==="bollo")&&d.bolloAddebita){d.bolloAddebita=false;const cb=$("iv-bolloadd");if(cb)cb.checked=false;}}
+  else if(up){const i=d.righe.findIndex(r=>r.id===up.dataset.rup);if(i>0){const x=d.righe[i];d.righe[i]=d.righe[i-1];d.righe[i-1]=x;}}
+  else return;
+  INV.touched=true;$("ivRows").innerHTML=invRowsHTML();invTouch();
+  if(add){const rows=$("ivRows").querySelectorAll(".iv-row"),last=rows[rows.length-1];if(last)last.querySelector(add.dataset.radd==="sconto"?'[data-rk="prezzo"]':"textarea").focus();}
+});
+// riga da una causale: il testo si riempie con i dati del primo servizio della bozza
+$("invForm").addEventListener("change",e=>{
+  if(!INV||e.target.id!=="ivCau"||!e.target.value)return;
+  const d=INV.d,C=STORE.contab(),c=C.causali.find(x=>x.id===e.target.value);e.target.value="";if(!c)return;
+  const list=invBookings(d).map(invService),s=list[0];
+  const vals=s?{MEZZO:FT.mezzo(s.vehicle,C),DATA:FT.itShort(s.start),DATA_FINE:FT.itShort(s.end||s.start),PERIODO:FT.periodo(s.start,s.end),MESE:FT.mesi(list),ITINERARIO:String(s.itin||"").replace(/\s*>\s*/g," - "),EVENTO:s.event||"",PAX:s.pax==null?"":String(s.pax),FOGLIO:s.foglio||"",TARGA:s.vehicle.plate||"",CLIENTE:s.client||"",N:String(list.length)}:{MEZZO:"",DATA:"",DATA_FINE:"",PERIODO:"",MESE:"",ITINERARIO:"",EVENTO:"",PAX:"",FOGLIO:"",TARGA:"",CLIENTE:"",N:""};
+  d.righe.push({id:FT.newId("r"),tipo:c.uso==="parcheggi"?"parcheggi":c.uso==="pasti"?"pasti":"libera",desc:FT.fill(c.testo,vals,C),qta:1,prezzo:0,sc:0,aliq:c.aliq||"",fogli:[]});
+  INV.touched=true;$("ivRows").innerHTML=invRowsHTML();invTouch();
+  const rows=$("ivRows").querySelectorAll(".iv-row"),last=rows[rows.length-1];if(last)last.querySelector('[data-rk="prezzo"]').focus();
+});
+function closeInvoice(force){
+  if(!INV){$("ovInv").hidden=true;return true;}
+  if(!force&&INV.dirty&&!S.readOnly&&!confirm(INV.isNew?"Chiudere senza salvare la bozza?":"Chiudere senza salvare le modifiche alla bozza?"))return false;
+  $("ovInv").hidden=true;INV=null;if(S.view==="bill")renderBill();return true;
+}
+$("invClose").onclick=()=>closeInvoice();backdropClose($("ovInv"),()=>closeInvoice());
+async function invSave(quiet){
+  if(!INV||S.readOnly)return false;
+  if(!canInv()){invMsg("Non hai più il permesso di preparare le bozze di fattura.","err");return false;}
+  const cur=INV,d=cur.d,was=cur.isNew,n0=cur.edits;
+  d.updatedAt=new Date().toISOString();d.updBy=meName();
+  $("invSave").disabled=true;if(!quiet)invMsg("Salvo…");
+  try{
+    const saved=await STORE.saveDraft(d,cur.rev);
+    // d resta quello del modulo (se intanto si è scritto ancora non si perde niente); cambia solo lo stato
+    cur.rev=STORE.draftRev(saved.id);cur.isNew=false;cur.dirty=cur.edits!==n0;
+    ACC.log("fattura",(was?"Nuova bozza di fattura":"Modificata la bozza di fattura")+" «"+(saved.cliente.nome||"")+"» · € "+eur2(FT.calc(saved,STORE.contab()).totale)+(saved.servizi.length?" · n. "+saved.servizi.map(s=>s.foglio).filter(Boolean).slice(0,6).join(", ")+(saved.servizi.length>6?"…":""):""),{id:saved.id});
+    if(INV!==cur)return true; // nel frattempo la finestra è stata chiusa o si è aperta un'altra bozza
+    $("invDel").hidden=false;renderInvLive();if(!quiet)invMsg("Bozza salvata.","ok");
+    return true;
+  }catch(err){
+    if(INV===cur)invMsg(err&&err.code==="offline"?"Serve la connessione a internet per salvare la bozza.":err&&err.code==="conflict"?"Un altro dispositivo ha modificato questa bozza mentre era aperta qui: per non cancellare le sue modifiche non la salvo. Chiudila e riaprila.":"Non riesco a salvare la bozza: riprova tra poco.","err");
+    return false;
+  }finally{if(INV===cur)$("invSave").disabled=S.readOnly||!canInv();}
+}
+$("invSave").onclick=()=>invSave();
+$("invDel").onclick=async()=>{
+  if(!INV||INV.isNew||S.readOnly)return;
+  if(!canInv()){invMsg("Non hai più il permesso di preparare le bozze di fattura.","err");return;}
+  if(!confirm("Eliminare questa bozza di fattura? I servizi in agenda non vengono toccati."))return;
+  try{const d=INV.d;await STORE.deleteDraft(d.id);ACC.log("fattura","Eliminata la bozza di fattura «"+(d.cliente.nome||"")+"»",{id:d.id});INV.dirty=false;closeInvoice(true);toast("Bozza eliminata");}
+  catch(err){invMsg(err&&err.code==="offline"?"Serve la connessione a internet.":"Non riesco a eliminarla: riprova tra poco.","err");}
+};
+// File XML per la contabilità: una copia in Dropbox › Fatture XML (con un nome che non c'è ancora), la bozza
+// salvata con il nome del file, e il file scaricato sul dispositivo. Rifacendolo per la stessa bozza il file
+// prende il posto del precedente: alla contabilità non restano due file della stessa fattura.
+$("invXml").onclick=async()=>{
+  if(!INV||S.readOnly)return;
+  if(!canInv()){invMsg("Non hai più il permesso di preparare le bozze di fattura.","err");return;}
+  const cur=INV,C=STORE.contab();
+  // il file si scrive dalla bozza ripulita (stessi controlli di quando si salva): quello che si vede è quello che esce
+  const d=FT.cleanDraft(cur.d);
+  const errs=FT.validate(cur.d,C).concat(d?FT.validate(d,C):[{lv:"err",msg:"La bozza non è valida."}]).filter(x=>x.lv==="err");
+  if(errs.length){invMsg("Prima correggi: "+errs[0].msg,"err");return;}
+  $("invXml").disabled=true;invMsg("Preparo il file…");
+  try{
+    // rifatto per la stessa bozza: stesso nome e stesso posto del file di prima
+    const again=FT.progOf(cur.d.xmlName),oldPath=again?(cur.d.xmlPath||""):"";
+    let prog=again||FT.progressivo(),out=FT.xml(d,C,{prog}),path="",where="";
+    if(navigator.onLine){
+      try{
+        for(let i=0;;i++){
+          try{path=await STORE.saveInvoiceXml(out.name,out.xml,oldPath);break;}
+          catch(e){if(oldPath||!(e&&e.code==="conflict")||i>=30)throw e;prog=FT.nextProg(prog);out=FT.xml(d,C,{prog});} // nome già usato da un'altra fattura: il successivo
+        }
+        where=" Copia in Dropbox › "+path.replace(STORE.BASE+"/","").split("/").slice(0,-1).join(" › ")+".";
+      }catch(_){where=" Non sono riuscito a metterne una copia in Dropbox.";}
+    }else where=" Sei offline: il file è solo su questo dispositivo.";
+    cur.d.xmlAt=new Date().toISOString();cur.d.xmlBy=meName();cur.d.xmlName=out.name;if(path)cur.d.xmlPath=path;cur.dirty=true;
+    const saved=INV===cur?await invSave(true):false;
+    const blob=new Blob([out.xml],{type:"application/xml"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=out.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
+    ACC.log("fattura",(again?"Rifatto":"Creato")+" il file XML "+out.name+" («"+(d.cliente.nome||"")+"», € "+eur2(out.calc.totale)+", formato "+out.formato+")",{id:d.id});
+    if(INV===cur)invMsg("File "+out.name+" scaricato."+where+(saved?"":" La bozza però non è stata salvata."),saved?"ok":"err");
+  }catch(err){console.error(err);ACC.tlog("errore","Bozza fattura: file XML non creato",String((err&&(err.code||err.message))||err));if(INV===cur)invMsg("Non sono riuscito a creare il file.","err");}
+  finally{if(INV===cur)renderInvLive();}
+};
+const FE_PRINT='@page{size:A4 portrait;margin:12mm}html,body{margin:0;background:#fff;color:#111;font:9.5pt/1.35 Arial,Helvetica,sans-serif}.fe h5{margin:0 0 3pt;font-size:9.5pt}.fe-parti{display:grid;grid-template-columns:1fr 1fr;border:1px solid #000;margin-bottom:10pt}.fe-parti>div{padding:5pt 8pt}.fe-parti>div+div{border-left:1px solid #000}.fe-t{width:100%;border-collapse:collapse;margin:0 0 12pt}.fe-t caption{border:1px solid #000;border-bottom:0;font-weight:700;padding:3pt}.fe-t th{border:1px solid #000;font-weight:400;padding:3pt 5pt;font-size:8.5pt}.fe-t td{padding:4pt 5pt;text-align:right;vertical-align:top;border-left:1px solid #000;border-right:1px solid #000}.fe-t tbody tr:last-child td{border-bottom:1px solid #000}.fe-t .l{text-align:left}.fe-doc td{text-align:center;font-weight:700}.fe-bozza{letter-spacing:.1em}.fe-righe td.l{white-space:pre-wrap}.fe-miss{color:#b00020;font-weight:700}';
+$("invPrint").onclick=async()=>{
+  if(!INV)return;
+  const d=INV.d,C=STORE.contab(),html='<!doctype html><html lang="it"><head><meta charset="utf-8"><title>'+esc("Bozza fattura "+(d.cliente.nome||""))+'</title><style>'+FE_PRINT+'.wm{font-size:8pt;color:#666;margin:0 0 6pt}</style></head><body><p class="wm">BOZZA – non è la fattura: quella vera la emette la contabilità.</p>'+invoiceHTML(d,FT.calc(d,C),C)+'</body></html>';
+  let fr=$("printFrame");if(fr)fr.remove();
+  fr=document.createElement("iframe");fr.id="printFrame";fr.setAttribute("aria-hidden","true");fr.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  document.body.appendChild(fr);await new Promise(r=>{fr.onload=r;fr.srcdoc=html;});
+  try{fr.contentWindow.focus();fr.contentWindow.print();}catch(_){toast("Non riesco ad aprire la stampa.");}
+};
+
+// ----- elenco delle bozze -----
+let invOnly=null; // elenco ristretto alle bozze di certi servizi
+function openInvList(only){
+  if(!canInv()){toast("Le bozze di fattura sono riservate: chiedi al Master.");return;}
+  invOnly=Array.isArray(only)?only:null;if(!invOnly)invPending=null;
+  $("invQ").value="";$("invQ").hidden=!!invOnly;renderInvList();$("ovInvList").hidden=false;
+}
+function renderInvList(){
+  const C=STORE.contab(),q=norm($("invQ").value||"").trim();
+  let list=STORE.drafts().sort((a,z)=>String(z.updatedAt||z.createdAt).localeCompare(String(a.updatedAt||a.createdAt)));
+  const tot=list.length;if(invOnly)list=list.filter(d=>invOnly.includes(d.id));else if(q)list=list.filter(d=>norm([d.cliente.nome,d.numero,d.servizi.map(s=>s.foglio).join(" "),d.xmlName].join(" ")).includes(q));
+  $("invListCount").textContent=invOnly?(list.length===1?"C'è già una bozza con questo servizio":"Ci sono già "+list.length+" bozze con questi servizi"):tot+(tot===1?" bozza":" bozze");
+  $("invListNew").hidden=!(invOnly&&invPending);$("invListAll").hidden=!invOnly;
+  $("invListBody").innerHTML=list.length?'<table class="bt inv-lt"><thead><tr><th>Data</th><th>Cliente</th><th>Servizi (n. foglio)</th><th class="r">Totale</th><th>Stato</th><th>Ultima modifica</th></tr></thead><tbody>'+list.map(d=>{const k=FT.calc(d,C),f=d.servizi.map(s=>s.foglio).filter(Boolean);
+    return '<tr data-draft="'+esc(d.id)+'" tabindex="0"><td class="num">'+esc(itDate(d.data))+'</td><td><b>'+esc(d.cliente.nome||"—")+'</b>'+(d.numero?'<span class="sub">n. '+esc(d.numero)+'</span>':"")+'</td><td>'+esc(f.slice(0,4).join(", ")+(f.length>4?" … ("+f.length+")":""))+'</td><td class="num r"><b>'+eur2(k.totale)+'</b></td><td>'+(d.xmlAt?'<span class="inv-badge xml">XML creato il '+esc(itD(d.xmlAt.slice(0,10)))+'</span>':'<span class="inv-badge">Bozza</span>')+'</td><td>'+esc((d.updBy||d.createdBy||"")+" · "+itD(String(d.updatedAt||d.createdAt).slice(0,10)))+'</td></tr>';}).join("")+'</tbody></table>':'<p class="empty">'+(tot?"Nessuna bozza con queste parole.":"Non ci sono ancora bozze: dalla vista Fatturato premi «Bozza Fattura» sulla riga di un servizio.")+'</p>';
+}
+$("invQ").addEventListener("input",renderInvList);
+$("invListBody").addEventListener("click",e=>{const tr=e.target.closest("[data-draft]");if(tr)openDraft(tr.dataset.draft);});
+$("invListBody").addEventListener("keydown",e=>{if(e.key!=="Enter")return;const tr=e.target.closest("[data-draft]");if(tr)openDraft(tr.dataset.draft);});
+$("invListClose").onclick=()=>{$("ovInvList").hidden=true;invPending=null;};backdropClose($("ovInvList"),()=>{$("ovInvList").hidden=true;invPending=null;});
+$("invListNew").onclick=()=>{const l=invPending;if(l)openInvoice(l,true);};
+$("invListAll").onclick=()=>openInvList();
+$("invList").onclick=()=>openInvList();
+
+// ----- vista Fatturato: caselle per scegliere più servizi e tasto «Bozza Fattura» -----
+const invSel=new Set();
+function invSelBookings(){const all=bookingsAll().concat(S.allDays?billSourceAll():[]);return [...invSel].map(k=>all.find(b=>invKey(b)===k)).filter(Boolean);}
+function renderInvBar(){
+  const on=canInv();$("billInv").hidden=!on;if(!on)return;
+  const sel=invSelBookings(),n=sel.length,tot=sel.reduce((a,b)=>a+(Number(b.price)||0)+(Number(b.park)||0)+(Number(b.meals)||0),0);
+  $("invSel").disabled=!n;$("invSel").textContent=n?"Bozza fattura unica dei "+n+" servizi selezionati (€ "+eur2(tot)+")":"Bozza fattura di più servizi";
+  $("invSelClear").hidden=!n;
+  const nd=STORE.drafts().length;$("invList").textContent="Bozze fattura"+(nd?" ("+nd+")":"");
+}
+$("invSel").onclick=()=>{const l=invSelBookings();if(l.length)openInvoice(l);};
+$("invSelClear").onclick=()=>{invSel.clear();renderBill();};
 
 // ---------- Archivio (2.0): anagrafiche clienti, flotta, referenti, guide, hotel e tendine ----------
 const ARCH=[
@@ -2701,9 +3158,10 @@ const ARCH=[
   {k:"hotel",ic:"🏨",t:"Anagrafica hotel",n:()=>regRows("hotel").length+" hotel",open:()=>openReg("hotel")},
   {k:"note",ic:"📝",t:"Tendina note",n:()=>tendina("note").length+" voci (causali delle note per l'autista)",open:()=>openReg("note")},
   {k:"ruolo",ic:"🏷️",t:"Tendina ruolo",n:()=>tendina("ruolo").length+" voci (ruolo del referente)",open:()=>openReg("ruolo")},
+  {k:"contab",ic:"🧾",t:"Contabilità",n:()=>"Dati societari, aliquote IVA, causali, pagamento, sconti e arrotondamenti delle bozze di fattura",open:()=>openContab(),show:()=>canCont()},
 ];
 function openArchive(){
-  $("archGrid").innerHTML=ARCH.map(a=>'<button type="button" class="arch-tile" data-arch="'+a.k+'"><span class="ic" aria-hidden="true">'+a.ic+'</span><b>'+esc(a.t)+'</b><span>'+esc(a.n())+'</span></button>').join("");
+  $("archGrid").innerHTML=ARCH.filter(a=>!a.show||a.show()).map(a=>'<button type="button" class="arch-tile" data-arch="'+a.k+'"><span class="ic" aria-hidden="true">'+a.ic+'</span><b>'+esc(a.t)+'</b><span>'+esc(a.n())+'</span></button>').join("");
   $("ovArch").hidden=false;
 }
 $("btnArch").onclick=openArchive;
@@ -2873,6 +3331,7 @@ async function seedRegs(){
   if(regSeeded||!navigator.onLine||!ACC.session()||!STORE.hasData||$("app").hidden)return;
   regSeeded=true;
   await STORE.loadRegs().catch(()=>{}); // anagrafiche e tendine create mentre il dispositivo aveva una versione precedente
+  STORE.loadInvoices().catch(()=>{}); // contabilità e bozze di fattura (2.4)
   const all={referenti:[],guide:[],hotel:[]};
   for(const b of bookingsAll()){
     const c=regCandidates(b);

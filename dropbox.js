@@ -171,7 +171,7 @@
   async function account() { return rpc("users/get_current_account", null); }
   async function metadata(path) { return rpc("files/get_metadata", { path }); }
 
-  (window.AGENDA_FILES = window.AGENDA_FILES || {}).dropbox = "2.3.1";
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).dropbox = "2.4";
   window.DBX = {
     isLinked: () => !!(tok && tok.refresh),
     hasKey: () => !!C.dropboxAppKey,

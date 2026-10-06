@@ -15,7 +15,7 @@
   "use strict";
   const C = window.AGENDA_CONFIG || {};
   const BASE = (C.folder || "/Agenda Flotta La Terra").replace(/\/+$/, "");
-  const P = { days: BASE + "/giorni", cfg: BASE + "/config", sheets: BASE + "/Fogli di servizio" };
+  const P = { days: BASE + "/giorni", cfg: BASE + "/config", sheets: BASE + "/Fogli di servizio", drafts: BASE + "/bozze-fatture", xml: BASE + "/Fatture XML" };
   const CK = "agenda-cache-v1", QK = "agenda-queue-v1";
   const enc = new TextEncoder(), dec = new TextDecoder();
   const clone = (x) => (x === undefined ? undefined : JSON.parse(JSON.stringify(x)));
@@ -450,6 +450,8 @@
     if (cache.fatWritten && !isObj(cache.fatWritten)) cache.fatWritten = null;
     if (cache.lists && !isObj(cache.lists)) cache.lists = null;
     if (cache.regs) { const g = {}; if (isObj(cache.regs)) for (const k of Object.keys(REGF)) { const c = cache.regs[k] ? cleanReg(k, cache.regs[k]) : null; if (c) g[k] = c; } cache.regs = Object.keys(g).length ? g : null; }
+    if (cache.contab) cache.contab = isObj(cache.contab) && window.FATTURE ? window.FATTURE.cleanContab(cache.contab) : null;
+    if (cache.drafts) { const g = {}; if (isObj(cache.drafts) && window.FATTURE) for (const k of Object.keys(cache.drafts)) { const e = cache.drafts[k], d = isObj(e) ? window.FATTURE.cleanDraft(e.doc) : null; if (d && d.id === k && !badKey(k)) g[k] = { doc: d, rev: txt(e.rev, 80) }; } cache.drafts = g; }
     queue.days = queue.days.filter((it) => isObj(it) && validDate(it.date) && Array.isArray(it.ops)).map((it) => { it.ops = it.ops.filter((op) => isObj(op) && (op.t === "extra" || (typeof op.id === "string" && !badKey(op.id) && (op.t === "del" || (op.t === "put" && isObj(op.b)))))); return it; });
     queue.clients = queue.clients.filter(isObj);
   }
@@ -489,11 +491,21 @@
           jobs.push({ date, e });
         }
       }
+      // bozze di fattura (2.4): un file per bozza
+      for (const [p, e] of seen) {
+        const m = /\/bozze-fatture\/([a-z0-9_-]{1,24})\.json$/.exec(p);
+        if (!m) continue;
+        const id = Object.keys(cache.drafts || {}).find((k) => k.toLowerCase() === m[1]) || m[1];
+        if (e[".tag"] === "deleted") { if (cache.drafts && cache.drafts[id]) { delete cache.drafts[id]; touched = true; } continue; }
+        if (e[".tag"] !== "file" || (cache.drafts && cache.drafts[id] && cache.drafts[id].rev === e.rev)) continue;
+        jobs.push({ draft: m[1], e });
+      }
       // giornate: 4 download alla volta
-      await pool(jobs, 4, async ({ date, e }) => {
+      await pool(jobs, 4, async ({ date, e, draft }) => {
         const f = await DBX.download(e.path_lower);
         if (!f) return;
-        const doc = cleanDoc(parseJSON(f.buf), date);
+        if (draft) { let okd = false; try { okd = takeDraft(parseJSON(f.buf), f.meta.rev || e.rev, draft); } catch (_) {} if (okd) touched = true; else notice({ kind: "badcfg", path: e.path_display || e.path_lower }); return; }
+        let doc = null; try { doc = cleanDoc(parseJSON(f.buf), date); } catch (_) {} // un file che manda in errore i controlli vale come file rovinato
         if (!doc) { cache.bad = Object.assign({}, cache.bad, { [date]: e.rev }); notice({ kind: "badfile", date }); return; } // si tiene l'ultima versione buona
         if (cache.bad && cache.bad[date]) { delete cache.bad[date]; }
         cache.days[date] = { doc, rev: f.meta.rev || e.rev }; changedDays.push(date); touched = true;
@@ -502,15 +514,19 @@
         if (e[".tag"] !== "file") continue;
         const isCfg = (n) => p === (P.cfg + "/" + n).toLowerCase();
         const regKind = Object.keys(REGF).find((k) => isCfg(REGF[k]));
-        if (!(regKind || isCfg("flotta.json") || isCfg("righe-fatturato.json") || isCfg("impostazioni.json") || isCfg("accesso.json") || isCfg("utenti.json"))) continue;
+        if (!(regKind || isCfg("contabilita.json") || isCfg("flotta.json") || isCfg("righe-fatturato.json") || isCfg("impostazioni.json") || isCfg("accesso.json") || isCfg("utenti.json"))) continue;
         const f = await DBX.download(e.path_lower); if (!f) continue;
         const j = parseJSON(f.buf); if (!j) { notice({ kind: "badcfg", path: e.path_display || p }); continue; }
-        if (isCfg("flotta.json")) { if (isObj(j)) { cache.fleet = j; touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); }
-        else if (isCfg("righe-fatturato.json")) { cache.fatShared = isObj(j.fogli) ? j.fogli : {}; cache.fatGone = isObj(j.tolti) ? j.tolti : {}; }
-        else if (isCfg("impostazioni.json")) { const cs = cleanSettings(j); if (cs) { cache.settings = cs; touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); }
-        else if (isCfg("accesso.json")) { if (!isObj(j)) continue; const was = cache.access; cache.access = j; if (was && was.hash !== j.hash) hooks.onAccessChanged(); touched = true; }
-        else if (regKind) { const c = cleanReg(regKind, j); if (c) { cache.regs = Object.assign({}, cache.regs || {}, { [regKind]: c }); touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); }
-        else if (isCfg("utenti.json")) { const cu = cleanUsers(j); if (cu) { cache.users = cu; usersSeen = true; try { hooks.onUsersChanged(cu); } catch (_) {} touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); } // elenco non valido: resta l'ultimo buono
+        // ogni file per conto suo: se uno manda in errore i controlli si segnala e si passa al successivo
+        try {
+          if (isCfg("flotta.json")) { if (isObj(j)) { cache.fleet = j; touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); }
+          else if (isCfg("contabilita.json")) { if (isObj(j) && window.FATTURE) { cache.contab = window.FATTURE.cleanContab(j); cache.contabRev = f.meta.rev || e.rev; touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); }
+          else if (isCfg("righe-fatturato.json")) { cache.fatShared = isObj(j.fogli) ? j.fogli : {}; cache.fatGone = isObj(j.tolti) ? j.tolti : {}; }
+          else if (isCfg("impostazioni.json")) { const cs = cleanSettings(j); if (cs) { cache.settings = cs; touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); }
+          else if (isCfg("accesso.json")) { if (!isObj(j)) continue; const was = cache.access; cache.access = j; if (was && was.hash !== j.hash) hooks.onAccessChanged(); touched = true; }
+          else if (regKind) { const c = cleanReg(regKind, j); if (c) { cache.regs = Object.assign({}, cache.regs || {}, { [regKind]: c }); touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); }
+          else if (isCfg("utenti.json")) { const cu = cleanUsers(j); if (cu) { cache.users = cu; usersSeen = true; try { hooks.onUsersChanged(cu); } catch (_) {} touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); } // elenco non valido: resta l'ultimo buono
+        } catch (_) { notice({ kind: "badcfg", path: e.path_display || p }); }
       }
       cache.cursor = next; // solo adesso: tutte le voci sono state lette davvero
       cache.lastSync = status.lastSync = Date.now(); status.error = null; status.errorDetail = ""; retryN = 0;
@@ -914,6 +930,97 @@
     return got;
   }
 
+  // ---------- contabilità e bozze di fattura (2.4) ----------
+  // config/contabilita.json: dati societari, aliquote, causali e opzioni (uguali per tutti i dispositivi).
+  // bozze-fatture/<id>.json: una bozza per file. "Fatture XML/anno/mese": i file creati per la contabilità.
+  // Come per le anagrafiche ogni scrittura parte dall'ultima versione in Dropbox; i dati letti passano dai
+  // controlli di fatture.js (cleanContab, cleanDraft) e quello che non ha la forma giusta non entra.
+  const FT = () => window.FATTURE;
+  const DRAFT_FILE = /^([A-Za-z0-9_-]{1,24})\.json$/;
+  function takeDraft(j, rev, fileId) {
+    const d = FT() ? FT().cleanDraft(j) : null;
+    if (!d || badKey(d.id)) return false;
+    if (fileId != null && String(fileId).toLowerCase() !== d.id.toLowerCase()) return false; // copia fatta a mano o file scritto apposta: non prende il posto di un'altra bozza
+    cache.drafts = Object.assign({}, cache.drafts || {}); cache.drafts[d.id] = { doc: d, rev: rev || "" };
+    return true;
+  }
+  function contab() { try { return FT().cleanContab(cache.contab || null); } catch (_) { return FT().defaults(); } }
+  async function updateContab(fn) {
+    if (!navigator.onLine) throw { code: "offline" };
+    const path = P.cfg + "/contabilita.json";
+    for (let i = 0; i < 6; i++) {
+      const f = await DBX.download(path);
+      if (f && !f.meta.rev) f.meta = await DBX.metadata(path);
+      const j = f ? parseJSON(f.buf) : null;
+      let cur; try { cur = FT().cleanContab(isObj(j) ? j : null); } catch (_) { cur = FT().defaults(); } // file rovinato: si riparte dai valori di partenza
+      const next = FT().cleanContab(fn(cur));
+      next.updatedAt = new Date().toISOString();
+      try {
+        const m = await DBX.upload(path, enc.encode(JSON.stringify(next, null, 1)), f ? { update: f.meta.rev } : "add");
+        cache.contab = next; cache.contabRev = (m && m.rev) || ""; persist(); changed();
+        return next;
+      } catch (e) { if (e.code !== "conflict") throw e; }
+    }
+    throw { code: "busy" };
+  }
+  const draftPath = (id) => P.drafts + "/" + id + ".json";
+  function drafts() { return Object.values(cache.drafts || {}).map((x) => x && x.doc).filter(Boolean).map(clone); }
+  const own = (o, k) => Object.prototype.hasOwnProperty.call(o || {}, k);
+  function draft(id) { const x = own(cache.drafts, id) ? cache.drafts[id] : null; return x && x.doc ? clone(x.doc) : null; }
+  // versione del file della bozza: chi la apre se la ricorda e la ripassa a saveDraft
+  function draftRev(id) { const x = own(cache.drafts, id) ? cache.drafts[id] : null; return (x && x.rev) || ""; }
+  // Salva una bozza. rev è la versione che si aveva davanti quando la si è aperta ("" per una bozza nuova):
+  // se nel frattempo un altro dispositivo l'ha cambiata non la sovrascrive (errore "conflict").
+  async function saveDraft(d, rev) {
+    if (!navigator.onLine) throw { code: "offline" };
+    const doc = FT().cleanDraft(d); if (!doc || badKey(doc.id)) throw { code: "baddraft" };
+    if (rev === undefined) rev = draftRev(doc.id);
+    await DBX.createFolder(P.drafts).catch(() => {});
+    const m = await DBX.upload(draftPath(doc.id), enc.encode(JSON.stringify(doc, null, 1)), rev ? { update: rev } : "add");
+    cache.drafts = Object.assign({}, cache.drafts || {}); cache.drafts[doc.id] = { doc, rev: (m && m.rev) || "" };
+    persist(); changed();
+    return clone(doc);
+  }
+  async function deleteDraft(id) {
+    if (!navigator.onLine) throw { code: "offline" };
+    if (!/^[A-Za-z0-9_-]{1,24}$/.test(String(id))) throw { code: "baddraft" };
+    await DBX.remove(draftPath(id));
+    if (own(cache.drafts, id)) { cache.drafts = Object.assign({}, cache.drafts); delete cache.drafts[id]; persist(); changed(); }
+  }
+  // Il file XML per la contabilità: Fatture XML / anno / mese in cui il file viene creato.
+  // Il nome contiene un progressivo che cresce col tempo: due file con lo stesso nome possono nascere solo nello
+  // stesso minuto, quindi nella stessa cartella, e lì il caricamento "add" se ne accorge (errore "conflict": chi
+  // chiama riprova con il progressivo successivo). again: percorso del file già creato per la stessa bozza, che
+  // viene sostituito (alla contabilità non restano due file della stessa fattura).
+  const inXml = (path) => typeof path === "string" && path.toLowerCase().startsWith((P.xml + "/").toLowerCase()) && !/(^|\/)\.\.(\/|$)/.test(path) && /\.xml$/i.test(path) && path.length < 400;
+  async function saveInvoiceXml(name, text, again) {
+    name = safeFileName(name);
+    if (inXml(again) && again.split("/").pop().toLowerCase() === name.toLowerCase()) { await DBX.upload(again, enc.encode(text), "overwrite"); return again; }
+    const d = new Date().toISOString().slice(0, 10), folder = P.xml + "/" + d.slice(0, 4) + "/" + d.slice(5, 7) + " - " + MESI[+d.slice(5, 7) - 1];
+    let p = "";
+    for (const part of folder.split("/").filter(Boolean)) { p += "/" + part; await DBX.createFolder(p).catch(() => {}); }
+    await DBX.upload(folder + "/" + name, enc.encode(text), "add");
+    return folder + "/" + name;
+  }
+  // Contabilità e bozze create mentre questo dispositivo aveva una versione precedente (che non le leggeva):
+  // si scaricano una volta. Non scrive niente.
+  async function loadInvoices() {
+    if (!navigator.onLine || !FT()) return false;
+    let got = false;
+    try {
+      if (!cache.contab) { const f = await DBX.download(P.cfg + "/contabilita.json"); const j = f ? parseJSON(f.buf) : null; if (isObj(j)) { cache.contab = FT().cleanContab(j); cache.contabRev = (f.meta && f.meta.rev) || ""; got = true; } }
+      if (!cache.draftsSeen) {
+        let res = await DBX.listFolder(P.drafts, null); // cartella che non c'è ancora: null. Un errore di rete fa riprovare la prossima volta.
+        const files = [];
+        while (res) { for (const e of res.entries) if (e[".tag"] === "file" && DRAFT_FILE.test(e.name || "")) files.push(e); res = res.has_more ? await DBX.listFolder(P.drafts, res.cursor) : null; }
+        await pool(files.slice(0, 2000), 4, async (e) => { const id = DRAFT_FILE.exec(e.name)[1]; if (draftRev(id) && draftRev(id) === e.rev) return; const f = await DBX.download(e.path_lower); let okd = false; try { okd = !!f && takeDraft(parseJSON(f.buf), (f.meta && f.meta.rev) || e.rev, id); } catch (_) {} if (okd) got = true; });
+        cache.draftsSeen = true; got = true;
+      }
+    } catch (_) {}
+    if (got) { persist(); changed(); }
+    return got;
+  }
+
   // Scollega: cancella tutto (anche le modifiche non inviate). Usato solo da "Scollega questo dispositivo".
   async function reset() {
     cache = emptyCache(); queue = { days: [], fat: {}, clients: [] };
@@ -921,7 +1028,7 @@
     if (idb) await new Promise((res) => { try { const t = idb.transaction(["days", "meta"], "readwrite"); t.objectStore("days").clear(); t.objectStore("meta").clear(); t.oncomplete = t.onerror = t.onabort = () => res(); } catch (_) { res(); } });
   }
 
-  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.3.1";
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.4";
   window.STORE = {
     BASE, P,
     configure(h) { Object.assign(hooks, h); },
@@ -931,12 +1038,13 @@
     disable() { enabled = false; writesBlocked = true; clearTimeout(saveTimer); },
     fileFogli, validDate,
     view, mutateDay, pull, flush, watch, setupFolders, syncFatturato, isPending, whenSent, saveNow: writeNow,
-    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, saveSheetFile, sheetFolder, safeFileName, ITER_MIN, ITER_MAX, reg, regLoaded, updateReg, loadRegs, REGF, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
+    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, saveSheetFile, sheetFolder, safeFileName, ITER_MIN, ITER_MAX, reg, regLoaded, updateReg, loadRegs, REGF, contab, updateContab, drafts, draft, draftRev, saveDraft, deleteDraft, saveInvoiceXml, loadInvoices, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
     bustaMax: (y) => { const m = cache.bustaMax || {}; return m[y] != null ? m[y] : m["*"] || 0; },
     get pendingClients() { return queue.clients.slice(); },
     clientDone: (tmp) => (cache.clientDone || {})[tmp] || null,
     get fleet() { return fleetView(); },
     get settings() { return cache.settings; },
+    get contabLoaded() { return !!cache.contab; },
     get access() { return cache.access; },
     get users() { return cache.users; },
     get usersSeen() { return usersSeen; },
