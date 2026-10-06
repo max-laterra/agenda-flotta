@@ -275,7 +275,7 @@
   window.addEventListener("error", (e) => { try { tlog("errore", "Errore del programma: " + (e.message || "sconosciuto"), (e.filename || "").split("/").pop() + ":" + (e.lineno || "") + ":" + (e.colno || "")); } catch (_) {} });
   window.addEventListener("unhandledrejection", (e) => { try { const r = e.reason || {}; tlog("errore", "Operazione non riuscita: " + (r.message || r.code || r.summary || String(r)).slice(0, 200), r.stack ? String(r.stack).slice(0, 600) : null); } catch (_) {} });
 
-  (window.AGENDA_FILES = window.AGENDA_FILES || {}).accessi = "2.3";
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).accessi = "2.3.1";
   window.ACC = {
     get device() { return device; }, devLabel, uaLabel, localDate,
     makeSecret, checkPw, genPassword, pbkdf2,

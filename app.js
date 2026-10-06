@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="2.3",APP_DATE="06/10/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="2.3.1",APP_DATE="06/10/2026";window.AGENDA_VERSION=APP_VERSION;
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -1590,6 +1590,24 @@ function notesOf(b){return dnotesOf(b).filter(n=>n&&(n.t||n.c));}
 // testo dell'hotel (nome – indirizzo, città) per la pagina 2 e per il registro
 const hotelCell=x=>[x.name,[x.addr,x.city].filter(Boolean).join(", ")].filter(Boolean).join(" – ");
 const hotelTxt=x=>[hotelCell(x),x.tel].filter(Boolean).join(" – ");
+// Nome dell'hotel sul foglio di servizio: senza le stelle della categoria e senza le parole "Hotel" e "Albergo"
+// (la riga si chiama già "Hotel 1"). Vale solo per il foglio: prenotazione e anagrafica restano come sono scritte.
+const HOTEL_STARS="*\u2605\u2606\u2B50\u2729-\u2730\u22C6\uFE0F",HOTEL_AZ="0-9A-Za-z\u00C0-\u024F";
+const HOTEL_RX=[
+  // "4 stelle", "4 stelle superior", "3 stars"
+  new RegExp("(^|[^"+HOTEL_AZ+"])[1-7]\\s*(?:stelle|stella|stars?)(?:\\s+(?:superior|sup\\.?|lusso|luxury))?(?!["+HOTEL_AZ+"])","gi"),
+  // "****", "★★★★", "4*", "4 ★", "****S", "5*L", "**** Superior"
+  new RegExp("(?:(^|[^"+HOTEL_AZ+"])[1-7]\\s?)?["+HOTEL_STARS+"]+(?:[SL](?=$|[\\s),.;\\-\u2013])|\\s?(?:superior|sup\\.?|lusso|luxury)(?!["+HOTEL_AZ+"]))?","gi")];
+const HOTEL_EDGE=new RegExp("^[^"+HOTEL_AZ+"]+|[^"+HOTEL_AZ+"]+$","g");
+function hotelShort(name){
+  const src=String(name==null?"":name).replace(/\s+/g," ").trim();if(!src)return "";
+  const tidy=t=>t.replace(/\(\s*\)|\[\s*\]/g," ").replace(/\s+/g," ").replace(/\s+([,;:.)])/g,"$1").replace(/([(])\s+/g,"$1")
+    .replace(/^[\s\-\u2013\u2014,;:.\u00B7|\/&+]+|[\s\-\u2013\u2014,;:\u00B7|\/&+]+$/g,"").replace(/\s*([\-\u2013\u2014])(?:\s*[\-\u2013\u2014])+\s*/g," $1 ").trim();
+  const cut=(t,rx)=>tidy(t.replace(rx,(m,a)=>(a||"")+" "));
+  const sym=cut(src.replace(/\uD83C\uDF1F/g,"*"),HOTEL_RX[1]),all=cut(sym,HOTEL_RX[0]);
+  const out=tidy(all.split(" ").filter(w=>!/^(?:hotel|h\u00F4tel|albergo)$/i.test(w.replace(HOTEL_EDGE,""))).join(" "));
+  return out||sym||src; // se non resterebbe niente (un hotel che si chiama "Hotel", "Hotel 7 Stelle") il nome resta scritto
+}
 // referente: nome (ruolo) · note; guida: nome – città · note
 const refCell=x=>x?[x.name,x.role?"("+x.role+")":""].filter(Boolean).join(" ")+(x.note?" · "+x.note:""):"";
 const guideCell=x=>x?[x.name,x.city].filter(Boolean).join(" – ")+(x.note?" · "+x.note:""):"";
@@ -1636,7 +1654,7 @@ function tplPlan(b){
 // fondo referenti e guide, tutti per esteso.
 function tplProgramAll(b,all){
   const lines=[],prog=Array.isArray(b.program)?b.program:[];
-  if(all)hotelsOf(b).forEach((x,i)=>lines.push("Hotel "+(i+1)+": "+hotelTxt(x)));
+  if(all)hotelsOf(b).forEach((x,i)=>lines.push("Hotel "+(i+1)+": "+hotelTxt(Object.assign({},x,{name:hotelShort(x.name)}))));
   const clean=t=>String(t||"").split("\n").map(x=>x.trim()).filter(Boolean);
   if(hasEvent(b.type)&&(b.event||b.escort))lines.push([b.event?"Evento: "+b.event:"",b.escort?"Accompagnatore: "+b.escort:""].filter(Boolean).join(" – "));
   if(isMulti(b.type)){
@@ -1708,7 +1726,7 @@ function tplValues(b){
   const one=(...a)=>a.map(x=>String(x==null?"":x).trim()).filter(Boolean).join(" - ");
   P.refs.slice(0,P.nR).forEach((x,i)=>{const r=P.rRef+i;put("B",r,{v:one(x.role,x.name,x.note)});put("H",r,{v:x.tel||""});});
   P.gs.slice(0,P.nG).forEach((x,i)=>{const r=P.rGuide+i;put("B",r,{v:one(x.city,x.name,x.note)});put("H",r,{v:x.tel||""});});
-  P.hs.slice(0,P.nH).forEach((x,i)=>{const r=P.rHotel+i;put("B",r,{v:one(x.city,x.name,x.addr)});put("H",r,{v:x.tel||""});});
+  P.hs.slice(0,P.nH).forEach((x,i)=>{const r=P.rHotel+i;put("B",r,{v:one(x.city,hotelShort(x.name),x.addr)});put("H",r,{v:x.tel||""});});
   tplProgram(b).forEach((t,i)=>put("A",P.rProg+i,{v:t}));
   put("C",P.rSaldo,{v:b.saldo==="SI"?"SI":"NO"});put("D",P.rSaldo,{v:numOrE(b.saldoAmt),k:"a"});put("H",P.rSaldo,{v:isMulti(type)?numOrE(b.advance):"",k:"e"});
   P.ns.slice(0,P.nN).forEach((x,i)=>{put("B",P.rNote+i,{v:x.c||""});put("C",P.rNote+i,{v:x.t||""});});
