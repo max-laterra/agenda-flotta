@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="2.2">
+<html lang="it" data-v="2.3">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -303,6 +303,8 @@ table.wk{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px;t
 .prow label b{color:var(--ink);font-weight:800}
 .prow input,.prow select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface);min-width:0;width:100%}
 .prow>button[data-rdel]{border:1px solid var(--line);background:var(--surface);border-radius:8px;color:var(--ink-3);font-size:16px;line-height:1;height:37px}
+/* hotel: più spazio all'indirizzo */
+@media (min-width:761px){.prow.p-hotel{grid-template-columns:1.35fr .85fr 1.7fr .9fr 32px}}
 .prow.p-note{grid-template-columns:90px 1fr 2.4fr 32px}
 .prow.p-note .nlab{font-weight:800;font-size:13px;color:var(--ink);padding-bottom:10px;white-space:nowrap}
 .drvbox2{border:1px solid var(--line);border-radius:12px;padding:12px 14px;gap:10px;display:flex;flex-direction:column;align-items:flex-start;background:var(--bg)}

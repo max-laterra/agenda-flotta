@@ -921,7 +921,7 @@
     if (idb) await new Promise((res) => { try { const t = idb.transaction(["days", "meta"], "readwrite"); t.objectStore("days").clear(); t.objectStore("meta").clear(); t.oncomplete = t.onerror = t.onabort = () => res(); } catch (_) { res(); } });
   }
 
-  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.2";
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.3";
   window.STORE = {
     BASE, P,
     configure(h) { Object.assign(hooks, h); },
