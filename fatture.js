@@ -382,5 +382,5 @@
 
   const API = { VERSION: "2.4", REGIMI, NATURE, TIPI_DOC, MOD_PAG, COND_PAG, USI, ARROT, VERSI, defaults, cleanContab, cleanDraft, cleanCliente, newDraft, linesFor, lineFromService, fill, mezzo, periodo, mesi, calc, validate, xml, latin, isPA, okDate, addDays, itLong, itShort, newId, r2, amt, numOr, progressivo, nextProg, progOf, numeroDoc };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
-  if (root) { root.FATTURE = API; if (root.document) (root.AGENDA_FILES = root.AGENDA_FILES || {}).fatture = "2.4"; }
+  if (root) { root.FATTURE = API; if (root.document) (root.AGENDA_FILES = root.AGENDA_FILES || {}).fatture = "2.5"; }
 })(typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null);

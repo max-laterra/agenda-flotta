@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="2.4",APP_DATE="06/10/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="2.5",APP_DATE="07/10/2026";window.AGENDA_VERSION=APP_VERSION;
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -26,7 +26,7 @@ if(framed){stopPage("Agenda Flotta La Terra","Per sicurezza l'agenda non si può
 {
   const F=window.AGENDA_FILES||{},bad=[];
   if(document.documentElement.getAttribute("data-v")!==APP_VERSION)bad.push("index.html");
-  for(const f of ["dropbox","fatturato","fatture","store","accessi"])if(F[f]!==APP_VERSION)bad.push(f+".js");
+  for(const f of ["dropbox","fatturato","fatture","store","accessi","autisti"])if(F[f]!==APP_VERSION)bad.push(f+".js");
   let n=0;try{n=+sessionStorage.getItem("agenda-upd-try")||0;}catch(_){}
   if(bad.length){
     // ricaricando, ogni file viene richiesto di nuovo al sito (la copia per l'uso offline non si cancella:
@@ -304,6 +304,7 @@ function bookingHTML(b,date){
   if(b.notes)det.push(b.notes);
   const dtx=[b.driver,b.driver2].map(x=>String(x||"").trim()).filter(Boolean).join(" + ");if(dtx)det.unshift("Autista: "+dtx);
   const what=[hasEvent(b.type)&&b.event?b.event:"",whatToday(b,date)||""].filter(Boolean),name=dispClient(b),drv=driversHTML(b);
+  if(b.capo)det.push(capoTitle(b));
   const tip=[(pending(b)?"IN SOSPESO":"Confermata")+" · "+tp,(b.client||"")+(name!==(b.client||"Senza cliente")?" ("+name+")":""),what.join(" – ")].filter(Boolean).join(" · ")+(det.length?"\n"+det.join(" · "):"");
   const over=v&&v.seats&&/^\d+$/.test(String(b.pax||""))&&+b.pax>v.seats;
   return '<div class="bkw '+esc(b.type)+(pending(b)?" opzione":"")+'">'+
@@ -314,8 +315,8 @@ function bookingHTML(b,date){
     '<span class="c-du">'+esc(durShort(b,date))+'</span>'+
     '<span class="c-cl">'+(over?'<span class="over" title="Passeggeri oltre la capienza">!</span> ':'')+esc(name)+'</span>'+
     '<span class="c-rt'+(dayProgram(b,date)?" pg":"")+'">'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+esc(whatToday(b,date)||"")+'</span>'+
-    '<span class="c-dr">'+drv+'</span>'+
-    '</button></div>';
+    '<span class="c-dr">'+(b.capo?'<i class="capo-m" title="'+esc(capoTitle(b))+'">capo</i>':'')+drv+'</span>'+
+    '</button>'+sentChip(b)+'</div>';
 }
 
 function renderDay(){
@@ -428,7 +429,12 @@ function openForm(opts){
   endAuto=false;$("fEditAsk").hidden=true;editConfirmed=false;openSheetAfterSave=false;
   progCache=Array.isArray(b.program)?b.program.slice():[];renderProgram();
   $("fDelete").hidden=!editing;$("fConfirm").hidden=true;$("fCloseAsk").hidden=true;
+  $("fSpese").hidden=!(editing&&speseFor(b));
   [...$("fBooking").elements].forEach(el=>{if(el.id!=="fCancel")el.disabled=S.readOnly;});
+  // bus e autisti decisi dal capo: l'ufficio non li cambia più (il Super Master sì)
+  {const dec=!!(editing&&b.capo),lock=dec&&!isSuper();
+    if(lock){["f-vehicle","f-driver","f-driver2"].forEach(id=>{$(id).disabled=true;});document.querySelectorAll('#fBooking [data-gen],#fBooking [data-drvopen]').forEach(x=>{x.disabled=true;});}
+    $("fCapo").hidden=!dec;if(dec)$("fCapo").textContent=capoTitle(b)+(lock?": da qui non si cambiano più. Per cambiarli serve il capo, che invia di nuovo il foglio.":": tu puoi ancora cambiarli.");}
   formLoading=true;syncType();formLoading=false;checkWarns();
   formOrig=readForm(); // per sapere se l'utente ha cambiato qualcosa e quali campi
   $("ovBooking").hidden=false;setTimeout(()=>$("f-client").focus(),30);
@@ -1169,10 +1175,16 @@ $("fBooking").addEventListener("submit",async e=>{
   }
   editConfirmed=false;$("fEditAsk").hidden=true;
   withOldNotes(b);
+  // il segno «inviato all'autista» non è nel modulo: si porta dietro com'è (anche se il servizio cambia giorno)
+  let bossEdit=false;
+  if(editing){const cur=bookingsAll().find(x=>x.id===editing.id);if(cur&&cur.sent)b.sent=cur.sent;
+    // scelta del capo: il segno resta; bus e autisti restano i suoi (li cambia solo il Super Master)
+    if(cur&&cur.capo){b.capo=cur.capo;if(isSuper())bossEdit=true;else{b.vehicle=cur.vehicle;b.driver=cur.driver||"";b.driver2=cur.driver2||"";}}}
   const id=editing?editing.id:("b"+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
   const old=editing&&editing.start,moved=!!(old&&old!==b.start);
   // per le modifiche: versione di partenza e campi cambiati, così non si cancellano le modifiche fatte da altri nel frattempo
   const meta=editing?{edit:true,base:editing.base,patch:withOldNoteKeys(formChanges())}:{};
+  if(bossEdit)meta.boss=true;
   const who=meName();
   if(editing){b.by=editing.by;b.byAt=editing.byAt;b.updBy=who;if(meta.patch.length)meta.patch.push("updBy");}
   else{b.by=who;b.byAt=b.updatedAt;}
@@ -1183,7 +1195,7 @@ $("fBooking").addEventListener("submit",async e=>{
     let foglio=editing?editing.foglio:"",seqPatch={};
     if(!foglio||moved){const n=await nextSeq(b.start);foglio=yymmdd(b.start)+pad(n);seqPatch={assign:true};}
     b.foglio=foglio;
-    if(moved)writeDayOps(old,{bookings:{[id]:null}},{move:b.start});
+    if(moved)writeDayOps(old,{bookings:{[id]:null}},{move:b.start,know:knowOf(bookingsAll().find(x=>x.id===id))});
     writeDayOps(b.start,Object.assign({bookings:{[id]:b}},seqPatch),Object.assign({},meta,moved?{move:true}:{}));
     if(!editing)ACC.log("prenotazione","Nuova prenotazione "+bookingLabel(b),{id});
     else if(logCh.length)ACC.log("prenotazione","Modificata la prenotazione "+bookingLabel(b),{id,ch:logCh});
@@ -1203,7 +1215,9 @@ $("fDelete").onclick=()=>{$("fConfirm").hidden=false;$("fDelete").hidden=true;};
 $("fDeleteNo").onclick=()=>{$("fConfirm").hidden=true;$("fDelete").hidden=false;};
 $("fDeleteYes").onclick=async()=>{
   if(!editing)return;
-  try{const del=Object.assign({},formOrig||{},{foglio:editing.foglio,start:editing.start});writeDayOps(editing.start,{bookings:{[editing.id]:null}},{client:cleanText($("f-client").value)});ACC.log("prenotazione","Eliminata la prenotazione "+bookingLabel(del),{id:editing.id});closeForm();renderAll();toast("Prenotazione eliminata");}catch(err){handleErr(err);}
+  try{const gone=bookingsAll().find(x=>x.id===editing.id);
+    const del=Object.assign({},formOrig||{},{foglio:editing.foglio,start:editing.start});writeDayOps(editing.start,{bookings:{[editing.id]:null}},{client:cleanText($("f-client").value),know:knowOf(gone)});ACC.log("prenotazione","Eliminata la prenotazione "+bookingLabel(del),{id:editing.id});closeForm();renderAll();toast("Prenotazione eliminata");
+    withdrawAfterDelete(gone);}catch(err){handleErr(err);}
 };
 
 // ---------- flotta ----------
@@ -1287,11 +1301,15 @@ $("sign").addEventListener("click",e=>{if(e.target.id==="dPrev")go(addDays(S.sel
 $("sheet").addEventListener("click",e=>{
   const a=e.target.closest("[data-add]");if(a){openForm({vehicle:a.dataset.add,date:S.sel});return;}
   const cf=e.target.closest("[data-conf]");if(cf){toggleConfirm(cf.dataset.conf,cf.dataset.start);return;}
+  const sn=e.target.closest("[data-sent]");if(sn){const b=bookingsAll().find(x=>x.id===sn.dataset.sent&&x.start===sn.dataset.start);if(b)openSheet(b);return;}
   const ed=e.target.closest("[data-edit]");
   if(ed){const b=bookingsAll().find(x=>x.id===ed.dataset.edit&&x.start===ed.dataset.start);if(b)openForm({booking:b});}
 });
 $("mgrid").addEventListener("click",e=>{const c=e.target.closest("[data-day]");if(c){S.sel=c.dataset.day;setView("day");}});
 document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;
+  if(!$("ovCapo").hidden){$("cpCancel").click();return;}
+  if(!$("ovQr").hidden){$("qrClose").click();return;}
+  if(!$("ovSpese").hidden){$("spClose").click();return;}
   if(!$("ovClientNew").hidden){closeClientNew();return;}
   if(!$("ovClients").hidden){$("ovClients").hidden=true;return;}
   if(!$("ovReg").hidden){if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest("#regTable"))document.activeElement.blur();$("ovReg").hidden=true;regKind=null;return;}
@@ -1372,6 +1390,7 @@ async function renderBill(){
   const head='<thead><tr>'+(inv?'<th class="selc" title="Spunta i servizi da mettere in una fattura unica"></th>':"")+'<th>N. foglio</th><th>Tipo servizio</th><th>Cliente</th><th>Mezzo</th><th>Targa</th><th>Inizio</th><th>Fine</th><th>Itinerario</th><th>1° autista</th><th>2° autista</th><th class="r">€ Noleggio</th><th class="r">€ Parcheggi</th><th class="r">€ Pasti</th><th class="r">€ Totale</th><th>Anticipo / busta</th><th></th></tr></thead>';
   if(!rows.length){$("btable").innerHTML=head+'<tbody><tr><td class="empty" colspan="'+(inv?17:16)+'">Nessun servizio '+(all?"in agenda":"in questo mese")+'.</td></tr></tbody>';return;}
   const sum=k=>rows.reduce((a,r)=>a+(r[k]===""?0:r[k]),0),tot=rows.reduce((a,r)=>a+billTotal(r),0);
+  const spIds=new Set(bookingsAll().concat(S.allDays?billSourceAll():[]).filter(speseFor).map(b=>b.id)); // tour con busta già inviati all'autista
   $("btable").innerHTML=head+'<tbody>'+rows.map(r=>{
     const c=r.C!==""?clientByCode(r.C):null;
     const dr=dmap?(dmap.get(r.id)||[]):[],key=r.id+"|"+r.start;
@@ -1386,7 +1405,7 @@ async function renderBill(){
       '<td>'+esc(r.M)+(r.O?'<span class="sub">'+esc(r.O)+'</span>':'')+'</td>'+
       '<td>'+(r.Z?esc(r.Z):r.dz?'<span class="tbdtxt">da assegnare</span>':"")+'</td><td>'+(r.AA?esc(r.AA):r.daa?'<span class="tbdtxt">da assegnare</span>':"")+'</td>'+
       '<td class="num r">'+money(r.P)+'</td><td class="num r">'+money(r.Q)+'</td><td class="num r">'+money(r.R)+'</td><td class="num r"><b>'+(r.P===""&&r.Q===""&&r.R===""?"":money(billTotal(r)))+'</b></td>'+
-      '<td class="num">'+(r.AH!==""?"€ "+money(r.AH):"")+(r.AI?'<span class="sub">Busta '+esc(r.AI)+(r.AJ?" n. "+esc(r.AJ):"")+'</span>':"")+'</td><td class="acts"><button type="button" class="mini" data-fs="1">Foglio di servizio</button>'+(inv?'<button type="button" class="mini inv" data-inv="1">Bozza Fattura</button>'+(dr.length?'<span class="sub">'+(dr.some(d=>d.xmlAt)?"XML creato":"bozza salvata")+(dr.length>1?" ("+dr.length+")":"")+'</span>':""):"")+'</td></tr>';
+      '<td class="num">'+(r.AH!==""?"€ "+money(r.AH):"")+(r.AI?'<span class="sub">Busta '+esc(r.AI)+(r.AJ?" n. "+esc(r.AJ):"")+'</span>':"")+'</td><td class="acts"><button type="button" class="mini" data-fs="1">Foglio di servizio</button>'+(spIds.has(r.id)?'<button type="button" class="mini" data-sp="1">Spese autista</button>':"")+(inv?'<button type="button" class="mini inv" data-inv="1">Bozza Fattura</button>'+(dr.length?'<span class="sub">'+(dr.some(d=>d.xmlAt)?"XML creato":"bozza salvata")+(dr.length>1?" ("+dr.length+")":"")+'</span>':""):"")+'</td></tr>';
   }).join("")+'</tbody><tfoot><tr><td colspan="'+(inv?11:10)+'">'+rows.length+' servizi</td><td class="num r">'+money(sum("P"))+'</td><td class="num r">'+money(sum("Q"))+'</td><td class="num r">'+money(sum("R"))+'</td><td class="num r">'+money(tot)+'</td><td class="num">'+(sum("AH")?"€ "+money(sum("AH")):"")+'</td><td></td></tr></tfoot>';
 }
 $("btable").addEventListener("click",e=>{const tr=e.target.closest("[data-bid]");if(!tr)return;const b=bookingsAll().concat(S.allDays?billSourceAll():[]).find(x=>x.id===tr.dataset.bid&&x.start===tr.dataset.bstart);if(!b)return;
@@ -1396,7 +1415,7 @@ $("btable").addEventListener("click",e=>{const tr=e.target.closest("[data-bid]")
     if(box.checked){const cur=invSelBookings()[0];if(cur&&!sameClient(cur,b)){box.checked=false;toast("In una fattura unica vanno servizi dello stesso cliente.");return;}invSel.add(k);}else invSel.delete(k);
     tr.classList.toggle("sel",box.checked);renderInvBar();return;
   }
-  if(e.target.closest("[data-inv]"))openInvoice([b]);else if(e.target.closest("[data-fs]"))openSheet(b);else openForm({booking:b});});
+  if(e.target.closest("[data-inv]"))openInvoice([b]);else if(e.target.closest("[data-fs]"))openSheet(b);else if(e.target.closest("[data-sp]"))openSpese(b);else openForm({booking:b});});
 function billSourceAll(){const out=[];for(const date in S.allDays){const bk=(S.allDays[date]||{}).bookings||{};for(const id in bk){const b=bk[id];if(b&&typeof b==="object")out.push(Object.assign({},b,{id:id,start:b.start||date,type:normType(b.type)}));}}return out;}
 $("billRange").addEventListener("change",()=>{S.allDays=null;renderBill();});
 function billMsg(t,cls){const m=$("billMsg");m.textContent=t;m.className="bill-msg"+(cls?" "+cls:"");}
@@ -2017,7 +2036,7 @@ const sheetsOut={}; // prenotazione → n. foglio con cui il foglio di servizio 
 // Il n. foglio è definitivo solo quando la prenotazione è arrivata in Dropbox: prima è "provvisorio"
 // (un altro operatore potrebbe aver appena usato lo stesso numero) e il foglio lo dice chiaramente.
 // quale parte del foglio: "driver" (solo foglio per l'autista), "full" (con la parte contabile), "office" (solo quella)
-function sheetPart(){const v=$("sheetPart").value;return v==="full"||v==="office"?v:"driver";}
+function sheetPart(){if(isInvio())return "driver";const v=$("sheetPart").value;return v==="full"||v==="office"?v:"driver";}
 const PART_SUFFIX={driver:"",full:"_completo",office:"_contabile"},PART_LOG={driver:"",full:" (con la parte contabile)",office:" (solo parte contabile)"};
 function openSheet(b){
   sheetBooking=Object.assign({},b,{provisional:STORE.isPending(b.id)});
@@ -2025,6 +2044,12 @@ function openSheet(b){
   // Cliente o alias nell'intestazione: la scelta resta quella dell'ultima volta su questo dispositivo
   let al=false;try{al=localStorage.getItem("agenda-sheet-alias")==="1";}catch(_){}
   SHO.alias=al;
+  // foglio già inviato all'autista: si riparte dalle scelte fatte per quell'invio (intestazione e targa)
+  if(b.sent&&b.sent.at&&!b.sent.off){SHO.alias=!!b.sent.alias;SHO.noPlate=!!b.sent.noPlate;$("sheetNoPlate").checked=SHO.noPlate;}
+  // profilo «solo anteprima e invio»: niente stampa, niente PDF, niente ritorno alla prenotazione
+  const iv=isInvio();
+  $("sheetBack").hidden=iv;$("sheetPdf").hidden=iv;$("sheetPrint").hidden=iv;$("sheetShare").hidden=iv||!canShareFile;
+  $("sheetPart").closest("label").hidden=iv;document.querySelector("#ovSheet .sheet-hint").hidden=iv;
   renderSheet();$("sheetMsg").textContent="";
   ensureSheetFont().then(ok=>{if(ok&&!$("ovSheet").hidden)renderSheet();});
   $("ovSheet").hidden=false;
@@ -2040,6 +2065,7 @@ function renderSheet(){
   sel.value=SHO.alias&&alias?"alias":"cliente";
   const part=sheetPart();
   $("sheetView").innerHTML=tplSVG(b,part)+tplPage2HTML(b,part);
+  renderSheetSent();
 }
 // dopo "Salva e apri foglio di servizio": si aspetta (al massimo 10 secondi) la conferma del numero
 async function openSheetConfirmed(b){
@@ -2057,6 +2083,7 @@ function refreshSheetBooking(){
   const cur=bookingsAll().find(x=>x.id===sheetBooking.id);if(!cur)return;
   const nb=Object.assign({},cur,{provisional:STORE.isPending(cur.id)});
   if(nb.foglio!==sheetBooking.foglio||nb.provisional!==sheetBooking.provisional||nb.updatedAt!==sheetBooking.updatedAt){sheetBooking=nb;renderSheet();}
+  else if(JSON.stringify(nb.sent||null)!==JSON.stringify(sheetBooking.sent||null)){sheetBooking=nb;renderSheetSent();}
 }
 $("sheetPart").addEventListener("change",renderSheet);
 $("sheetName").addEventListener("change",()=>{SHO.alias=$("sheetName").value==="alias";try{localStorage.setItem("agenda-sheet-alias",SHO.alias?"1":"0");}catch(_){}renderSheet();});
@@ -2133,6 +2160,7 @@ function refreshFromStore(){
     if(L.regole){S.regole=Object.assign({autisti:[],targhe:{},numeri:{}},L.regole);fillDrivers();}
   }
   if(!$("app").hidden)renderAll();
+  if(!$("invio").hidden)renderInvio();
   refreshSheetBooking();
   if(!$("app").hidden)setTimeout(migrateFleet2026,300);
   if(!$("ovReg").hidden&&!$("regTable").contains(document.activeElement))renderReg();
@@ -2157,6 +2185,7 @@ function renderNet(st){
   else{cls="on";txt="Sincronizzato";}
   if(st.storage==="full"&&!renderNet._warned){renderNet._warned=1;notify("Il browser non riesce più a salvare la copia dell'agenda su questo dispositivo (spazio pieno): le prenotazioni restano in Dropbox, ma senza rete l'agenda potrebbe non aprirsi. Libera spazio sul dispositivo.",true);}
   el.className="net "+cls;el.textContent=txt;el.hidden=false;el.title=st.error?((st.error||"")+" "+(st.errorDetail||"")).trim():"";
+  {const e2=$("sdNet");e2.className=el.className;e2.textContent=txt;e2.hidden=false;}
   // stato del fatturato
   const f=st.fat,fs=$("fatStatus");if(!fs)return;
   const files=STORE.fatFiles(),ys=Object.keys(files).sort();
@@ -2186,6 +2215,8 @@ STORE.configure({
   onStatus:renderNet,
   onAccessChanged:()=>{if(!$("app").hidden&&!STORE.users)showGate("code",{msg:"Il codice di accesso è stato cambiato: inserisci quello nuovo."});},
   onUsersChanged:U=>onUsersChanged(U),
+  actor:()=>{const s=ACC.session();return s?{uid:s.uid}:null;},
+  onAutChanged:()=>{if(!$("ovMaster").hidden&&mstTab==="aut")renderAut();},
   onAuthLost:()=>showGate("link",{msg:"L'accesso a Dropbox è scaduto o è stato revocato: collegalo di nuovo."}),
   rowFor:b=>Object.assign(billRow(Object.assign({},b,{start:b.start})),{tour:isMulti(b.type)}),
   onClientAdded:(tmp,info)=>onClientAdded(tmp,info),
@@ -2196,11 +2227,14 @@ STORE.configure({
 // avvisi importanti: restano in alto finché non li chiudi
 function notify(msg,sticky){
   if(!sticky){toast(msg);return;}
-  const b=$("banner");const d=document.createElement("div");d.className="bn";d.innerHTML='<span></span><button type="button" aria-label="Chiudi avviso">×</button>';d.firstChild.textContent=msg;
+  const b=$("invio").hidden?$("banner"):$("sdBanner");const d=document.createElement("div");d.className="bn";d.innerHTML='<span></span><button type="button" aria-label="Chiudi avviso">×</button>';d.firstChild.textContent=msg;
   d.lastChild.onclick=()=>{d.remove();b.hidden=!b.children.length;};b.appendChild(d);b.hidden=false;
 }
 function itD(d){return d?(+d.slice(8,10))+"/"+d.slice(5,7)+"/"+d.slice(0,4):"";}
 function onNotice(n){
+  if(n.kind==="moveKept"){notify("La prenotazione «"+(n.client||"")+"» del "+itD(n.date)+" NON è stata spostata: nel frattempo il capo ha deciso bus e autisti, oppure il foglio è stato inviato all'autista. Riaprila e, se serve, spostala di nuovo.",true);return;}
+  if(n.kind==="sentKept"){notify("Il foglio di «"+(n.client||"")+"» del "+itD(n.date)+": nel frattempo il capo ha deciso bus e autisti. Il foglio va inviato da lui.",true);return;}
+  if(n.kind==="delSent"){if(n.b)withdrawAfterDelete(n.b);return;}
   ACC.tlog(n.kind==="badfile"||n.kind==="badcfg"?"errore":"avviso","Avviso sincronizzazione: "+n.kind+(n.date?" "+n.date:"")+(n.client?" «"+n.client+"»":""),n.from?n.from+" → "+n.to:(n.path||""));
   const who=n.client?"«"+n.client+"»":"una prenotazione";
   if(n.kind==="gone")notify("La prenotazione "+who+" del "+itD(n.date)+" era stata eliminata o spostata da un altro dispositivo: la tua modifica non è stata salvata. Controlla e, se serve, ripetila.",true);
@@ -2228,9 +2262,11 @@ function toggleConfirm(id,start){
     renderAll();toast(was?"Prenotazione confermata":"Prenotazione rimessa in sospeso");
   }catch(err){handleErr(err);}
 }
+// quello che questo dispositivo sa della scelta del capo e dell'invio di una prenotazione (per spostamenti ed eliminazioni)
+function knowOf(b){return {c:(b&&b.capo&&b.capo.at)||"",s:b&&b.sent?(b.sent.at||"")+"|"+((b.sent.off&&b.sent.off.at)||""):""};}
 function writeDayOps(date,patch,extra){
   const ops=[];extra=extra||{};
-  if(patch.bookings)for(const k in patch.bookings)ops.push(patch.bookings[k]===null?Object.assign({t:"del",id:k},extra.move&&typeof extra.move==="string"?{move:extra.move}:{},extra.client!=null?{client:extra.client}:{}):Object.assign({t:"put",id:k,b:patch.bookings[k],assign:!!patch.assign},extra));
+  if(patch.bookings)for(const k in patch.bookings)ops.push(patch.bookings[k]===null?Object.assign({t:"del",id:k},extra.move&&typeof extra.move==="string"?{move:extra.move}:{},extra.client!=null?{client:extra.client}:{},extra.know?{know:extra.know}:{}):Object.assign({t:"put",id:k,b:patch.bookings[k],assign:!!patch.assign},extra));
   if("extra" in patch)ops.push({t:"extra",v:patch.extra,base:patch.base==null?null:patch.base});
   STORE.mutateDay(date,ops);
 }
@@ -2246,10 +2282,10 @@ async function checkCode(code){const a=STORE.access;if(!a||typeof a.hash!=="stri
 let gateMode="";
 function showGate(mode,o){
   o=o||{};gateMode=mode;
-  $("gate").hidden=false;$("app").hidden=true;
-  ["ovBooking","ovFleet","ovMenu","ovSheet","ovClients","ovClientNew","ovMaster","ovArch","ovReg","ovInv","ovInvList","ovCont"].forEach(id=>{const x=$(id);if(x)x.hidden=true;});INV=null;CT=null;ctOrig=null;ctDirty=false;invPending=null;invSel.clear();
+  $("gate").hidden=false;$("app").hidden=true;$("invio").hidden=true;
+  closeOverlays();
   if(typeof hsClose==="function")hsClose();
-  ["gLink","gLoad","gFat","gCode","gMaster","gLogin"].forEach(id=>$(id).hidden=true);
+  ["gLink","gLoad","gFat","gCode","gMaster","gLogin","gHid","gSuper","gRecShow","gRec"].forEach(id=>$(id).hidden=true);
   $("gMsg").textContent=o.msg||"";$("gMsg").className="gate-msg"+(o.ok?" ok":"");
   if(mode==="link"){$("gTitle").textContent="Collega Dropbox";$("gLink").hidden=false;$("gKeyMissing").hidden=DBX.hasKey();$("gLinkBtn").hidden=!DBX.hasKey();}
   else if(mode==="loading"){$("gTitle").textContent=o.title||"Un momento…";$("gLoad").hidden=false;$("gLoadTxt").textContent=o.text||"";$("gRetry").hidden=true;$("gRelink").hidden=true;$("gErr").hidden=true;$("gHere").hidden=true;}
@@ -2271,6 +2307,11 @@ function showGate(mode,o){
     renderWho();$("gDev").textContent="Dispositivo: "+(ACC.devLabel(ACC.device.id)||ACC.device.auto);
     setTimeout(()=>{if(loginUid)$("gPw").focus();},60);
   }
+  else gateSuper(mode,o);
+}
+function closeOverlays(){
+  ["ovBooking","ovFleet","ovMenu","ovSheet","ovClients","ovClientNew","ovMaster","ovArch","ovReg","ovInv","ovInvList","ovCont","ovSpese","ovQr","ovCapo"].forEach(id=>{const x=$(id);if(x)x.hidden=true;});try{closeCapo();}catch(_){}try{$("recOut").textContent="";$("recShown").hidden=true;}catch(_){}INV=null;CT=null;ctOrig=null;ctDirty=false;invPending=null;invSel.clear();
+  if(typeof spClosePhoto==="function")spClosePhoto();
 }
 let gateFromMenu=false;
 $("gLinkBtn").onclick=async()=>{try{await DBX.startLogin();}catch(e){$("gMsg").textContent="Configurazione mancante: manca la chiave dell'app Dropbox in config.js.";}};
@@ -2315,13 +2356,15 @@ $("gCodeForm").addEventListener("submit",async e=>{
   }catch(_){$("gMsg").textContent="Operazione non riuscita. Controlla la connessione e riprova.";}
   finally{btn.disabled=false;}
 });
-function hideGate(){$("gate").hidden=true;$("app").hidden=false;renderAll();renderNet();}
+// dopo l'accesso: l'agenda, oppure (profilo «solo anteprima e invio») la schermata con l'elenco dei fogli
+function hideGate(){const iv=isInvio();$("gate").hidden=true;$("app").hidden=iv;$("invio").hidden=!iv;if(iv)renderInvio();else renderAll();renderNet();}
 let started=false;
 function unlocked(){
   hideGate();applyRole();refreshFromStore();lastAct=Date.now();
-  if(!started){started=true;STORE.flush();STORE.syncFatturato();STORE.watch();ACC.startBeat();ACC.tlog("info","Avvio della versione "+APP_VERSION+" su "+(ACC.devLabel(ACC.device.id)||ACC.device.auto));}
+  if(!started){started=true;STORE.flush();STORE.syncFatturato();STORE.watch();ACC.startBeat();autStart();ACC.tlog("info","Avvio della versione "+APP_VERSION+" su "+(ACC.devLabel(ACC.device.id)||ACC.device.auto));}
   ACC.beat();ACC.flushLog();
-  setTimeout(()=>{seedRegs();flushRegAdd();},2500);
+  setTimeout(()=>{if(isInvio()||!ACC.session())return;seedRegs();flushRegAdd();},2500);
+  autAfterRedirect();(STORE.aut?Promise.resolve():STORE.loadAut()).then(()=>AUT.sync());
 }
 // Dalla 1.8: ognuno entra con nome e password (config/utenti.json). Se l'elenco utenti non c'è ancora,
 // si crea il Master: serve il codice di accesso usato finora (se c'era), così non può farlo chiunque.
@@ -2364,7 +2407,7 @@ $("btnMenu").onclick=()=>{
   const s=STORE.settings||{};
   const ff=STORE.fatFiles(),fy=Object.keys(ff).sort();
   $("menuInfo").innerHTML="Versione <b>"+APP_VERSION+"</b> del "+APP_DATE+". Dati nella cartella Dropbox <b>"+esc(STORE.BASE)+"</b>. Fatturato: "+(fy.length?fy.map(y=>(y==="*"?"":y+" → ")+"<b>"+esc(ff[y].name)+"</b>").join(", "):"<b>non collegato</b>")+".";
-  const me=ACC.session();if(me)$("menuInfo").innerHTML="Sei entrato come <b>"+esc(me.name)+"</b>"+(me.role==="master"?" (Master)":"")+". "+$("menuInfo").innerHTML;
+  const me=ACC.session();if(me)$("menuInfo").innerHTML="Sei entrato come <b>"+esc(me.name)+"</b>"+(me.role==="super"?" (Super Master)":me.role==="master"?" (Master)":"")+". "+$("menuInfo").innerHTML;
   applyRole();menuPane("mMain");$("ovMenu").hidden=false;
 };
 $("whoAmI").onclick=()=>$("btnMenu").click();
@@ -2372,7 +2415,7 @@ $("mClose").onclick=()=>{$("ovMenu").hidden=true;};
 document.querySelectorAll("[data-pane]").forEach(b=>{b.onclick=()=>menuPane(b.dataset.pane);});
 $("mLock").onclick=()=>doLogout();
 $("mFat").onclick=()=>{if(!navigator.onLine){$("menuMsg").textContent="Serve la connessione a internet.";return;}showGate("fatturato",{fromMenu:true});};
-$("mSync").onclick=async()=>{$("menuMsg").textContent="Aggiorno…";await STORE.pull();await STORE.flush();await STORE.syncFatturato();$("menuMsg").textContent=navigator.onLine?"Fatto.":"Sei offline: le modifiche partiranno appena torna la connessione.";};
+$("mSync").onclick=async()=>{$("menuMsg").textContent="Aggiorno…";await STORE.pull();await STORE.flush();await STORE.syncFatturato();await AUT.sync();$("menuMsg").textContent=navigator.onLine?"Fatto.":"Sei offline: le modifiche partiranno appena torna la connessione.";};
 // cambio della propria password
 $("mPw").addEventListener("submit",async e=>{
   e.preventDefault();const me=ACC.session(),U=STORE.users,u=me&&U&&U.users[me.uid];
@@ -2391,30 +2434,41 @@ $("unlinkGo").onclick=async()=>{ACC.log("dispositivi","Ha scollegato questo disp
 
 // ---------- utenti: accesso con nome e password (1.8) ----------
 let gateNeedOld=false,loginUid=null,pwChanging=null,lastAct=Date.now();
-function isMaster(){const s=ACC.session();return !!s&&s.role==="master";}
+// Ruoli: "utente", "master", e dalla 2.5 "super" (Super Master: può tutto quello che può un Master, più gli
+// account dei Master e i telefoni degli autisti) e "invio" (solo anteprima e invio dei fogli agli autisti).
+function myRole(){const s=ACC.session();return s?s.role:"";}
+function isSuper(){return myRole()==="super";}
+function isInvio(){return myRole()==="invio";}
+function isMaster(){const r=myRole();return r==="master"||r==="super";}
+const ROLE_LBL={super:"Super Master",master:"Master",utente:"Utente",invio:"Solo anteprima e invio"};
 // cosa possono fare gli utenti normali (lo decide il Master nelle Impostazioni; di serie tutto permesso)
 function canEdit(kind){if(isMaster())return true;const p=((STORE.settings||{}).perms)||{};return p[kind]!==false;}
-function meName(){const s=ACC.session();return s?s.name:"";}
+function meName(){const s=ACC.session();return s&&s.role!=="super"?s.name:"";}
+// nome vero, anche per il Super Master: si usa solo nei dati che vede soltanto lui (scheda Autisti)
+function suName(){const s=ACC.session();return s?s.name:"";}
 function reasonMsg(why){return {removed:"Il tuo account è stato eliminato dal Master.",disabled:"Il tuo account è stato disattivato dal Master.",password:"La password è stata cambiata: entra con quella nuova.",kicked:"Il Master ha disconnesso questo dispositivo: entra di nuovo con la tua password."}[why]||"";}
 function applyRole(){
-  const s=ACC.session(),m=!!s&&s.role==="master";
-  document.body.classList.toggle("is-master",m);
-  $("whoAmI").hidden=!s;if(s){$("whoAmI").textContent=s.name+(m?" · Master":"");$("whoAmI").className="whoami"+(m?" m":"");}
+  const s=ACC.session(),sup=!!s&&s.role==="super",m=!!s&&(s.role==="master"||sup);
+  document.body.classList.toggle("is-master",m);document.body.classList.toggle("is-super",sup);
+  $("whoAmI").hidden=!s;if(s){$("whoAmI").textContent=s.name+(sup?" · Super Master":m?" · Master":"");$("whoAmI").className="whoami"+(m?" m":"");}
   document.querySelectorAll(".mst-only").forEach(el=>{el.hidden=!m;});
+  document.querySelectorAll(".sup-only").forEach(el=>{el.hidden=!sup;});
+  $("mstTitle").textContent=sup?"Pannello Super Master":"Pannello Master";
+  $("mMaster").firstElementChild.textContent=sup?"Pannello Super Master":"Pannello Master";
 }
 // utenti validi dell'elenco (oggetti con un nome): un file scritto male non rompe «Chi sei?» né il Pannello Master
 function userEntries(U){const m=U&&U.users;return m&&typeof m==="object"&&!Array.isArray(m)?Object.entries(m).filter(([,u])=>u&&typeof u==="object"&&typeof u.name==="string"&&u.name):[];}
 function renderWho(){
   const U=STORE.users||{users:{}};
-  const list=userEntries(U).filter(([,u])=>u.active!==false).sort((a,b)=>a[1].name.localeCompare(b[1].name,"it"));
+  const list=userEntries(U).filter(([,u])=>u.active!==false&&u.role!=="super").sort((a,b)=>a[1].name.localeCompare(b[1].name,"it"));
   const ini=n=>String(n||"").trim().split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join("")||"?";
-  $("gWho").innerHTML=list.map(([id,u])=>'<button type="button" role="radio" data-uid="'+esc(id)+'" aria-checked="'+(id===loginUid)+'"><span class="av" aria-hidden="true">'+esc(ini(u.name))+'</span><span class="wn">'+esc(u.name)+(u.role==="master"?'<small>Master</small>':'')+'</span></button>').join("")||'<p class="gate-sub">Nessun utente attivo.</p>';
+  $("gWho").innerHTML=list.map(([id,u])=>'<button type="button" role="radio" data-uid="'+esc(id)+'" aria-checked="'+(id===loginUid)+'"><span class="av" aria-hidden="true">'+esc(ini(u.name))+'</span><span class="wn">'+esc(u.name)+(u.role==="master"?'<small>Master</small>':u.role==="invio"?'<small>Invio fogli</small>':'')+'</span></button>').join("")||'<p class="gate-sub">Nessun utente attivo.</p>';
 }
 $("gWho").addEventListener("click",e=>{const b=e.target.closest("[data-uid]");if(!b)return;loginUid=b.dataset.uid;renderWho();$("gMsg").textContent="";$("gPw").focus();});
 $("gPwShow").onclick=()=>{const show=$("gPw").type==="password";$("gPw").type=show?"text":"password";$("gPwShow").textContent=show?"Nascondi":"Mostra";};
 $("gLoginForm").addEventListener("submit",async e=>{
   e.preventDefault();
-  const U=STORE.users,u=U&&loginUid&&U.users[loginUid],btn=$("gLoginBtn");
+  const U=STORE.users,u0=U&&loginUid&&U.users[loginUid],u=u0&&u0.role!=="super"?u0:null,btn=$("gLoginBtn");
   if(!u){$("gMsg").textContent="Scegli il tuo nome.";return;}
   const w=ACC.failWait();if(w){$("gMsg").textContent="Troppi tentativi sbagliati: riprova tra "+w+" secondi.";return;}
   if(!$("gPw").value){$("gMsg").textContent="Scrivi la password.";$("gPw").focus();return;}
@@ -2451,6 +2505,7 @@ $("gMasterForm").addEventListener("submit",async e=>{
 });
 function doLogout(msg,why){
   ACC.log("accesso",why||"Uscita");ACC.logout();ACC.beat("uscito");ACC.flushLog();
+  mstLog=null;mstDevs=null;mstTlog=null;
   applyRole();showGate("login",{msg:msg||""});
 }
 // l'elenco utenti è cambiato (da questo o da un altro dispositivo): la sessione vale ancora?
@@ -2461,9 +2516,11 @@ function onUsersChanged(U){
   const why=ACC.sessionProblem(s,U);
   if(why==="blocked"){blockedDevice();return;}
   if(why){doLogout(reasonMsg(why),why==="kicked"?"Disconnesso dal Master":why==="password"?"Uscita: password cambiata":why==="removed"?"Uscita: account eliminato":"Uscita: account disattivato");return;}
-  ACC.refreshSession(U);applyRole();
+  const was=s.role;ACC.refreshSession(U);applyRole();
+  // il ruolo è cambiato mentre era dentro (per esempio da utente a «solo invio»): schermata giusta, finestre chiuse
+  if($("gate").hidden&&myRole()!==was&&(isInvio()||was==="invio")){closeOverlays();hideGate();return;}
   if(!isMaster()){$("ovMaster").hidden=true;if(!$("ovMenu").hidden)menuPane("mMain");}
-  else if(!$("ovMaster").hidden)renderMasterTab();
+  else{if(!isSuper()&&mstTab==="aut")mstTab="users";if(!$("ovMaster").hidden)setMasterTab(mstTab);}
 }
 async function setOwnPassword(pw){
   const me=ACC.session(),sec=await ACC.makeSecret(pw);pwChanging=sec.pwAt;
@@ -2477,7 +2534,7 @@ async function blockedDevice(){
   ACC.log("dispositivi","Dispositivo bloccato dal Master: scollegato da Dropbox");
   try{await ACC.flushLog();await ACC.beat("bloccato");}catch(_){}
   try{await DBX.revoke();}catch(_){}
-  ACC.logout();DBX.unlink();await STORE.reset();ACC.forgetDevice();
+  ACC.logout();DBX.unlink();await STORE.reset();try{AUT.forget();}catch(_){}ACC.forgetDevice();
   try{localStorage.removeItem("agenda-view");localStorage.removeItem("agenda-last-user");}catch(_){}
   applyRole();showGate("link",{msg:"Questo dispositivo è stato bloccato dal Master. Per usarlo di nuovo va ricollegato con l'account Dropbox dell'azienda."});
   blocking=false;
@@ -2486,7 +2543,7 @@ async function blockedDevice(){
 ["pointerdown","keydown","wheel","touchstart"].forEach(t=>document.addEventListener(t,()=>{lastAct=Date.now();},{passive:true,capture:true}));
 setInterval(()=>{
   const min=+((STORE.settings||{}).autoLock||0);
-  if(!min||!ACC.session()||$("app").hidden||formDirty())return;
+  if(!min||!ACC.session()||($("app").hidden&&$("invio").hidden)||formDirty())return;
   if(Date.now()-lastAct>min*60000)doLogout("Sei uscito automaticamente dopo "+(min<60?min+" minuti":(min/60)+(min===60?" ora":" ore"))+" senza attività.","Uscita automatica (inattività)");
 },20000);
 
@@ -2523,12 +2580,16 @@ function openMaster(tab){
 function setMasterTab(t){
   mstTab=t;
   document.querySelectorAll("[data-mt]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mt===t)));
-  $("mtUsers").hidden=t!=="users";$("mtDevs").hidden=t!=="devs";$("mtLog").hidden=t!=="log";$("mtTlog").hidden=t!=="tlog";$("mtSet").hidden=t!=="set";
+  if(t==="aut"&&!isSuper())t="users";
+  mstTab=t;
+  document.querySelectorAll("[data-mt]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mt===t)));
+  $("mtUsers").hidden=t!=="users";$("mtDevs").hidden=t!=="devs";$("mtLog").hidden=t!=="log";$("mtTlog").hidden=t!=="tlog";$("mtSet").hidden=t!=="set";$("mtAut").hidden=t!=="aut";
   renderMasterTab();
+  if(t==="aut")AUT.sync();
   if(t==="log")loadLog();
   if(t==="tlog")loadTlog();
 }
-function renderMasterTab(){if(mstTab==="users")renderUsers();else if(mstTab==="devs")renderDevices();else if(mstTab==="log")renderLog();else if(mstTab==="tlog")renderTlog();else renderSettings();}
+function renderMasterTab(){if(mstTab==="users")renderUsers();else if(mstTab==="devs")renderDevices();else if(mstTab==="log")renderLog();else if(mstTab==="tlog")renderTlog();else if(mstTab==="aut")renderAut();else renderSettings();}
 document.querySelectorAll("[data-mt]").forEach(b=>b.onclick=()=>{mstMsg("");setMasterTab(b.dataset.mt);});
 $("mMaster").onclick=()=>openMaster();
 $("mstClose").onclick=()=>{$("ovMaster").hidden=true;};
@@ -2538,26 +2599,38 @@ async function loadDevices(){
   if(!$("ovMaster").hidden&&(mstTab==="devs"||mstTab==="users"))renderMasterTab();
 }
 function lastLoginOf(uid){let t="",dv="";for(const d of (mstDevs||[]))if(d.uid===uid&&d.loginAt&&d.loginAt>t){t=d.loginAt;dv=d.dev;}return t?{t,dv}:null;}
+// chi può modificare un account: il Super Master tutti; un Master solo gli utenti normali
+function canManage(u){return isSuper()||(!!u&&u.role==="utente");}
+const ROLE_ORD={super:0,master:1,invio:2,utente:3},ROLE_PILL={super:" s",master:" m",invio:" i",utente:""};
 function renderUsers(){
-  const U=STORE.users||{users:{}},me=ACC.session()||{};
-  const list=userEntries(U).sort((a,b)=>(a[1].role===b[1].role?0:a[1].role==="master"?-1:1)||a[1].name.localeCompare(b[1].name,"it"));
+  const U=STORE.users||{users:{}},me=ACC.session()||{},sup=isSuper();
+  // il Super Master compare solo a se stesso
+  const list=userEntries(U).filter(([,u])=>sup||u.role!=="super").sort((a,b)=>(ROLE_ORD[a[1].role]-ROLE_ORD[b[1].role])||a[1].name.localeCompare(b[1].name,"it"));
+  const supNames=new Set(userEntries(U).filter(([,u])=>u.role==="super").map(([,u])=>norm(u.name)));
+  $("uSub").innerHTML=sup?"Da qui gestisci <b>tutti gli account</b>: Master, utenti e profilo «solo anteprima e invio». I Master possono creare e modificare solo gli utenti normali.":"Ognuno entra con il proprio nome e la propria password. Gli <b>utenti</b> lavorano sull'agenda; il <b>Master</b> vede anche questo pannello. Da qui gestisci gli <b>utenti normali</b>; gli altri account non si modificano da questo pannello.";
   $("uList").innerHTML=list.map(([id,u])=>{
     const ll=lastLoginOf(id),on=(mstDevs||[]).some(d=>d.uid===id&&d.state==="attivo"&&Date.now()-new Date(d.last)<20*60000);
-    return '<div class="u-row"><div><b>'+esc(u.name)+'</b>'+(id===me.uid?' <span class="pill">tu</span>':'')+'<small>'+(u.created?"creato il "+esc(itD(String(u.created).slice(0,10)))+(u.createdBy?" da "+esc(u.createdBy):""):"")+'</small></div>'+
-      '<div><span class="pill'+(u.role==="master"?" m":"")+'">'+(u.role==="master"?"Master":"Utente")+'</span></div>'+
+    return '<div class="u-row"><div><b>'+esc(u.name)+'</b>'+(id===me.uid?' <span class="pill">tu</span>':'')+'<small>'+(u.created?"creato il "+esc(itD(String(u.created).slice(0,10)))+(u.createdBy&&(sup||!supNames.has(norm(u.createdBy)))?" da "+esc(u.createdBy):""):"")+'</small></div>'+
+      '<div><span class="pill'+ROLE_PILL[u.role]+'">'+esc(ROLE_LBL[u.role])+'</span></div>'+
       '<div><span class="pill '+(u.active===false?"off":"on")+'">'+(u.active===false?"Disattivato":on?"Collegato ora":"Attivo")+'</span></div>'+
       '<div><small>Ultimo accesso</small>'+(ll?esc(fmtTime(ll.t))+'<small>'+esc(ACC.devLabel(ll.dv)||devAuto(ll.dv))+'</small>':'<small>—</small>')+'</div>'+
-      '<div class="row-act"><button type="button" class="btn" data-uedit="'+esc(id)+'">Modifica</button></div></div>';
+      '<div class="row-act">'+(canManage(u)?'<button type="button" class="btn" data-uedit="'+esc(id)+'">Modifica</button>':'<small>non modificabile da qui</small>')+'</div></div>';
   }).join("");
 }
 function devAuto(id){const d=(mstDevs||[]).find(x=>x.dev===id);return d?d.auto:"";}
 let uEditing=null;
 function openUserForm(id){
-  const U=STORE.users||{users:{}},u=id?U.users[id]:null;uEditing=id||null;
+  const U=STORE.users||{users:{}},u=id?U.users[id]:null,sup=isSuper();
+  if(u&&!canManage(u)){mstMsg("Questo account non si modifica da qui.",true);return;}
+  uEditing=id||null;
   $("uFormTitle").textContent=u?"Modifica «"+u.name+"»":"Nuovo utente";
-  $("uName").value=u?u.name:"";$("uRole").value=u?u.role:"utente";$("uActive").checked=u?u.active!==false:true;
+  // ruolo: un Master crea solo utenti normali; il ruolo del Super Master non si cambia
+  const rs=$("uRole"),own=u&&u.role==="super";
+  let so=rs.querySelector('option[value="super"]');if(own&&!so){so=document.createElement("option");so.value="super";so.textContent="Super Master";rs.appendChild(so);}else if(!own&&so)so.remove();
+  [...rs.options].forEach(o=>{o.disabled=!sup&&o.value!=="utente";});rs.disabled=!sup||own;
+  $("uName").value=u?u.name:"";rs.value=u?u.role:"utente";$("uActive").checked=u?u.active!==false:true;$("uActive").disabled=!!own;
   $("uPw").value=u?"":ACC.genPassword();$("uPwLbl").textContent=u?"Nuova password":"Password da comunicare";$("uPw").placeholder=u?"lascia vuoto per non cambiarla":"";
-  $("uDel").hidden=!u||id===(ACC.session()||{}).uid;$("uNote").textContent="";
+  $("uDel").hidden=!u||id===(ACC.session()||{}).uid||own;$("uNote").textContent="";
   $("uForm").hidden=false;$("uName").focus();
 }
 $("uNew").onclick=()=>openUserForm(null);
@@ -2565,16 +2638,20 @@ $("uList").addEventListener("click",e=>{const b=e.target.closest("[data-uedit]")
 $("uGen").onclick=()=>{$("uPw").value=ACC.genPassword();};
 $("uCancel").onclick=()=>{$("uForm").hidden=true;uEditing=null;};
 const LAST_MASTER="Non salvato: deve restare almeno un Master attivo. Un altro Master è stato appena tolto o disattivato da un altro dispositivo: controlla l'elenco aggiornato.";
+const NOT_ALLOWED="Non salvato: questo account non si modifica da questo pannello.";
 function mastersLeft(J,exceptId){return userEntries(J).filter(([id,u])=>id!==exceptId&&u.role==="master"&&u.active!==false).length;}
 $("uForm").addEventListener("submit",async e=>{
   e.preventDefault();
   const name=cleanText($("uName").value),role=$("uRole").value,active=$("uActive").checked,pw=$("uPw").value.trim(),me=ACC.session(),note=$("uNote");
   const U=STORE.users||{users:{}},id=uEditing,old=id?U.users[id]:null;
   if(name.length<2){note.textContent="Scrivi nome e cognome.";return;}
-  if(userEntries(U).some(([k,u])=>k!==id&&norm(u.name)===norm(name))){note.textContent="Esiste già un utente con questo nome.";return;}
+  if(userEntries(U).some(([k,u])=>k!==id&&(isSuper()||u.role!=="super")&&norm(u.name)===norm(name))){note.textContent="Esiste già un utente con questo nome.";return;}
   if(!old&&pw.length<6){note.textContent="La password deve avere almeno 6 caratteri.";return;}
   if(old&&pw&&pw.length<6){note.textContent="La nuova password deve avere almeno 6 caratteri.";return;}
-  if(id===me.uid&&(role!=="master"||!active)){note.textContent="Non puoi togliere a te stesso il ruolo Master o disattivarti.";return;}
+  if(!isSuper()&&(role!=="utente"||(old&&old.role!=="utente"))){note.textContent="Da questo pannello si gestiscono solo gli utenti normali.";return;}
+  if(old&&old.role==="super"&&role!=="super"){note.textContent="Il ruolo del Super Master non si cambia.";return;}
+  if(role==="super"&&!(old&&old.role==="super")){note.textContent="Il Super Master è uno solo.";return;}
+  if(id===me.uid&&(role!==old.role||!active)){note.textContent="Non puoi cambiare il tuo ruolo né disattivarti.";return;}
   if(old&&old.role==="master"&&(role!=="master"||!active)&&!mastersLeft(U,id)){note.textContent="Deve restare almeno un Master attivo.";return;}
   if(!navigator.onLine){note.textContent="Serve la connessione a internet.";return;}
   $("uSave").disabled=true;
@@ -2584,25 +2661,28 @@ $("uForm").addEventListener("submit",async e=>{
     if(id===me.uid&&sec)pwChanging=sec.pwAt;
     await STORE.updateUsers(J=>{
       if(id&&!J.users[id])return null;
-      const x=id?J.users[id]:{created:now,createdBy:me.name};
-      x.name=name;x.role=role;x.active=active;if(sec)Object.assign(x,sec);
+      const x=id?J.users[id]:{created:now,createdBy:meName()};
+      x.name=name;x.active=active;if(sec)Object.assign(x,sec);
+      // i ruoli nuovi stanno nel campo lvl (vedi store.js): le versioni vecchie non li cancellano
+      if(role==="super"||role==="invio"){x.lvl=role;x.role="utente";}else{delete x.lvl;x.role=role;}
       J.users[nid]=x;return J;
     });
     if(id===me.uid&&sec){const s=ACC.session();s.pwAt=sec.pwAt;ACC.setSession(s);}
     const ch=[];
-    if(old){if(old.name!==name)ch.push(["Nome",old.name,name]);if(old.role!==role)ch.push(["Ruolo",old.role,role]);if((old.active!==false)!==active)ch.push(["Stato",old.active!==false?"attivo":"disattivato",active?"attivo":"disattivato"]);if(sec)ch.push(["Password","","cambiata"]);}
-    ACC.log("utenti",old?"Modificato l'utente «"+name+"»":"Creato l'utente «"+name+"» ("+(role==="master"?"Master":"Utente")+")",ch.length?{ch}:null);
+    if(old){if(old.name!==name)ch.push(["Nome",old.name,name]);if(old.role!==role)ch.push(["Ruolo",ROLE_LBL[old.role]||old.role,ROLE_LBL[role]||role]);if((old.active!==false)!==active)ch.push(["Stato",old.active!==false?"attivo":"disattivato",active?"attivo":"disattivato"]);if(sec)ch.push(["Password","","cambiata"]);}
+    ACC.log("utenti",old?"Modificato l'utente «"+name+"»":"Creato l'utente «"+name+"» ("+(ROLE_LBL[role]||role)+")",ch.length?{ch}:null);
     $("uForm").hidden=true;uEditing=null;renderUsers();
     mstMsg(old?"Utente aggiornato."+(sec&&id!==me.uid?" Sui suoi dispositivi dovrà entrare con la nuova password.":""):"Utente creato. Password da comunicare: "+pw);
-  }catch(err){note.textContent=err&&err.code==="offline"?"Serve la connessione a internet.":err&&err.code==="lastmaster"?LAST_MASTER:"Non riesco a salvare. Riprova tra poco.";if(err&&err.code==="lastmaster"){ACC.tlog("avviso","Modifica utente rifiutata: sarebbe rimasta l'agenda senza Master");renderUsers();}}
+  }catch(err){note.textContent=err&&err.code==="offline"?"Serve la connessione a internet.":err&&err.code==="lastmaster"?LAST_MASTER:err&&err.code==="forbidden"?NOT_ALLOWED:err&&err.code==="onesuper"?"Il Super Master è uno solo.":"Non riesco a salvare. Riprova tra poco.";if(err&&err.code==="forbidden")renderUsers();if(err&&err.code==="lastmaster"){ACC.tlog("avviso","Modifica utente rifiutata: sarebbe rimasta l'agenda senza Master");renderUsers();}}
   finally{$("uSave").disabled=false;pwChanging=null;}
 });
 $("uDel").onclick=async()=>{
   const id=uEditing,U=STORE.users,u=id&&U&&U.users[id];if(!u)return;
+  if(!canManage(u)||u.role==="super"){$("uNote").textContent=NOT_ALLOWED;return;}
   if(u.role==="master"&&!mastersLeft(U,id)){$("uNote").textContent="Deve restare almeno un Master attivo.";return;}
   if(!confirm("Eliminare l'utente «"+u.name+"»? Non potrà più entrare. Nel registro restano le sue azioni."))return;
   try{await STORE.updateUsers(J=>{if(!J.users[id])return null;delete J.users[id];return J;});ACC.log("utenti","Eliminato l'utente «"+u.name+"»");$("uForm").hidden=true;uEditing=null;renderUsers();mstMsg("Utente eliminato.");}
-  catch(err){$("uNote").textContent=err&&err.code==="lastmaster"?LAST_MASTER:"Non riesco a eliminarlo adesso. Riprova.";}
+  catch(err){$("uNote").textContent=err&&err.code==="lastmaster"?LAST_MASTER:err&&err.code==="forbidden"?NOT_ALLOWED:"Non riesco a eliminarlo adesso. Riprova.";}
 };
 function renderDevices(){
   const U=STORE.users||{},bl=U.blocked||{},list=(mstDevs||[]).slice().sort((a,b)=>(a.dev===ACC.device.id?-1:b.dev===ACC.device.id?1:0)||(a.last<b.last?1:-1));
@@ -2610,20 +2690,26 @@ function renderDevices(){
   $("devList").innerHTML=list.map(d=>{
     const me=d.dev===ACC.device.id,blocked=!!bl[d.dev]||d.state==="bloccato",fresh=Date.now()-new Date(d.last)<20*60000,on=d.state==="attivo"&&fresh&&!blocked;
     const lbl=ACC.devLabel(d.dev)||d.auto||"Dispositivo";
-    const who=blocked?'<span class="pill off">Bloccato</span>'+(d.state==="bloccato"?"<small>scollegato da Dropbox</small>":"<small>si scollega appena torna online</small>"):d.uid&&d.state==="attivo"?'<b>'+esc(d.user)+'</b><small>'+(d.role==="master"?"Master · ":"")+"entrato "+esc(fmtTime(d.loginAt))+'</small>':'<span class="pill">Nessuno</span><small>'+(d.state==="scollegato"?"scollegato":"uscito")+'</small>';
+    const who=blocked?'<span class="pill off">Bloccato</span>'+(d.state==="bloccato"?"<small>scollegato da Dropbox</small>":"<small>si scollega appena torna online</small>"):d.uid&&d.state==="attivo"?'<b>'+esc(d.user)+'</b><small>'+(devRole(d)==="master"?"Master · ":devRole(d)==="invio"?"Invio fogli · ":"")+"entrato "+esc(fmtTime(d.loginAt))+'</small>':'<span class="pill">Nessuno</span><small>'+(d.state==="scollegato"?"scollegato":"uscito")+'</small>';
     let act="";
     if(me)act='<span class="pill m">Questo dispositivo</span>';
     else if(blocked)act=d.state==="bloccato"?'<button type="button" class="btn" data-dforget="'+esc(d.dev)+'">Togli dall\'elenco</button>':'';
+    else if(devProtected(d))act='<small>non gestibile da qui</small>';
     else act=(d.uid&&d.state==="attivo"?'<button type="button" class="btn" data-dkick="'+esc(d.dev)+'">Disconnetti</button>':'')+'<button type="button" class="btn danger" data-dblock="'+esc(d.dev)+'">Blocca</button>';
     return '<div class="dev-row'+(me?" me":"")+'"><div><button type="button" class="dev-name" data-dname="'+esc(d.dev)+'" title="Rinomina">'+esc(lbl)+' ✎</button><small>'+esc(d.auto||"")+(d.ver?" · v"+esc(d.ver):"")+'</small></div>'+
       '<div>'+who+'</div><div><span class="dot'+(on?" on":"")+'"></span>'+esc(agoTxt(d.last))+'<small>ultima attività</small></div><div><small>versione</small>'+esc(d.ver||"—")+'</div><div class="row-act">'+act+'</div></div>';
   }).join("")||'<div class="lg-empty">Nessun dispositivo ha ancora usato la versione '+APP_VERSION+'.</div>';
 }
+// ruolo di chi sta lavorando su un dispositivo: vale quello dell'elenco utenti di adesso (la scheda del
+// dispositivo si aggiorna solo all'accesso e ogni 10 minuti: chi è appena diventato Master va protetto subito)
+function devRole(d){const U=STORE.users,u=d&&d.uid&&U&&U.users?U.users[d.uid]:null;return u?(u.active===false?"":u.role):((d&&d.role)||"");}
+function devProtected(d){const r=devRole(d);return !isSuper()&&(r==="master"||r==="invio")&&!!d.uid&&d.state==="attivo";}
 $("devReload").onclick=()=>{mstDevs=null;renderDevices();loadDevices();};
 $("devList").addEventListener("click",async e=>{
   const k=e.target.closest("[data-dkick]"),bl=e.target.closest("[data-dblock]"),nm=e.target.closest("[data-dname]"),fg=e.target.closest("[data-dforget]");
   const d=(mstDevs||[]).find(x=>x.dev===((k||bl||nm||fg)||{dataset:{}}).dataset[k?"dkick":bl?"dblock":nm?"dname":"dforget"]);if(!d)return;
   const lbl=ACC.devLabel(d.dev)||d.auto;
+  if((k||bl)&&devProtected(d)){mstMsg("Il dispositivo dove lavora un altro Master, o chi invia i fogli, non si gestisce da questo pannello.",true);return;}
   try{
     if(k){if(!confirm("Far uscire "+(d.user||"l'utente")+" da «"+lbl+"»? Per rientrare servirà la password."))return;
       await STORE.updateUsers(J=>{J.kicks=J.kicks||{};J.kicks[d.dev]=new Date().toISOString();return J;});ACC.log("dispositivi","Disconnesso «"+(d.user||"")+"» dal dispositivo «"+lbl+"»");mstMsg("Fatto: il dispositivo torna alla schermata di accesso appena riceve l'aggiornamento (pochi secondi se è acceso e collegato).");}
@@ -2646,15 +2732,20 @@ async function loadLog(){
   catch(_){mstLog=null;$("lgList").innerHTML='<div class="lg-empty">Non riesco a leggere il registro. Controlla la connessione e riprova.</div>';return;}
   renderLog();
 }
+function logVisible(e){
+  if(isSuper())return true;
+  const U=STORE.users,u=U&&U.users&&U.users[e.u];
+  return e.s!=="1"&&!(u&&u.role==="super")&&!(e.d&&e.d.hid);
+}
 function logFiltered(){
   if(!mstLog)return [];
   const uf=$("lgUser").value,kf=$("lgKind").value,q=norm($("lgQ").value).trim();
-  return mstLog.ev.filter(e=>(!uf||e.u===uf||(!e.u&&e.d&&e.d.uid===uf))&&(!kf||e.k===kf||(kf==="impostazioni"&&(e.k==="utenti"||e.k==="dispositivi")))&&(!q||norm(e.n+" "+e.x+" "+JSON.stringify(e.d||"")).includes(q)));
+  return mstLog.ev.filter(logVisible).filter(e=>(!uf||e.u===uf||(!e.u&&e.d&&e.d.uid===uf))&&(!kf||e.k===kf||(kf==="impostazioni"&&(e.k==="utenti"||e.k==="dispositivi")))&&(!q||norm(e.n+" "+e.x+" "+JSON.stringify(e.d||"")).includes(q)));
 }
 function logTime(t){const d=new Date(t),y=d.getFullYear()!==new Date().getFullYear();return d.toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit",year:y?"2-digit":undefined})+" "+d.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"});}
 function renderLog(){
   const U=STORE.users||{users:{}},sel=$("lgUser").value;
-  const names=new Map(userEntries(U).map(([id,u])=>[id,u.name]));(mstLog?mstLog.ev:[]).forEach(e=>{if(e.u&&!names.has(e.u))names.set(e.u,e.n+" (eliminato)");});
+  const names=new Map(userEntries(U).filter(([,u])=>isSuper()||u.role!=="super").map(([id,u])=>[id,u.name]));(mstLog?mstLog.ev:[]).filter(logVisible).forEach(e=>{if(e.u&&!names.has(e.u))names.set(e.u,e.n+" (eliminato)");});
   $("lgUser").innerHTML='<option value="">Tutti gli utenti</option>'+[...names].sort((a,b)=>a[1].localeCompare(b[1],"it")).map(([id,n])=>'<option value="'+esc(id)+'"'+(id===sel?" selected":"")+'>'+esc(n)+'</option>').join("");
   if(!mstLog)return;
   const ev=logFiltered(),max=600;
@@ -3422,6 +3513,7 @@ async function saveXlsx(blob,filename){
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
   return where;
 }
+let canShareFile=false;
 async function shareSheet(){
   if(!sheetBooking)return;
   try{
@@ -3433,8 +3525,602 @@ async function shareSheet(){
     $("sheetMsg").textContent="Inviato.";
   }catch(e){if(e&&e.name!=="AbortError")$("sheetMsg").textContent="Invio non riuscito: scarica il PDF e allegalo.";}
 }
-(function(){try{const f=new File([new Blob(["x"])],"a.pdf",{type:"application/pdf"});if(navigator.canShare&&navigator.canShare({files:[f]}))$("sheetShare").hidden=false;}catch(_){}})();
+(function(){try{const f=new File([new Blob(["x"])],"a.pdf",{type:"application/pdf"});if(navigator.canShare&&navigator.canShare({files:[f]})){canShareFile=true;$("sheetShare").hidden=false;}}catch(_){}})();
 $("sheetShare").onclick=shareSheet;
+
+// =====================================================================================
+// 2.5 — Invio dei fogli agli autisti, stato dei fogli, spese della busta, Super Master,
+//        profilo «solo anteprima e invio», telefoni degli autisti
+// =====================================================================================
+// La cartella degli autisti («Autisti La Terra») e tutto quello che ci passa stanno in autisti.js (AUT).
+// All'autista arrivano il PDF del foglio (solo la parte per l'autista) e pochi dati del servizio:
+// prezzi e parte contabile non vengono mai inviati.
+let autReturn=null; // ritorno da Dropbox dopo aver autorizzato la cartella o un telefono
+AUT.configure({onChange:()=>{
+  if(!$("app").hidden&&S.view==="day")renderDay();
+  if(!$("invio").hidden)renderInvio();
+  if(!$("ovSheet").hidden)renderSheetSent();
+  if(!$("ovMaster").hidden&&mstTab==="aut")renderAut();
+}});
+function autStart(){
+  setInterval(()=>{if(document.visibilityState==="visible"&&ACC.session()&&AUT.linked())AUT.sync();},120000);
+  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&ACC.session()&&AUT.linked()&&Date.now()-AUT.lastSync>30000)AUT.sync();});
+}
+// messaggi sulla cartella degli autisti: il Super Master si nomina solo a lui
+const autMissing=()=>"La cartella «Autisti La Terra» non è ancora collegata: "+(isSuper()?"collegala dal Pannello Super Master, scheda Autisti.":"i fogli si potranno inviare appena sarà stata collegata.");
+const autBroken=()=>"Il collegamento con la cartella degli autisti non è più valido: "+(isSuper()?"ricollegala dal Pannello Super Master, scheda Autisti.":"va ricollegata. Il foglio NON è stato inviato.");
+// tour con busta (le spese valgono solo per questi)
+const hasBusta=b=>isMulti(b.type)&&b.envelope==="SI";
+// la scheda spese si apre per i tour con busta già inviati all'autista
+function speseFor(b){return !!b&&hasBusta(b)&&!!(b.sent&&b.sent.at)&&!isInvio();}
+// cosa parte verso l'autista: intestazione (cliente o alias), mezzo, autisti
+function sendOpts(b,o){
+  o=o||{};
+  const v=vehicle(b.vehicle)||{},cl=shClient(b),alias=cl&&cl[2]?String(cl[2]):"",al=!!(o.alias&&alias);
+  return {alias:al,noPlate:!!o.noPlate,cliente:al?alias:(cl?String(cl[1]):(b.client||"")),
+    mezzo:{nome:v.name||"",posti:v.seats?String(v.seats)+(v.h?" H":""):"",targa:(v.plate||"").trim()},
+    autisti:[...new Set([b.driver,b.driver2].map(realDriver).filter(Boolean).map(driverCanon))],by:meName()};
+}
+// stato dell'invio: null se il foglio non è mai stato inviato
+function sentInfo(b){
+  const st=AUT.status(b);if(!st)return null;
+  // «da reinviare»: dopo l'invio è cambiato qualcosa che sta sul foglio (con l'alias serve l'anagrafica clienti già letta)
+  st.stale=st.k!=="ritirato"&&st.k!=="consegnata"&&endOf(b)>=todayISO()&&!!b.sent.h&&!(b.sent.alias&&!(S.clients&&S.clients.length))&&b.sent.h!==AUT.sheetHash(b,sendOpts(b,b.sent));
+  return st;
+}
+const SENT_LBL={inviato:"Inviato",aperto:"Aperto dall'autista",consegnata:"Busta consegnata",ritirato:"Ritirato"},SENT_SHORT={inviato:"Inviato",aperto:"Aperto",consegnata:"Busta consegnata",ritirato:"Ritirato"};
+function sentTitle(b,st){
+  if(st.k==="ritirato")return "Foglio ritirato dall'app dell'autista "+fmtTime(st.at)+(st.by?" da "+st.by:"");
+  const l=["Inviato a "+(st.to.join(" e ")||"—")+" "+fmtTime(st.at)+(st.by?" da "+st.by:"")+(st.n>1?" (invio n. "+st.n+")":"")];
+  if(st.k==="aperto")l.push("Aperto dall'autista "+fmtTime(st.when));
+  if(st.k==="consegnata")l.push("Busta consegnata "+fmtTime(st.when));
+  if(st.stale)l.push("ATTENZIONE: la prenotazione è cambiata dopo l'invio: il foglio va inviato di nuovo");
+  return l.join("\n");
+}
+function sentChip(b){
+  const st=sentInfo(b);if(!st)return "";
+  return '<button type="button" class="snt k-'+st.k+(st.stale?" stale":"")+'" data-sent="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc(sentTitle(b,st))+'">'+esc(st.stale?"Da reinviare":SENT_SHORT[st.k])+'</button>';
+}
+// riga di stato nella finestra del foglio: inviato → aperto → busta consegnata
+function renderSheetSent(){
+  const b0=sheetBooking,bar=$("sheetSent");if(!b0){bar.hidden=true;return;}
+  const b=bookingsAll().find(x=>x.id===b0.id)||b0,st=sentInfo(b),iv=isInvio(),on=AUT.linked();
+  const stp=(ok,t,sub)=>'<span class="stp'+(ok?" on":"")+'"><i>✓</i><span>'+esc(t)+(sub?' <small>'+esc(sub)+'</small>':'')+'</span></span>';
+  let h="";
+  if(!st||st.k==="ritirato"){
+    h='<span class="none">'+(st?"Foglio ritirato dall'app dell'autista "+esc(fmtTime(st.at))+(st.by?" da "+esc(st.by):"")+".":on?"Non ancora inviato all'autista.":autMissing())+'</span>';
+  }else{
+    const op=st.k==="aperto"||st.k==="consegnata";
+    h=stp(true,"Inviato a "+(st.to.join(" e ")||"—"),fmtTime(st.at)+(st.by?" da "+st.by:"")+(st.n>1?" · invio n. "+st.n:""))+
+      stp(op,"Aperto dall'autista",st.opened?fmtTime(st.opened)+(st.openedBy&&st.to.length>1?" da "+st.openedBy:""):op?"":st.openedOld?"aperta solo la versione precedente":"non ancora")+
+      (hasBusta(b)?stp(st.k==="consegnata","Busta consegnata",st.k==="consegnata"?fmtTime(st.when):st.sp?st.sp.n+(st.sp.n===1?" spesa scritta":" spese scritte"):"non ancora"):"")+
+      (st.stale?'<span class="warn">La prenotazione è cambiata dopo l\'invio: l\'autista ha ancora il foglio vecchio. Premi «Invia di nuovo».</span>':"");
+  }
+  bar.innerHTML=h;bar.hidden=false;
+  const live=!!st&&st.k!=="ritirato";
+  const lock=capoLock(b);
+  if(b.capo)bar.insertAdjacentHTML("beforeend",'<span class="capo">'+esc(capoTitle(b))+(lock?": il foglio lo invia (e lo ritira) solo lui.":".")+'</span>');
+  $("sheetSend").textContent=iv?(live?"Cambia bus o autisti e invia di nuovo":"Scegli bus e autisti e invia"):live?"Invia di nuovo":"Invia all'autista";
+  $("sheetSend").disabled=lock;$("sheetSend").title=lock?"Bus e autisti decisi dal capo: il foglio lo invia lui":"";
+  $("sheetWithdraw").hidden=!live||lock;
+  $("sheetSpese").hidden=!(live&&speseFor(b));
+}
+let sending=false;
+// Invia il foglio (parte per l'autista) e i dati del servizio. say: dove scrivere i messaggi.
+async function sendToDriver(b0,o,say){
+  say=say||toast;
+  if(sending)return false;
+  const b=bookingsAll().find(x=>x.id===b0.id);
+  if(!b){say("La prenotazione non c'è più (eliminata o spostata).");return false;}
+  if(capoLock(b)){say(CAPO_NO);return false;}
+  if(!AUT.linked()){say(autMissing());return false;}
+  if(!navigator.onLine){say("Per inviare il foglio serve la connessione a internet.");return false;}
+  if(STORE.isPending(b.id)){say("La prenotazione non è ancora arrivata in Dropbox (n. foglio provvisorio): riprova tra qualche secondo.");return false;}
+  const so=sendOpts(b,o);
+  if(!so.autisti.length){say("Manca l'autista: prima di inviare il foglio va assegnato un autista alla prenotazione.");return false;}
+  if(o.alias&&!so.alias){say("Per questo foglio è stata scelta l'intestazione con l'alias, ma l'alias del cliente non si trova"+(S.clients&&S.clients.length?"":" (l'elenco clienti non è ancora stato letto)")+": il foglio NON è partito. Apri l'anteprima e controlla «Intestazione».");return false;}
+  const ph=(STORE.aut&&STORE.aut.phones)||{},noPhone=so.autisti.filter(n=>!Object.values(ph).some(f=>!f.blocked&&norm(f.driver)===norm(n)));
+  const again=!!(b.sent&&b.sent.at&&!b.sent.off);
+  if(!o.noConfirm&&!confirm("Inviare il foglio di servizio n. "+(b.foglio||"")+" («"+so.cliente+"», "+itD(b.start)+") a "+so.autisti.join(" e ")+"?\n\nParte solo il foglio per l'autista: prezzi e parte contabile non vengono inviati."+
+    (pending(b)?"\n\nATTENZIONE: questa prenotazione è ancora IN SOSPESO.":"")+
+    (noPhone.length?"\n\nNessun telefono collegato per "+noPhone.join(" e ")+": il foglio resta in attesa finché il telefono non viene collegato.":"")+
+    (again?"\n\nIl foglio era già stato inviato: l'autista vedrà la versione nuova.":"")))return false;
+  // intanto (mentre la domanda era aperta, o su un altro dispositivo) il capo può aver deciso bus e autisti:
+  // si rilegge Dropbox e, in quel caso, non si invia
+  say("Controllo la prenotazione…");try{await STORE.pull();}catch(_){}
+  {const now=bookingsAll().find(x=>x.id===b.id);if(!now){say("La prenotazione non c'è più (eliminata o spostata).");return false;}
+    if(capoLock(now)||now.vehicle!==b.vehicle||(now.driver||"")!==(b.driver||"")||(now.driver2||"")!==(b.driver2||"")){say(capoLock(now)?CAPO_NO:"Bus o autisti sono appena cambiati: controlla l'anteprima e invia di nuovo.");return false;}}
+  sending=true;say("Invio il foglio all'autista…");
+  try{
+    // il PDF è quello dell'anteprima, sempre e solo nella parte per l'autista
+    const keep={alias:SHO.alias,noPlate:SHO.noPlate};let blob;
+    try{SHO.alias=so.alias;SHO.noPlate=so.noPlate;try{await ensureSheetFont();}catch(_){}blob=await tplPDF(Object.assign({},b,{provisional:false}),"driver");}
+    finally{SHO.alias=keep.alias;SHO.noPlate=keep.noPlate;}
+    const sent=await AUT.send(b,blob,so);
+    if(!markSent(b,sent)){say("Il foglio è partito, ma intanto la prenotazione è stata spostata o eliminata: controlla l'elenco e, se serve, invia di nuovo.");return false;}
+    ACC.log("foglio","Inviato all'autista ("+sent.to.join(", ")+") il foglio di servizio n. "+(b.foglio||"")+" «"+(b.client||"")+"»"+(sent.n>1?" – invio n. "+sent.n:""),{id:b.id});
+    sheetsOut[b.id]=String(b.foglio);
+    say("Foglio inviato a "+sent.to.join(" e ")+".");
+    return true;
+  }catch(e){
+    const c=e&&e.code;
+    say(c==="no_auth"||c==="nolink"?autBroken():c==="network"||c==="busy"?"Dropbox non risponde: il foglio NON è stato inviato. Riprova tra poco.":c==="readonly"?"Con questo profilo non si può fare.":c==="capo"?CAPO_NO:"Non sono riuscito a inviare il foglio: riprova.");
+    ACC.tlog("errore","Invio del foglio all'autista non riuscito",String((e&&(e.code||e.summary||e.message))||e));
+    return false;
+  }finally{sending=false;}
+}
+// scrive sulla prenotazione solo il campo «sent» (le modifiche fatte intanto da altri sugli altri campi restano)
+function markSent(b,sent){
+  const doc=S.days[b.start],cur=doc&&doc.bookings&&doc.bookings[b.id];if(!cur)return false;
+  writeDayOps(b.start,{bookings:{[b.id]:Object.assign({},cur,{sent})}},Object.assign({edit:true,only:true,base:cur.updatedAt||null,patch:["sent"]},isInvio()||isSuper()?{boss:true}:{}));
+  if(!$("app").hidden)renderAll();if(!$("invio").hidden)renderInvio();
+  return true;
+}
+async function withdrawFromDriver(b0,say){
+  say=say||toast;
+  const b=bookingsAll().find(x=>x.id===b0.id);if(!b||!b.sent||b.sent.off)return false;
+  if(capoLock(b)){say(CAPO_NO);return false;}
+  if(!AUT.linked()||!navigator.onLine){say("Per ritirare il foglio serve la connessione a internet.");return false;}
+  if(!confirm("Ritirare il foglio n. "+(b.foglio||"")+" dall'app dell'autista ("+((b.sent.to||[]).join(" e ")||"—")+")?\nL'autista non lo vedrà più. Le spese già scritte restano in archivio."))return false;
+  try{
+    const off=await AUT.withdraw(b,meName());
+    markSent(b,Object.assign({},b.sent,{off}));
+    ACC.log("foglio","Ritirato dall'app dell'autista il foglio di servizio n. "+(b.foglio||"")+" «"+(b.client||"")+"»",{id:b.id});
+    say("Foglio ritirato dall'app dell'autista.");return true;
+  }catch(e){say("Non sono riuscito a ritirare il foglio: riprova.");ACC.tlog("errore","Ritiro del foglio dall'autista non riuscito",String((e&&(e.code||e.summary))||e));return false;}
+}
+// prenotazione eliminata: se il foglio era dall'autista, si ritira
+function withdrawAfterDelete(b){
+  if(!b||!b.sent||!b.sent.at||b.sent.off)return;
+  const warn=()=>notify("La prenotazione «"+(b.client||"")+"» del "+itD(b.start)+" è stata eliminata, ma non sono riuscito a ritirare il foglio n. "+(b.foglio||"")+" dall'app dell'autista ("+((b.sent.to||[]).join(" e ")||"—")+"): avvisalo.",true);
+  if(!AUT.linked()||!navigator.onLine){warn();return;}
+  AUT.withdraw(b,meName()).then(()=>{ACC.log("foglio","Ritirato dall'app dell'autista il foglio n. "+(b.foglio||"")+" (prenotazione eliminata)",{id:b.id});toast("Foglio ritirato dall'app dell'autista");}).catch(warn);
+}
+const sheetSay=t=>{$("sheetMsg").textContent=t;};
+$("sheetSend").onclick=async()=>{
+  if(!sheetBooking)return;refreshSheetBooking();
+  // il capo sceglie sempre bus e autisti prima di inviare
+  if(isInvio()){openCapo(sheetBooking,{alias:SHO.alias,noPlate:SHO.noPlate});return;}
+  $("sheetSend").disabled=true;
+  try{await sendToDriver(sheetBooking,{alias:SHO.alias,noPlate:SHO.noPlate},sheetSay);refreshSheetBooking();}
+  finally{$("sheetSend").disabled=false;renderSheetSent();}
+};
+$("sheetWithdraw").onclick=async()=>{if(!sheetBooking)return;await withdrawFromDriver(sheetBooking,sheetSay);refreshSheetBooking();renderSheetSent();};
+$("sheetSpese").onclick=()=>{if(sheetBooking)openSpese(sheetBooking);};
+$("fSpese").onclick=()=>{if(!editing)return;const b=bookingsAll().find(x=>x.id===editing.id);if(b)openSpese(b);};
+
+// ---------- scheda con le spese dell'autista (tour con busta) ----------
+let spB=null,spData=null,spUrl="",spReq=0;
+function spClosePhoto(){$("spPhoto").hidden=true;$("spImg").removeAttribute("src");if(spUrl){try{URL.revokeObjectURL(spUrl);}catch(_){}spUrl="";}}
+function openSpese(b){
+  if(isInvio())return;
+  spB=b;spData=null;spClosePhoto();$("spMsg").textContent="";$("ovSpese").hidden=false;renderSpese();loadSpese();
+}
+async function loadSpese(){
+  if(!spB)return;
+  if(!AUT.linked()){$("spMsg").textContent=autMissing();return;}
+  if(!navigator.onLine){$("spMsg").textContent="Per leggere le spese serve la connessione a internet.";return;}
+  const req=++spReq,id=spB.id,mine=()=>req===spReq&&!!spB&&spB.id===id;$("spMsg").textContent="Leggo le spese dalla cartella degli autisti…";
+  try{await AUT.sync();if(!mine())return;const d=await AUT.spese(spB);if(!mine())return;spData=d||{v:1,righe:[],kmPartenza:null,kmRientro:null,note:"",consegnata:false,consegnataAt:"",autista:"",updatedAt:"",none:true};$("spMsg").textContent="";}
+  catch(e){if(!mine())return;$("spMsg").textContent=e&&e.code==="no_auth"?autBroken():"Non riesco a leggere le spese adesso. Riprova.";}
+  renderSpese();
+}
+function renderSpese(){
+  if(!spB)return;
+  const b=bookingsAll().find(x=>x.id===spB.id)||spB,st=sentInfo(b)||{},d=spData;
+  $("spTitle").textContent="Spese dell'autista · foglio n. "+(b.foglio||"");
+  $("spInfo").innerHTML="<b>"+esc(b.client||"Senza cliente")+"</b> · "+esc(itD(b.start))+(endOf(b)!==b.start?" – "+esc(itD(endOf(b))):"")+" · Autista: <b>"+esc(((b.sent&&b.sent.to)||[]).join(" e ")||driversText(b)||"—")+"</b> · Busta n. <b>"+esc(b.envno||"—")+"</b>";
+  const pill=$("spState"),deliv=st.k==="consegnata";
+  pill.className="pill "+(deliv?"on":st.k==="ritirato"?"off":"");
+  pill.textContent=deliv?"Busta consegnata "+fmtTime(st.when):st.k==="ritirato"?"Foglio ritirato":st.re?"Busta riaperta dall'ufficio "+fmtTime(st.re):"Busta non ancora consegnata";
+  $("spReopen").hidden=!deliv||S.readOnly;
+  if(!d){$("spTot").innerHTML="";$("spBody").innerHTML="";return;}
+  const t=AUT.totals(d,b.advance),tile=(l,v,c)=>'<div class="'+(c||"")+'"><span>'+esc(l)+'</span><b>'+esc(v)+'</b></div>';
+  $("spTot").innerHTML=tile("Anticipo in busta",t.anticipo==null?"—":"€ "+eur2(t.anticipo))+tile("Spese in contanti","€ "+eur2(t.contanti))+
+    tile(t.rimanenza!=null&&t.rimanenza<0?"Da rimborsare all'autista":"Rimanenza in busta",t.rimanenza==null?"—":"€ "+eur2(Math.abs(t.rimanenza)),"main"+(t.rimanenza!=null&&t.rimanenza<0?" neg":""))+
+    tile("Con carta aziendale","€ "+eur2(t.carta));
+  let h="";
+  if(d.none||!d.righe.length)h+='<div class="lg-empty">'+(d.none?"L'autista non ha ancora scritto nessuna spesa.":"Nessuna spesa scritta.")+'</div>';
+  for(const c of Object.keys(AUT.CATS)){
+    const rows=d.righe.filter(r=>r.cat===c).sort((a,z)=>(a.data||"")<(z.data||"")?-1:1);if(!rows.length)continue;
+    h+='<div class="sp-cat"><h4><span>'+esc(AUT.CATS[c])+'</span><span>€ '+esc(eur2(t.cat[c]||0))+'</span></h4>'+rows.map(r=>
+      '<div class="sp-row"><span>'+esc(r.data?itD(r.data):"—")+'</span><span>'+esc(r.luogo||"—")+(r.nota?'<small>'+esc(r.nota)+'</small>':'')+'</span><span>'+(r.pag==="carta"?"carta aziendale":"contanti")+'</span><span class="eu">€ '+esc(eur2(r.importo))+'</span>'+
+      '<span>'+(r.foto?'<button type="button" class="btn" data-spf="'+esc(r.foto)+'">Scontrino</button>':'<small>senza foto</small>')+'</span></div>').join("")+'</div>';
+  }
+  const km=v=>v==null?"—":v.toLocaleString("it-IT");
+  h+='<div class="sp-tot sp-km">'+tile("Km alla partenza",km(d.kmPartenza))+tile("Km al rientro",km(d.kmRientro))+tile("Km effettuati",km(t.km))+'</div>';
+  if(d.note)h+='<div class="sp-note"><b>Note dell\'autista</b>'+esc(d.note)+'</div>';
+  if(d.updatedAt)h+='<p class="mst-sub">Ultimo aggiornamento dal telefono: '+esc(fmtTime(d.updatedAt))+(d.autista?" · "+esc(d.autista):"")+'</p>';
+  $("spBody").innerHTML=h;
+}
+$("spBody").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-spf]");if(!b||!spB)return;
+  $("spMsg").textContent="Scarico la foto dello scontrino…";
+  try{const blob=await AUT.photo(spB,b.dataset.spf);spClosePhoto();spUrl=URL.createObjectURL(blob);$("spImg").src=spUrl;$("spPhoto").hidden=false;$("spMsg").textContent="";$("spPhoto").scrollIntoView({block:"nearest"});}
+  catch(err){$("spMsg").textContent=err&&err.code==="badphoto"?"Il file dello scontrino non è una foto valida: non l'ho aperto.":"Non riesco a scaricare la foto. Riprova.";}
+});
+$("spPhotoClose").onclick=spClosePhoto;
+$("spReload").onclick=loadSpese;
+$("spClose").onclick=()=>{$("ovSpese").hidden=true;spClosePhoto();spB=null;spData=null;};
+backdropClose($("ovSpese"),()=>$("spClose").click());
+$("spReopen").onclick=async()=>{
+  if(!spB||isInvio()||S.readOnly)return;
+  if(!confirm("Riaprire la busta? L'autista potrà di nuovo aggiungere o correggere le spese e dovrà consegnarla un'altra volta."))return;
+  try{await AUT.reopen(spB,meName());ACC.log("foglio","Riaperta la busta del foglio n. "+(spB.foglio||"")+" «"+(spB.client||"")+"»",{id:spB.id});$("spMsg").textContent="Busta riaperta.";renderSpese();}
+  catch(_){$("spMsg").textContent="Non riesco a riaprire la busta adesso. Riprova.";}
+};
+
+// ---------- profilo «solo anteprima e invio»: elenco dei servizi del giorno ----------
+let sdDay="";
+function renderInvio(){
+  if(!sdDay||!validDate(sdDay))sdDay=todayISO();
+  const s=ACC.session()||{},d=parse(sdDay),w=wday(sdDay);
+  $("sdName").textContent=s.name||"";$("sdVer").textContent="Agenda Flotta La Terra · versione "+APP_VERSION+" · profilo «solo anteprima e invio»";
+  $("sdDate").textContent=WDL[w]+" "+d.getUTCDate()+" "+MN[d.getUTCMonth()]+" "+d.getUTCFullYear()+(sdDay===todayISO()?" · oggi":"");
+  $("sdDate").className="sd-date"+(w===0?" sun":"");
+  if(document.activeElement!==$("sdPick"))$("sdPick").value=sdDay;
+  const wn=$("sdWarn");
+  if(!AUT.linked()){wn.textContent=autMissing();wn.hidden=false;}else wn.hidden=true;
+  const list=dayList(sdDay).slice().sort((a,b)=>(a.time||"99").localeCompare(b.time||"99")||String(a.foglio||"").localeCompare(String(b.foglio||"")));
+  $("sdList").innerHTML=list.map(b=>{
+    const v=vehicle(b.vehicle)||{},tot=diff(b.start,endOf(b))+1,i=diff(b.start,sdDay)+1,st=sentInfo(b),real=[b.driver,b.driver2].map(realDriver).filter(Boolean);
+    const live=!!st&&st.k!=="ritirato";
+    const stTxt=!st?'<span class="pill">Da inviare</span>':'<span class="snt k-'+st.k+(st.stale?" stale":"")+'">'+esc(st.stale?"Da reinviare":SENT_LBL[st.k])+'</span><small>'+esc(st.k==="ritirato"?"ritirato "+fmtTime(st.at):"inviato "+fmtTime(st.at)+(st.by?" da "+st.by:"")+(st.k==="aperto"?" · aperto "+fmtTime(st.when):st.k==="consegnata"?" · busta consegnata "+fmtTime(st.when):""))+'</small>';
+    return '<div class="sd-card '+esc(b.type)+'">'+
+      '<div class="sd-main"><div class="sd-l1"><span class="sd-time">'+esc(i===1?(b.time||"—"):"—")+'</span><span class="sd-cli">'+esc(dispClient(b))+'</span><span class="sd-tp">'+esc((TYPES[b.type]||"Servizio")+(tot>1?" · giorno "+i+" di "+tot:"")+(pending(b)?" · in sospeso":""))+'</span></div>'+
+      '<div class="sd-rt">'+esc([hasEvent(b.type)&&b.event?b.event:"",whatToday(b,sdDay)||b.route||""].filter(Boolean).join(" – "))+'</div>'+
+      '<div class="sd-meta">Autista: <b>'+(driversHTML(b)||'<span class="gen">da assegnare</span>')+'</b> · Mezzo: <b>'+esc(vehLabel(v)||v.name||"—")+'</b> · Foglio n. <b>'+esc(b.foglio||"—")+'</b>'+(hasBusta(b)?' · Busta n. <b>'+esc(b.envno||"—")+'</b>':'')+'</div>'+
+      '<div class="sd-capo'+(b.capo?" on":"")+'">'+esc(b.capo?capoTitle(b):"Bus e autisti scritti dall'ufficio: li decidi tu quando invii")+'</div>'+
+      '<div class="sd-st">'+stTxt+'</div></div>'+
+      '<div class="sd-act"><button type="button" class="btn" data-sdprev="'+esc(b.id)+'">Anteprima</button><button type="button" class="btn send" data-sdsend="'+esc(b.id)+'">'+(live?"Invia di nuovo":"Invia all'autista")+'</button>'+(live?'<button type="button" class="btn quiet" data-sdoff="'+esc(b.id)+'">Ritira il foglio</button>':'')+'</div></div>';
+  }).join("")||'<div class="sd-empty">Nessun servizio in questo giorno.</div>';
+}
+function sdGo(day){if(validDate(day)){sdDay=day;renderInvio();}}
+$("sdPrev").onclick=()=>sdGo(addDays(sdDay||todayISO(),-1));
+$("sdNext").onclick=()=>sdGo(addDays(sdDay||todayISO(),1));
+$("sdToday").onclick=()=>sdGo(todayISO());
+$("sdPick").addEventListener("change",()=>sdGo($("sdPick").value));
+$("sdOut").onclick=()=>doLogout();
+$("sdSync").onclick=async()=>{const b=$("sdSync");b.disabled=true;b.textContent="Aggiorno…";try{await STORE.pull();await AUT.sync();}finally{b.disabled=false;b.textContent="Aggiorna";renderInvio();toast(navigator.onLine?"Elenco aggiornato":"Sei offline");}};
+$("sdList").addEventListener("click",async e=>{
+  const pv=e.target.closest("[data-sdprev]"),sn=e.target.closest("[data-sdsend]"),of=e.target.closest("[data-sdoff]"),id=pv?pv.dataset.sdprev:sn?sn.dataset.sdsend:of?of.dataset.sdoff:"";if(!id)return;
+  const b=bookingsAll().find(x=>x.id===id);if(!b){toast("La prenotazione non c'è più.");renderInvio();return;}
+  if(pv){openSheet(b);return;}
+  if(of){of.disabled=true;try{await withdrawFromDriver(b);}finally{renderInvio();}return;}
+  // prima di inviare si scelgono bus e autisti; intestazione e targa: come all'ultimo invio (o quelle solite, al primo)
+  let al=false;try{al=localStorage.getItem("agenda-sheet-alias")==="1";}catch(_){}
+  openCapo(b,b.sent&&b.sent.at&&!b.sent.off?{alias:b.sent.alias,noPlate:b.sent.noPlate}:{alias:al,noPlate:false});
+});
+
+// ---------- scelta del capo: bus e autisti si decidono all'invio ----------
+// Chi ha il profilo «solo anteprima e invio» (il capo) quando invia un foglio sceglie il bus e gli autisti:
+// la scelta viene scritta sulla prenotazione e vale in tutta l'Agenda (viste, foglio, fatturato). Da quel
+// momento l'ufficio non può più cambiare bus e autisti di quel servizio né inviare o ritirare il foglio.
+const CAPO_NO="Bus e autisti di questo servizio li ha decisi il capo: il foglio lo invia (o lo ritira) solo lui.";
+function capoLock(b){return !!(b&&b.capo)&&!isInvio()&&!isSuper();}
+function capoTitle(b){const c=(b&&b.capo)||{};return "Bus e autisti decisi dal capo"+(c.by?" ("+c.by+")":"")+(c.at?" "+fmtTime(c.at):"");}
+let cpB=null,cpOpts=null,cpBusy=false;
+const cpSay=t=>{$("cpMsg").textContent=t;};
+// gli altri servizi negli stessi giorni (per segnalare bus e autisti già impegnati)
+function cpOthers(b){
+  const out=new Map(),e=endOf(b);
+  for(let d=b.start,n=0;d<=e&&n<32;d=addDays(d,1),n++)for(const x of dayList(d))if(x.id!==b.id)out.set(x.id,x);
+  return [...out.values()];
+}
+const cpName=x=>realDriver(x)?driverCanon(x):"";
+function openCapo(b0,o){
+  if(!isInvio()&&!isSuper())return;
+  const b=bookingsAll().find(x=>x.id===b0.id);if(!b){toast("La prenotazione non c'è più.");return;}
+  cpB=b;cpOpts=o||{};cpBusy=false;
+  const oth=cpOthers(b),busyV=new Set(oth.map(x=>x.vehicle)),busyD=new Set();
+  oth.forEach(x=>[x.driver,x.driver2].map(realDriver).filter(Boolean).forEach(d=>busyD.add(drvKey(d))));
+  $("cpTitle").textContent="Bus e autisti · foglio n. "+(b.foglio||"—");
+  $("cpInfo").innerHTML="<b>"+esc(dispClient(b))+"</b> · "+esc(TYPES[b.type]||"Servizio")+" · "+esc(itD(b.start))+(endOf(b)!==b.start?" – "+esc(itD(endOf(b))):"")+(b.time?" · ore "+esc(b.time):"")+(b.pax!==""&&b.pax!=null?" · "+esc(b.pax)+" passeggeri":"")+(b.route?"<br>"+esc(b.route):"");
+  $("cpVeh").innerHTML=S.fleet.map(v=>'<option value="'+esc(v.id)+'">'+esc(vehLabel(v))+(busyV.has(v.id)?" · già impegnato":"")+'</option>').join("");
+  $("cpVeh").value=b.vehicle;
+  const c1=cpName(b.driver),c2=cpName(b.driver2),names=DRIVERS.map(d=>d[0]);
+  [c1,c2].forEach(n=>{if(n&&!names.includes(n))names.push(n);}); // nomi di prenotazioni vecchie, fuori elenco
+  const opts=first=>'<option value="">'+esc(first)+'</option>'+names.map(n=>'<option value="'+esc(n)+'">'+esc(n)+(busyD.has(drvKey(n))?" · già impegnato":"")+'</option>').join("");
+  $("cpDrv").innerHTML=opts("— scegli l'autista —");$("cpDrv2").innerHTML=opts("— nessuno —");
+  $("cpDrv").value=c1;$("cpDrv2").value=c2&&c2!==c1?c2:"";
+  const v0=vehicle(b.vehicle)||{};
+  $("cpWas").textContent=b.capo?capoTitle(b)+".":"Scritto dall'ufficio: "+(vehLabel(v0)||v0.name||"—")+" · "+(driversText(b)||"autista da assegnare")+".";
+  const live=!!(b.sent&&b.sent.at&&!b.sent.off);
+  $("cpSend").textContent=live?"Invia di nuovo all'autista":"Invia all'autista";
+  cpSay("");cpWarns();cpButtons();$("ovCapo").hidden=false;setTimeout(()=>{try{$("cpVeh").focus();}catch(_){}},30);
+}
+function cpButtons(){["cpSend","cpSave","cpCancel","cpVeh","cpDrv","cpDrv2"].forEach(id=>{$(id).disabled=cpBusy;});}
+function cpWarns(){
+  const b=cpB;if(!b)return [];
+  const w=[],veh=$("cpVeh").value,v=vehicle(veh),oth=cpOthers(b),d1=$("cpDrv").value,d2=$("cpDrv2").value;
+  if(d1&&d2&&d1===d2)w.push("Il secondo autista è uguale al primo.");
+  if(v&&v.seats&&/^\d+$/.test(String(b.pax||""))&&+b.pax>v.seats)w.push("Passeggeri ("+b.pax+") oltre la capienza del bus ("+v.seats+" posti).");
+  const onV=oth.filter(x=>x.vehicle===veh);
+  if(onV.length)w.push("Questo bus negli stessi giorni ha già: "+onV.map(x=>(TYPES[x.type]||"")+" «"+dispClient(x)+"» ("+when(x)+")").join("; ")+".");
+  for(const dn of [d1,d2].filter(Boolean)){
+    const k=drvKey(dn),busy=oth.filter(x=>[x.driver,x.driver2].some(y=>realDriver(y)&&drvKey(y)===k));
+    if(busy.length)w.push(dn+" negli stessi giorni ha già: "+busy.map(x=>(TYPES[x.type]||"")+" «"+dispClient(x)+"» ("+when(x)+")").join("; ")+".");
+  }
+  if(pending(b))w.push("Questa prenotazione è ancora IN SOSPESO.");
+  const ph=(STORE.aut&&STORE.aut.phones)||{},noPh=[d1,d2].filter(Boolean).filter(n=>!Object.values(ph).some(f=>!f.blocked&&norm(f.driver)===norm(n)));
+  if(AUT.linked()&&noPh.length)w.push("Nessun telefono collegato per "+noPh.join(" e ")+": il foglio resta in attesa finché il telefono non viene collegato.");
+  if(!AUT.linked())w.push("La cartella degli autisti non è ancora collegata: puoi salvare la scelta, ma il foglio non può partire.");
+  $("cpWarn").innerHTML=w.map(x=>"<div>"+esc(x)+"</div>").join("");$("cpWarn").hidden=!w.length;
+  return w;
+}
+["cpVeh","cpDrv","cpDrv2"].forEach(id=>$(id).addEventListener("change",()=>{cpSay("");cpWarns();}));
+function closeCapo(){$("ovCapo").hidden=true;cpB=null;cpOpts=null;cpBusy=false;}
+$("cpCancel").onclick=()=>{if(!cpBusy)closeCapo();};
+backdropClose($("ovCapo"),()=>$("cpCancel").click());
+async function capoApply(send){
+  if(!cpB||cpBusy)return;
+  if(!isInvio()&&!isSuper()){closeCapo();return;}
+  const b=bookingsAll().find(x=>x.id===cpB.id);
+  if(!b){closeCapo();toast("La prenotazione non c'è più (eliminata o spostata).");if(!$("invio").hidden)renderInvio();return;}
+  const veh=$("cpVeh").value,d1=$("cpDrv").value,d2=$("cpDrv2").value;
+  if(!vehicle(veh)){cpSay("Scegli il bus.");return;}
+  if(!d1){cpSay("Scegli l'autista.");$("cpDrv").focus();return;}
+  if(d2&&d2===d1){cpSay("Il secondo autista è uguale al primo: toglilo o scegline un altro.");$("cpDrv2").focus();return;}
+  cpBusy=true;cpButtons();
+  try{
+    if(!(b.capo&&b.vehicle===veh&&(b.driver||"")===d1&&(b.driver2||"")===d2)){
+      const now=new Date().toISOString(),who=meName();
+      const nb=Object.assign({},b,{vehicle:veh,driver:d1,driver2:d2,capo:{at:now,by:who},updatedAt:now,updBy:who});
+      try{writeDayOps(b.start,{bookings:{[b.id]:nb}},{edit:true,only:true,boss:true,base:b.updatedAt||null,patch:["vehicle","driver","driver2","capo","updBy"]});}
+      catch(err){cpSay(err&&err.code==="readonly"?"Con questo profilo non si può fare.":"Non sono riuscito a salvare la scelta: riprova.");return;}
+      const ch=[["Mezzo",logVal("vehicle",b.vehicle),logVal("vehicle",veh)],["1° Autista",b.driver||"—",d1],["2° Autista",b.driver2||"—",d2||"—"]].filter(c=>c[1]!==c[2]);
+      ACC.log("prenotazione","Il capo ha deciso bus e autisti di "+bookingLabel(nb),{id:b.id,ch});
+      if(!$("invio").hidden)renderInvio();if(!$("app").hidden)renderAll();
+      if(!$("ovSheet").hidden&&sheetBooking&&sheetBooking.id===b.id){refreshSheetBooking();renderSheet();}
+    }
+    let synced=!STORE.isPending(b.id);
+    if(!synced&&navigator.onLine){cpSay("Salvo la scelta…");synced=await STORE.whenSent(b.id,15000);}
+    if(synced){
+      // la prenotazione può essere stata spostata o eliminata dall'ufficio mentre la finestra era aperta
+      const got=bookingsAll().find(x=>x.id===b.id);
+      if(!got||!got.capo||got.vehicle!==veh||(got.driver||"")!==d1||(got.driver2||"")!==d2){cpSay("Mentre sceglievi, la prenotazione è stata spostata o eliminata dall'ufficio: la scelta NON è stata salvata"+(send?" e il foglio NON è partito":"")+". Premi «Annulla» e controlla l'elenco.");return;}
+    }
+    if(!send){closeCapo();toast(synced?"Scelta salvata: bus e autisti aggiornati in tutta l'Agenda.":"Scelta salvata su questo dispositivo: arriverà agli altri appena torna la connessione.");return;}
+    if(!synced){cpSay("La scelta è salvata su questo dispositivo, ma "+(navigator.onLine?"Dropbox non ha ancora risposto":"sei offline")+": il foglio NON è partito. Riprova tra poco con «Invia all'autista».");return;}
+    const ok=await sendToDriver(b,Object.assign({},cpOpts||{},{noConfirm:true}),cpSay);
+    if(ok){const cur=bookingsAll().find(x=>x.id===b.id),to=(cur&&cur.sent&&cur.sent.to)||[d1,d2].filter(Boolean);closeCapo();toast("Foglio inviato a "+to.join(" e ")+".");
+      if(!$("ovSheet").hidden&&sheetBooking&&sheetBooking.id===b.id){refreshSheetBooking();renderSheet();}}
+  }finally{cpBusy=false;if(!$("ovCapo").hidden)cpButtons();if(!$("invio").hidden)renderInvio();}
+}
+$("cpSend").onclick=()=>capoApply(true);
+$("cpSave").onclick=()=>capoApply(false);
+
+// ---------- Super Master: accesso nascosto, creazione, codice di recupero ----------
+// Il Super Master non compare in «Chi sei?»: per entrare si fanno 5 clic di seguito sul logo della
+// schermata di accesso. Se non esiste ancora, gli stessi 5 clic aprono la sua creazione (serve la
+// password di un Master).
+function superEntry(U){return userEntries(U).find(([,u])=>u.role==="super")||null;}
+let logoTaps=[],recCode="";
+document.querySelector(".gate-logo").addEventListener("click",()=>{
+  if(gateMode!=="login"&&gateMode!=="hid")return;
+  const now=Date.now();logoTaps=logoTaps.filter(t=>now-t<3000);logoTaps.push(now);
+  if(logoTaps.length<5)return;
+  logoTaps=[];const U=STORE.users;if(!U)return;
+  showGate(superEntry(U)?"hid":"super-create");
+});
+function gateSuper(mode,o){
+  if(mode==="hid"){$("gTitle").textContent="Accesso riservato";$("gHid").hidden=false;$("ghName").value="";$("ghPw").value="";setTimeout(()=>$("ghName").focus(),60);}
+  else if(mode==="super-create"){
+    $("gTitle").textContent="Crea il Super Master";$("gSuper").hidden=false;
+    const U=STORE.users||{users:{}};
+    $("gsMaster").innerHTML=userEntries(U).filter(([,u])=>u.role==="master"&&u.active!==false).sort((a,b)=>a[1].name.localeCompare(b[1].name,"it")).map(([id,u])=>'<option value="'+esc(id)+'">'+esc(u.name)+'</option>').join("");
+    ["gsMpw","gsName","gsPw","gsPw2"].forEach(id=>$(id).value="");setTimeout(()=>$("gsMpw").focus(),60);
+  }
+  else if(mode==="super-code"){$("gTitle").textContent="Codice di recupero";$("gRecShow").hidden=false;$("grCode").textContent=recCode;}
+  else if(mode==="super-rec"){$("gTitle").textContent="Password dimenticata";$("gRec").hidden=false;["gcName","gcCode","gcPw","gcPw2"].forEach(id=>$(id).value="");setTimeout(()=>$("gcName").focus(),60);}
+}
+$("ghBack").onclick=()=>showGate("login");$("gsBack").onclick=()=>showGate("login");$("gcBack").onclick=()=>showGate("hid");
+$("ghRec").onclick=()=>showGate("super-rec");
+$("gHidForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const U=STORE.users,ent=U&&superEntry(U),name=cleanText($("ghName").value),pw=$("ghPw").value,btn=$("ghBtn"),msg=$("gMsg");
+  const w=ACC.failWait();if(w){msg.textContent="Troppi tentativi sbagliati: riprova tra "+w+" secondi.";return;}
+  if(!name||!pw){msg.textContent="Scrivi nome e password.";return;}
+  btn.disabled=true;
+  try{
+    // stessa risposta se è sbagliato il nome o la password
+    const ok=!!ent&&ent[1].active!==false&&norm(ent[1].name)===norm(name)&&await ACC.checkPw(ent[1],pw);
+    if(ok){ACC.failReset();ACC.login(ent[1],ent[0]);$("ghPw").value="";ACC.log("accesso","Accesso");enterApp();}
+    else{ACC.failAdd();ACC.log("accesso","Accesso riservato: nome o password errati",{bad:1,hid:1},"");ACC.flushLog();const w2=ACC.failWait();msg.textContent=w2?"Troppi tentativi sbagliati: riprova tra "+w2+" secondi.":"Nome o password errati.";$("ghPw").select();}
+  }finally{btn.disabled=false;}
+});
+$("gSuperForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const U=STORE.users,msg=$("gMsg"),btn=$("gsBtn"),mid=$("gsMaster").value,mu=U&&U.users[mid];
+  const name=cleanText($("gsName").value),pw=$("gsPw").value;
+  if(U&&superEntry(U)){showGate("hid",{msg:"Il Super Master esiste già: entra con il suo nome e la sua password."});return;}
+  const w=ACC.failWait();if(w){msg.textContent="Troppi tentativi sbagliati: riprova tra "+w+" secondi.";return;}
+  if(!mu||mu.role!=="master"||mu.active===false){msg.textContent="Scegli un Master.";return;}
+  if(name.length<3){msg.textContent="Scrivi il nome del Super Master (almeno 3 caratteri).";$("gsName").focus();return;}
+  if(userEntries(U).some(([,u])=>norm(u.name)===norm(name))){msg.textContent="Esiste già un account con questo nome: scegline un altro.";$("gsName").focus();return;}
+  if(pw.length<10){msg.textContent="La password del Super Master deve avere almeno 10 caratteri.";$("gsPw").focus();return;}
+  if(pw!==$("gsPw2").value){msg.textContent="Le due password non coincidono.";return;}
+  if(!navigator.onLine){msg.textContent="Serve la connessione a internet.";return;}
+  btn.disabled=true;msg.textContent="";
+  try{
+    if(!(await ACC.checkPw(mu,$("gsMpw").value))){ACC.failAdd();ACC.log("accesso","Password errata",{bad:1,uid:mid},mu.name);ACC.flushLog();msg.textContent="La password del Master non è corretta.";$("gsMpw").select();return;}
+    ACC.failReset();
+    const code=ACC.genRecovery(),sec=await ACC.makeSecret(pw),rec=await ACC.makeRecovery(code),now=new Date().toISOString(),uid="u"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    const R=await STORE.updateUsers(J=>{
+      if(Object.values(J.users).some(u=>u.role==="super"))return null;
+      J.users[uid]=Object.assign({name,role:"utente",lvl:"super",active:true,created:now,createdBy:mu.name,rec},sec);return J;
+    },{boot:"super"});
+    const made=R&&R.users&&R.users[uid];
+    if(!made){showGate("hid",{msg:"Il Super Master è appena stato creato da un altro dispositivo."});return;}
+    ACC.login(made,uid);ACC.log("utenti","Creato il Super Master");ACC.log("accesso","Accesso");
+    recCode=code;showGate("super-code");
+  }catch(err){msg.textContent=err&&err.code==="offline"?"Serve la connessione a internet.":"Non riesco a creare l'account. Controlla la connessione e riprova.";}
+  finally{btn.disabled=false;}
+});
+$("grOk").onclick=()=>{recCode="";$("grCode").textContent="";enterApp();};
+// nuovo codice di recupero (pannello, scheda Utenti): quello di prima smette di valere
+$("recNew").onclick=async()=>{
+  const me=ACC.session(),out=$("recOut");if(!isSuper()||!me)return;
+  if(!navigator.onLine){mstMsg("Serve la connessione a internet.",true);return;}
+  if(!confirm("Creare un nuovo codice di recupero?\nIl codice di prima non varrà più. Quello nuovo viene mostrato una volta sola: tieni pronta carta e penna."))return;
+  $("recNew").disabled=true;
+  try{
+    const code=ACC.genRecovery(),rec=await ACC.makeRecovery(code);
+    const R=await STORE.updateUsers(J=>{const x=J.users[me.uid];if(!x||x.lvl!=="super")return null;x.rec=rec;return J;});
+    if(!R||!R.users||!R.users[me.uid]){mstMsg("Non sono riuscito a salvare il nuovo codice.",true);return;}
+    ACC.log("utenti","Creato un nuovo codice di recupero");
+    out.textContent=code;$("recShown").hidden=false;mstMsg("Nuovo codice di recupero creato: scrivilo su carta adesso.");
+  }catch(_){mstMsg("Non sono riuscito a salvare il nuovo codice: controlla la connessione e riprova.",true);}
+  finally{$("recNew").disabled=false;}
+};
+$("recHide").onclick=()=>{$("recOut").textContent="";$("recShown").hidden=true;};
+$("mstClose").addEventListener("click",()=>$("recHide").onclick());
+$("gRecForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const U=STORE.users,ent=U&&superEntry(U),msg=$("gMsg"),btn=$("gcBtn"),name=cleanText($("gcName").value),pw=$("gcPw").value;
+  const w=ACC.failWait();if(w){msg.textContent="Troppi tentativi sbagliati: riprova tra "+w+" secondi.";return;}
+  if(pw.length<10){msg.textContent="La nuova password deve avere almeno 10 caratteri.";$("gcPw").focus();return;}
+  if(pw!==$("gcPw2").value){msg.textContent="Le due password non coincidono.";return;}
+  if(!navigator.onLine){msg.textContent="Serve la connessione a internet.";return;}
+  btn.disabled=true;msg.textContent="";
+  try{
+    const ok=!!ent&&norm(ent[1].name)===norm(name)&&await ACC.checkRecovery(ent[1],$("gcCode").value);
+    if(!ok){ACC.failAdd();ACC.log("accesso","Accesso riservato: codice di recupero errato",{bad:1,hid:1},"");ACC.flushLog();msg.textContent="Nome o codice di recupero non corretti.";return;}
+    const sec=await ACC.makeSecret(pw);
+    await STORE.updateUsers(J=>{const x=J.users[ent[0]];if(!x)return null;Object.assign(x,sec);return J;},{recover:ent[0]});
+    ACC.failReset();ACC.log("accesso","Accesso riservato: password cambiata con il codice di recupero",{hid:1},"");
+    showGate("hid",{msg:"Password cambiata: entra con quella nuova. Poi crea un nuovo codice di recupero dal pannello, scheda Utenti.",ok:true});
+  }catch(_){msg.textContent="Non riesco a salvare la nuova password. Riprova.";}
+  finally{btn.disabled=false;}
+});
+
+// ---------- Pannello Super Master › Autisti: cartella e telefoni ----------
+const redirHere=()=>location.origin+location.pathname.replace(/index\.html$/,"");
+function phoneState(pid,f){
+  if(f.blocked)return {k:"off",t:"Bloccato",s:(f.blocked.at?fmtTime(f.blocked.at):"")+(f.blocked.by?" da "+f.blocked.by:"")};
+  const live=AUT.phone(pid);
+  if(live&&live.at)return {k:"on",t:"Collegato",s:"primo accesso "+fmtTime(live.at)+(live.last?" · ultimo "+fmtTime(live.last):"")+(live.ua?" · "+live.ua:"")};
+  return {k:"",t:"In attesa",s:"non ancora aperto sul telefono"};
+}
+function renderAut(){
+  if(!isSuper())return;
+  const a=STORE.aut,on=AUT.linked();
+  $("autRedir").textContent=redirHere();
+  $("autState").className="aut-state "+(on?"ok":"no");
+  $("autState").textContent=on?"Cartella collegata"+(a.office.at?" "+fmtTime(a.office.at):"")+(a.office.by?" da "+a.office.by:"")+".":"Cartella non ancora collegata.";
+  if(document.activeElement!==$("autKey"))$("autKey").value=(a&&a.key)||"";
+  $("autLink").textContent=on?"Ricollega la cartella":"Collega la cartella";
+  if(document.activeElement!==$("autUrl"))$("autUrl").value=(a&&a.appUrl)||"";
+  const sel=$("phDriver"),cur=sel.value;
+  sel.innerHTML='<option value="">Scegli l\'autista…</option>'+DRIVERS.map(d=>'<option'+(d[0]===cur?" selected":"")+'>'+esc(d[0])+'</option>').join("");
+  const ph=Object.entries((a&&a.phones)||{}).sort((x,y)=>x[1].driver.localeCompare(y[1].driver,"it")||(x[1].created<y[1].created?-1:1));
+  $("phList").innerHTML=ph.map(([pid,f])=>{
+    const s=phoneState(pid,f);
+    return '<div class="ph-row"><div><b>'+esc(f.driver)+'</b></div><div>'+esc(f.label||"Telefono")+'<small>'+(f.created?"creato "+esc(fmtTime(f.created)):"")+(f.by?" da "+esc(f.by):"")+'</small></div>'+
+      '<div><span class="pill '+s.k+'">'+esc(s.t)+'</span><small>'+esc(s.s)+'</small></div>'+
+      '<div class="row-act">'+(f.blocked?'<button type="button" class="btn" data-phdel="'+esc(pid)+'">Togli dall\'elenco</button>':(s.k===""?'<button type="button" class="btn" data-phqr="'+esc(pid)+'">Mostra QR e link</button>':'')+'<button type="button" class="btn danger" data-phblock="'+esc(pid)+'">Blocca</button>')+'</div></div>';
+  }).join("")||'<div class="lg-empty">Nessun telefono collegato.</div>';
+}
+$("autLink").onclick=async()=>{
+  if(!isSuper())return;
+  const key=$("autKey").value.trim(),a=STORE.aut;
+  if(!/^[A-Za-z0-9]{6,40}$/.test(key)){mstMsg("Incolla la App key dell'app Dropbox degli autisti (solo lettere e numeri).",true);return;}
+  if(key===(window.AGENDA_CONFIG||{}).dropboxAppKey){mstMsg("Questa è la App key dell'Agenda: per gli autisti serve un'app Dropbox diversa, con la sua cartella.",true);return;}
+  if(!navigator.onLine){mstMsg("Serve la connessione a internet.",true);return;}
+  if(a&&a.key&&a.key!==key&&Object.keys(a.phones||{}).length&&!confirm("Stai collegando un'app Dropbox diversa da quella di prima: i telefoni già collegati non funzioneranno più e andranno ricollegati. Continuare?"))return;
+  mstMsg("Apro Dropbox…");
+  try{await AUT.startLink(key,{t:"office"});}catch(_){mstMsg("Non riesco ad aprire Dropbox. Riprova.",true);}
+};
+$("autUrlSave").onclick=async()=>{
+  if(!isSuper())return;
+  let u=$("autUrl").value.trim().replace(/#.*$/,"");
+  if(u&&!/^https:\/\/[^\s"'<>]{4,200}$/.test(u)){mstMsg("L'indirizzo deve cominciare con https:// (per esempio https://nome.github.io/autisti/).",true);return;}
+  try{await STORE.updateAut(J=>{J.appUrl=u;return J;});ACC.log("impostazioni",u?"Indirizzo dell'app degli autisti: "+u:"Tolto l'indirizzo dell'app degli autisti");mstMsg("Indirizzo salvato.");renderAut();}
+  catch(_){mstMsg("Non riesco a salvare: serve la connessione a internet.",true);}
+};
+$("phAdd").onclick=async()=>{
+  if(!isSuper())return;
+  const a=STORE.aut,driver=$("phDriver").value,label=cleanText($("phLabel").value).slice(0,60)||("Telefono di "+driver);
+  if(!AUT.linked()){mstMsg("Prima collega la cartella «Autisti La Terra».",true);return;}
+  if(!a.appUrl){mstMsg("Prima scrivi e salva l'indirizzo dell'app degli autisti.",true);return;}
+  if(!driver){mstMsg("Scegli l'autista.",true);return;}
+  if(!navigator.onLine){mstMsg("Serve la connessione a internet.",true);return;}
+  if(!confirm("Collegare un telefono per "+driver+"?\nSi apre Dropbox per un momento: se lo chiede, premi «Consenti». Poi qui compare il codice QR da far inquadrare al telefono."))return;
+  mstMsg("Apro Dropbox…");
+  try{await AUT.startLink(a.key,{t:"phone",driver,label});}catch(_){mstMsg("Non riesco ad aprire Dropbox. Riprova.",true);}
+};
+function showQr(pid){
+  const a=STORE.aut,f=a&&a.phones&&a.phones[pid];if(!f||!f.refresh||f.blocked||!isSuper())return;
+  const link=AUT.phoneLink(a.appUrl,a.key,f.refresh,f.driver,pid);
+  $("qrTitle").textContent="Collega il telefono di "+f.driver;
+  $("qrInfo").textContent=(f.label||"Telefono")+" · app degli autisti: "+a.appUrl;
+  $("qrBox").innerHTML=AUT.qrSvg(link);$("qrLink").value=link;$("qrMsg").textContent="";
+  $("ovQr").hidden=false;
+}
+$("qrClose").onclick=()=>{$("ovQr").hidden=true;$("qrBox").innerHTML="";$("qrLink").value="";};
+$("qrCopy").onclick=async()=>{
+  try{await navigator.clipboard.writeText($("qrLink").value);$("qrMsg").textContent="Link copiato: incollalo solo in un messaggio per quell'autista.";}
+  catch(_){$("qrLink").select();$("qrMsg").textContent="Seleziona il link e copialo (Cmd+C).";}
+};
+$("phList").addEventListener("click",async e=>{
+  if(!isSuper())return;
+  const q=e.target.closest("[data-phqr]"),bl=e.target.closest("[data-phblock]"),dl=e.target.closest("[data-phdel]");
+  const pid=(q||bl||dl||{dataset:{}}).dataset[q?"phqr":bl?"phblock":"phdel"],a=STORE.aut,f=pid&&a&&a.phones&&a.phones[pid];if(!f)return;
+  if(q){showQr(pid);return;}
+  try{
+    if(bl){
+      if(!confirm("Bloccare «"+(f.label||"Telefono")+"» di "+f.driver+"?\nIl telefono viene scollegato da Dropbox e non vede più i fogli. Gli altri telefoni restano collegati."))return;
+      if(!navigator.onLine){mstMsg("Serve la connessione a internet.",true);return;}
+      mstMsg("Blocco il telefono…");
+      await AUT.revoke(f.refresh,a.key);
+      await STORE.updateAut(J=>{const x=J.phones[pid];if(!x)return null;x.blocked={at:new Date().toISOString(),by:suName()};x.refresh="";return J;});
+      ACC.log("dispositivi","Bloccato il telefono «"+(f.label||"")+"» dell'autista «"+f.driver+"»");mstMsg("Telefono bloccato: è stato scollegato da Dropbox.");
+    }else if(dl){
+      await STORE.updateAut(J=>{if(!J.phones[pid])return null;delete J.phones[pid];return J;});mstMsg("");
+    }
+    renderAut();
+  }catch(err){mstMsg(bl?"Non sono riuscito a bloccare il telefono: controlla la connessione e riprova. Finché non ci riesco il telefono resta collegato.":"Operazione non riuscita: riprova.",true);}
+});
+// ritorno da Dropbox dopo l'autorizzazione: si completa il collegamento della cartella o del telefono
+async function autAfterRedirect(){
+  const r=autReturn;if(!r||!ACC.session())return;autReturn=null;
+  const p=r.purpose||{};
+  if(!isSuper()){if(r.tok)AUT.revoke(r.tok.refresh,r.key).catch(()=>{});return;}
+  openMaster("aut");
+  if(r.err||!r.tok){mstMsg(r.err&&r.err.code==="denied"?"Collegamento annullato: su Dropbox non è stato dato il consenso.":"Collegamento a Dropbox non riuscito: controlla la App key e l'indirizzo scritto in «Redirect URIs», poi riprova.",true);return;}
+  mstMsg("Completo il collegamento…");
+  let saved=false; // dopo il salvataggio il collegamento è buono: un errore successivo non lo deve revocare
+  try{
+    if(p.t==="phone"&&p.driver){
+      if(!STORE.aut||STORE.aut.key!==r.key)throw {code:"otherapp"};
+      const pid=AUT.newPhoneId();
+      await STORE.updateAut(J=>{J.phones[pid]={driver:String(p.driver),label:String(p.label||""),refresh:r.tok.refresh,created:new Date().toISOString(),by:suName(),blocked:null};return J;});
+      saved=true;
+      ACC.log("dispositivi","Preparato il collegamento di un telefono per l'autista «"+p.driver+"»"+(p.label?" ("+p.label+")":""));
+      renderAut();mstMsg("Collegamento pronto: fai inquadrare il codice QR al telefono di "+p.driver+".");
+      try{showQr(pid);}catch(_){mstMsg("Collegamento pronto, ma non riesco a disegnare il codice QR: ricarica la pagina e premi «Mostra QR e link» nella riga del telefono.",true);}
+    }else{
+      const was=STORE.aut,old=was&&was.office?was.office.refresh:"",oldKey=was?was.key:"";
+      // telefoni dell'app di prima (se si cambia app): vanno scollegati da Dropbox, non solo tolti dall'elenco
+      const oldPhones=was&&was.key&&was.key!==r.key?Object.values(was.phones||{}).map(f=>f.refresh).filter(Boolean):[];
+      let probe="";try{const m=await DBX.metadata(STORE.BASE+"/config/utenti.json");probe=(m&&m.id)||"";}catch(_){}
+      await AUT.prepare(r.tok.refresh,r.key,probe);
+      await STORE.updateAut(J=>{if(J.key&&J.key!==r.key)J.phones={};J.key=r.key;J.office={refresh:r.tok.refresh,at:new Date().toISOString(),by:suName()};return J;});
+      saved=true;
+      if(old&&old!==r.tok.refresh)AUT.revoke(old,oldKey).catch(()=>{}); // il collegamento di prima non serve più
+      for(const rt of oldPhones)AUT.revoke(rt,oldKey).catch(()=>{});
+      ACC.log("impostazioni","Collegata la cartella «Autisti La Terra»"+(oldPhones.length?" con un'altra app Dropbox: scollegati i "+oldPhones.length+" telefoni di prima":""));
+      renderAut();mstMsg("Cartella «Autisti La Terra» collegata."+(oldPhones.length?" I telefoni collegati all'app di prima sono stati scollegati: vanno collegati di nuovo.":""));AUT.sync();
+    }
+  }catch(e){
+    if(saved){ACC.tlog("errore","Dopo il collegamento della cartella autisti",String((e&&(e.code||e.message))||e));return;}
+    AUT.revoke(r.tok.refresh,r.key).catch(()=>{});
+    if(e&&e.code==="notappfolder"){mstMsg("Collegamento NON salvato: questa app Dropbox vede anche altri file dell'azienda. Non è di tipo «App folder», oppure la sua cartella non è vuota. Per gli autisti serve un'app nuova, creata scegliendo «App folder» (vedi «Come si crea l'app Dropbox degli autisti»).",true);ACC.tlog("errore","Cartella autisti: l'app Dropbox non è di tipo App folder");return;}
+    if(e&&e.code==="otherapp"){mstMsg("Collegamento del telefono non riuscito: la cartella degli autisti è cambiata nel frattempo. Riprova.",true);return;}
+    mstMsg("Non riesco a completare il collegamento"+(e&&e.code==="scope"?": nell'app Dropbox degli autisti mancano i permessi (scheda Permissions: files.content.write e files.content.read, poi Submit; poi premi di nuovo «Collega la cartella»).":": controlla la connessione e riprova."),true);
+    ACC.tlog("errore","Collegamento della cartella autisti non riuscito",String((e&&(e.code||e.summary||e.message))||e));
+  }
+}
 
 // ---------- errori al primo avvio ----------
 function showStartError(){
@@ -3487,7 +4173,9 @@ async function boot(){
 async function start(){
   await STORE.ready(); // copia locale (e coda rilette adesso, dopo aver preso il controllo della finestra)
   STORE.enable();
-  try{await DBX.finishLogin();}
+  // Dropbox ci ha rimandato qui: per l'Agenda o per la cartella degli autisti? (ogni collegamento riconosce il suo)
+  if(AUT.redirectMine()){autReturn=await AUT.takeRedirect();}
+  else try{await DBX.finishLogin();}
   catch(e){
     // Indirizzo con un codice di accesso non valido (collegamento vecchio, copiato o costruito apposta):
     // se il dispositivo è già collegato si ignora e si continua, senza chiedere di ricollegare Dropbox.

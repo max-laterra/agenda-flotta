@@ -1,7 +1,7 @@
 // Rende l'app utilizzabile senza connessione. Aumenta il numero quando pubblichi una nuova versione.
-const VERSION = "agenda-laterra-2.4";
-const SHELL = ["./", "./index.html", "./app.js", "./config.js", "./dropbox.js", "./store.js", "./accessi.js", "./fatturato.js", "./fatture.js",
-  "./vendor/jszip.min.js", "./vendor/pdf-lib.min.js", "./vendor/font-pdf.js", "./logo.jpg", "./manifest.webmanifest",
+const VERSION = "agenda-laterra-2.5";
+const SHELL = ["./", "./index.html", "./app.js", "./config.js", "./dropbox.js", "./store.js", "./accessi.js", "./autisti.js", "./fatturato.js", "./fatture.js",
+  "./vendor/jszip.min.js", "./vendor/pdf-lib.min.js", "./vendor/font-pdf.js", "./vendor/qrcode.js", "./logo.jpg", "./manifest.webmanifest",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./icons/favicon-64.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => { e.waitUntil((async () => { for (const k of await caches.keys()) if (k !== VERSION) await caches.delete(k); await self.clients.claim(); })()); });

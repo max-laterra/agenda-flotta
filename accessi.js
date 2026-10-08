@@ -2,6 +2,8 @@
 //
 // - Ogni persona entra con il proprio nome e la propria password (impronta PBKDF2 in config/utenti.json).
 // - Ruoli: "master" (gestisce utenti, dispositivi, registro e impostazioni) e "utente" (lavora sull'agenda).
+//   Dalla 2.5 anche "super" (Super Master: gestisce tutti gli account e i telefoni degli autisti; non
+//   compare negli elenchi) e "invio" (solo anteprima e invio dei fogli agli autisti).
 // - Registro: ogni dispositivo scrive i propri eventi (accessi, modifiche) in un file al giorno, in una
 //   cartella accanto a quella dell'agenda che l'app degli utenti non mostra mai:
 //     /Agenda Flotta La Terra - registro/AAAA-MM/AAAA-MM-GG_<dispositivo>.json
@@ -57,6 +59,15 @@
     let s = ""; for (let i = 0; i < 6; i++) s += A[r[i] % A.length]; return s[0].toUpperCase() + s.slice(1) + N[r[6] % N.length] + N[r[7] % N.length];
   }
 
+  // codice di recupero del Super Master (da scrivere su carta): 12 caratteri in tre gruppi
+  function genRecovery() {
+    const A = "ABCDEFGHJKMNPQRSTUVWXYZ23456789", r = crypto.getRandomValues(new Uint32Array(12));
+    let s = ""; for (let i = 0; i < 12; i++) s += A[r[i] % A.length] + (i === 3 || i === 7 ? "-" : ""); return s;
+  }
+  const normRecovery = (c) => String(c || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  async function makeRecovery(code) { const salt = hex(crypto.getRandomValues(new Uint8Array(16))); return { salt, iter: ITER, hash: await pbkdf2(normRecovery(code), salt, ITER) }; }
+  async function checkRecovery(u, code) { const r = u && u.rec; if (!r || !secretOk(r)) return false; return (await pbkdf2(normRecovery(code), r.salt, Number(r.iter))) === String(r.hash).toLowerCase(); }
+
   // ---------- sessione ----------
   function session() { return lsGet(SK, null); }
   function setSession(s) { lsSet(SK, s); }
@@ -100,6 +111,7 @@
   function log(k, x, d, who) {
     const s = session(), now = new Date(), date = localDate(now);
     const e = { id: rid("e"), t: now.toISOString(), u: s ? s.uid : "", n: s ? s.name : (who || ""), dv: device.id, k, x: String(x || "") };
+    if (s && s.role === "super") e.s = "1"; // azioni del Super Master: nel registro le vede solo lui
     if (d) e.d = d;
     const day = logQ.days[date] || (logQ.days[date] = { ev: [], loaded: false });
     day.ev.push(e); day.dirty = true;
@@ -151,7 +163,9 @@
   async function beat(state) {
     if (!navigator.onLine || !window.DBX || !DBX.isLinked()) return;
     const s = session();
-    const o = { dev: device.id, auto: device.auto, ua: navigator.userAgent, ver: window.AGENDA_VERSION || "", uid: s ? s.uid : "", user: s ? s.name : "", role: s ? s.role : "", loginAt: s ? s.at : "", last: new Date().toISOString(), state: state || (s ? "attivo" : "uscito") };
+    // il Super Master non compare tra i dispositivi collegati: il dispositivo risulta senza utente
+    const hid = !!s && s.role === "super";
+    const o = { dev: device.id, auto: device.auto, ua: navigator.userAgent, ver: window.AGENDA_VERSION || "", uid: s && !hid ? s.uid : "", user: s && !hid ? s.name : "", role: s && !hid ? s.role : "", loginAt: s && !hid ? s.at : "", last: new Date().toISOString(), state: state || (s && !hid ? "attivo" : "uscito") };
     try { await DBX.upload(REG() + "/dispositivi/" + device.id + ".json", enc.encode(JSON.stringify(o)), "overwrite"); } catch (_) {}
   }
   function startBeat() {
@@ -190,7 +204,7 @@
   function cleanEv(e) {
     if (!e || typeof e !== "object" || Array.isArray(e)) return null;
     const o = {};
-    for (const k of ["id", "t", "u", "n", "dv", "k", "x", "l", "m", "v"]) if (k in e) o[k] = str(e[k]);
+    for (const k of ["id", "t", "u", "n", "dv", "k", "x", "l", "m", "v", "s"]) if (k in e) o[k] = str(e[k]);
     if (!o.id || !o.t) return null;
     if (typeof e.d === "string") o.d = e.d.slice(0, 2000);
     else if (e.d && typeof e.d === "object" && !Array.isArray(e.d)) {
@@ -234,7 +248,7 @@
     if (!msg || (msg === tLast && Date.now() - tLastAt < 60000)) return; // niente doppioni a raffica
     tLast = msg; tLastAt = Date.now();
     const s = session(), now = new Date(), date = localDate(now);
-    const e = { id: rid("t"), t: now.toISOString(), l: level || "info", m: msg, n: s ? s.name : "", dv: device.id, v: window.AGENDA_VERSION || "" };
+    const e = { id: rid("t"), t: now.toISOString(), l: level || "info", m: msg, n: s && s.role !== "super" ? s.name : "", dv: device.id, v: window.AGENDA_VERSION || "" };
     if (det != null && det !== "") e.d = typeof det === "string" ? det.slice(0, 1500) : JSON.stringify(det).slice(0, 1500);
     const day = tq.days[date] || (tq.days[date] = { ev: [], loaded: false });
     day.ev.push(e); if (day.ev.length > 800) day.ev.splice(0, day.ev.length - 800);
@@ -275,10 +289,10 @@
   window.addEventListener("error", (e) => { try { tlog("errore", "Errore del programma: " + (e.message || "sconosciuto"), (e.filename || "").split("/").pop() + ":" + (e.lineno || "") + ":" + (e.colno || "")); } catch (_) {} });
   window.addEventListener("unhandledrejection", (e) => { try { const r = e.reason || {}; tlog("errore", "Operazione non riuscita: " + (r.message || r.code || r.summary || String(r)).slice(0, 200), r.stack ? String(r.stack).slice(0, 600) : null); } catch (_) {} });
 
-  (window.AGENDA_FILES = window.AGENDA_FILES || {}).accessi = "2.4";
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).accessi = "2.5";
   window.ACC = {
     get device() { return device; }, devLabel, uaLabel, localDate,
-    makeSecret, checkPw, genPassword, pbkdf2,
+    makeSecret, checkPw, genPassword, pbkdf2, genRecovery, makeRecovery, checkRecovery,
     session, setSession, sessionProblem, refreshSession, login, logout,
     failWait, failAdd, failReset,
     log, amend, flushLog, pendingLog, beat, startBeat, forgetDevice,

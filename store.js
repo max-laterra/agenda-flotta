@@ -31,7 +31,21 @@
   if (!Array.isArray(queue.clients)) queue.clients = [];
   function loadLS(k, d) { try { const v = JSON.parse(localStorage.getItem(k) || "null"); return v && typeof v === "object" ? Object.assign(d || {}, v) : d; } catch (_) { return d; } }
 
-  const hooks = { onChange() {}, onStatus() {}, onAccessChanged() {}, onUsersChanged() {}, onNotice() {}, rowFor: null };
+  const hooks = { onChange() {}, onStatus() {}, onAccessChanged() {}, onUsersChanged() {}, onNotice() {}, rowFor: null, actor: () => null };
+  // Chi sta lavorando su questo dispositivo: il ruolo si legge dall'elenco utenti di Dropbox, non dalla
+  // sessione salvata nel browser (che si potrebbe ritoccare a mano).
+  function actorRole() {
+    let a = null; try { a = hooks.actor(); } catch (_) {}
+    const u = a && a.uid && cache.users && cache.users.users ? cache.users.users[a.uid] : null;
+    return u && u.active !== false ? u.role : "";
+  }
+  // profilo «solo anteprima e invio» (2.5): non scrive mai niente, tranne il segno «inviato all'autista»
+  function noRO() { if (actorRole() === "invio") throw { code: "readonly" }; }
+  const sentOnly = (ops) => Array.isArray(ops) && ops.length > 0 && ops.every((op) => op && op.t === "put" && op.edit && op.only && Array.isArray(op.patch) && op.patch.length === 1 && op.patch[0] === "sent");
+  // Scelta del capo (2.5): chi invia i fogli decide bus e autisti. La modifica porta il segno "boss" e tocca
+  // solo questi campi; la possono fare il profilo «solo anteprima e invio» e il Super Master.
+  const BOSS_F = ["vehicle", "driver", "driver2", "capo", "updBy"], LOCK_F = ["vehicle", "driver", "driver2"];
+  const bossOnly = (op) => !!op && op.t === "put" && op.edit === true && op.only === true && op.boss === true && Array.isArray(op.patch) && op.patch.length > 0 && op.patch.every((k) => BOSS_F.includes(k));
   const status = { online: navigator.onLine, syncing: false, error: null, lastSync: null, storage: null };
   function counts() { return { pending: queue.days.length, fatPending: Object.keys(queue.fat).length + queue.clients.filter((c) => !c.failed).length }; }
   function emitStatus() { hooks.onStatus(Object.assign(counts(), { fat: cache.fat }, status)); }
@@ -147,7 +161,7 @@
   // dispositivo lo ha già usato e controlla le modifiche fatte nel frattempo da altri.
   // Restituisce le variazioni per il fatturato e gli avvisi per l'utente.
   function applyOps(doc, ops, strict) {
-    const fat = [], notes = [], movesGone = [];
+    const fat = [], notes = [], movesGone = [], movesKept = [];
     doc.bookings = doc.bookings && typeof doc.bookings === "object" ? doc.bookings : {};
     for (const op of ops) {
       if (op.t === "put") {
@@ -168,6 +182,20 @@
           if (op.assign && op.b.foglio) merged.foglio = op.b.foglio;
           b = merged;
           if (strict && stale) notes.push({ kind: "merged", id: op.id, client: b.client, date: doc.date, fields: op.patch.slice(), clash });
+        }
+        // Il segno «inviato all'autista» (2.5) si cambia solo con l'invio o il ritiro del foglio: una modifica
+        // fatta dal modulo (che quel campo non lo conosce, o lo ha letto prima di un invio) non lo cancella.
+        if (op.edit && prev && prev.sent && !(Array.isArray(op.patch) && op.patch.includes("sent"))) b.sent = clone(prev.sent);
+        // Bus e autisti decisi dal capo: una modifica senza il segno "boss" (il modulo dell'ufficio, un
+        // dispositivo con la pagina aperta da prima) non li cambia e non tocca il segno «deciso dal capo».
+        if (!op.boss && prev && prev.capo && Array.isArray(op.patch) && op.patch.includes("sent")) {
+          if (prev.sent) b.sent = clone(prev.sent); else delete b.sent;
+          if (strict) notes.push({ kind: "sentKept", id: op.id, client: prev.client, date: doc.date });
+        }
+        if (!op.boss) {
+          if (op.edit && prev && prev.capo) { for (const k of LOCK_F) { if (k in prev) b[k] = clone(prev[k]); else delete b[k]; } b.capo = clone(prev.capo); }
+          else if (prev) { if (prev.capo) b.capo = clone(prev.capo); else delete b.capo; }
+          else if (!op.move) delete b.capo; // prenotazione nuova: nessun segno; spostata di giorno: lo porta con sé
         }
         const pre = yymmdd(doc.date);
         // una modifica non cambia mai il n. foglio: resta quello già assegnato (magari rinumerato nel frattempo)
@@ -191,13 +219,24 @@
         // se la prenotazione cambia numero, la riga vecchia si svuota; non quando il numero era di una riga scritta a mano
         if (prev && prev.foglio && prev.foglio !== b.foglio && !op.renumber) fat.push({ act: "clear", foglio: prev.foglio, b: Object.assign({ id: op.id }, prev) });
         doc.bookings[op.id] = b;
-        fat.push({ act: "upsert", foglio: b.foglio, b: Object.assign({ id: op.id }, b, { start: b.start || doc.date }) });
+        // l'invio all'autista non cambia niente nel fatturato: la riga non si riscrive
+        if (!(prev && sentOnly([op]))) fat.push({ act: "upsert", foglio: b.foglio, b: Object.assign({ id: op.id }, b, { start: b.start || doc.date }) });
       } else if (op.t === "del") {
         const prev = doc.bookings[op.id];
         if (!prev) {
           if (strict && op.move) movesGone.push(op.id);
           else if (strict && op.client != null) notes.push({ kind: "delGone", id: op.id, client: op.client, date: doc.date }); // spostata da altri: non eliminata
           continue;
+        }
+        // Chi sposta o elimina sapeva della scelta del capo e dell'invio all'autista? (op.know = quello che vedeva.)
+        // Se nel frattempo il capo ha deciso o il foglio è stato inviato: lo spostamento non si fa (si perderebbero
+        // scelta e segno di invio); l'eliminazione sì, ma il foglio va ritirato dal telefono dell'autista.
+        if (strict && isObj(op.know)) {
+          const kc = (prev.capo && prev.capo.at) || "", ks = prev.sent ? (prev.sent.at || "") + "|" + ((prev.sent.off && prev.sent.off.at) || "") : "";
+          if (kc !== txt(op.know.c, 60) || ks !== txt(op.know.s, 130)) {
+            if (op.move) { movesKept.push(op.id); notes.push({ kind: "moveKept", id: op.id, client: prev.client, date: doc.date }); continue; }
+            if (prev.sent && prev.sent.at && !prev.sent.off) notes.push({ kind: "delSent", id: op.id, date: doc.date, b: Object.assign({ id: op.id }, clone(prev), { start: prev.start || doc.date }) });
+          }
         }
         if (prev.foglio) fat.push({ act: "clear", foglio: prev.foglio, moved: op.move || null, b: Object.assign({ id: op.id }, prev, { start: prev.start || doc.date }) });
         delete doc.bookings[op.id];
@@ -207,7 +246,7 @@
         else doc.extra = op.v;
       }
     }
-    return { fat, notes, movesGone };
+    return { fat, notes, movesGone, movesKept };
   }
 
   // n. foglio già presenti nel file fatturato per quella data (anche quelli scritti a mano)
@@ -229,6 +268,14 @@
 
   function mutateDay(date, ops) {
     if (!validDate(date)) throw { code: "baddate" };
+    const role = actorRole(), boss = role === "invio" || role === "super";
+    if (role === "invio" && !(Array.isArray(ops) && ops.length > 0 && ops.every((op) => sentOnly([op]) || bossOnly(op)))) throw { code: "readonly" };
+    if (!boss && Array.isArray(ops) && ops.some((op) => op && op.boss)) throw { code: "readonly" };
+    // dopo la scelta del capo l'ufficio non invia e non ritira più il foglio di quel servizio
+    if (!boss && Array.isArray(ops) && ops.some((op) => sentOnly([op]))) {
+      const cur = view()[date];
+      for (const op of ops) if (sentOnly([op]) && cur && cur.bookings && cur.bookings[op.id] && cur.bookings[op.id].capo) throw { code: "capo" };
+    }
     queue.days.push({ qid: newQid(), date, ops: clone(ops), at: Date.now() });
     persist(); changed(); kick();
   }
@@ -303,6 +350,8 @@
           for (const it of queue.days) it.ops = it.ops.filter((op) => !(op.id === id && op.t === "put" && op.move));
           r.notes.push({ kind: "gone", id, date: item.date });
         }
+        // spostamento rifiutato (scelta del capo o invio arrivati nel frattempo): la prenotazione resta dov'era
+        for (const id of r.movesKept || []) for (const it of queue.days) it.ops = it.ops.filter((op) => !(op.id === id && op.t === "put" && op.move));
         queue.days = queue.days.filter((it) => it.ops.length);
         persist([item.date]); changed();
         for (const n of r.notes) notice(n);
@@ -379,7 +428,14 @@
       if (badKey(id) || !/^[\w.-]{1,60}$/.test(id) || !isObj(u)) return null;
       const name = txt(u.name, 80).trim(), it = u.iter == null ? 150000 : Number(u.iter);
       if (!name || !/^[0-9a-f]{16,128}$/i.test(txt(u.salt, 200)) || !/^[0-9a-f]{64}$/i.test(txt(u.hash, 200)) || !Number.isInteger(it) || it < ITER_MIN || it > ITER_MAX) return null;
-      users[id] = Object.assign({}, u, { name, role: u.role === "master" ? "master" : "utente", active: u.active !== false, iter: it, pwAt: when(u.pwAt), created: when(u.created), createdBy: txt(u.createdBy, 80) });
+      // Ruoli della 2.5: «super» (Super Master) e «invio» (solo anteprima e invio) sono scritti nel campo
+      // lvl. Le versioni fino alla 2.4 conoscono solo master/utente e riscrivono il campo role, ma lasciano
+      // stare lvl: così un dispositivo non ancora aggiornato non può cancellare i ruoli nuovi.
+      const lvl = u.lvl === "super" || u.lvl === "invio" ? u.lvl : "";
+      users[id] = Object.assign({}, u, { name, role: lvl || (u.role === "master" ? "master" : "utente"), active: u.active !== false, iter: it, pwAt: when(u.pwAt), created: when(u.created), createdBy: txt(u.createdBy, 80) });
+      if (lvl) users[id].lvl = lvl; else delete users[id].lvl;
+      // codice di recupero del Super Master: solo se ha la forma di un'impronta
+      if ("rec" in u) { const r = u.rec; if (isObj(r) && /^[0-9a-f]{16,128}$/i.test(txt(r.salt, 200)) && /^[0-9a-f]{64}$/i.test(txt(r.hash, 200)) && Number.isInteger(Number(r.iter)) && Number(r.iter) >= ITER_MIN && Number(r.iter) <= ITER_MAX) users[id].rec = { salt: r.salt, hash: r.hash, iter: Number(r.iter) }; else delete users[id].rec; }
     }
     if (!Object.values(users).some((u) => u.role === "master" && u.active)) return null; // un elenco senza Master attivo non è mai scritto dall'app
     const map = (m, f) => { const o = {}; if (isObj(m)) for (const k of Object.keys(m)) { if (badKey(k) || k.length > 80) continue; const v = f(m[k]); if (v != null) o[k] = v; } return o; };
@@ -405,6 +461,56 @@
     return o;
   }
   const mastersIn = (J) => Object.values((J && J.users) || {}).filter((u) => u && u.role === "master" && u.active !== false).length;
+  // ---------- regole sugli account (2.5) ----------
+  // - il Super Master gestisce tutti gli account;
+  // - un Master crea, modifica ed elimina solo gli utenti normali: non tocca gli altri Master, il Super
+  //   Master né il profilo «solo anteprima e invio» (così due Master non possono eliminarsi a vicenda);
+  // - ognuno può cambiare la propria password;
+  // - il Super Master è uno solo e si crea una volta (boot), con la password di un Master.
+  // Restituisce "" se la modifica è permessa, altrimenti il motivo.
+  const SECRET = ["salt", "iter", "hash", "pwAt"];
+  function onlySecret(b, a) { const x = Object.assign({}, b), y = Object.assign({}, a); for (const k of SECRET) { delete x[k]; delete y[k]; } return same(x, y); }
+  function usersGuard(before, after, actor) {
+    actor = actor || {};
+    const B = (before && before.users) || {}, A = (after && after.users) || {};
+    const me = actor.uid && B[actor.uid] && B[actor.uid].active !== false ? B[actor.uid] : null, role = me ? me.role : "";
+    if (Object.values(A).filter((u) => u.role === "super").length > 1) return "onesuper";
+    const prot = (u) => !!u && u.role !== "utente";
+    for (const id of new Set(Object.keys(B).concat(Object.keys(A)))) {
+      const b = B[id], a = A[id];
+      if (same(b, a)) continue;
+      if (actor.boot === "super") { if (!b && a && a.role === "super" && !Object.values(B).some((u) => u.role === "super")) continue; return "forbidden"; }
+      if (actor.recover) { if (id === actor.recover && b && a && b.role === "super" && a.role === "super" && onlySecret(b, a)) continue; return "forbidden"; }
+      if (role === "super") continue;
+      if (id === actor.uid && b && a && onlySecret(b, a)) continue;
+      if (role === "master" && !prot(b) && !prot(a)) continue;
+      return "forbidden";
+    }
+    // dispositivi (disconnetti, blocca, nomi): solo Master e Super Master
+    if (role !== "super" && role !== "master" && !actor.boot && !actor.recover) for (const k of ["kicks", "blocked", "devices"]) if (!same((before && before[k]) || {}, (after && after[k]) || {})) return "forbidden";
+    return "";
+  }
+  // ---------- invio all'autista (2.5): segno sulla prenotazione ----------
+  function cleanSent(x) {
+    const n = Number(x.n), o = { at: txt(x.at, 40), by: txt(x.by, 80), n: Number.isFinite(n) && n >= 1 && n < 100000 ? Math.floor(n) : 1, to: Array.isArray(x.to) ? x.to.filter((v) => typeof v === "string" && v.trim()).slice(0, 4).map((v) => v.slice(0, 80)) : [], dir: /^\d{4}\/[\w-]{1,80}$/.test(txt(x.dir, 100)) ? x.dir : "", h: txt(x.h, 40), alias: !!x.alias, noPlate: !!x.noPlate };
+    if (isObj(x.off)) o.off = { at: txt(x.off.at, 40), by: txt(x.off.by, 80) };
+    return o;
+  }
+  // ---------- cartella «Autisti La Terra» (2.5): config/autisti.json ----------
+  // key: App key dell'app Dropbox degli autisti; office: collegamento usato dai dispositivi dell'ufficio;
+  // phones: un collegamento per ogni telefono (serve per poterlo bloccare da qui).
+  function cleanAut(j) {
+    if (!isObj(j)) return null;
+    const when = (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T[\d:.]{5,12}Z?$/.test(v) ? v : ""), tk = (v) => (typeof v === "string" && /^[\w.~+/=-]{8,400}$/.test(v) ? v : "");
+    const o = { v: 1, key: /^[A-Za-z0-9]{6,40}$/.test(txt(j.key, 60)) ? j.key : "", appUrl: /^https:\/\/[^\s"'<>]{4,200}$/.test(txt(j.appUrl, 300)) ? j.appUrl : "", office: null, phones: {}, updatedAt: when(j.updatedAt) };
+    if (isObj(j.office) && tk(j.office.refresh)) o.office = { refresh: j.office.refresh, at: when(j.office.at), by: txt(j.office.by, 80) };
+    if (isObj(j.phones)) for (const id of Object.keys(j.phones)) {
+      const f = j.phones[id];
+      if (badKey(id) || !/^[a-z0-9]{6,24}$/.test(id) || !isObj(f) || !txt(f.driver, 80).trim()) continue;
+      o.phones[id] = { driver: txt(f.driver, 80).trim(), label: txt(f.label, 60), refresh: tk(f.refresh), created: when(f.created), by: txt(f.by, 80), blocked: isObj(f.blocked) ? { at: when(f.blocked.at), by: txt(f.blocked.by, 80) } : null };
+    }
+    return o;
+  }
   // giornate: ogni prenotazione deve essere un oggetto, con testi, numeri ed elenchi del tipo giusto
   const B_TXT = ["type", "vehicle", "start", "end", "time", "time2", "client", "route", "event", "escort", "driver", "driver2", "contact", "contactName", "contactRole", "contactNote", "status", "notes", "saldo", "npark", "ndriver", "n3h", "nextra", "envelope", "envno", "updatedAt", "by", "byAt", "updBy"];
   const B_VAL = ["pax", "price", "park", "meals", "advance", "saldoAmt", "clientCode", "foglio"]; // numero o testo
@@ -417,6 +523,8 @@
     if ("program" in b && typeof b.program !== "string") b.program = Array.isArray(b.program) ? b.program.map((x) => txt(x)) : [];
     if ("start" in b && !validDate(b.start) && validDate(date)) b.start = date;
     if (b.end && !validDate(b.end)) b.end = "";
+    if ("sent" in b) { if (isObj(b.sent)) b.sent = cleanSent(b.sent); else delete b.sent; }
+    if ("capo" in b) { if (isObj(b.capo)) b.capo = { at: txt(b.capo.at, 40), by: txt(b.capo.by, 80) }; else delete b.capo; }
     return b;
   }
   function cleanDoc(doc, date) {
@@ -445,6 +553,7 @@
     if (cache.users) cache.users = cleanUsers(cache.users);
     if (cache.fleet && !isObj(cache.fleet)) cache.fleet = null;
     if (cache.settings) cache.settings = cleanSettings(cache.settings);
+    if (cache.aut) cache.aut = cleanAut(cache.aut);
     if (cache.fatShared && !isObj(cache.fatShared)) cache.fatShared = {};
     if (cache.fatGone && !isObj(cache.fatGone)) cache.fatGone = {};
     if (cache.fatWritten && !isObj(cache.fatWritten)) cache.fatWritten = null;
@@ -511,10 +620,11 @@
         cache.days[date] = { doc, rev: f.meta.rev || e.rev }; changedDays.push(date); touched = true;
       });
       for (const [p, e] of seen) {
+        if (e[".tag"] === "deleted" && p === (P.cfg + "/autisti.json").toLowerCase() && cache.aut) { cache.aut = null; cache.autRev = ""; touched = true; continue; }
         if (e[".tag"] !== "file") continue;
         const isCfg = (n) => p === (P.cfg + "/" + n).toLowerCase();
         const regKind = Object.keys(REGF).find((k) => isCfg(REGF[k]));
-        if (!(regKind || isCfg("contabilita.json") || isCfg("flotta.json") || isCfg("righe-fatturato.json") || isCfg("impostazioni.json") || isCfg("accesso.json") || isCfg("utenti.json"))) continue;
+        if (!(regKind || isCfg("contabilita.json") || isCfg("flotta.json") || isCfg("righe-fatturato.json") || isCfg("impostazioni.json") || isCfg("accesso.json") || isCfg("utenti.json") || isCfg("autisti.json"))) continue;
         const f = await DBX.download(e.path_lower); if (!f) continue;
         const j = parseJSON(f.buf); if (!j) { notice({ kind: "badcfg", path: e.path_display || p }); continue; }
         // ogni file per conto suo: se uno manda in errore i controlli si segnala e si passa al successivo
@@ -523,6 +633,7 @@
           else if (isCfg("contabilita.json")) { if (isObj(j) && window.FATTURE) { cache.contab = window.FATTURE.cleanContab(j); cache.contabRev = f.meta.rev || e.rev; touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); }
           else if (isCfg("righe-fatturato.json")) { cache.fatShared = isObj(j.fogli) ? j.fogli : {}; cache.fatGone = isObj(j.tolti) ? j.tolti : {}; }
           else if (isCfg("impostazioni.json")) { const cs = cleanSettings(j); if (cs) { cache.settings = cs; touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); }
+          else if (isCfg("autisti.json")) { const ca = cleanAut(j); if (ca) { cache.aut = ca; cache.autRev = f.meta.rev || e.rev; touched = true; try { hooks.onAutChanged && hooks.onAutChanged(ca); } catch (_) {} } else notice({ kind: "badcfg", path: e.path_display || p }); }
           else if (isCfg("accesso.json")) { if (!isObj(j)) continue; const was = cache.access; cache.access = j; if (was && was.hash !== j.hash) hooks.onAccessChanged(); touched = true; }
           else if (regKind) { const c = cleanReg(regKind, j); if (c) { cache.regs = Object.assign({}, cache.regs || {}, { [regKind]: c }); touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); }
           else if (isCfg("utenti.json")) { const cu = cleanUsers(j); if (cu) { cache.users = cu; usersSeen = true; try { hooks.onUsersChanged(cu); } catch (_) {} touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); } // elenco non valido: resta l'ultimo buono
@@ -745,6 +856,7 @@
   }
   // nuovo cliente: va in coda e viene scritto nel file fatturato (subito se c'è la connessione)
   function addClient(vals, name) {
+    noRO();
     const tmp = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     queue.clients.push({ tmp, vals, name, at: Date.now() });
     persist(); changed(); syncFatturato();
@@ -752,13 +864,14 @@
   }
   // cliente esistente modificato nell'app: solo i campi cambiati (vals) e i loro valori di partenza (base)
   function editClient(code, vals, base, name) {
+    noRO();
     const tmp = "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     queue.clients.push({ tmp, kind: "edit", code, vals, base, name, at: Date.now() });
     persist(); changed(); syncFatturato();
     return tmp;
   }
-  function cancelClient(tmp) { queue.clients = queue.clients.filter((c) => c.tmp !== tmp); persist(); changed(); }
-  function retryClient(tmp) { const c = queue.clients.find((x) => x.tmp === tmp); if (c) delete c.failed; persist(); changed(); syncFatturato(); }
+  function cancelClient(tmp) { noRO(); queue.clients = queue.clients.filter((c) => c.tmp !== tmp); persist(); changed(); }
+  function retryClient(tmp) { noRO(); const c = queue.clients.find((x) => x.tmp === tmp); if (c) delete c.failed; persist(); changed(); syncFatturato(); }
   function finishFat(done, res) {
     for (const k in done) {
       if (res.collisions && res.collisions.includes(k)) continue;
@@ -773,6 +886,7 @@
   // Flotta: si applicano solo i campi cambiati (per id del mezzo) sull'ultima versione in Dropbox.
   // patches: {idMezzo: {name, seats, plate, xcat}} ; base: flotta da usare se in Dropbox non c'è ancora.
   async function patchFleet(patches, base) {
+    noRO();
     if (!navigator.onLine) throw { code: "offline" };
     const path = P.cfg + "/flotta.json";
     for (let i = 0; i < 5; i++) {
@@ -799,7 +913,7 @@
     }
     throw { code: "busy" };
   }
-  async function setSettings(s) { cache.settings = Object.assign({}, cache.settings || {}, s); await putJSON(P.cfg + "/impostazioni.json", cache.settings); persist(); changed(); }
+  async function setSettings(s) { noRO(); cache.settings = Object.assign({}, cache.settings || {}, s); await putJSON(P.cfg + "/impostazioni.json", cache.settings); persist(); changed(); }
   // collega un file fatturato: vale per l'anno scritto nel nome (o per tutti se non c'è un anno)
   async function linkFatturato(path, name) {
     const files = fatFiles(); files[yearOf(name) || "*"] = { path, name };
@@ -844,7 +958,9 @@
     cache.users = u; usersSeen = true; persist(); changed();
     return u;
   }
-  async function updateUsers(fn) {
+  // actor (facoltativo): { boot: "super" } per creare il Super Master, { recover: uid } per il codice di
+  // recupero; altrimenti vale chi è entrato su questo dispositivo.
+  async function updateUsers(fn, actor) {
     if (!navigator.onLine) throw { code: "offline" };
     for (let i = 0; i < 6; i++) {
       const r = await readUsersFile();
@@ -858,6 +974,10 @@
       // Dropbox (anche quando si riprova dopo una modifica contemporanea): due Master che si tolgono
       // il ruolo a vicenda nello stesso momento non possono lasciare l'agenda senza Master.
       if (mastersIn(next) === 0) { cache.users = r.j; persist(); changed(); throw { code: "lastmaster" }; } // (l'elenco sullo schermo si aggiorna)
+      // regole sugli account, controllate sull'ultima versione letta da Dropbox
+      let who = actor || null; if (!who) { try { who = hooks.actor(); } catch (_) {} }
+      const why = usersGuard(r.j, next, who);
+      if (why) { cache.users = r.j; persist(); changed(); throw { code: why }; }
       next.updatedAt = new Date().toISOString();
       try {
         await DBX.upload(USR(), enc.encode(JSON.stringify(next, null, 1)), { update: r.rev });
@@ -878,11 +998,46 @@
   // nome di file sicuro: niente / \ : * ? " < > | né ".." (un n. foglio scritto apposta non fa uscire il file dalla sua cartella)
   const safeFileName = (n) => String(n || "").replace(/[\u0000-\u001f\/\\:*?"<>|]+/g, "_").replace(/\.{2,}/g, "_").replace(/^[\s._]+/, "").slice(0, 150) || "foglio";
   async function saveSheetFile(name, blob, date) {
+    noRO();
     name = safeFileName(name);
     const folder = sheetFolder(String(date || ""));
     let p = "";
     for (const part of folder.split("/").filter(Boolean)) { p += "/" + part; await DBX.createFolder(p).catch(() => {}); }
     return DBX.upload(folder + "/" + name, blob, "overwrite");
+  }
+
+  // Un dispositivo che era ancora alla 2.4 quando il file è stato scritto lo ha saltato: all'avvio lo si legge una volta.
+  async function loadAut() {
+    if (cache.aut || !navigator.onLine || !DBX.isLinked()) return cache.aut || null;
+    try {
+      const f = await DBX.download(P.cfg + "/autisti.json"); if (!f) return null;
+      const ca = cleanAut(parseJSON(f.buf)); if (!ca) return null;
+      cache.aut = ca; cache.autRev = (f.meta && f.meta.rev) || ""; persist(); changed();
+      try { hooks.onAutChanged && hooks.onAutChanged(ca); } catch (_) {}
+    } catch (_) {}
+    return cache.aut || null;
+  }
+  // ---------- cartella autisti (2.5): la scrive solo il Super Master ----------
+  async function updateAut(fn) {
+    if (actorRole() !== "super") throw { code: "forbidden" };
+    if (!navigator.onLine) throw { code: "offline" };
+    const path = P.cfg + "/autisti.json";
+    for (let i = 0; i < 6; i++) {
+      const f = await DBX.download(path);
+      if (f && !f.meta.rev) f.meta = await DBX.metadata(path);
+      const cur = f ? cleanAut(parseJSON(f.buf)) : null;
+      const made = fn(clone(cur || { v: 1, key: "", appUrl: "", office: null, phones: {} }));
+      if (!made) { if (cur) { cache.aut = cur; persist(); } return cur; }
+      const next = cleanAut(made); if (!next) throw { code: "badaut" };
+      next.updatedAt = new Date().toISOString();
+      try {
+        const m = await DBX.upload(path, enc.encode(JSON.stringify(next, null, 1)), f ? { update: f.meta.rev } : "add");
+        cache.aut = next; cache.autRev = (m && m.rev) || ""; persist(); changed();
+        try { hooks.onAutChanged && hooks.onAutChanged(next); } catch (_) {}
+        return next;
+      } catch (e) { if (e.code !== "conflict") throw e; }
+    }
+    throw { code: "busy" };
   }
 
   // ---------- anagrafiche (2.0): referenti, guide, hotel e tendine (note, ruolo) ----------
@@ -894,6 +1049,7 @@
   function reg(kind) { const r = (cache.regs || {})[kind]; return isObj(r) ? r : defaultReg(kind); }
   function regLoaded(kind) { return !!(cache.regs && cache.regs[kind]); }
   async function updateReg(kind, fn) {
+    noRO();
     if (!REGF[kind]) throw { code: "kind" };
     if (!navigator.onLine) throw { code: "offline" };
     const path = P.cfg + "/" + REGF[kind];
@@ -946,6 +1102,7 @@
   }
   function contab() { try { return FT().cleanContab(cache.contab || null); } catch (_) { return FT().defaults(); } }
   async function updateContab(fn) {
+    noRO();
     if (!navigator.onLine) throw { code: "offline" };
     const path = P.cfg + "/contabilita.json";
     for (let i = 0; i < 6; i++) {
@@ -972,6 +1129,7 @@
   // Salva una bozza. rev è la versione che si aveva davanti quando la si è aperta ("" per una bozza nuova):
   // se nel frattempo un altro dispositivo l'ha cambiata non la sovrascrive (errore "conflict").
   async function saveDraft(d, rev) {
+    noRO();
     if (!navigator.onLine) throw { code: "offline" };
     const doc = FT().cleanDraft(d); if (!doc || badKey(doc.id)) throw { code: "baddraft" };
     if (rev === undefined) rev = draftRev(doc.id);
@@ -982,6 +1140,7 @@
     return clone(doc);
   }
   async function deleteDraft(id) {
+    noRO();
     if (!navigator.onLine) throw { code: "offline" };
     if (!/^[A-Za-z0-9_-]{1,24}$/.test(String(id))) throw { code: "baddraft" };
     await DBX.remove(draftPath(id));
@@ -994,6 +1153,7 @@
   // viene sostituito (alla contabilità non restano due file della stessa fattura).
   const inXml = (path) => typeof path === "string" && path.toLowerCase().startsWith((P.xml + "/").toLowerCase()) && !/(^|\/)\.\.(\/|$)/.test(path) && /\.xml$/i.test(path) && path.length < 400;
   async function saveInvoiceXml(name, text, again) {
+    noRO();
     name = safeFileName(name);
     if (inXml(again) && again.split("/").pop().toLowerCase() === name.toLowerCase()) { await DBX.upload(again, enc.encode(text), "overwrite"); return again; }
     const d = new Date().toISOString().slice(0, 10), folder = P.xml + "/" + d.slice(0, 4) + "/" + d.slice(5, 7) + " - " + MESI[+d.slice(5, 7) - 1];
@@ -1028,7 +1188,7 @@
     if (idb) await new Promise((res) => { try { const t = idb.transaction(["days", "meta"], "readwrite"); t.objectStore("days").clear(); t.objectStore("meta").clear(); t.oncomplete = t.onerror = t.onabort = () => res(); } catch (_) { res(); } });
   }
 
-  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.4";
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.5";
   window.STORE = {
     BASE, P,
     configure(h) { Object.assign(hooks, h); },
@@ -1038,7 +1198,7 @@
     disable() { enabled = false; writesBlocked = true; clearTimeout(saveTimer); },
     fileFogli, validDate,
     view, mutateDay, pull, flush, watch, setupFolders, syncFatturato, isPending, whenSent, saveNow: writeNow,
-    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, saveSheetFile, sheetFolder, safeFileName, ITER_MIN, ITER_MAX, reg, regLoaded, updateReg, loadRegs, REGF, contab, updateContab, drafts, draft, draftRev, saveDraft, deleteDraft, saveInvoiceXml, loadInvoices, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
+    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, updateAut, loadAut, actorRole, _usersGuard: usersGuard, _cleanUsers: cleanUsers, _cleanAut: cleanAut, _cleanBooking: cleanBooking, saveSheetFile, sheetFolder, safeFileName, ITER_MIN, ITER_MAX, reg, regLoaded, updateReg, loadRegs, REGF, contab, updateContab, drafts, draft, draftRev, saveDraft, deleteDraft, saveInvoiceXml, loadInvoices, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
     bustaMax: (y) => { const m = cache.bustaMax || {}; return m[y] != null ? m[y] : m["*"] || 0; },
     get pendingClients() { return queue.clients.slice(); },
     clientDone: (tmp) => (cache.clientDone || {})[tmp] || null,
@@ -1047,6 +1207,7 @@
     get contabLoaded() { return !!cache.contab; },
     get access() { return cache.access; },
     get users() { return cache.users; },
+    get aut() { return cache.aut || null; },
     get usersSeen() { return usersSeen; },
     get lists() { return cache.lists; },
     get fat() { return cache.fat; },

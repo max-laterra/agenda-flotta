@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="2.4">
+<html lang="it" data-v="2.5">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -830,6 +830,106 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
   .inv-foot .btn{padding:6px 9px;font-size:13px}.inv-totals{font-size:13.5px}.inv-totals .tot b{font-size:17px}
   .inv-issues{max-height:44px}
 }
+
+/* ---------- 2.5: invio all'autista, stato dei fogli, spese, Super Master, profilo «invio» ---------- */
+.snt{flex:none;align-self:stretch;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:11.5px;font-weight:700;line-height:1.1;padding:0 8px;min-width:70px;color:var(--ink-2);white-space:nowrap;cursor:pointer}
+.snt:hover{filter:brightness(.96)}
+.snt.k-inviato{color:var(--sync);border-color:color-mix(in srgb,var(--sync) 40%,var(--line));background:var(--accent-soft)}
+.snt.k-aperto{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,var(--line));background:var(--ok-bg)}
+.snt.k-consegnata{color:#fff;background:var(--ok);border-color:var(--ok)}
+.snt.k-ritirato{color:var(--ink-3)}
+.snt.stale{color:var(--tbd-ink);background:var(--tbd-bg);border-color:var(--tbd)}
+.sent-bar{border:1px solid var(--line);border-radius:10px;padding:9px 12px;display:flex;gap:6px 18px;flex-wrap:wrap;align-items:center;font-size:13.5px;background:var(--bg)}
+.sent-bar .stp{display:flex;align-items:center;gap:7px;color:var(--ink-3)}
+.sent-bar .stp i{flex:none;width:18px;height:18px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-style:normal;font-size:11px;font-weight:800;color:transparent}
+.sent-bar .stp.on{color:var(--ink)}.sent-bar .stp.on i{background:var(--ok);border-color:var(--ok);color:#fff}
+.sent-bar .stp small{color:var(--ink-3);font-size:12px}
+.sent-bar .warn{flex-basis:100%;color:var(--tbd-ink);background:var(--tbd-bg);border-radius:8px;padding:6px 10px;font-weight:600}
+.sent-bar .none{color:var(--ink-2)}
+.btn.send{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn.send:disabled{opacity:.55}
+/* profilo «solo anteprima e invio»: una schermata sola */
+#invio{min-height:100vh;background:var(--bg)}
+.sd-wrap{max-width:980px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px}
+.sd-top{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 14px}
+.sd-logo{height:30px;width:auto}
+.sd-who{display:flex;flex-direction:column;line-height:1.2;margin-right:auto}
+.sd-who b{font-size:15.5px;color:#17212B}.sd-who span{font-size:12.5px;color:#4B5663}
+.sd-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sd-date{flex:1;min-width:200px;font-family:var(--cond);font-weight:700;font-size:26px;text-transform:capitalize;letter-spacing:.01em}
+.sd-date.sun{color:var(--sunday)}
+.sd-nav .btn.icon{width:44px;height:44px;font-size:24px;line-height:1;padding:0}
+.sd-nav input[type=date]{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface);color:var(--ink);font:inherit;font-size:14px}
+.sd-list{display:flex;flex-direction:column;gap:10px}
+.sd-card{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--ink-3);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 16px;align-items:center}
+.sd-card.transfer{border-left-color:var(--transfer-fill)}.sd-card.gita{border-left-color:var(--gita-fill)}.sd-card.tour{border-left-color:var(--tour-fill)}.sd-card.notturno{border-left-color:var(--notturno-fill)}
+.sd-main{min-width:0;display:flex;flex-direction:column;gap:3px}
+.sd-l1{display:flex;gap:8px 12px;align-items:baseline;flex-wrap:wrap}
+.sd-time{font-family:var(--cond);font-weight:700;font-size:21px;font-variant-numeric:tabular-nums}
+.sd-cli{font-weight:700;font-size:16px}
+.sd-tp{font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}
+.sd-rt{color:var(--ink-2);font-size:14px;overflow:hidden;text-overflow:ellipsis}
+.sd-meta{font-size:13.5px;color:var(--ink-2)}.sd-meta b{color:var(--ink)}
+.sd-meta .gen{color:var(--tbd-ink);background:var(--tbd-bg);border-radius:6px;padding:0 6px}
+.sd-st{font-size:12.5px;display:flex;gap:6px 10px;align-items:center;flex-wrap:wrap;margin-top:2px}
+.sd-st small{color:var(--ink-3)}
+.sd-act{display:flex;flex-direction:column;gap:7px;min-width:170px}
+.sd-act .btn{padding:10px 14px;font-size:14.5px}
+.sd-empty{background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:26px;text-align:center;color:var(--ink-3)}
+.sd-ver{text-align:center;font-size:12px;color:var(--ink-3);margin:6px 0 0}
+@media (max-width:640px){.sd-card{grid-template-columns:1fr}.sd-act{flex-direction:row;flex-wrap:wrap}.sd-act .btn{flex:1}.sd-act .btn.quiet{flex:1 0 100%;text-align:right;padding:2px 4px}.sd-date{font-size:22px;flex-basis:100%;order:-1}}
+/* queste due finestre si aprono sopra le altre (modulo, foglio, pannello) */
+#ovSpese,#ovQr,#ovCapo{z-index:60}
+.rec-box{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.rec-shown{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+/* scelta del capo: bus e autisti decisi all'invio */
+.capo-modal{width:min(560px,100%)}
+.cp-grid{display:grid;gap:12px;margin:4px 0 12px}
+.cp-grid .f{display:flex;flex-direction:column;gap:5px}
+.cp-grid label{font-size:13px;font-weight:600;color:var(--ink-2)}.cp-grid label small{font-weight:500;color:var(--ink-3)}
+.cp-grid select{width:100%;border:1px solid var(--line);border-radius:10px;padding:12px 10px;background:var(--surface);color:var(--ink);font:inherit;font-size:16px;min-height:48px}
+.capo-modal .warns{margin:0 0 10px}
+.capo-note{margin:0 0 10px;padding:8px 12px;border-radius:8px;border:1px solid color-mix(in srgb,var(--sync) 40%,var(--line));background:var(--accent-soft);color:var(--ink);font-size:13.5px;font-weight:600}
+.capo-m{font-style:normal;display:inline-block;margin-right:6px;padding:1px 5px;border-radius:5px;border:1px solid color-mix(in srgb,var(--sync) 45%,var(--line));background:var(--accent-soft);color:var(--sync);font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;vertical-align:1px}
+.sent-bar .capo{flex-basis:100%;color:var(--ink-2);font-weight:600}
+.sd-capo{font-size:12.5px;color:var(--ink-3);margin-top:3px}
+.sd-capo.on{color:var(--sync);font-weight:700}
+.sd-act .btn.quiet{background:transparent;border-color:transparent;color:var(--ink-3);font-size:13px;padding:4px 8px;text-decoration:underline}
+/* scheda spese dell'autista */
+.modal.sp-modal{max-width:820px}
+.sp-top{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.sp-top h3{margin:0}
+.sp-tot{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.sp-tot div{border:1px solid var(--line);border-radius:10px;padding:8px 12px;display:flex;flex-direction:column;gap:2px}
+.sp-tot span{font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}
+.sp-tot b{font-family:var(--cond);font-size:22px;font-variant-numeric:tabular-nums}
+.sp-tot .neg b{color:var(--warn)}.sp-tot .main{background:var(--ok-bg);border-color:transparent}
+.sp-body{display:flex;flex-direction:column;gap:10px}
+.sp-cat{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.sp-cat h4{margin:0;padding:8px 12px;font-size:13.5px;display:flex;justify-content:space-between;background:var(--surface-2)}
+.sp-row{display:grid;grid-template-columns:86px minmax(0,1fr) 92px 96px 104px;gap:8px;align-items:center;padding:7px 12px;border-top:1px solid var(--line);font-size:14px}
+.sp-row .eu{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.sp-row small{display:block;color:var(--ink-3);font-size:12px}
+.sp-row .btn{padding:4px 8px;font-size:12.5px}
+.sp-km{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.sp-note{border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.sp-note b{display:block;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);margin-bottom:3px}
+.sp-photo{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;align-items:center;background:var(--bg)}
+.sp-photo img{max-width:100%;max-height:70vh;border-radius:6px;background:#fff}
+@media (max-width:640px){.sp-row{grid-template-columns:1fr auto}.sp-row>*:nth-child(n+3){grid-column:1/-1}.sp-km{grid-template-columns:1fr}}
+/* Pannello Super Master: autisti e telefoni */
+.pill.s{background:#1B2A5C;color:#fff}.pill.i{background:var(--tbd-bg);color:var(--tbd-ink)}
+.aut-state{margin:0;font-size:14px;font-weight:600}.aut-state.ok{color:var(--ok)}.aut-state.no{color:var(--warn)}
+.ph-list{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.ph-row{display:grid;grid-template-columns:minmax(150px,1.1fr) minmax(150px,1.2fr) minmax(170px,1.5fr) 250px;gap:10px;align-items:center;padding:9px 12px;border-top:1px solid var(--line);font-size:14px}
+.ph-row:first-child{border-top:0}.ph-row small{display:block;color:var(--ink-3);font-size:12px}
+.ph-row .row-act{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.set-row select{flex:0 1 240px}
+.modal.qr-modal{max-width:460px}
+.qr-box{align-self:center;width:min(100%,320px);background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px}
+.qr-box svg{display:block;width:100%;height:auto}
+.qr-modal .set-row input{font-size:12px;min-width:0}
+.rec-code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:24px;font-weight:700;letter-spacing:.08em;text-align:center;border:2px dashed var(--line);border-radius:12px;padding:14px 8px;background:var(--bg);user-select:all}
+@media (max-width:760px){.ph-row{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -879,12 +979,71 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
         </form>
         <p class="gate-dev" id="gDev"></p>
       </div>
+      <div id="gHid" hidden>
+        <form id="gHidForm" class="gate-col" autocomplete="off">
+          <label class="gate-lbl">Nome<input class="gate-in" id="ghName" autocomplete="off" spellcheck="false"></label>
+          <label class="gate-lbl">Password<input class="gate-in" id="ghPw" type="password" autocomplete="off"></label>
+          <button class="btn primary big" id="ghBtn" type="submit">Entra</button>
+          <div><button type="button" class="linkbtn" id="ghRec">Ho dimenticato la password</button> · <button type="button" class="linkbtn" id="ghBack">Torna all'elenco</button></div>
+        </form>
+      </div>
+      <div id="gSuper" hidden>
+        <p class="gate-sub">Il <b>Super Master</b> è un account solo, che non compare negli elenchi: gestisce tutti gli account (anche i Master) e i telefoni degli autisti. Per crearlo serve la password di un Master.</p>
+        <form id="gSuperForm" class="gate-col" autocomplete="off">
+          <label class="gate-lbl">Master che autorizza<select class="gate-in" id="gsMaster"></select></label>
+          <label class="gate-lbl">Password di questo Master<input class="gate-in" id="gsMpw" type="password" autocomplete="off"></label>
+          <label class="gate-lbl">Nome del Super Master (serve per entrare)<input class="gate-in" id="gsName" autocomplete="off" spellcheck="false"></label>
+          <label class="gate-lbl">Password del Super Master (almeno 10 caratteri)<input class="gate-in" id="gsPw" type="password" autocomplete="new-password"></label>
+          <label class="gate-lbl">Ripeti la password<input class="gate-in" id="gsPw2" type="password" autocomplete="new-password"></label>
+          <button class="btn primary big" id="gsBtn" type="submit">Crea il Super Master</button>
+          <div><button type="button" class="linkbtn" id="gsBack">Annulla</button></div>
+        </form>
+      </div>
+      <div id="gRecShow" hidden>
+        <p class="gate-sub">Account creato. Questo è il <b>codice di recupero</b>: serve solo se dimentichi la password del Super Master. <b>Scrivilo su carta adesso</b> e conservalo in un posto sicuro: non verrà più mostrato.</p>
+        <div class="rec-code" id="grCode"></div>
+        <button class="btn primary big" id="grOk" type="button">Ho scritto il codice: continua</button>
+      </div>
+      <div id="gRec" hidden>
+        <p class="gate-sub">Scrivi il nome del Super Master, il codice di recupero (quello scritto su carta quando l'hai creato) e la nuova password.</p>
+        <form id="gRecForm" class="gate-col" autocomplete="off">
+          <label class="gate-lbl">Nome<input class="gate-in" id="gcName" autocomplete="off" spellcheck="false"></label>
+          <label class="gate-lbl">Codice di recupero<input class="gate-in" id="gcCode" autocomplete="off" spellcheck="false" placeholder="XXXX-XXXX-XXXX"></label>
+          <label class="gate-lbl">Nuova password (almeno 10 caratteri)<input class="gate-in" id="gcPw" type="password" autocomplete="new-password"></label>
+          <label class="gate-lbl">Ripeti la nuova password<input class="gate-in" id="gcPw2" type="password" autocomplete="new-password"></label>
+          <button class="btn primary big" id="gcBtn" type="submit">Cambia la password</button>
+          <div><button type="button" class="linkbtn" id="gcBack">Annulla</button></div>
+        </form>
+      </div>
       <div class="gate-msg" id="gMsg" role="alert"></div>
       <p class="gate-ver" id="gVer"></p>
     </div>
   </div>
 </div>
 
+
+<div id="invio" hidden>
+  <div class="sd-wrap">
+    <header class="sd-top">
+      <img class="sd-logo" src="logo.jpg" alt="La Terra">
+      <div class="sd-who"><b id="sdName"></b><span>Fogli di servizio per gli autisti</span></div>
+      <span class="net" id="sdNet" hidden></span>
+      <button type="button" class="btn" id="sdSync">Aggiorna</button>
+      <button type="button" class="btn" id="sdOut">Esci</button>
+    </header>
+    <div class="sd-nav">
+      <button type="button" class="btn icon" id="sdPrev" aria-label="Giorno precedente">‹</button>
+      <div class="sd-date" id="sdDate"></div>
+      <button type="button" class="btn icon" id="sdNext" aria-label="Giorno successivo">›</button>
+      <button type="button" class="btn" id="sdToday">Oggi</button>
+      <input type="date" id="sdPick" aria-label="Scegli il giorno">
+    </div>
+    <div class="banner" id="sdBanner" hidden></div>
+    <div class="banner" id="sdWarn" hidden></div>
+    <div class="sd-list" id="sdList"></div>
+    <p class="sd-ver" id="sdVer"></p>
+  </div>
+</div>
 
 <div id="app" hidden>
 <div class="wrap">
@@ -985,6 +1144,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
   <form class="modal" id="fBooking" autocomplete="off" novalidate>
     <h3 id="fTitle">Nuova prenotazione</h3>
     <p class="f-who" id="fWho" hidden></p>
+    <p class="capo-note" id="fCapo" hidden></p>
     <div class="types" role="radiogroup" aria-label="Tipo di servizio">
       <label class="gita"><input type="radio" name="type" id="t-gita" value="gita"><b>Gita</b><span>Andata e rientro</span></label>
       <label class="tour"><input type="radio" name="type" id="t-tour" value="tour"><b>Tour</b><span>Più giorni</span></label>
@@ -1056,6 +1216,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
       <div class="confirm editask" id="fEditAsk" hidden><div><b>Confermi le modifiche?</b><ul id="fEditList"></ul></div><button type="button" class="btn primary" id="fEditYes">Conferma modifiche</button><button type="button" class="btn" id="fEditNo">Annulla</button></div>
       <div class="confirm" id="fCloseAsk" hidden>Chiudere senza salvare? Le modifiche andranno perse. <button type="button" class="btn danger" id="fCloseYes">Chiudi senza salvare</button><button type="button" class="btn" id="fCloseNo">Continua a modificare</button></div>
       <span class="spacer"></span>
+      <button type="button" class="btn" id="fSpese" hidden>Spese dell'autista</button>
       <button type="button" class="btn" id="fCancel">Chiudi</button>
       <button type="button" class="btn" id="fSheet">Salva e apri foglio di servizio</button>
       <button type="submit" class="btn primary" id="fSave">Salva</button>
@@ -1076,14 +1237,66 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
     <p class="sheet-prov" id="sheetProv" hidden>N. foglio <b>provvisorio</b>: la prenotazione non è ancora arrivata in Dropbox, quindi il numero potrebbe cambiare. Il foglio lo riporta (PROVV.); appena torna la connessione il numero viene confermato e il foglio si aggiorna.</p>
     <p class="sheet-hint">Impaginato del modello <b>automatico_2026_neutro</b>. «Stampa» stampa il foglio così come lo vedi (A4; se qualcosa non ci sta, anche la pagina 2).</p>
     <div class="sheet-scroll"><div id="sheetView"></div></div>
+    <div class="sent-bar" id="sheetSent" hidden></div>
     <div class="sheet-msg" id="sheetMsg" role="status"></div>
     <div class="mfoot">
       <button type="button" class="btn" id="sheetClose">Chiudi</button>
       <button type="button" class="btn" id="sheetBack">‹ Torna alla prenotazione</button>
+      <button type="button" class="btn" id="sheetSpese" hidden>Spese dell'autista</button>
+      <button type="button" class="btn danger" id="sheetWithdraw" hidden>Ritira dall'autista</button>
       <span class="spacer"></span>
-      <button type="button" class="btn" id="sheetShare" hidden>Invia…</button>
+      <button type="button" class="btn" id="sheetShare" hidden>Condividi PDF…</button>
       <button type="button" class="btn" id="sheetPrint">Stampa</button>
       <button type="button" class="btn primary" id="sheetPdf">Salva PDF</button>
+      <button type="button" class="btn send" id="sheetSend">Invia all'autista</button>
+    </div>
+  </div>
+</div>
+<div class="overlay" id="ovSpese" hidden>
+  <div class="modal sp-modal" role="dialog" aria-labelledby="spTitle">
+    <div class="sp-top"><h3 id="spTitle">Spese dell'autista</h3><span class="pill" id="spState"></span></div>
+    <p class="mst-sub" id="spInfo"></p>
+    <div class="sp-tot" id="spTot"></div>
+    <div class="sp-body" id="spBody"></div>
+    <div class="sp-photo" id="spPhoto" hidden><img id="spImg" alt="Foto dello scontrino"><button type="button" class="btn" id="spPhotoClose">Chiudi la foto</button></div>
+    <div class="sheet-msg" id="spMsg" role="status"></div>
+    <div class="mfoot">
+      <button type="button" class="btn" id="spReopen" hidden>Riapri la busta</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="spReload">Aggiorna</button>
+      <button type="button" class="btn" id="spClose">Chiudi</button>
+    </div>
+  </div>
+</div>
+<div class="overlay" id="ovQr" hidden>
+  <div class="modal qr-modal" role="dialog" aria-labelledby="qrTitle">
+    <h3 id="qrTitle">Collega il telefono</h3>
+    <p class="mst-sub" id="qrInfo"></p>
+    <div class="qr-box" id="qrBox"></div>
+    <div class="set-row"><input id="qrLink" readonly aria-label="Link per il telefono"><button type="button" class="btn" id="qrCopy">Copia il link</button></div>
+    <p class="mst-sub">Fai inquadrare il codice con la fotocamera del telefono dell'autista, oppure mandagli il link. <b>Chi ha questo codice o questo link entra nella cartella degli autisti</b>: usalo per un telefono solo e non lasciarlo in giro. Se il telefono viene perso o cambiato, premi «Blocca».</p>
+    <div class="menu-msg" id="qrMsg" role="status"></div>
+    <div class="mfoot"><span class="spacer"></span><button type="button" class="btn primary" id="qrClose">Fatto</button></div>
+  </div>
+</div>
+<div class="overlay" id="ovCapo" hidden>
+  <div class="modal capo-modal" role="dialog" aria-labelledby="cpTitle">
+    <h3 id="cpTitle">Bus e autisti</h3>
+    <p class="mst-sub" id="cpInfo"></p>
+    <div class="cp-grid">
+      <div class="f"><label for="cpVeh">Bus</label><select id="cpVeh"></select></div>
+      <div class="f"><label for="cpDrv">Autista</label><select id="cpDrv"></select></div>
+      <div class="f"><label for="cpDrv2">Secondo autista <small>(solo se serve)</small></label><select id="cpDrv2"></select></div>
+    </div>
+    <div class="warns" id="cpWarn" hidden></div>
+    <p class="mst-sub" id="cpWas"></p>
+    <p class="mst-sub">La tua scelta vale in tutta l'Agenda: dopo, l'ufficio non può più cambiare bus e autisti di questo servizio.</p>
+    <div class="sheet-msg" id="cpMsg" role="status"></div>
+    <div class="mfoot">
+      <button type="button" class="btn" id="cpCancel">Annulla</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="cpSave">Salva senza inviare</button>
+      <button type="button" class="btn send" id="cpSend">Invia all'autista</button>
     </div>
   </div>
 </div>
@@ -1220,16 +1433,17 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
         <button type="button" data-mt="log" aria-pressed="false">Registro</button>
         <button type="button" data-mt="tlog" aria-pressed="false">Log tecnico</button>
         <button type="button" data-mt="set" aria-pressed="false">Impostazioni</button>
+        <button type="button" data-mt="aut" class="sup-only" aria-pressed="false" hidden>Autisti</button>
       </div>
     </div>
 
     <section class="mst-sec" id="mtUsers">
-      <div class="mst-bar"><p class="mst-sub">Ognuno entra con il proprio nome e la propria password. Gli <b>utenti</b> lavorano sull'agenda; il <b>Master</b> vede anche questo pannello.</p><button type="button" class="btn primary" id="uNew">+ Nuovo utente</button></div>
+      <div class="mst-bar"><p class="mst-sub" id="uSub">Ognuno entra con il proprio nome e la propria password. Gli <b>utenti</b> lavorano sull'agenda; il <b>Master</b> vede anche questo pannello.</p><button type="button" class="btn primary" id="uNew">+ Nuovo utente</button></div>
       <form id="uForm" class="u-form" hidden autocomplete="off">
         <h4 id="uFormTitle">Nuovo utente</h4>
         <div class="u-grid">
           <label class="f"><span>Nome e cognome</span><input id="uName" autocomplete="off"></label>
-          <label class="f"><span>Ruolo</span><select id="uRole"><option value="utente">Utente – lavora sull'agenda</option><option value="master">Master – anche utenti, registro e impostazioni</option></select></label>
+          <label class="f"><span>Ruolo</span><select id="uRole"><option value="utente">Utente – lavora sull'agenda</option><option value="master">Master – anche utenti, registro e impostazioni</option><option value="invio">Solo anteprima e invio – invia i fogli agli autisti e decide bus e autisti</option></select></label>
           <label class="f"><span id="uPwLbl">Password</span><span class="u-pw"><input id="uPw" autocomplete="off" spellcheck="false"><button type="button" class="btn" id="uGen">Genera</button></span></label>
           <label class="u-active"><input type="checkbox" id="uActive" checked> Account attivo <small>(se lo disattivi non può più entrare, ma resta nel registro)</small></label>
         </div>
@@ -1237,6 +1451,11 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
         <div class="u-actions"><button type="button" class="btn danger" id="uDel">Elimina utente</button><span class="spacer"></span><button type="button" class="btn" id="uCancel">Annulla</button><button type="submit" class="btn primary" id="uSave">Salva</button></div>
       </form>
       <div class="u-list" id="uList"></div>
+      <div class="rec-box sup-only" hidden>
+        <p class="mst-sub">Codice di recupero del tuo account: serve solo se dimentichi la password. Se l'hai perso, o dopo averlo usato, creane uno nuovo (quello di prima smette di valere).</p>
+        <button type="button" class="btn" id="recNew">Crea un nuovo codice di recupero</button>
+        <div class="rec-shown" id="recShown" hidden><div class="rec-code" id="recOut"></div><p class="mst-sub">Scrivilo su carta adesso: non verrà più mostrato.</p><button type="button" class="btn" id="recHide">Ho scritto il codice: nascondilo</button></div>
+      </div>
     </section>
 
     <section class="mst-sec" id="mtDevs" hidden>
@@ -1305,6 +1524,37 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
       </div>
     </section>
 
+    <section class="mst-sec" id="mtAut" hidden>
+      <div class="set-card">
+        <h4>Cartella «Autisti La Terra»</h4>
+        <p class="mst-sub">I fogli per gli autisti stanno in una cartella Dropbox a parte, con un'app Dropbox tutta sua: i telefoni degli autisti vedono solo quella. Prenotazioni, prezzi e fatturato restano nella cartella dell'Agenda, che da lì non si raggiunge.</p>
+        <p class="aut-state" id="autState"></p>
+        <div class="set-row"><input id="autKey" placeholder="App key dell'app Dropbox degli autisti" autocomplete="off" spellcheck="false"><button type="button" class="btn primary" id="autLink">Collega la cartella</button></div>
+        <details class="set-help"><summary>Come si crea l'app Dropbox degli autisti (una volta sola, 10 minuti)</summary>
+          <ol>
+            <li>Vai su <b>dropbox.com/developers/apps</b> con l'account Dropbox dell'azienda e premi <b>Create app</b>.</li>
+            <li>Scegli <b>Scoped access</b>, poi <b>App folder</b> (non «Full Dropbox»).</li>
+            <li>Nome dell'app: <b>Autisti La Terra</b> (se Dropbox dice che il nome è già usato, aggiungi una parola, per esempio «Autisti La Terra Ragusa»). Premi <b>Create app</b>.</li>
+            <li>Scheda <b>Permissions</b>: spunta <b>files.content.write</b> e <b>files.content.read</b> (files.metadata.read si spunta da solo) e premi <b>Submit</b> in fondo.</li>
+            <li>Scheda <b>Settings</b>, riga <b>Redirect URIs</b>: scrivi <code id="autRedir"></code> e premi <b>Add</b>.</li>
+            <li>Sempre in Settings copia la <b>App key</b>, incollala qui sopra e premi <b>Collega la cartella</b>: si apre Dropbox, premi <b>Consenti</b>.</li>
+            <li>In Dropbox comparirà la cartella <b>App › Autisti La Terra</b>.</li>
+          </ol>
+        </details>
+      </div>
+      <div class="set-card">
+        <h4>Indirizzo dell'app degli autisti</h4>
+        <p class="mst-sub">L'indirizzo del sito dell'app che gli autisti aprono dal telefono. Serve per preparare il link e il codice QR.</p>
+        <div class="set-row"><input id="autUrl" placeholder="https://…" autocomplete="off" spellcheck="false" inputmode="url"><button type="button" class="btn primary" id="autUrlSave">Salva</button></div>
+      </div>
+      <div class="set-card">
+        <h4>Telefoni degli autisti</h4>
+        <p class="mst-sub">Ogni telefono ha il suo collegamento: l'autista non riceve mai la password di Dropbox. <b>Blocca</b> scollega quel telefono da Dropbox, senza toccare gli altri.</p>
+        <div class="set-row"><select id="phDriver" aria-label="Autista"></select><input id="phLabel" placeholder="Nome del telefono (es. iPhone di Giorgio)" autocomplete="off" maxlength="60"><button type="button" class="btn primary" id="phAdd">Collega un telefono</button></div>
+        <div class="ph-list" id="phList"></div>
+      </div>
+    </section>
+
     <div class="mst-msg" id="mstMsg" role="status"></div>
     <div class="mfoot"><span class="spacer"></span><button type="button" class="btn" id="mstClose">Chiudi</button></div>
   </div>
@@ -1312,12 +1562,14 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 
 <script src="vendor/jszip.min.js"></script>
 <script src="vendor/pdf-lib.min.js"></script>
+<script src="vendor/qrcode.js"></script>
 <script src="config.js"></script>
 <script src="dropbox.js"></script>
 <script src="fatturato.js"></script>
 <script src="fatture.js"></script>
 <script src="store.js"></script>
 <script src="accessi.js"></script>
+<script src="autisti.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

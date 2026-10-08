@@ -1,4 +1,7 @@
 // Collegamento a Dropbox: accesso (OAuth PKCE, senza server) e lettura/scrittura dei file.
+// Dalla 2.5 lo stesso codice serve due collegamenti separati: la cartella dell'Agenda (DBX) e la
+// cartella «Autisti La Terra» (DBX.make, usato da autisti.js). Sono due app Dropbox diverse, ognuna
+// con la sua cartella: dal collegamento degli autisti la cartella dell'Agenda non si raggiunge.
 (function () {
   "use strict";
   const C = window.AGENDA_CONFIG || {};
@@ -7,27 +10,54 @@
   const NOTIFY = C.dropboxNotify || "https://notify.dropboxapi.com";
   const AUTH = C.dropboxAuth || "https://www.dropbox.com/oauth2/authorize";
   const TK = "agenda-dropbox-token-v1";
-
-  let tok = read();
-  function read() { try { return JSON.parse(localStorage.getItem(TK) || "null"); } catch (_) { return null; } }
-  function save(t) { tok = t; try { t ? localStorage.setItem(TK, JSON.stringify(t)) : localStorage.removeItem(TK); } catch (_) {} }
-
   const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const redirectUri = () => location.origin + location.pathname.replace(/index\.html$/, "");
+
+  // o.key(): App key; o.read() / o.save(t): dove sta il token; o.ss: prefisso delle voci temporanee dell'accesso
+  function make(o) {
+  const KEY = () => String(o.key() || "");
+  let tok = o.read();
+  function save(t) { tok = t; o.save(t); }
+
   // i caratteri non ASCII nell'intestazione Dropbox-API-Arg vanno scritti come \uXXXX
   const argHeader = (o) => JSON.stringify(o).replace(/[\u007f-￿]/g, (c) => "\\u" + ("000" + c.charCodeAt(0).toString(16)).slice(-4));
 
   async function startLogin() {
-    if (!C.dropboxAppKey) throw { code: "no_key" };
+    if (!KEY()) throw { code: "no_key" };
     const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
     const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
     const state = b64url(crypto.getRandomValues(new Uint8Array(12)));
-    sessionStorage.setItem("dbx-verifier", verifier);
-    sessionStorage.setItem("dbx-state", state);
+    sessionStorage.setItem(o.ss + "-verifier", verifier);
+    sessionStorage.setItem(o.ss + "-state", state);
     location.href = AUTH + "?" + new URLSearchParams({
-      client_id: C.dropboxAppKey, response_type: "code", code_challenge: challenge,
+      client_id: KEY(), response_type: "code", code_challenge: challenge,
       code_challenge_method: "S256", token_access_type: "offline", redirect_uri: redirectUri(), state,
     });
+  }
+  // l'indirizzo con cui Dropbox ci ha rimandato qui riguarda questo collegamento? (ognuno riconosce il suo «state»)
+  function isMine() {
+    const st = new URLSearchParams(location.search).get("state");
+    let mine = ""; try { mine = sessionStorage.getItem(o.ss + "-state") || ""; } catch (_) {}
+    return !!st && !!mine && st === mine;
+  }
+  // Scambia il codice con un token SENZA salvarlo come token di questo collegamento: serve per i telefoni
+  // degli autisti (ogni telefono ha la sua autorizzazione, che si può revocare da sola).
+  async function takeCode() {
+    const q = new URLSearchParams(location.search);
+    const verifier = sessionStorage.getItem(o.ss + "-verifier"), mine = isMine();
+    if (!mine) return null;
+    history.replaceState(null, "", redirectUri());
+    sessionStorage.removeItem(o.ss + "-verifier"); sessionStorage.removeItem(o.ss + "-state");
+    if (q.get("error")) throw { code: "denied" };
+    if (!q.get("code") || !verifier) throw { code: "state" };
+    let r;
+    try {
+      r = await fetch(API + "/oauth2/token", { method: "POST", body: new URLSearchParams({ code: q.get("code"), grant_type: "authorization_code", client_id: KEY(), code_verifier: verifier, redirect_uri: redirectUri() }) });
+    } catch (_) { throw { code: "network" }; }
+    if (!r.ok) throw { code: "token", status: r.status };
+    const j = await r.json();
+    if (!j || typeof j.refresh_token !== "string" || !j.refresh_token) throw { code: "token", status: 200 };
+    return { access: j.access_token, refresh: j.refresh_token, exp: Date.now() + ((j.expires_in || 14400) - 120) * 1000, account: j.account_id };
   }
 
   // Al ritorno da Dropbox: scambia il codice con i token. Restituisce true se ha completato l'accesso.
@@ -35,14 +65,14 @@
     const q = new URLSearchParams(location.search);
     if (q.get("error")) { history.replaceState(null, "", redirectUri()); throw { code: "denied" }; }
     if (!q.get("code")) return false;
-    const verifier = sessionStorage.getItem("dbx-verifier");
-    if (!verifier || q.get("state") !== sessionStorage.getItem("dbx-state")) { history.replaceState(null, "", redirectUri()); throw { code: "state" }; }
+    const verifier = sessionStorage.getItem(o.ss + "-verifier");
+    if (!verifier || q.get("state") !== sessionStorage.getItem(o.ss + "-state")) { history.replaceState(null, "", redirectUri()); throw { code: "state" }; }
     const r = await fetch(API + "/oauth2/token", {
       method: "POST",
-      body: new URLSearchParams({ code: q.get("code"), grant_type: "authorization_code", client_id: C.dropboxAppKey, code_verifier: verifier, redirect_uri: redirectUri() }),
+      body: new URLSearchParams({ code: q.get("code"), grant_type: "authorization_code", client_id: KEY(), code_verifier: verifier, redirect_uri: redirectUri() }),
     });
     history.replaceState(null, "", redirectUri());
-    sessionStorage.removeItem("dbx-verifier"); sessionStorage.removeItem("dbx-state");
+    sessionStorage.removeItem(o.ss + "-verifier"); sessionStorage.removeItem(o.ss + "-state");
     if (!r.ok) throw { code: "token", status: r.status };
     const j = await r.json();
     save({ access: j.access_token, refresh: j.refresh_token, exp: Date.now() + ((j.expires_in || 14400) - 120) * 1000, account: j.account_id });
@@ -57,7 +87,7 @@
       refreshing = (async () => {
         let r;
         try {
-          r = await fetch(API + "/oauth2/token", { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: tok.refresh, client_id: C.dropboxAppKey }) });
+          r = await fetch(API + "/oauth2/token", { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: tok.refresh, client_id: KEY() }) });
         } catch (_) { throw { code: "network" }; }
         if (r.status === 400 || r.status === 401) { save(null); throw { code: "no_auth" }; }
         if (!r.ok) throw { code: "busy", status: r.status };
@@ -171,13 +201,28 @@
   async function account() { return rpc("users/get_current_account", null); }
   async function metadata(path) { return rpc("files/get_metadata", { path }); }
 
-  (window.AGENDA_FILES = window.AGENDA_FILES || {}).dropbox = "2.4";
-  window.DBX = {
+  return {
     isLinked: () => !!(tok && tok.refresh),
-    hasKey: () => !!C.dropboxAppKey,
-    startLogin, finishLogin, download, upload, listFolder, longpoll, createFolder, remove, search, account, metadata,
+    hasKey: () => !!KEY(),
+    startLogin, finishLogin, isMine, takeCode, download, upload, listFolder, longpoll, createFolder, remove, search, account, metadata,
     unlink() { save(null); },
+    // token usato adesso (per le prove e per capire se il collegamento è cambiato)
+    refreshToken: () => (tok && tok.refresh) || "",
+    setToken(t) { save(t); },
     // revoca il collegamento anche lato Dropbox (dispositivo bloccato dal Master); se non riesce, pazienza
     async revoke() { try { await rpc("auth/token/revoke", null); } catch (_) {} },
+    // come sopra, ma dice se è riuscita (blocco del telefono di un autista: lì bisogna saperlo)
+    async revokeStrict() { await rpc("auth/token/revoke", null); },
   };
+  }
+
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).dropbox = "2.5";
+  const main = make({
+    key: () => C.dropboxAppKey,
+    read() { try { return JSON.parse(localStorage.getItem(TK) || "null"); } catch (_) { return null; } },
+    save(t) { try { t ? localStorage.setItem(TK, JSON.stringify(t)) : localStorage.removeItem(TK); } catch (_) {} },
+    ss: "dbx",
+  });
+  main.make = make;
+  window.DBX = main;
 })();
