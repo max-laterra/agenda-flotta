@@ -672,6 +672,6 @@
   // Legge solo gli elenchi, senza modificare il file
   async function lists(buf) { const zip = await openZip(buf); const sstF = zip.file("xl/sharedStrings.xml"); const sst = sstF ? parseSST(await readText(zip, "xl/sharedStrings.xml")) : []; const out = await readLists(zip, sst); if (zip._agendaTooBig) throw { code: "toobig" }; return out; }
 
-  (window.AGENDA_FILES = window.AGENDA_FILES || {}).fatturato = "2.5";
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).fatturato = "2.6";
   window.FAT = { apply, lists, COLS, colIdx, xEsc, openZip, readText, wholeSheet, balanced };
 })();

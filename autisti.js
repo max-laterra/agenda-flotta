@@ -31,7 +31,7 @@
   // o: { cliente, mezzo: {nome, posti, targa}, autisti: [nomi], alias, noPlate }
   function payload(b, o) {
     o = o || {};
-    const tour = String(b.type || "") === "tour", busta = tour && String(b.envelope || "") === "SI";
+    const busta = String(b.envelope || "") === "SI"; // dalla 2.6 anche gite, notturni e transfer con la busta
     const drivers = (o.autisti || []).map((x) => txt(x, 80).trim()).filter(Boolean).slice(0, 4);
     const m = o.mezzo || {};
     const out = {
@@ -273,7 +273,7 @@
     const s = b && b.sent; if (!s || !s.at) return null;
     if (s.off && s.off.at) return { k: "ritirato", at: s.off.at, by: s.off.by };
     const it = st.items[safeId(b.id)] || {}, sp = it.sp || null;
-    const busta = String(b.type || "") === "tour" && String(b.envelope || "") === "SI";
+    const busta = String(b.envelope || "") === "SI";
     const dAt = sp && sp.delivAt && Date.parse(sp.delivAt) <= Date.now() + 600000 ? sp.delivAt : "";
     const deliv = !!(busta && sp && sp.deliv && !(it.re && it.re > dAt));
     const ops = Object.values(it.op || {}).filter((x) => x && x.at), cur = ops.filter((x) => (x.n ? x.n >= s.n : x.at >= s.at)).sort((a, z) => (a.at < z.at ? -1 : 1));
@@ -302,7 +302,7 @@
   }
   const newPhoneId = () => { const r = crypto.getRandomValues(new Uint8Array(8)); let s = "t"; for (const x of r) s += (x % 36).toString(36); return s; };
 
-  (root.AGENDA_FILES = root.AGENDA_FILES || {}).autisti = "2.5";
+  (root.AGENDA_FILES = root.AGENDA_FILES || {}).autisti = "2.6";
   const API = Object.assign({}, PURE, {
     configure(h) { Object.assign(hooks, h); },
     linked, startLink, redirectMine, purpose, takeRedirect, revoke, prepare,

@@ -216,7 +216,7 @@
   };
   }
 
-  (window.AGENDA_FILES = window.AGENDA_FILES || {}).dropbox = "2.5";
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).dropbox = "2.6";
   const main = make({
     key: () => C.dropboxAppKey,
     read() { try { return JSON.parse(localStorage.getItem(TK) || "null"); } catch (_) { return null; } },

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="2.5">
+<html lang="it" data-v="2.6">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -276,6 +276,31 @@ table.wk{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px;t
 .money3{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 12px}
 .tourcash{background:var(--tour-bg);border-radius:10px;padding:8px 10px 10px}
 .money3[hidden]{display:none!important}
+/* memoria di quello che si scrive (2.6) */
+.memsug{position:fixed;z-index:9999;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);max-height:300px;overflow-y:auto;font-size:13.5px}
+.memsug[hidden]{display:none}
+.memsug-h{padding:6px 10px 4px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}.memsug-h span{font-weight:500;text-transform:none;letter-spacing:0}
+.memsug-i{display:flex;align-items:center;gap:8px;padding:7px 6px 7px 10px;border-top:1px solid var(--line);cursor:pointer}
+.memsug-i span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.memsug-i small{color:var(--ink-3);font-size:11.5px;font-variant-numeric:tabular-nums}
+.memsug-i button{border:0;background:none;color:var(--ink-3);font-size:16px;line-height:1;padding:2px 6px;border-radius:6px}
+.memsug-i button:hover{color:var(--warn);background:var(--warn-bg)}
+.memsug-i:hover,.memsug-i[aria-selected="true"]{background:var(--accent-soft)}
+/* parcheggi (2.6): tendina del parcheggio e cifra, una riga per parcheggio */
+.money3.pkgrid{grid-template-columns:minmax(0,1fr) minmax(0,1.9fr) minmax(0,1fr)}
+@media (max-width:520px){.money3.pkgrid{grid-template-columns:1fr}}
+.pk-rows{display:flex;flex-direction:column;gap:6px}
+.pk-row{display:grid;grid-template-columns:minmax(0,1fr) 104px 30px;gap:6px;align-items:center}
+.pk-row select,.pk-row input{min-width:0;width:100%}
+.pk-row .pk-del{border:1px solid var(--line);background:var(--surface);border-radius:7px;height:34px;color:var(--ink-3);font-size:16px;line-height:1}
+.pk-row .pk-del:hover{color:var(--warn);border-color:var(--warn)}
+.pk-row .pk-del[hidden]{display:block!important;visibility:hidden}
+.fpark .linkbtn{margin-top:4px;align-self:flex-start}
+.pk-tot{font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink-2);margin-left:6px}
+.pk-new{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;padding:8px;border:1px dashed var(--accent);border-radius:8px;background:var(--accent-soft)}
+.pk-new>b{grid-column:1/-1;font-size:13px}.pk-new input,.pk-new select{min-width:0;width:100%}
+.pk-new-b{grid-column:1/-1;display:flex;gap:6px}.pk-new-msg{grid-column:1/-1;font-size:12.5px;color:var(--warn)}
+.bustaon{grid-column:1 / -1;margin-top:-2px}.bustaon[hidden]{display:none}
 @media (max-width:520px){.money3{grid-template-columns:1fr 1fr}}
 
 /* foglio di servizio nel modulo */
@@ -371,7 +396,22 @@ table.wk{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px;t
 .bill-msg{font-size:14px;color:var(--ink-2);min-height:1.2em}
 .bill-msg.ok{color:var(--ok);font-weight:600}
 .bill-msg.err{color:var(--warn);font-weight:600}
-table.bt{border-collapse:collapse;width:100%;min-width:1400px;font-size:13px}
+table.bt{border-collapse:collapse;width:100%;min-width:1180px;font-size:13px}
+/* fatturato (2.6): stato della fattura, filtri per stato, righe da fatturare evidenziate */
+.bill-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:stretch;border-top:1px dashed var(--line);padding-top:12px}
+.bill-filter[hidden]{display:none}
+.bf{display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 14px;min-width:150px;text-align:left}
+.bf b{font-size:14px}.bf span{font-size:12.5px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.bf[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--accent-soft)}
+.bf:disabled{opacity:.5;cursor:default}
+.bf-todo b{color:var(--warn)}.bf-draft b{color:var(--tbd-ink)}.bf-done b{color:var(--ok)}
+.bf-note{align-self:center;font-size:12.5px;color:var(--ink-3);flex:1 1 220px}
+.fst{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.fst-todo{background:var(--warn-bg);color:var(--warn)}.fst-draft{background:var(--tbd-bg);color:var(--tbd-ink)}.fst-done{background:var(--ok-bg);color:var(--ok)}
+.bt tbody tr.todo-now td{background:color-mix(in srgb,var(--warn-bg) 55%,transparent)}
+.bt tbody tr.todo-now td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
+.bt tbody tr.inv-done td:not(.acts){color:var(--ink-2)}
+.bt td.iti{min-width:150px;max-width:260px}.bt td.cli{min-width:120px;max-width:200px}
 .bt th{position:sticky;top:0;background:var(--surface-2);text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2);padding:8px 10px;white-space:nowrap}
 .bt td{padding:7px 10px;border-top:1px solid var(--line);vertical-align:top}
 .bt tbody tr{cursor:pointer}
@@ -784,11 +824,15 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 .iv-bar{display:flex;gap:6px 16px;align-items:center;flex-wrap:wrap;font-size:13.5px;color:var(--ink-2)}
 .iv-bar select{border:1px solid var(--line);border-radius:7px;padding:4px 6px;background:var(--bg);margin-left:4px}
 .iv-rows{border:1px solid var(--line);border-radius:8px;overflow:auto}
-.iv-row{display:grid;grid-template-columns:22px minmax(170px,1fr) 58px 96px 58px 132px 84px 70px;gap:6px;padding:6px 8px;border-top:1px solid var(--line);align-items:start}
+.iv-row{display:grid;grid-template-columns:22px 64px 104px 64px minmax(120px,150px) minmax(84px,1fr) 70px;grid-template-areas:"n d d d d d d" ". q p s a t o";gap:6px;padding:7px 8px;border-top:1px solid var(--line);align-items:start}
+.iv-row>:nth-child(1){grid-area:n}.iv-row>:nth-child(2){grid-area:d}.iv-row>:nth-child(3){grid-area:q}.iv-row>:nth-child(4){grid-area:p}.iv-row>:nth-child(5){grid-area:s}.iv-row>:nth-child(6){grid-area:a}.iv-row>:nth-child(7){grid-area:t}.iv-row>:nth-child(8){grid-area:o}
+.iv-row.hd{row-gap:2px}
 .iv-row.hd{border-top:0;background:var(--surface-2);font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);align-items:center}
 .iv-row .n{font-size:12px;color:var(--ink-3);padding-top:7px}
 .iv-row textarea,.iv-row input,.iv-row select{border:1px solid var(--line);border-radius:7px;padding:6px 7px;background:var(--bg);min-width:0;width:100%;font-size:13.5px}
-.iv-row textarea{resize:vertical;min-height:72px;font-family:inherit;line-height:1.3}
+.iv-row textarea{resize:none;overflow:hidden;min-height:36px;font-family:inherit;line-height:1.3}
+#iv-causale{border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--bg);width:100%;resize:none;overflow:hidden;min-height:36px;font:inherit;font-size:14px;line-height:1.35}
+.iv-cnote{font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink-3)}
 .iv-row input[type=number]{text-align:right}
 .iv-row select.miss{border-color:var(--warn);color:var(--warn);font-weight:600}
 .iv-row .tot,.iv-row .r{text-align:right}.iv-row .tot{font-variant-numeric:tabular-nums;font-weight:600;padding-top:7px}
@@ -814,7 +858,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 .fe-t td{padding:4px 5px;text-align:right;vertical-align:top;border-left:1px solid #000;border-right:1px solid #000;font-variant-numeric:tabular-nums}
 .fe-t tbody tr:last-child td{border-bottom:1px solid #000}
 .fe-t .l{text-align:left}.fe-doc td{text-align:center;font-weight:700}
-.fe-righe td.l{white-space:pre-wrap;overflow-wrap:anywhere}
+.fe-righe td.l{white-space:pre-wrap;overflow-wrap:anywhere;width:52%}
 .fe-bozza{letter-spacing:.1em;color:#7A4E00;background:#FFF4D6;border-radius:3px;padding:0 5px}.fe-miss{color:#b00020;font-weight:700}
 @media (max-width:1100px){
   .inv-tabs{display:inline-flex}
@@ -1126,6 +1170,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
         <button type="button" class="btn" id="invList">Bozze fattura</button>
         <span class="hint">Per un solo servizio usa «Bozza Fattura» sulla sua riga. Per una fattura unica di più servizi dello stesso cliente spunta le caselle a sinistra.</span>
       </div>
+      <div class="bill-filter" id="billFilter" hidden></div>
     </div>
     <div class="grid-wrap"><table class="bt" id="btable"></table></div>
   </section>
@@ -1159,17 +1204,20 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
       <div class="f c1"><label for="f-time">Ora partenza</label><input type="time" id="f-time" step="900"></div>
       <div class="f c1" id="w-end"><label for="f-end">Data rientro <span class="next-day" id="endNext" hidden>giorno dopo</span></label><input type="date" id="f-end" min="2000-01-01" max="2099-12-31"></div>
       <div class="f c1" id="w-time2"><label for="f-time2">Ora rientro</label><input type="time" id="f-time2" step="900"></div>
-      <div class="f full" id="w-event"><label for="f-event">Evento</label><input id="f-event" placeholder="Es. concerto, artista e luogo"></div>
+      <div class="f full" id="w-event"><label for="f-event">Evento</label><input id="f-event" data-mem="evento" autocomplete="off" placeholder="Es. concerto, artista e luogo"></div>
       <div class="f full csearch"><label for="f-client">Cliente</label><input id="f-client" autocomplete="off" placeholder="Cerca per nome, alias, città o codice" role="combobox" aria-expanded="false" aria-controls="cSug"><div class="csug" id="cSug" role="listbox" hidden></div><div class="cinfo" id="cInfo"></div></div>
-      <div class="f full"><label for="f-route">Anteprima itinerario</label><input id="f-route" placeholder="Es. Ragusa → Aeroporto Catania"></div>
-      <div class="f full money3">
+      <div class="f full"><label for="f-route">Anteprima itinerario</label><input id="f-route" data-mem="itinerario" autocomplete="off" placeholder="Es. Ragusa → Aeroporto Catania"></div>
+      <div class="f full money3 pkgrid">
         <div class="f"><label for="f-price">€ Noleggio</label><input id="f-price" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
-        <div class="f"><label for="f-park">€ Parcheggi</label><input id="f-park" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
+        <div class="f fpark"><label for="pk-sel-0">€ Parcheggi <span class="pk-tot" id="pkTot" hidden></span></label><input type="hidden" id="f-park"><div class="pk-rows" id="pkRows"></div>
+          <div class="pk-new" id="pkNew" hidden><b>Nuovo parcheggio in anagrafica</b><input id="pkNome" placeholder="Nome (es. Parcheggio bus Molo Sant'Antonio)" autocomplete="off"><input id="pkCitta" placeholder="Città" list="dlCities" autocomplete="off"><input id="pkFatt" placeholder="In fattura (es. A SIRACUSA)" autocomplete="off"><select id="pkAliq" aria-label="IVA della ricevuta"></select><span class="pk-new-b"><button type="button" class="btn primary" id="pkNewSave">Aggiungi</button><button type="button" class="btn" id="pkNewCancel">Annulla</button></span><span class="pk-new-msg" id="pkNewMsg" role="status"></span></div>
+          <button type="button" class="linkbtn" id="pkAdd">+ altro parcheggio</button></div>
         <div class="f"><label for="f-meals">€ Pasti</label><input id="f-meals" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
       </div>
+      <label class="perm bustaon" id="w-bustaon" hidden><input type="checkbox" id="f-bustaon"> <span><b>Busta per l'autista</b> – anticipo spese e busta numerata anche per questo servizio (come nei tour)</span></label>
       <div class="f full money3 tourcash" id="w-tourcash">
         <div class="f"><label for="f-advance">€ Anticipo spese</label><input id="f-advance" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
-        <div class="f"><label for="f-envelope">Busta autista</label><select id="f-envelope"><option value="">—</option><option value="SI">SI</option><option value="NO">NO</option></select></div>
+        <div class="f" id="w-envsel"><label for="f-envelope">Busta autista</label><select id="f-envelope"><option value="">—</option><option value="SI">SI</option><option value="NO">NO</option></select></div>
         <div class="f"><label for="f-envno">N. busta</label><input id="f-envno" autocomplete="off" inputmode="numeric" placeholder="automatico con SI"></div>
       </div>
       <div class="f c2 drvf"><label for="f-driver">1° Autista</label><div class="drvbox"><input id="f-driver" autocomplete="off" placeholder="Scegli dall'elenco" role="combobox" aria-expanded="false" aria-controls="dl-f-driver"><button type="button" class="drvopen" data-drvopen="f-driver" tabindex="-1" aria-label="Apri elenco autisti">▾</button><div class="drvlist" id="dl-f-driver" role="listbox" hidden></div></div><div class="drvq" id="q-driver" hidden><button type="button" data-gen="f-driver">Autista Generico 1</button></div></div>
@@ -1180,7 +1228,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
           <div class="f pf-name"><label for="f-contactname"><b>Nome referente 1</b></label><input id="f-contactname" data-f="name" data-combo="ref" autocomplete="off" role="combobox" aria-expanded="false" placeholder="Cerca in anagrafica o scrivi"></div>
           <div class="f"><label for="f-contactrole">Ruolo</label><select id="f-contactrole" data-f="role" data-tendina="ruolo"></select></div>
           <div class="f"><label for="f-contact">Telefono</label><input id="f-contact" data-f="tel" type="tel" inputmode="tel" autocomplete="off"></div>
-          <div class="f"><label for="f-contactnote">Note</label><input id="f-contactnote" data-f="note" autocomplete="off"></div>
+          <div class="f"><label for="f-contactnote">Note</label><input id="f-contactnote" data-f="note" data-mem="refnote" autocomplete="off"></div>
         </div>
         <div class="rep" id="rep-refs"></div>
         <button type="button" class="linkbtn" data-addrep="refs">+ Aggiungi referente</button>

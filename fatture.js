@@ -26,6 +26,8 @@
   const REGIMI = { RF01: "Ordinario", RF02: "Contribuenti minimi", RF04: "Agricoltura e attività connesse e pesca", RF05: "Vendita sali e tabacchi", RF06: "Commercio fiammiferi", RF07: "Editoria", RF08: "Gestione servizi telefonia pubblica", RF09: "Rivendita documenti di trasporto pubblico e di sosta", RF10: "Intrattenimenti, giochi e altre attività", RF11: "Agenzie viaggi e turismo", RF12: "Agriturismo", RF13: "Vendite a domicilio", RF14: "Rivendita beni usati, oggetti d'arte, antiquariato", RF15: "Agenzie di vendite all'asta", RF16: "IVA per cassa P.A.", RF17: "IVA per cassa", RF18: "Altro", RF19: "Forfettario" };
   const NATURE = { "N1": "Escluse ex art. 15", "N2.1": "Non soggette (artt. da 7 a 7-septies)", "N2.2": "Non soggette – altri casi (fuori campo IVA)", "N3.1": "Non imponibili – esportazioni", "N3.2": "Non imponibili – cessioni intracomunitarie", "N3.3": "Non imponibili – cessioni verso San Marino", "N3.4": "Non imponibili – operazioni assimilate alle esportazioni", "N3.5": "Non imponibili – dichiarazioni d'intento", "N3.6": "Non imponibili – altre operazioni", "N4": "Esenti", "N5": "Regime del margine / IVA non esposta", "N6.1": "Inversione contabile – rottami", "N6.2": "Inversione contabile – oro e argento", "N6.3": "Inversione contabile – subappalto edilizia", "N6.4": "Inversione contabile – fabbricati", "N6.5": "Inversione contabile – telefoni cellulari", "N6.6": "Inversione contabile – prodotti elettronici", "N6.7": "Inversione contabile – comparto edile", "N6.8": "Inversione contabile – settore energetico", "N6.9": "Inversione contabile – altri casi", "N7": "IVA assolta in altro Stato UE" };
   const TIPI_DOC = { TD01: "Fattura", TD02: "Acconto / anticipo su fattura", TD04: "Nota di credito", TD24: "Fattura differita" };
+  // dalla 2.6 nelle tendine ci sono solo Fattura e Nota di credito (una bozza vecchia di un altro tipo resta com'è)
+  const TIPI_SCELTA = { TD01: "Fattura", TD04: "Nota di credito" };
   const MOD_PAG = { MP05: "Bonifico", MP01: "Contanti", MP02: "Assegno", MP08: "Carta di pagamento", MP12: "RIBA", MP19: "SEPA Direct Debit", MP23: "PagoPA" };
   const COND_PAG = { TP02: "Pagamento completo", TP01: "Pagamento a rate", TP03: "Anticipo" };
   // a cosa serve una causale: quando l'agenda prepara le righe sceglie quella con l'uso giusto
@@ -54,7 +56,7 @@
         { id: "rgite", nome: "Riepilogo del mese – escursioni", uso: "riep-gita", testo: "NOLEGGIO PULLMAN PER ESCURSIONI EFFETTUATE NEL MESE DI {MESE} COME DA PROSPETTO A VOI INVIATO E CONFERMATO.", aliq: "iva10" },
         { id: "rtransfer", nome: "Riepilogo del mese – trasferimenti", uso: "riep-transfer", testo: "NOLEGGIO PULLMAN PER TRASFERIMENTI EFFETTUATI NEL MESE DI {MESE} COME DA PROSPETTO A VOI INVIATO E CONFERMATO", aliq: "iva10" },
         { id: "rmisto", nome: "Riepilogo del mese – servizi diversi", uso: "riep", testo: "NOLEGGIO PULLMAN PER SERVIZI EFFETTUATI NEL MESE DI {MESE} COME DA PROSPETTO A VOI INVIATO E CONFERMATO", aliq: "iva10" },
-        { id: "parcheggi", nome: "Rimborso parcheggi", uso: "parcheggi", testo: "RIMBORSO SPESE ANTICIPATE PER PARCHEGGI", aliq: "" },
+        { id: "parcheggi", nome: "Rimborso parcheggi", uso: "parcheggi", testo: "RIMBORSO SPESE ANTICIPATE PER PARCHEGGI {PARCHEGGIO}", aliq: "" },
         { id: "pasti", nome: "Rimborso pasti autista", uso: "pasti", testo: "RIMBORSO SPESE ANTICIPATE PER PASTI LIBERI AUTISTA", aliq: "iva10" },
       ],
       mezzi: { bus: "PULLMAN DA {POSTI} POSTI", van: "MINIVAN DA {POSTI} POSTI", auto: "AUTO" },
@@ -93,7 +95,7 @@
     for (const k of Object.keys(D.mezzi)) o.mezzi[k] = typeof m[k] === "string" && m[k].trim() ? m[k].slice(0, 80) : D.mezzi[k];
     const p = isObj(j.opzioni) ? j.opzioni : {}, O = {};
     O.lordi = "lordi" in p ? p.lordi !== false : D.opzioni.lordi; O.maiuscole = "maiuscole" in p ? p.maiuscole !== false : true;
-    O.tipo = has(TIPI_DOC, p.tipo) ? p.tipo : "TD01"; O.mod = has(MOD_PAG, p.mod) ? p.mod : "MP05"; O.cond = has(COND_PAG, p.cond) ? p.cond : "TP02";
+    O.tipo = has(TIPI_SCELTA, p.tipo) ? p.tipo : "TD01"; O.mod = has(MOD_PAG, p.mod) ? p.mod : "MP05"; O.cond = has(COND_PAG, p.cond) ? p.cond : "TP02";
     const days = (v, d) => { const n = Math.round(numOr(v, d)); return n >= 0 && n <= 365 ? n : d; };
     O.giorni = days(p.giorni, 0); O.giorniPA = days(p.giorniPA, 30); O.splitPA = "splitPA" in p ? p.splitPA !== false : true;
     const sp = numOr(p.scontoPerc, 0); O.scontoPerc = sp >= 0 && sp <= 100 ? Math.round(sp * 100) / 100 : 0;
@@ -116,8 +118,8 @@
   }
   function cleanDraft(j) {
     if (!isObj(j) || !ID_RE.test(str(j.id, 40)) || BAD_ID.includes(j.id)) return null;
-    const o = { v: 1, id: str(j.id, 40), createdAt: str(j.createdAt, 40), createdBy: str(j.createdBy, 80), updatedAt: str(j.updatedAt, 40), updBy: str(j.updBy, 80), xmlAt: str(j.xmlAt, 40), xmlBy: str(j.xmlBy, 80), xmlName: str(j.xmlName, 80), xmlPath: str(j.xmlPath, 300) };
-    o.tipo = has(TIPI_DOC, j.tipo) ? j.tipo : "TD01"; o.numero = str(j.numero, 20).trim(); o.data = okDate(j.data) ? j.data : ""; o.causale = str(j.causale, 400);
+    const o = { v: 1, id: str(j.id, 40), createdAt: str(j.createdAt, 40), createdBy: str(j.createdBy, 80), updatedAt: str(j.updatedAt, 40), updBy: str(j.updBy, 80), xmlAt: str(j.xmlAt, 40), xmlBy: str(j.xmlBy, 80), xmlName: str(j.xmlName, 160), xmlPath: str(j.xmlPath, 300), xmlProg: /^[A-Z0-9]{5}$/.test(str(j.xmlProg, 5)) ? str(j.xmlProg, 5) : "" };
+    o.tipo = has(TIPI_DOC, j.tipo) ? j.tipo : "TD01"; o.numero = str(j.numero, 20).trim(); o.data = okDate(j.data) ? j.data : ""; o.causale = str(j.causale, 1000); o.causaleId = ID_RE.test(str(j.causaleId, 40)) && !BAD_ID.includes(j.causaleId) ? str(j.causaleId, 40) : "";
     o.cliente = cleanCliente(j.cliente);
     o.servizi = (Array.isArray(j.servizi) ? j.servizi : []).filter(isObj).slice(0, 400).map((s) => ({ id: str(s.id, 60), start: okDate(s.start) ? s.start : "", foglio: str(s.foglio, 20) })).filter((s) => s.id && s.start);
     o.modo = j.modo === "riepilogo" ? "riepilogo" : "singole";
@@ -127,7 +129,7 @@
       const q = numOr(r.qta, 1), sc = numOr(r.sc, 0), tipo = ["noleggio", "parcheggi", "pasti", "sconto", "bollo", "libera"].includes(r.tipo) ? r.tipo : "libera";
       let id = ID_RE.test(str(r.id, 40)) && !BAD_ID.includes(r.id) ? str(r.id, 40) : "r" + i; for (let n = i; rids.has(id); n++) id = "r" + n + "_" + i; rids.add(id);
       let prezzo = Math.max(-1e9, Math.min(1e9, numOr(r.prezzo, 0))); if (tipo === "sconto") prezzo = -Math.abs(prezzo); // uno sconto in euro toglie sempre
-      return { id, tipo, desc: str(r.desc, 1000), qta: q > 0 && q < 1e6 ? q : 1, prezzo, sc: sc >= 0 && sc <= 100 ? Math.round(sc * 100) / 100 : 0, aliq: str(r.aliq, 40), fogli: (Array.isArray(r.fogli) ? r.fogli : []).slice(0, 400).map((x) => str(x, 20)).filter(Boolean) };
+      return { id, tipo, desc: str(r.desc, 1000), qta: q > 0 && q < 1e6 ? q : 1, prezzo, sc: sc >= 0 && sc <= 100 ? Math.round(sc * 100) / 100 : 0, aliq: str(r.aliq, 40), fogli: (Array.isArray(r.fogli) ? r.fogli : []).slice(0, 400).map((x) => str(x, 20)).filter(Boolean), ...(r.auto ? { auto: str(r.auto, 1000) } : {}) };
     });
     const sp = numOr(j.scontoPerc, 0); o.scontoPerc = sp >= 0 && sp <= 100 ? Math.round(sp * 100) / 100 : 0;
     // arrotondamento: automatico (regola della Contabilità), a un passo scelto sulla bozza (euro, 50 o 10 centesimi) oppure un importo fisso
@@ -174,7 +176,7 @@
   function lineFromService(s, C) {
     const uso = ["gita", "tour", "notturno", "transfer"].includes(s.type) ? s.type : "gita", c = causaleFor(C, uso) || { testo: "NOLEGGIO {MEZZO} {PERIODO} {ITINERARIO}", aliq: "" };
     const multi = okDate(s.end) && s.end > s.start;
-    const vals = { MEZZO: mezzo(s.vehicle, C), DATA: itShort(s.start), DATA_FINE: itShort(s.end || s.start), PERIODO: periodo(s.start, s.end), MESE: mesi([s]), ITINERARIO: itin(s.itin), EVENTO: s.event || "", PAX: s.pax == null ? "" : String(s.pax), FOGLIO: s.foglio || "", TARGA: (s.vehicle && s.vehicle.plate) || "", CLIENTE: s.client || "" };
+    const vals = { MEZZO: mezzo(s.vehicle, C), DATA: itShort(s.start), DATA_FINE: itShort(s.end || s.start), PERIODO: periodo(s.start, s.end), MESE: mesi([s]), ITINERARIO: itin(s.itin), EVENTO: s.event || "", PAX: s.pax == null ? "" : String(s.pax), FOGLIO: s.foglio || "", TARGA: (s.vehicle && s.vehicle.plate) || "", CLIENTE: s.client || "", PARCHEGGIO: "" };
     let testo = c.testo; if (multi) testo = testo.replace(/IL \{DATA\}/, "{PERIODO}");
     return { id: newId("r"), tipo: "noleggio", desc: fill(testo, vals, C), qta: 1, prezzo: r2(numOr(s.price, 0)), sc: 0, aliq: c.aliq || "", fogli: [String(s.foglio || "")].filter(Boolean) };
   }
@@ -187,18 +189,43 @@
     if (modo === "riepilogo" && list.length > 1) {
       const types = new Set(list.map((s) => s.type)), uso = types.size === 1 && types.has("gita") ? "riep-gita" : types.size === 1 && types.has("transfer") ? "riep-transfer" : "riep";
       const c = causaleFor(C, uso) || causaleFor(C, "riep") || { testo: "NOLEGGIO PULLMAN PER SERVIZI EFFETTUATI NEL MESE DI {MESE}", aliq: "" };
-      out.push({ id: newId("r"), tipo: "noleggio", desc: fill(c.testo, { MESE: mesi(list), PERIODO: periodo(list[0].start, list[list.length - 1].start), CLIENTE: list[0].client || "", N: String(list.length) }, C), qta: 1, prezzo: sum("price"), sc: 0, aliq: c.aliq || "", fogli });
+      out.push({ id: newId("r"), tipo: "noleggio", desc: fill(c.testo, { MESE: mesi(list), PERIODO: periodo(list[0].start, list[list.length - 1].start), CLIENTE: list[0].client || "", N: String(list.length), PARCHEGGIO: "" }, C), qta: 1, prezzo: sum("price"), sc: 0, aliq: c.aliq || "", fogli });
     } else for (const s of list) out.push(lineFromService(s, C));
-    const extra = (k, uso, tipo) => { const tot = sum(k); if (!(tot > 0)) return; const c = causaleFor(C, uso) || { testo: tipo === "parcheggi" ? "RIMBORSO SPESE ANTICIPATE PER PARCHEGGI" : "RIMBORSO SPESE ANTICIPATE PER PASTI", aliq: "" }; out.push({ id: newId("r"), tipo, desc: fill(c.testo, { MESE: mesi(list) }, C), qta: 1, prezzo: tot, sc: 0, aliq: c.aliq || "", fogli: list.filter((s) => numOr(s[k], 0) > 0).map((s) => String(s.foglio || "")).filter(Boolean) }); };
-    extra("park", "parcheggi", "parcheggi"); extra("meals", "pasti", "pasti");
+    const extra = (k, uso, tipo) => { const tot = sum(k); if (!(tot > 0)) return; const c = causaleFor(C, uso) || { testo: tipo === "parcheggi" ? "RIMBORSO SPESE ANTICIPATE PER PARCHEGGI" : "RIMBORSO SPESE ANTICIPATE PER PASTI", aliq: "" }; out.push({ id: newId("r"), tipo, desc: fill(c.testo, { MESE: mesi(list), PARCHEGGIO: "" }, C), qta: 1, prezzo: tot, sc: 0, aliq: c.aliq || "", fogli: list.filter((s) => numOr(s[k], 0) > 0).map((s) => String(s.foglio || "")).filter(Boolean) }); };
+    parkLines(list, C, out); extra("meals", "pasti", "pasti");
     return out;
   }
+  // Parcheggi (2.6): ogni servizio può avere più parcheggi dell'anagrafica, ognuno con la sua cifra (s.parks:
+  // { key, testo: "A SIRACUSA", aliq, amt }). Una riga di rimborso per parcheggio, sommando i servizi, con l'IVA
+  // della ricevuta di quel parcheggio; la parte di "€ Parcheggi" senza parcheggio scelto va in una riga come prima.
+  function parkLines(list, C, out) {
+    const c = causaleFor(C, "parcheggi") || { testo: "RIMBORSO SPESE ANTICIPATE PER PARCHEGGI", aliq: "" };
+    const tpl = /\{PARCHEGGIO\}/.test(c.testo) ? c.testo : String(c.testo || "").trim() + " {PARCHEGGIO}";
+    const groups = new Map(); let rest = 0; const restF = [];
+    for (const s of list) {
+      const tot = r2(numOr(s.park, 0)); if (!(tot > 0)) continue;
+      let used = 0;
+      for (const p of Array.isArray(s.parks) ? s.parks : []) {
+        const a = r2(numOr(p && p.amt, 0)); if (!(a > 0) || !p.key) continue;
+        const take = r2(Math.min(a, tot - used)); if (!(take > 0)) continue; used = r2(used + take);
+        if (!groups.has(p.key)) groups.set(p.key, { testo: String(p.testo || ""), aliq: String(p.aliq || ""), amt: 0, fogli: [] });
+        const g = groups.get(p.key); g.amt = r2(g.amt + take); if (s.foglio && !g.fogli.includes(String(s.foglio))) g.fogli.push(String(s.foglio));
+      }
+      const left = r2(tot - used); if (left > 0) { rest = r2(rest + left); if (s.foglio) restF.push(String(s.foglio)); }
+    }
+    for (const g of groups.values()) out.push({ id: newId("r"), tipo: "parcheggi", desc: fill(tpl, { MESE: mesi(list), PARCHEGGIO: g.testo }, C), qta: 1, prezzo: g.amt, sc: 0, aliq: (C.aliquote.some((x) => x.id === g.aliq) ? g.aliq : "") || c.aliq || "", fogli: g.fogli });
+    if (rest > 0) out.push({ id: newId("r"), tipo: "parcheggi", desc: fill(tpl, { MESE: mesi(list), PARCHEGGIO: "" }, C), qta: 1, prezzo: rest, sc: 0, aliq: c.aliq || "", fogli: restF });
+  }
+  // la riga di cui la causale è la descrizione (2.6): la prima riga di noleggio, altrimenti la prima riga
+  function causaleRow(d) { const r = (d && d.righe) || []; return r.find((x) => x.tipo === "noleggio") || r.find((x) => x.tipo === "libera") || null; }
+  // la causale va nel file come voce a parte solo nelle bozze di prima della 2.6, dove è diversa da ogni descrizione
+  function causaleApart(d) { const c = latin(d && d.causale); return !!c && !((d && d.righe) || []).some((r) => latin(r.desc) === c); }
   const isPA = (c) => /^[A-Z0-9]{6}$/.test(up(c && c.sdi));
   function newDraft(list, cliente, C, o) {
     o = o || {}; const today = okDate(o.today) ? o.today : new Date().toISOString().slice(0, 10);
     const cl = cleanCliente(cliente); cl.pa = isPA(cl);
     const modo = o.modo || (list.length > 1 ? "riepilogo" : "singole");
-    const d = { v: 1, id: newId("f"), createdAt: new Date().toISOString(), createdBy: str(o.by, 80), updatedAt: "", updBy: "", xmlAt: "", xmlBy: "", xmlName: "", xmlPath: "", tipo: C.opzioni.tipo, numero: "", data: today, causale: "", cliente: cl,
+    const d = { v: 1, id: newId("f"), createdAt: new Date().toISOString(), createdBy: str(o.by, 80), updatedAt: "", updBy: "", xmlAt: "", xmlBy: "", xmlName: "", xmlPath: "", xmlProg: "", tipo: C.opzioni.tipo, numero: "", data: today, causale: "", causaleId: "", cliente: cl,
       servizi: list.map((s) => ({ id: String(s.id || ""), start: s.start, foglio: String(s.foglio || "") })), modo, lordi: C.opzioni.lordi, righe: linesFor(list, C, modo), scontoPerc: C.opzioni.scontoPerc, arrotAuto: true, arrot: 0, arrotStep: 0, bollo: false, bolloAddebita: false,
       pagamento: { mod: C.opzioni.mod, cond: C.opzioni.cond, scad: addDays(today, cl.pa ? C.opzioni.giorniPA : C.opzioni.giorni) }, pa: { ordNum: "", ordData: "", cig: "", cup: "", split: cl.pa && C.opzioni.splitPA }, note: "" };
     return d;
@@ -358,7 +385,7 @@
     x += "</FatturaElettronicaHeader><FatturaElettronicaBody>";
     // dati generali
     const ord = d.pa.ordNum || d.pa.cig || d.pa.cup ? grp("DatiOrdineAcquisto", el("IdDocumento", d.pa.ordNum || d.pa.cig || d.pa.cup, 20) + (okDate(d.pa.ordData) ? "<Data>" + d.pa.ordData + "</Data>" : "") + el("CodiceCUP", d.pa.cup, 15) + el("CodiceCIG", d.pa.cig, 15)) : "";
-    const caus = latin(d.causale); let cs = ""; for (let i = 0; i < caus.length && i < 800; i += 200) cs += el("Causale", caus.slice(i, i + 200));
+    const caus = causaleApart(d) ? latin(d.causale) : ""; let cs = ""; for (let i = 0; i < caus.length && i < 1000; i += 200) cs += el("Causale", caus.slice(i, i + 200));
     x += grp("DatiGenerali", grp("DatiGeneraliDocumento", "<TipoDocumento>" + d.tipo + "</TipoDocumento><Divisa>EUR</Divisa><Data>" + d.data + "</Data>" + el("Numero", numeroDoc(d), 20) +
       (d.bollo ? "<DatiBollo><BolloVirtuale>SI</BolloVirtuale><ImportoBollo>" + amt(k.bollo) + "</ImportoBollo></DatiBollo>" : "") +
       "<ImportoTotaleDocumento>" + amt(k.totale) + "</ImportoTotaleDocumento>" + (cents(k.arrot) ? "<Arrotondamento>" + amt(k.arrot) + "</Arrotondamento>" : "") + cs) + ord);
@@ -380,7 +407,7 @@
     return { xml: x, name: A.paese + latin(A.piva, 28).replace(/[^A-Za-z0-9]/g, "") + "_" + prog + ".xml", prog, formato: fmt, calc: k };
   }
 
-  const API = { VERSION: "2.4", REGIMI, NATURE, TIPI_DOC, MOD_PAG, COND_PAG, USI, ARROT, VERSI, defaults, cleanContab, cleanDraft, cleanCliente, newDraft, linesFor, lineFromService, fill, mezzo, periodo, mesi, calc, validate, xml, latin, isPA, okDate, addDays, itLong, itShort, newId, r2, amt, numOr, progressivo, nextProg, progOf, numeroDoc };
+  const API = { VERSION: "2.6", REGIMI, NATURE, TIPI_DOC, TIPI_SCELTA, causaleRow, causaleApart, parkLines, MOD_PAG, COND_PAG, USI, ARROT, VERSI, defaults, cleanContab, cleanDraft, cleanCliente, newDraft, linesFor, lineFromService, fill, mezzo, periodo, mesi, calc, validate, xml, latin, isPA, okDate, addDays, itLong, itShort, newId, r2, amt, numOr, progressivo, nextProg, progOf, numeroDoc };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
-  if (root) { root.FATTURE = API; if (root.document) (root.AGENDA_FILES = root.AGENDA_FILES || {}).fatture = "2.5"; }
+  if (root) { root.FATTURE = API; if (root.document) (root.AGENDA_FILES = root.AGENDA_FILES || {}).fatture = "2.6"; }
 })(typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null);

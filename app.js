@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="2.5",APP_DATE="07/10/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="2.6",APP_DATE="08/10/2026";window.AGENDA_VERSION=APP_VERSION;
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -297,8 +297,8 @@ function bookingHTML(b,date){
   if(has(b.price))det.push("Noleggio € "+eu(b.price));
   if(has(b.park))det.push("Parcheggi € "+eu(b.park));
   if(has(b.meals))det.push("Pasti € "+eu(b.meals));
-  if(isMulti(b.type)&&has(b.advance))det.push("Anticipo € "+eu(b.advance));
-  if(isMulti(b.type)&&b.envelope)det.push("Busta "+b.envelope+(b.envno?" n. "+b.envno:""));
+  if(cashOn(b)&&has(b.advance))det.push("Anticipo € "+eu(b.advance));
+  if(cashOn(b)&&b.envelope)det.push("Busta "+b.envelope+(b.envno?" n. "+b.envno:""));
   if(hasEvent(b.type)&&b.escort)det.push("Accompagnatore: "+b.escort);
   if(b.contactName||b.contact)det.push("Ref. "+[b.contactName,b.contact].filter(Boolean).join(" "));
   if(b.notes)det.push(b.notes);
@@ -403,8 +403,9 @@ function showBanner(m){notify(m,true);}
 
 // ---------- form prenotazione ----------
 let editing=null; // {id,start}
+let formCashWas=false; // la prenotazione aperta aveva anticipo o busta (per svuotarli nel fatturato se vengono tolti)
 function openForm(opts){
-  opts=opts||{};
+  opts=opts||{};memIdx=null; // i suggerimenti ripartono dalle prenotazioni di adesso
   const b=opts.booking||{type:"gita",vehicle:opts.vehicle||S.fleet[0].id,start:opts.date||S.sel,end:"",time:"",time2:"",client:"",clientCode:"",route:"",event:"",escort:"",pax:"",price:"",driver:GEN1,driver2:"",contact:"",status:"opzione",notes:""}; // (nuova: Gita, in sospeso finché non la confermi)
   editing=opts.booking?{id:b.id,start:b.start,foglio:b.foglio||"",base:b.updatedAt||null,by:b.by||"",byAt:b.byAt||"",updBy:b.updBy||"",updAt:b.updatedAt||""}:null;progReady=false;
   // solo il Master vede chi ha creato e modificato la prenotazione
@@ -413,7 +414,7 @@ function openForm(opts){
   $("fTitle").textContent=editing?"Modifica prenotazione"+(b.foglio?" · n. "+b.foglio:""):"Nuova prenotazione";
   formClient=b.clientCode!==""&&b.clientCode!=null?{code:b.clientCode,name:b.client||""}:null;
   $("f-price").value=b.price==null?"":b.price;$("f-driver2").value=b.driver2||"";
-  $("f-park").value=b.park==null?"":b.park;$("f-meals").value=b.meals==null?"":b.meals;$("f-advance").value=b.advance==null?"":b.advance;$("f-envelope").value=b.envelope||"";$("f-envno").value=b.envno||"";bustaAuto="";
+  $("f-park").value=b.park==null?"":b.park;renderParks(b);$("f-meals").value=b.meals==null?"":b.meals;$("f-advance").value=b.advance==null?"":b.advance;$("f-envelope").value=b.envelope||"";$("f-envno").value=b.envno||"";bustaAuto="";
   $("cSug").hidden=true;
   $("f-vehicle").innerHTML=S.fleet.map(v=>'<option value="'+esc(v.id)+'">'+esc(vehLabel(v))+'</option>').join("");
   $("t-"+normType(b.type)).checked=true;
@@ -428,6 +429,7 @@ function openForm(opts){
   ["refs","hotels","guides"].forEach(k=>renderRep(k,b[k]||[]));renderRep("dnotes",dnotesOf(b));fillPlaceLists();
   endAuto=false;$("fEditAsk").hidden=true;editConfirmed=false;openSheetAfterSave=false;
   progCache=Array.isArray(b.program)?b.program.slice():[];renderProgram();
+  formCashWas=!!(editing&&cashOn(b)&&((b.advance!==""&&b.advance!=null)||b.envelope||b.envno));
   $("fDelete").hidden=!editing;$("fConfirm").hidden=true;$("fCloseAsk").hidden=true;
   $("fSpese").hidden=!(editing&&speseFor(b));
   [...$("fBooking").elements].forEach(el=>{if(el.id!=="fCancel")el.disabled=S.readOnly;});
@@ -437,10 +439,12 @@ function openForm(opts){
     $("fCapo").hidden=!dec;if(dec)$("fCapo").textContent=capoTitle(b)+(lock?": da qui non si cambiano più. Per cambiarli serve il capo, che invia di nuovo il foglio.":": tu puoi ancora cambiarli.");}
   formLoading=true;syncType();formLoading=false;checkWarns();
   formOrig=readForm(); // per sapere se l'utente ha cambiato qualcosa e quali campi
+  // parcheggi scelti che superano «€ Parcheggi» (cifra abbassata da un dispositivo non aggiornato): il cambio si vede
+  if(editing&&pkMismatch!=null)formOrig.park=pkMismatch;
   $("ovBooking").hidden=false;setTimeout(()=>$("f-client").focus(),30);
 }
 let formOrig=null,saving=false,editConfirmed=false;
-const FORM_SKIP=["updatedAt","foglio"];
+const FORM_SKIP=["updatedAt","foglio","bustaOff"];
 // campi cambiati dall'utente rispetto a quando il modulo è stato aperto
 function formChanges(){if(!formOrig)return [];const now=readForm();return Object.keys(now).filter(k=>!FORM_SKIP.includes(k)&&JSON.stringify(now[k])!==JSON.stringify(formOrig[k]));}
 function formDirty(){return !$("ovBooking").hidden&&!S.readOnly&&formChanges().length>0;}
@@ -495,19 +499,88 @@ function nextBusta(){
   let m=STORE.bustaMax?STORE.bustaMax(y):0;
   for(const x of bookingsAll()){
     if(editing&&x.id===editing.id)continue;
-    if(!isMulti(x.type)||x.envelope!=="SI"||String(x.start).slice(0,4)!==y)continue;
+    if(x.envelope!=="SI"||String(x.start).slice(0,4)!==y)continue;
     const n=parseInt(String(x.envno||"").replace(/\D/g,""),10);if(n>m)m=n;
   }
   return m+1;
 }
-$("f-envelope").addEventListener("change",()=>{
+function envChanged(){
   const v=$("f-envelope").value,no=$("f-envno");
   if(v==="SI"&&!no.value.trim()){no.value=String(nextBusta());bustaAuto=no.value;}
   else if(v!=="SI"&&no.value===bustaAuto){no.value="";bustaAuto="";}
-});
+}
+$("f-envelope").addEventListener("change",envChanged);
+// gite, notturni e transfer: la spunta «Busta per l'autista» vale come «Busta SI» dei tour
+$("f-bustaon").addEventListener("change",()=>{$("f-envelope").value=$("f-bustaon").checked?"SI":"";envChanged();syncType();});
 function eur(id){const v=$(id).value;return v===""?"":Math.round(Number(v)*100)/100;}
+// anticipo e busta: nei tour sempre; in gite, notturni e transfer con «Busta per l'autista» (2.6)
+const cashOn=b=>!!b&&(isMulti(b.type)||b.envelope==="SI");
+const cashForm=type=>isMulti(type)||$("f-bustaon").checked;
+
+// ---------- parcheggi della prenotazione (2.6): tendina dell'anagrafica + cifra, anche più di uno ----------
+function parkReg(pid){return pid?regRows("parcheggi").find(r=>r.id===pid)||null:null;}
+// come compare il parcheggio nella riga di rimborso della fattura: «In fattura», altrimenti «A» + città, altrimenti il nome tra parentesi
+function parkFatt(r,p){const f=r&&String(r.fatt||"").trim();if(f)return f;const c=r&&String(r.citta||"").trim();if(c)return "A "+c;const n=String((r&&r.nome)||(p&&p.nome)||"").trim();return n?"("+n+")":"";}
+const parkLabel=r=>(r.nome||"Parcheggio")+(r.citta?" · "+r.citta:"");
+function parkOpts(sel,keepName){
+  const rows=regRows("parcheggi").slice().sort((a,b)=>String(a.citta||"").localeCompare(String(b.citta||""),"it")||String(a.nome||"").localeCompare(String(b.nome||""),"it"));
+  let h='<option value="">— scegli il parcheggio —</option>'+rows.map(r=>'<option value="'+esc(r.id)+'"'+(r.id===sel?" selected":"")+'>'+esc(parkLabel(r))+'</option>').join("");
+  if(sel&&!rows.some(r=>r.id===sel))h+='<option value="'+esc(sel)+'" selected>'+esc((keepName||"Parcheggio")+" (non più in anagrafica)")+'</option>';
+  if(!S.readOnly&&canEdit("anag"))h+='<option value="__new">＋ Nuovo parcheggio…</option>';
+  return h;
+}
+function pkRowHTML(p,i){
+  return '<div class="pk-row" data-nome="'+esc(p.nome||"")+'"><select id="pk-sel-'+i+'" data-pk="pid" data-prev="'+esc(p.pid||"")+'" aria-label="Parcheggio '+(i+1)+'">'+parkOpts(p.pid||"",p.nome)+'</select>'+
+    '<input data-pk="amt" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00" value="'+esc(p.amt==null?"":p.amt)+'" aria-label="€ parcheggio '+(i+1)+'">'+
+    '<button type="button" class="pk-del" data-pkdel="1" aria-label="Togli questo parcheggio" title="Togli">×</button></div>';
+}
+let pkMismatch=null; // «€ Parcheggi» salvato più basso della somma dei parcheggi scelti
+function renderParks(b){
+  let l=Array.isArray(b.parks)?b.parks.filter(p=>p&&(p.pid||(p.amt!==""&&p.amt!=null))).map(p=>({pid:p.pid||"",nome:p.nome||"",amt:p.amt})):[];
+  const tot=Number(b.park)||0,sum=l.reduce((a,p)=>a+(Number(p.amt)||0),0);
+  pkMismatch=l.length&&sum-tot>0.004?(b.park===""||b.park==null?"":Math.round(tot*100)/100):null;
+  if(!l.length)l=[{pid:"",nome:"",amt:b.park==null?"":b.park}];
+  else if(tot-sum>0.004)l.push({pid:"",nome:"",amt:Math.round((tot-sum)*100)/100}); // cifra scritta da un dispositivo con la versione di prima
+  $("pkRows").innerHTML=l.map(pkRowHTML).join("");$("pkNew").hidden=true;pkSync();
+}
+function pkRowsData(){return [...$("pkRows").querySelectorAll(".pk-row")].map(r=>{const s=r.querySelector('[data-pk="pid"]'),a=r.querySelector('[data-pk="amt"]').value;const pid=s.value==="__new"?"":s.value,reg=parkReg(pid);return {pid,nome:pid?(reg?reg.nome||"":r.dataset.nome||""):"",amt:a===""?"":Math.round(Number(a)*100)/100};});}
+function pkTotal(){const l=pkRowsData().filter(p=>p.amt!=="");return l.length?Math.round(l.reduce((a,p)=>a+(Number(p.amt)||0),0)*100)/100:"";}
+// si salvano solo se almeno un parcheggio è scelto: altrimenti resta la sola cifra, come prima
+function readParks(){const l=pkRowsData();return l.some(p=>p.pid)?l.filter(p=>p.pid||p.amt!==""):[];}
+function pkSync(){
+  const rows=$("pkRows").querySelectorAll(".pk-row"),t=pkTotal();
+  $("f-park").value=t;rows.forEach(r=>{r.querySelector("[data-pkdel]").hidden=rows.length<2;});
+  $("pkTot").hidden=rows.length<2;$("pkTot").textContent=rows.length>1?"· totale € "+money(t===""?0:t):"";
+  $("pkAdd").hidden=S.readOnly||rows.length>=8;
+}
+let pkAsk=null; // la tendina che ha chiesto «Nuovo parcheggio»
+$("pkRows").addEventListener("input",e=>{if(e.target.dataset.pk==="amt"){pkSync();checkWarns();}});
+$("pkRows").addEventListener("change",e=>{
+  const s=e.target.closest('[data-pk="pid"]');if(!s)return;
+  if(s.value==="__new"){pkAsk=s;s.value=s.dataset.prev||"";$("pkNome").value="";$("pkCitta").value="";$("pkFatt").value="";$("pkAliq").innerHTML=aliqOpts(STORE.contab(),"","IVA della ricevuta: da scegliere in fattura");$("pkNewMsg").textContent="";$("pkNew").hidden=false;fillPlaceLists();$("pkNome").focus();return;}
+  s.dataset.prev=s.value;const r=s.closest(".pk-row"),reg=parkReg(s.value);if(r)r.dataset.nome=reg?reg.nome||"":"";pkSync();
+});
+$("pkRows").addEventListener("click",e=>{if(!e.target.closest("[data-pkdel]")||S.readOnly)return;const r=e.target.closest(".pk-row");if(r&&$("pkRows").children.length>1){r.remove();pkSync();checkWarns();}});
+$("pkAdd").onclick=()=>{const i=$("pkRows").children.length;$("pkRows").insertAdjacentHTML("beforeend",pkRowHTML({pid:"",nome:"",amt:""},i));pkSync();$("pkRows").lastElementChild.querySelector("select").focus();};
+$("pkNewCancel").onclick=()=>{$("pkNew").hidden=true;if(pkAsk)pkAsk.focus();pkAsk=null;};
+async function pkNewSave(){
+  const nome=cleanText($("pkNome").value),citta=cleanText($("pkCitta").value),fatt=cleanText($("pkFatt").value),aliq=$("pkAliq").value;
+  if(!nome){$("pkNewMsg").textContent="Scrivi il nome del parcheggio.";$("pkNome").focus();return;}
+  if(!navigator.onLine){$("pkNewMsg").textContent="Serve la connessione a internet: l'anagrafica è condivisa.";return;}
+  const id=nrid();$("pkNewSave").disabled=true;$("pkNewMsg").textContent="";
+  try{
+    await STORE.updateReg("parcheggi",J=>{J.rows=J.rows||[];J.rows.push({id,nome,citta,indirizzo:"",fatt,aliq,by:meName(),at:new Date().toISOString()});return J;});
+    ACC.log("impostazioni","Anagrafica parcheggi: aggiunto «"+nome+"»");
+    // tutte le tendine si rifanno con il parcheggio nuovo; quella che l'ha chiesto lo sceglie
+    const keep=pkRowsData();if(pkAsk){const i=[...$("pkRows").querySelectorAll('[data-pk="pid"]')].indexOf(pkAsk);if(i>=0){keep[i].pid=id;keep[i].nome=nome;}}
+    $("pkRows").innerHTML=keep.map(pkRowHTML).join("");$("pkNew").hidden=true;pkAsk=null;pkSync();checkWarns();
+  }catch(_){$("pkNewMsg").textContent="Non riesco a salvarlo adesso: riprova.";}
+  finally{$("pkNewSave").disabled=false;}
+}
+$("pkNewSave").onclick=pkNewSave;
+$("pkNew").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();if(e.target.tagName==="INPUT")pkNewSave();else if(e.target.tagName==="BUTTON")e.target.click();}else if(e.key==="Escape"){e.preventDefault();e.stopPropagation();$("pkNewCancel").click();}});
 function curType(){const r=document.querySelector('input[name="type"]:checked');return r?r.value:"transfer";}
-function syncType(){$("w-tourcash").hidden=!isMulti(curType());if(progReady)renderProgram();const ev=hasEvent(curType());$("w-event").hidden=!ev;$("w-time2").hidden=false;syncEndNextDay();}
+function syncType(){const mu=isMulti(curType());if(!mu)$("f-bustaon").checked=$("f-envelope").value==="SI";$("w-bustaon").hidden=mu;$("w-envsel").hidden=!mu;$("w-tourcash").hidden=!(mu||$("f-bustaon").checked);if(progReady)renderProgram();const ev=hasEvent(curType());$("w-event").hidden=!ev;$("w-time2").hidden=false;syncEndNextDay();}
 // rientro dopo la mezzanotte (es. notturno 17:00 → 01:00): la data di rientro passa da sola al giorno dopo
 let endAuto=false,formLoading=false;
 function syncEndNextDay(){
@@ -526,7 +599,7 @@ function readForm(){
   return {type:type,vehicle:$("f-vehicle").value,start:start,end:$("f-end").value||start,
     time:$("f-time").value,time2:$("f-time2").value,client:client,clientCode:formClient&&formClient.name===client?formClient.code:"",route:T("f-route"),
     event:hasEvent(type)?T("f-event"):"",escort:hasEvent(type)?T("f-escort"):"",
-    pax:T("f-pax"),price:eur("f-price"),park:eur("f-park"),meals:eur("f-meals"),advance:isMulti(type)?eur("f-advance"):"",envelope:isMulti(type)?$("f-envelope").value:"",envno:isMulti(type)?T("f-envno"):"",driver:T("f-driver"),driver2:T("f-driver2"),contact:T("f-contact"),contactName:T("f-contactname"),
+    pax:T("f-pax"),price:eur("f-price"),park:pkTotal(),parks:readParks(),bustaOff:formCashWas&&!cashForm(type),meals:eur("f-meals"),advance:cashForm(type)?eur("f-advance"):"",envelope:isMulti(type)?$("f-envelope").value:cashForm(type)?"SI":"",envno:cashForm(type)?T("f-envno"):"",driver:T("f-driver"),driver2:T("f-driver2"),contact:T("f-contact"),contactName:T("f-contactname"),
     status:$("f-status").value,notes:cleanText($("f-notes").value,true),
     contactRole:$("f-contactrole").value,contactNote:T("f-contactnote"),
     saldo:$("f-saldo").value,saldoAmt:eur("f-saldoamt"),
@@ -536,7 +609,12 @@ function readForm(){
 // per i dispositivi con versioni precedenti: le 4 note del foglio anche nei campi di prima
 function withOldNotes(b){return Object.assign(b,noteCells(b));}
 // se cambiano le note, nell'unione con le modifiche di altri vanno anche i 4 campi di prima
-function withOldNoteKeys(patch){return patch.includes("dnotes")?patch.concat(NOTE_OLD.map(x=>x[0]).filter(k=>!patch.includes(k))):patch;}
+function withOldNoteKeys(patch){
+  if(patch.includes("dnotes"))patch=patch.concat(NOTE_OLD.map(x=>x[0]).filter(k=>!patch.includes(k)));
+  // busta tolta (gita, notturno, transfer): il segno che fa svuotare anticipo e busta nel file fatturato va insieme
+  if(["type","envelope","advance","envno"].some(k=>patch.includes(k))&&!patch.includes("bustaOff"))patch=patch.concat("bustaOff");
+  return patch;
+}
 // prenotazioni (tranne quella aperta) in corso tra due date
 function overlapping(start,end){
   const out=new Map();if(!validDate(start))return [];
@@ -567,6 +645,7 @@ function checkWarns(){
       w.push("Autista "+dn+" già impegnato"+(hard.length?"":" (transfer: verifica gli orari)")+": "+busy.map(x=>(TYPES[x.type]||"")+" "+(x.client||"")+" su "+((vehicle(x.vehicle)||{}).name||"altro mezzo")+" ("+when(x)+")").join("; "));
     }
   }
+  if(pkMismatch!=null)w.push("I parcheggi scelti (€ "+money(pkTotal()===""?0:pkTotal())+") superano «€ Parcheggi» salvato (€ "+money(pkMismatch===""?0:pkMismatch)+"), forse cambiato da un dispositivo non aggiornato: controlla le cifre prima di salvare.");
   $("fWarns").innerHTML=w.map(x=>"<div>"+esc(x)+"</div>").join("");
   return w;
 }
@@ -596,7 +675,7 @@ function repRow(k,i,x){
     '<div class="f pf-name"><label><b>Nome referente '+(i+2)+'</b></label>'+rinp("name",x.name,COMBO_ATTR("ref")+' placeholder="Cerca in anagrafica o scrivi"')+'</div>'+
     '<div class="f"><label>Ruolo</label><select data-f="role">'+tendinaOpts("ruolo",x.role||"")+'</select></div>'+
     '<div class="f"><label>Telefono</label>'+rinp("tel",x.tel,' type="tel" inputmode="tel" autocomplete="off"')+'</div>'+
-    '<div class="f"><label>Note</label>'+rinp("note",x.note)+'</div>'+RDEL+'</div>';
+    '<div class="f"><label>Note</label>'+rinp("note",x.note,' autocomplete="off" data-mem="refnote"')+'</div>'+RDEL+'</div>';
   if(k==="guides")return '<div class="rep-row prow p-guide"'+(x.region?' data-region="'+esc(x.region)+'"':'')+'>'+
     '<div class="f pf-name"><label><b>Nome guida '+(i+1)+'</b></label>'+rinp("name",x.name,COMBO_ATTR("guide")+' placeholder="Cerca in anagrafica o scrivi"')+'</div>'+
     '<div class="f"><label>Città</label>'+rinp("city",x.city,' list="dlCities" autocomplete="off"')+'</div>'+
@@ -609,7 +688,7 @@ function repRow(k,i,x){
     '<div class="f"><label>Telefono</label>'+rinp("tel",x.tel,' type="tel" inputmode="tel" autocomplete="off"')+'</div>'+RDEL+'</div>';
   if(k==="dnotes")return '<div class="rep-row prow p-note"><span class="nlab">Note '+(i+1)+'</span>'+
     '<div class="f"><label>Causale</label><select data-f="c">'+tendinaOpts("note",x.c||"")+'</select></div>'+
-    '<div class="f"><label>Testo</label>'+rinp("t",x.t,' autocomplete="off" placeholder="Es. parcheggiare al Lumbi, indossare la camicia…"')+'</div>'+RDEL+'</div>';
+    '<div class="f"><label>Testo</label>'+rinp("t",x.t,' autocomplete="off" data-mem="note" placeholder="Es. parcheggiare al Lumbi, indossare la camicia…"')+'</div>'+RDEL+'</div>';
   return "";
 }
 // numerazione delle etichette dopo un'aggiunta o una rimozione
@@ -841,10 +920,10 @@ function renderProgram(){
   const days=progDays();
   if(!days){
     const all=progCache.filter(Boolean).join("\n");
-    $("progWrap").innerHTML='<textarea id="prog-0" aria-labelledby="l-prog" placeholder="Ore 06:45 PORTO DI POZZALLO, arriva il catamarano&#10;SIRACUSA, Skydiving - strada Laganelli 20&#10;Ore 16:00 partenza per Avola">'+esc(all)+'</textarea>';
+    $("progWrap").innerHTML='<textarea id="prog-0" data-mem="programma" data-memline="1" aria-labelledby="l-prog" placeholder="Ore 06:45 PORTO DI POZZALLO, arriva il catamarano&#10;SIRACUSA, Skydiving - strada Laganelli 20&#10;Ore 16:00 partenza per Avola">'+esc(all)+'</textarea>';
     $("progHint").textContent="Una riga per ogni tappa, con orario e luogo. Le righe vengono numerate da sole.";
   }else{
-    $("progWrap").innerHTML=days.map((h,i)=>'<div class="prog-day"><b>'+esc(h)+'</b><textarea id="prog-'+i+'" rows="2" aria-label="'+esc(h)+'" placeholder="1° Hotel > Etna Sud > 1° Hotel">'+esc(progCache[i]||"")+'</textarea></div>').join("");
+    $("progWrap").innerHTML=days.map((h,i)=>'<div class="prog-day"><b>'+esc(h)+'</b><textarea id="prog-'+i+'" data-mem="programma" data-memline="1" rows="2" aria-label="'+esc(h)+'" placeholder="1° Hotel > Etna Sud > 1° Hotel">'+esc(progCache[i]||"")+'</textarea></div>').join("");
     $("progHint").textContent="Un riquadro per ogni giorno del tour.";
   }
   progReady=true;
@@ -1353,7 +1432,7 @@ function billRow(b){
   return {foglio:b.foglio,id:b.id,start:b.start,type:type,
     A:Number(b.foglio),B:TYPE_XL[type],C:b.clientCode===""||b.clientCode==null?"":b.clientCode,
     D:b.client||"",G:xcatOf(v),H:(v.plate||"").trim(),I:b.start,J:endOf(b),
-    M:billItin(b),O:billNote(b),P:num(b.price),Q:num(b.park),R:num(b.meals),AH:isMulti(b.type)?num(b.advance):"",AI:isMulti(b.type)?(b.envelope||""):"",AJ:isMulti(b.type)?(b.envno||""):"",Z:realDriver(b.driver),AA:realDriver(b.driver2),dz:!realDriver(b.driver),daa:isGen(b.driver2),
+    M:billItin(b),O:billNote(b),P:num(b.price),Q:num(b.park),R:num(b.meals),AH:cashOn(b)?num(b.advance):"",AI:cashOn(b)?(b.envelope||""):"",AJ:cashOn(b)?(b.envno||""):"",Z:realDriver(b.driver),AA:realDriver(b.driver2),dz:!realDriver(b.driver),daa:isGen(b.driver2),
     vehicleName:v.name||""};
 }
 function billRows(days){
@@ -1378,36 +1457,59 @@ function renderTipiWarn(){
   el.hidden=!miss.length;
   if(miss.length)el.innerHTML='Nel file fatturato, foglio <b>regole</b>, colonna TIPO SERVIZIO manca'+(miss.length>1?'no':'')+': <b>'+miss.map(esc).join(", ")+'</b>. Aggiungil'+(miss.length>1?'i':'o')+' all\'elenco, così Excel '+(miss.length>1?'li':'lo')+' accetta anche quando modifichi la riga a mano.';
 }
+// Stato della fattura di un servizio (2.6): «emessa» = il file XML per la contabilità è stato creato.
+// todo: da fatturare · draft: c'è una bozza · done: fattura emessa (con la data del file)
+function billInvState(b,dr){
+  const inv=dr.filter(d=>d.xmlAt&&d.tipo!=="TD04").sort((x,y)=>String(y.xmlAt).localeCompare(String(x.xmlAt))),nc=dr.some(d=>d.xmlAt&&d.tipo==="TD04");
+  if(inv.length){const d=inv[0];return {k:"done",t:"Emessa",sub:"XML del "+itD(String(d.xmlAt).slice(0,10))+(nc?" · nota di credito":""),title:d.xmlName||""};}
+  if(nc){const d=dr.filter(x=>x.xmlAt&&x.tipo==="TD04").sort((x,y)=>String(y.xmlAt).localeCompare(String(x.xmlAt)))[0];return {k:"done",t:"Nota di credito",sub:"XML del "+itD(String(d.xmlAt).slice(0,10)),title:d.xmlName||""};}
+  if(dr.length)return {k:"draft",t:"Bozza",sub:dr.length>1?dr.length+" bozze":"non ancora emessa"};
+  const fut=String(b.start||"")>todayISO();
+  return {k:"todo",t:"Da fatturare",sub:fut?"servizio non ancora fatto":"",now:!fut&&b.status!=="opzione"};
+}
+let billFilter="all";
 async function renderBill(){
   renderTipiWarn();
   const k=mkey(S.sel),all=$("billRange").value==="all";
   $("billTitle").textContent="Fatturato · "+(all?"tutti i servizi":MN[+k.slice(5,7)-1]+" "+k.slice(0,4));
   let rows;try{rows=await rowsForRange();}catch(err){$("btable").innerHTML='<tbody><tr><td class="empty">Impossibile leggere le prenotazioni. Riprova.</td></tr></tbody>';return;}
   if(S.view!=="bill")return;
-  const inv=canInv(),all0=inv?bookingsAll().concat(S.allDays?billSourceAll():[]):[],dmap=inv?draftMap():null;
-  if(inv){const ok=new Set(all0.map(invKey));for(const k of [...invSel])if(!ok.has(k))invSel.delete(k);}
+  const inv=canInv(),src=bookingsAll().concat(S.allDays?billSourceAll():[]),dmap=inv?draftMap():null;
+  if(inv){const ok=new Set(src.map(invKey));for(const k of [...invSel])if(!ok.has(k))invSel.delete(k);}
   renderInvBar();
-  const head='<thead><tr>'+(inv?'<th class="selc" title="Spunta i servizi da mettere in una fattura unica"></th>':"")+'<th>N. foglio</th><th>Tipo servizio</th><th>Cliente</th><th>Mezzo</th><th>Targa</th><th>Inizio</th><th>Fine</th><th>Itinerario</th><th>1° autista</th><th>2° autista</th><th class="r">€ Noleggio</th><th class="r">€ Parcheggi</th><th class="r">€ Pasti</th><th class="r">€ Totale</th><th>Anticipo / busta</th><th></th></tr></thead>';
-  if(!rows.length){$("btable").innerHTML=head+'<tbody><tr><td class="empty" colspan="'+(inv?17:16)+'">Nessun servizio '+(all?"in agenda":"in questo mese")+'.</td></tr></tbody>';return;}
-  const sum=k=>rows.reduce((a,r)=>a+(r[k]===""?0:r[k]),0),tot=rows.reduce((a,r)=>a+billTotal(r),0);
-  const spIds=new Set(bookingsAll().concat(S.allDays?billSourceAll():[]).filter(speseFor).map(b=>b.id)); // tour con busta già inviati all'autista
-  $("btable").innerHTML=head+'<tbody>'+rows.map(r=>{
-    const c=r.C!==""?clientByCode(r.C):null;
-    const dr=dmap?(dmap.get(r.id)||[]):[],key=r.id+"|"+r.start;
-    return '<tr data-bid="'+esc(r.id)+'" data-bstart="'+esc(r.start)+'"'+(invSel.has(key)?' class="sel"':"")+'>'+
+  // stato della fattura per ogni riga, conteggi e totali per stato
+  const st=new Map(),cnt={all:0,todo:0,draft:0,done:0},amt={all:0,todo:0,draft:0,done:0};
+  const bmap=new Map(src.map(x=>[invKey(x),x])); // la prenotazione (per lo stato confermato / in sospeso)
+  if(inv)for(const r of rows){const s=billInvState(Object.assign({},r,{status:(bmap.get(r.id+"|"+r.start)||{}).status}),dmap.get(r.id)||[]);st.set(r.id+"|"+r.start,s);const t=billTotal(r);cnt.all++;cnt[s.k]++;amt.all+=t;amt[s.k]+=t;}
+  const fb=$("billFilter");fb.hidden=!inv||!rows.length;
+  if(inv&&!cnt[billFilter]&&billFilter!=="all")billFilter="all";
+  if(inv)fb.innerHTML=[["all","Tutti"],["todo","Da fatturare"],["draft","Con bozza"],["done","Emesse"]].map(([f,l])=>'<button type="button" class="bf bf-'+f+'" data-bf="'+f+'" aria-pressed="'+(billFilter===f)+'"'+(cnt[f]||f==="all"?"":" disabled")+'><b>'+l+'</b><span>'+cnt[f]+(cnt[f]===1?" servizio":" servizi")+' · € '+money(amt[f])+'</span></button>').join("")+'<span class="bf-note">«Emessa» vuol dire che il file XML per la contabilità è stato creato.</span>';
+  const show=inv&&billFilter!=="all"?rows.filter(r=>(st.get(r.id+"|"+r.start)||{}).k===billFilter):rows;
+  const NC=inv?14:12;
+  const head='<thead><tr>'+(inv?'<th class="selc" title="Spunta i servizi da mettere in una fattura unica"></th>':"")+'<th>N. foglio</th>'+(inv?'<th>Fattura</th>':"")+'<th>Servizio</th><th>Cliente</th><th>Mezzo</th><th>Date</th><th>Itinerario</th><th>Autisti</th><th class="r">€ Noleggio</th><th class="r">€ Parcheggi</th><th class="r">€ Pasti</th><th class="r">€ Totale</th><th>Anticipo</th><th></th></tr></thead>';
+  if(!show.length){$("btable").innerHTML=head+'<tbody><tr><td class="empty" colspan="'+(NC+1)+'">'+(rows.length?"Nessun servizio con questo stato.":"Nessun servizio "+(all?"in agenda":"in questo mese")+".")+'</td></tr></tbody>';return;}
+  const sum=k=>show.reduce((a,r)=>a+(r[k]===""?0:r[k]),0),tot=show.reduce((a,r)=>a+billTotal(r),0);
+  const spIds=new Set(src.filter(speseFor).map(b=>b.id)); // servizi con busta già inviati all'autista
+  const dates=r=>esc(itDate(r.I))+(r.J&&r.J!==r.I?'<span class="sub">al '+esc(itDate(r.J))+'</span>':"");
+  const drv=r=>(r.Z?esc(r.Z):r.dz?'<span class="tbdtxt">da assegnare</span>':"—")+(r.AA?'<span class="sub">'+esc(r.AA)+'</span>':r.daa?'<span class="sub tbdtxt">2° da assegnare</span>':"");
+  $("btable").innerHTML=head+'<tbody>'+show.map(r=>{
+    const c=r.C!==""?clientByCode(r.C):null,key=r.id+"|"+r.start,s=st.get(key);
+    const cls=[invSel.has(key)?"sel":"",s&&s.k==="todo"&&s.now?"todo-now":"",s&&s.k==="done"?"inv-done":""].filter(Boolean).join(" ");
+    return '<tr data-bid="'+esc(r.id)+'" data-bstart="'+esc(r.start)+'"'+(cls?' class="'+cls+'"':"")+'>'+
       (inv?'<td class="selc"><input type="checkbox" data-invsel="1" aria-label="Seleziona il servizio n. '+esc(r.foglio)+' per una fattura unica"'+(invSel.has(key)?" checked":"")+'></td>':"")+
       '<td class="num"><b>'+esc(r.foglio)+'</b></td>'+
+      (inv?'<td><span class="fst fst-'+s.k+'"'+(s.title?' title="'+esc(s.title)+'"':"")+'>'+esc(s.t)+'</span>'+(s.sub?'<span class="sub">'+esc(s.sub)+'</span>':"")+'</td>':"")+
       '<td><span class="tip" style="border-color:var(--'+esc(r.type)+'-fill)">'+esc(r.B)+'</span></td>'+
-      '<td>'+esc(r.D||"—")+(r.C!==""?'<span class="sub">Cod. '+esc(r.C)+(c&&c[2]?' · '+esc(c[2]):'')+'</span>':'<span class="sub miss">senza codice cliente</span>')+'</td>'+
-      '<td>'+esc(r.G)+'<span class="sub">'+esc(r.vehicleName)+'</span></td>'+
-      '<td class="num">'+(r.H?esc(r.H):'<span class="miss">manca targa</span>')+'</td>'+
-      '<td class="num">'+esc(itDate(r.I))+'</td><td class="num">'+esc(itDate(r.J))+'</td>'+
-      '<td>'+esc(r.M)+(r.O?'<span class="sub">'+esc(r.O)+'</span>':'')+'</td>'+
-      '<td>'+(r.Z?esc(r.Z):r.dz?'<span class="tbdtxt">da assegnare</span>':"")+'</td><td>'+(r.AA?esc(r.AA):r.daa?'<span class="tbdtxt">da assegnare</span>':"")+'</td>'+
+      '<td class="cli">'+esc(r.D||"—")+(r.C!==""?'<span class="sub">Cod. '+esc(r.C)+(c&&c[2]?' · '+esc(c[2]):'')+'</span>':'<span class="sub miss">senza codice cliente</span>')+'</td>'+
+      '<td>'+esc(r.G)+'<span class="sub">'+(r.H?esc(r.H):'<span class="miss">manca targa</span>')+'</span></td>'+
+      '<td class="num">'+dates(r)+'</td>'+
+      '<td class="iti">'+esc(r.M)+(r.O?'<span class="sub">'+esc(r.O)+'</span>':'')+'</td>'+
+      '<td>'+drv(r)+'</td>'+
       '<td class="num r">'+money(r.P)+'</td><td class="num r">'+money(r.Q)+'</td><td class="num r">'+money(r.R)+'</td><td class="num r"><b>'+(r.P===""&&r.Q===""&&r.R===""?"":money(billTotal(r)))+'</b></td>'+
-      '<td class="num">'+(r.AH!==""?"€ "+money(r.AH):"")+(r.AI?'<span class="sub">Busta '+esc(r.AI)+(r.AJ?" n. "+esc(r.AJ):"")+'</span>':"")+'</td><td class="acts"><button type="button" class="mini" data-fs="1">Foglio di servizio</button>'+(spIds.has(r.id)?'<button type="button" class="mini" data-sp="1">Spese autista</button>':"")+(inv?'<button type="button" class="mini inv" data-inv="1">Bozza Fattura</button>'+(dr.length?'<span class="sub">'+(dr.some(d=>d.xmlAt)?"XML creato":"bozza salvata")+(dr.length>1?" ("+dr.length+")":"")+'</span>':""):"")+'</td></tr>';
-  }).join("")+'</tbody><tfoot><tr><td colspan="'+(inv?11:10)+'">'+rows.length+' servizi</td><td class="num r">'+money(sum("P"))+'</td><td class="num r">'+money(sum("Q"))+'</td><td class="num r">'+money(sum("R"))+'</td><td class="num r">'+money(tot)+'</td><td class="num">'+(sum("AH")?"€ "+money(sum("AH")):"")+'</td><td></td></tr></tfoot>';
+      '<td class="num">'+(r.AH!==""?"€ "+money(r.AH):"")+(r.AI?'<span class="sub">Busta '+esc(r.AI)+(r.AJ?" n. "+esc(r.AJ):"")+'</span>':"")+'</td><td class="acts"><button type="button" class="mini" data-fs="1">Foglio di servizio</button>'+(spIds.has(r.id)?'<button type="button" class="mini" data-sp="1">Spese autista</button>':"")+(inv?'<button type="button" class="mini inv" data-inv="1">Bozza Fattura</button>':"")+'</td></tr>';
+  }).join("")+'</tbody><tfoot><tr><td colspan="'+(inv?9:7)+'">'+show.length+' servizi'+(inv&&billFilter!=="all"?" ("+({todo:"da fatturare",draft:"con bozza",done:"emesse"}[billFilter])+")":"")+'</td><td class="num r">'+money(sum("P"))+'</td><td class="num r">'+money(sum("Q"))+'</td><td class="num r">'+money(sum("R"))+'</td><td class="num r">'+money(tot)+'</td><td class="num">'+(sum("AH")?"€ "+money(sum("AH")):"")+'</td><td></td></tr></tfoot>';
 }
+$("billFilter").addEventListener("click",e=>{const b=e.target.closest("[data-bf]");if(!b||b.disabled)return;billFilter=b.dataset.bf;renderBill();});
 $("btable").addEventListener("click",e=>{const tr=e.target.closest("[data-bid]");if(!tr)return;const b=bookingsAll().concat(S.allDays?billSourceAll():[]).find(x=>x.id===tr.dataset.bid&&x.start===tr.dataset.bstart);if(!b)return;
   const cb=e.target.closest("[data-invsel]");
   if(cb||e.target.closest("td.selc")){ // casella per la fattura unica: non apre la prenotazione
@@ -1762,7 +1864,7 @@ function tplValues(b){
   P.gs.slice(0,P.nG).forEach((x,i)=>{const r=P.rGuide+i;put("B",r,{v:one(x.city,x.name,x.note)});put("H",r,{v:x.tel||""});});
   P.hs.slice(0,P.nH).forEach((x,i)=>{const r=P.rHotel+i;put("B",r,{v:one(x.city,hotelShort(x.name),x.addr)});put("H",r,{v:x.tel||""});});
   tplProgram(b).forEach((t,i)=>put("A",P.rProg+i,{v:t}));
-  put("C",P.rSaldo,{v:b.saldo==="SI"?"SI":"NO"});put("D",P.rSaldo,{v:numOrE(b.saldoAmt),k:"a"});put("H",P.rSaldo,{v:isMulti(type)?numOrE(b.advance):"",k:"e"});
+  put("C",P.rSaldo,{v:b.saldo==="SI"?"SI":"NO"});put("D",P.rSaldo,{v:numOrE(b.saldoAmt),k:"a"});put("H",P.rSaldo,{v:cashOn(b)?numOrE(b.advance):"",k:"e"});
   P.ns.slice(0,P.nN).forEach((x,i)=>{put("B",P.rNote+i,{v:x.c||""});put("C",P.rNote+i,{v:x.t||""});});
   // parte contabile: sempre la ragione sociale del cliente, mai l'alias
   const r=P.rOff,r1=P.refs[0]||{};
@@ -2020,14 +2122,15 @@ async function tplPDF(b,part){
 
 // --- nome file come nell'archivio: 26092602_cliente_x_destinazione ---
 function slug(t){return norm(pdfTxt(t)).replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"").slice(0,40);}
-function sheetFileName(b){
+function sheetFileName(b){const s=sheetNameParts(b);return s.fg+"_"+s.who+(s.what?"_x_"+s.what:"");}
+function sheetNameParts(b){
   const cl=shClient(b),who=slug((cl&&cl[2])||(cl&&cl[1])||b.client||"cliente");
   let parts=(b.route||"").split(/[>→,–]| - /).map(x=>x.trim()).filter(Boolean);
   if(parts.length>2){const inner=parts.slice(1);if(norm(inner[inner.length-1])===norm(parts[0]))inner.pop();parts=inner;}else if(parts.length===2)parts=parts.slice(1);
   const what=slug(hasEvent(b.type)&&b.event?b.event:(parts.slice(0,2).join(" ")||TYPES[normType(b.type)]||"servizio"));
   // il n. foglio entra nel nome del file (e nel percorso in Dropbox): solo lettere, numeri e trattino
   const fg=String(b.foglio==null?"":b.foglio).replace(/[^0-9A-Za-z-]/g,"").slice(0,24);
-  return (fg||"foglio")+"_"+who+(what?"_x_"+what:"");
+  return {fg:fg||"foglio",who,what};
 }
 
 // --- finestra del foglio ---
@@ -2218,7 +2321,8 @@ STORE.configure({
   actor:()=>{const s=ACC.session();return s?{uid:s.uid}:null;},
   onAutChanged:()=>{if(!$("ovMaster").hidden&&mstTab==="aut")renderAut();},
   onAuthLost:()=>showGate("link",{msg:"L'accesso a Dropbox è scaduto o è stato revocato: collegalo di nuovo."}),
-  rowFor:b=>Object.assign(billRow(Object.assign({},b,{start:b.start})),{tour:isMulti(b.type)}),
+  rowFor:b=>Object.assign(billRow(Object.assign({},b,{start:b.start})),{tour:cashOn(b)||!!b.bustaOff}), // «tour»: si scrivono anticipo e busta (AH/AI/AJ)
+  onMinVer:()=>checkMinVer(),
   onClientAdded:(tmp,info)=>onClientAdded(tmp,info),
   onClientEdited:(q,x)=>onClientEdited(q,x),
   onClientError:(c,q)=>{ACC.tlog("errore","Cliente non scritto nel fatturato: "+c+" «"+((q&&q.name)||"")+"»");notify((c==="codeexists"?"Codice Multi già usato nel file ("+cliErrText(q)+")":c==="noclienti"?"Nel file fatturato non trovo il foglio «clienti»":c==="noname"?"Manca la ragione sociale":"Errore nel file fatturato")+": il cliente «"+((q&&q.name)||"")+"» non è stato scritto. "+(c==="codeexists"?"Correggilo":"Puoi riprovare o annullarlo")+" da Clienti.",true);if(!$("ovClients").hidden)renderClients();},
@@ -2365,6 +2469,16 @@ function unlocked(){
   ACC.beat();ACC.flushLog();
   setTimeout(()=>{if(isInvio()||!ACC.session())return;seedRegs();flushRegAdd();},2500);
   autAfterRedirect();(STORE.aut?Promise.resolve():STORE.loadAut()).then(()=>AUT.sync());
+  // versione minima (2.6): questa versione la alza; se su Dropbox ce n'è già una più nuova la pagina smette di scrivere
+  STORE.loadMinVer().then(()=>{checkMinVer();if(!S.outdated&&!S.readOnly)return STORE.raiseMinVer(APP_VERSION);}).catch(()=>{});
+}
+function checkMinVer(){
+  const mv=STORE.minVer();
+  if(!mv||S.outdated||STORE.verCmp(APP_VERSION,mv)>=0)return;
+  S.outdated=true;STORE.setOutdated(true);S.readOnly=true;
+  showBanner("Su Dropbox c'è già la versione "+mv+" dell'agenda e questa pagina è ancora alla "+APP_VERSION+": chiudila e riaprila (o ricaricala) per continuare. Finché non la aggiorni non salva niente.");
+  ACC.tlog("avviso","Pagina con una versione vecchia: "+APP_VERSION+" (su Dropbox "+mv+"): non salva più",String(mv));
+  try{if(isInvio())renderInvio();else renderAll();}catch(_){}
 }
 // Dalla 1.8: ognuno entra con nome e password (config/utenti.json). Se l'elenco utenti non c'è ancora,
 // si crea il Master: serve il codice di accesso usato finora (se c'era), così non può farlo chiunque.
@@ -2548,7 +2662,7 @@ setInterval(()=>{
 },20000);
 
 // ---------- registro: cosa è cambiato in una prenotazione ----------
-const FIELD_LBL={type:"Categoria",vehicle:"Mezzo",start:"Data partenza",end:"Data rientro",time:"Ora partenza",time2:"Ora rientro",client:"Cliente",clientCode:"Codice cliente",route:"Itinerario",event:"Evento",escort:"Accompagnatore",pax:"Passeggeri",price:"Prezzo",park:"Parcheggi",meals:"Pasti",advance:"Acconto",envelope:"Busta",envno:"N. busta",driver:"1° autista",driver2:"2° autista",contact:"Telefono referente 1",contactName:"Referente 1",contactRole:"Ruolo referente 1",contactNote:"Note referente 1",dnotes:"Note per l'autista",status:"Stato",notes:"Note",saldo:"Saldo da ricevere",saldoAmt:"€ Saldo",npark:"Note 1° park",ndriver:"Note 2° autista",n3h:"Note 3° 3 ore",nextra:"Note 4° extra",refs:"Altri referenti",hotels:"Hotel",guides:"Guide",program:"Programma"};
+const FIELD_LBL={type:"Categoria",vehicle:"Mezzo",start:"Data partenza",end:"Data rientro",time:"Ora partenza",time2:"Ora rientro",client:"Cliente",clientCode:"Codice cliente",route:"Itinerario",event:"Evento",escort:"Accompagnatore",pax:"Passeggeri",price:"Prezzo",park:"Parcheggi",parks:"Parcheggi scelti",meals:"Pasti",advance:"Acconto",envelope:"Busta",envno:"N. busta",driver:"1° autista",driver2:"2° autista",contact:"Telefono referente 1",contactName:"Referente 1",contactRole:"Ruolo referente 1",contactNote:"Note referente 1",dnotes:"Note per l'autista",status:"Stato",notes:"Note",saldo:"Saldo da ricevere",saldoAmt:"€ Saldo",npark:"Note 1° park",ndriver:"Note 2° autista",n3h:"Note 3° 3 ore",nextra:"Note 4° extra",refs:"Altri referenti",hotels:"Hotel",guides:"Guide",program:"Programma"};
 function logVal(k,v){
   if(v===""||v==null||(Array.isArray(v)&&!v.filter(Boolean).length))return "—";
   if(k==="vehicle"){const vv=vehicle(v);return vv?vehLabel(vv):String(v);}
@@ -2558,6 +2672,7 @@ function logVal(k,v){
   if(["price","park","meals","advance","saldoAmt"].includes(k))return "€ "+money(v);
   if(k==="refs"||k==="hotels"||k==="guides")return v.map(x=>[x.name,x.role?"("+x.role+")":"",x.addr,x.city,x.tel,x.note].filter(Boolean).join(" ")).join("; ").slice(0,200);
   if(k==="dnotes")return v.map(x=>[x.c,x.t].filter(Boolean).join(": ")).join("; ").slice(0,200);
+  if(k==="parks")return v.map(x=>(x.nome||"senza parcheggio")+(x.amt!==""&&x.amt!=null?" € "+money(x.amt):"")).join("; ").slice(0,200);
   if(k==="program")return v.filter(Boolean).map(x=>String(x).replace(/\n/g," / ")).join(" | ").slice(0,160);
   const t=String(v).replace(/\s+/g," ");return t.length>120?t.slice(0,117)+"…":t;
 }
@@ -2835,7 +2950,7 @@ function renderContab(){
       C.aliquote.map((a,i)=>'<div class="ct-row ct-iva"><input data-ctl="aliquote.'+i+'.nome" value="'+esc(a.nome)+'" aria-label="Nome"><input data-ctl="aliquote.'+i+'.perc" data-t="num" type="number" min="0" max="100" step="0.01" value="'+esc(a.perc)+'" aria-label="Percentuale"><select data-ctl="aliquote.'+i+'.natura" aria-label="Natura"'+(a.perc>0?" disabled":"")+'><option value="">–</option>'+Object.keys(FT.NATURE).map(n=>'<option value="'+n+'"'+(a.natura===n&&!(a.perc>0)?" selected":"")+'>'+n+' – '+esc(FT.NATURE[n])+'</option>').join("")+'</select><input data-ctl="aliquote.'+i+'.rif" value="'+esc(a.rif)+'" aria-label="Riferimento normativo"><button type="button" class="btn icon" data-ctdel="aliquote.'+i+'" aria-label="Elimina aliquota" title="Elimina">×</button></div>').join("")+
       '</div><button type="button" class="btn" data-ctadd="aliquote">+ Aggiungi aliquota</button>';
   }else if(ctTab==="cau"){
-    h='<p class="ct-note">I testi con cui l\'agenda prepara le righe. Tra parentesi graffe ci sono i dati presi dal servizio: <b>{MEZZO}</b> <b>{DATA}</b> <b>{PERIODO}</b> <b>{MESE}</b> <b>{ITINERARIO}</b> <b>{EVENTO}</b> <b>{PAX}</b> <b>{TARGA}</b> <b>{FOGLIO}</b>. «Si usa per» dice quando l\'agenda la sceglie da sola; le altre si aggiungono a mano dalla bozza.</p>'+
+    h='<p class="ct-note">I testi con cui l\'agenda prepara le righe. Tra parentesi graffe ci sono i dati presi dal servizio: <b>{MEZZO}</b> <b>{DATA}</b> <b>{PERIODO}</b> <b>{MESE}</b> <b>{ITINERARIO}</b> <b>{EVENTO}</b> <b>{PAX}</b> <b>{TARGA}</b> <b>{FOGLIO}</b>; nel rimborso dei parcheggi <b>{PARCHEGGIO}</b> (es. A SIRACUSA, dall\'anagrafica parcheggi: se manca si aggiunge in fondo). «Si usa per» dice quando l\'agenda la sceglie da sola; le altre si aggiungono a mano dalla bozza.</p>'+
       '<div class="ct-table"><div class="ct-row hd ct-cau"><span>Nome</span><span>Si usa per</span><span>Testo della riga</span><span>Aliquota</span><span></span></div>'+
       C.causali.map((c,i)=>'<div class="ct-row ct-cau"><input data-ctl="causali.'+i+'.nome" value="'+esc(c.nome)+'" aria-label="Nome"><select data-ctl="causali.'+i+'.uso" aria-label="Si usa per">'+optList(FT.USI,c.uso)+'</select><textarea data-ctl="causali.'+i+'.testo" rows="2" aria-label="Testo">'+esc(c.testo)+'</textarea><select data-ctl="causali.'+i+'.aliq" aria-label="Aliquota">'+aliqOpts(C,c.aliq,"da scegliere ogni volta")+'</select><button type="button" class="btn icon" data-ctdel="causali.'+i+'" aria-label="Elimina causale" title="Elimina">×</button></div>').join("")+
       '</div><button type="button" class="btn" data-ctadd="causali">+ Aggiungi causale</button>'+
@@ -2845,7 +2960,7 @@ function renderContab(){
     h='<div class="ct-cards"><div class="set-card"><h4>Prezzi e descrizioni</h4>'+
       '<label class="perm"><input type="checkbox" data-ct="opzioni.lordi"'+(O.lordi?" checked":"")+'> <span><b>I prezzi dell\'agenda sono IVA compresa</b> – la bozza ricava l\'imponibile per scorporo (es. 600,00 → 545,45 + 54,55)</span></label>'+
       '<label class="perm"><input type="checkbox" data-ct="opzioni.maiuscole"'+(O.maiuscole?" checked":"")+'> <span><b>Descrizioni in maiuscolo</b>, come nelle vostre fatture</span></label>'+
-      '<div class="f"><label for="ct-tipo">Tipo di documento proposto</label><select id="ct-tipo" data-ct="opzioni.tipo">'+optList(Object.fromEntries(Object.entries(FT.TIPI_DOC).map(([k,v])=>[k,k+" – "+v])),O.tipo)+'</select></div></div>'+
+      '<div class="f"><label for="ct-tipo">Tipo di documento proposto</label><select id="ct-tipo" data-ct="opzioni.tipo">'+optList(Object.fromEntries(Object.entries(FT.TIPI_SCELTA).map(([k,v])=>[k,k+" – "+v])),O.tipo)+'</select></div></div>'+
       '<div class="set-card"><h4>Pagamento</h4><div class="ct-grid two"><div class="f"><label for="ct-mod">Modalità</label><select id="ct-mod" data-ct="opzioni.mod">'+optList(FT.MOD_PAG,O.mod)+'</select></div><div class="f"><label for="ct-cond">Condizioni</label><select id="ct-cond" data-ct="opzioni.cond">'+optList(FT.COND_PAG,O.cond)+'</select></div>'+
       '<div class="f"><label for="ct-gg">Scadenza: giorni dalla data fattura</label><input id="ct-gg" data-ct="opzioni.giorni" data-t="num" type="number" min="0" max="365" step="1" value="'+esc(O.giorni)+'"></div><div class="f"><label for="ct-ggpa">Enti pubblici: giorni</label><input id="ct-ggpa" data-ct="opzioni.giorniPA" data-t="num" type="number" min="0" max="365" step="1" value="'+esc(O.giorniPA)+'"></div></div>'+
       '<label class="perm"><input type="checkbox" data-ct="opzioni.splitPA"'+(O.splitPA?" checked":"")+'> <span><b>Enti pubblici: scissione dei pagamenti</b> – l\'ente paga solo l\'imponibile, l\'IVA la versa lui</span></label></div>'+
@@ -2897,7 +3012,7 @@ $("contSave").onclick=async()=>{
 const invKey=b=>b.id+"|"+b.start;
 function invService(b){
   const v=vehicle(b.vehicle)||{};
-  return {id:b.id,start:b.start,end:endOf(b),type:normType(b.type),foglio:String(b.foglio||""),itin:billItin(b),event:b.event||"",pax:b.pax,client:b.client||"",vehicle:{kind:v.kind,seats:v.seats,plate:(v.plate||"").trim()},price:Number(b.price)||0,park:Number(b.park)||0,meals:Number(b.meals)||0};
+  return {id:b.id,start:b.start,end:endOf(b),type:normType(b.type),foglio:String(b.foglio||""),itin:billItin(b),event:b.event||"",pax:b.pax,client:b.client||"",vehicle:{kind:v.kind,seats:v.seats,plate:(v.plate||"").trim()},price:Number(b.price)||0,park:Number(b.park)||0,meals:Number(b.meals)||0,parks:(Array.isArray(b.parks)?b.parks:[]).filter(p=>p&&p.pid).map(p=>{const r=parkReg(p.pid);return {key:p.pid,testo:parkFatt(r,p),aliq:r?String(r.aliq||""):"",amt:Number(p.amt)||0};})};
 }
 // dati del cliente dall'anagrafica (foglio "clienti" del fatturato)
 function invClient(b){
@@ -2943,16 +3058,21 @@ function openDraft(id){
   const d=STORE.draft(id);if(!d){toast("La bozza non c'è più.");return;}
   INV={d,rev:STORE.draftRev(id),isNew:false,dirty:false,edits:0,scadAuto:false,touched:true};showInvoice();
 }
-function showInvoice(){$("ovInvList").hidden=true;invTab("dati");renderInvForm();renderInvLive();invMsg("");$("ovInv").hidden=false;}
+// la causale è legata a una riga (2.6): quella scritta in d.causaleId, altrimenti la prima riga di noleggio.
+// Nelle bozze di prima della 2.6 con una causale diversa da ogni descrizione resta una voce a parte (causLink=false)
+// finché non viene cancellata.
+function invCausTarget(d){if(d.causaleId){const r=d.righe.find(x=>x.id===d.causaleId);if(r)return r;}return FT.causaleRow(d);}
+function invCausLinked(d){const c=String(d.causale||"").trim();if(!c)return true;const r=invCausTarget(d);return !!r&&FT.latin(r.desc)===FT.latin(d.causale);}
+function showInvoice(){memIdx=null;if(INV)INV.causLink=invCausLinked(INV.d);$("ovInvList").hidden=true;invTab("dati");renderInvForm();renderInvLive();invMsg("");$("ovInv").hidden=false;}
 function invMsg(t,cls){const m=$("invMsg");m.textContent=t||"";m.className="inv-msg"+(cls?" "+cls:"");}
-function invTab(t){document.querySelectorAll("#invTabs [data-it]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.it===t));$("invGrid").dataset.tab=t;}
+function invTab(t){document.querySelectorAll("#invTabs [data-it]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.it===t));$("invGrid").dataset.tab=t;growAll($("invForm"));}
 $("invTabs").addEventListener("click",e=>{const b=e.target.closest("[data-it]");if(b)invTab(b.dataset.it);});
 const ivF=(id,label,inner,cls)=>'<div class="f'+(cls?" "+cls:"")+'"><label for="'+id+'">'+label+'</label>'+inner+'</div>';
 const ivI=(id,path,v,extra)=>'<input id="'+id+'" data-m="'+path+'" value="'+esc(v)+'" autocomplete="off"'+(extra||"")+'>';
 function invRowsHTML(){
   const d=INV.d,C=STORE.contab();
   return d.righe.map((r,i)=>'<div class="iv-row" data-rid="'+esc(r.id)+'"><span class="n">'+(i+1)+'</span>'+
-    '<textarea data-rk="desc" rows="2" aria-label="Descrizione riga '+(i+1)+'" maxlength="1000">'+esc(r.desc)+'</textarea>'+
+    '<textarea data-rk="desc" data-mem="fattura" rows="1" aria-label="Descrizione riga '+(i+1)+'" maxlength="1000">'+esc(r.desc)+'</textarea>'+
     '<input data-rk="qta" data-t="num" type="number" min="0" step="any" value="'+esc(r.qta)+'" aria-label="Quantità">'+
     '<input data-rk="prezzo" data-t="num" type="number" step="0.01" value="'+esc(r.prezzo)+'" aria-label="Prezzo">'+
     '<input data-rk="sc" data-t="num" type="number" min="0" max="100" step="0.01" value="'+esc(r.sc||"")+'" placeholder="0" aria-label="Sconto %">'+
@@ -2965,11 +3085,11 @@ function renderInvForm(){
   $("invTitle").textContent="Bozza fattura"+(c.nome?" · "+c.nome:"");
   const fogli=d.servizi.map(s=>s.foglio).filter(Boolean);
   let h='<section class="iv-sec"><h4>Documento</h4><div class="iv-grid g4">'+
-    ivF("iv-tipo","Tipo",'<select id="iv-tipo" data-m="tipo">'+optList(FT.TIPI_DOC,d.tipo)+'</select>')+
+    ivF("iv-tipo","Tipo",'<select id="iv-tipo" data-m="tipo">'+optList(Object.assign({},FT.TIPI_SCELTA,FT.TIPI_SCELTA[d.tipo]?{}:{[d.tipo]:(FT.TIPI_DOC[d.tipo]||d.tipo)+" (non più usato)"}),d.tipo)+'</select>')+
     ivF("iv-data","Data",'<input id="iv-data" data-m="data" type="date" min="2000-01-01" max="2099-12-31" value="'+esc(d.data)+'">')+
     ivF("iv-numero","Numero",ivI("iv-numero","numero",d.numero,' maxlength="20" placeholder="lo assegna la contabilità"'))+
     ivF("iv-serv","Servizi",'<output id="iv-serv" class="iv-out">'+(fogli.length?esc(fogli.length>3?fogli.slice(0,3).join(", ")+" … ("+fogli.length+")":fogli.join(", ")):"nessun servizio collegato")+'</output>')+
-    ivF("iv-causale","Causale del documento (facoltativa)",ivI("iv-causale","causale",d.causale,' maxlength="400" placeholder="Es. Vs. ordine, riferimento pratica…"'),"w4")+'</div></section>';
+    ivF("iv-causale",'Causale <small class="iv-cnote" id="ivCNote">'+(INV.causLink!==false?'· diventa la descrizione della riga del noleggio':'· bozza di prima della 2.6: resta una voce a parte (cancellala e riscrivila per farla diventare la descrizione del noleggio)')+'</small>','<textarea id="iv-causale" data-m="causale" data-mem="fattura" rows="1" maxlength="1000" placeholder="Scrivi qui la causale: prende il posto del testo automatico «NOLEGGIO …» della riga del noleggio">'+esc(d.causale)+'</textarea>',"w4")+'</div></section>';
   h+='<section class="iv-sec"><h4>Cliente <small>dall\'anagrafica clienti'+(c.code?" · codice "+esc(c.code):"")+'</small></h4><div class="iv-grid g4">'+
     ivF("iv-c-nome","Denominazione",ivI("iv-c-nome","cliente.nome",c.nome,' maxlength="80"'),"w2")+
     ivF("iv-c-piva","Partita IVA",'<span class="iv-pair">'+ivI("iv-c-paese","cliente.paese",c.paese,' data-t="up" maxlength="2" aria-label="Paese della partita IVA" class="cc"')+ivI("iv-c-piva","cliente.piva",c.piva,' maxlength="28"')+'</span>')+
@@ -3008,6 +3128,26 @@ function renderInvForm(){
     ivF("iv-iban","Coordinate bancarie",'<output id="iv-iban" class="iv-out">'+(C.azienda.iban?esc(C.azienda.iban):'<span class="miss">manca l\'IBAN (Contabilità)</span>')+'</output>')+'</div></section>';
   $("invForm").innerHTML=h;
   $("invDel").hidden=INV.isNew;
+  growAll($("invForm"));
+}
+// le caselle di testo della bozza si allungano con il testo: niente parole nascoste o fuori dalla casella
+function autoGrow(t){if(!t||t.tagName!=="TEXTAREA")return;t.style.height="auto";if(t.scrollHeight)t.style.height=(t.scrollHeight+2)+"px";}
+function growAll(root){if(root)requestAnimationFrame(()=>root.querySelectorAll("textarea").forEach(autoGrow));}
+// se cambia la larghezza (compare la barra di scorrimento, si allarga la finestra) le righe di testo cambiano: si rimisura
+let growW=0;if(window.ResizeObserver)new ResizeObserver(en=>{const w=Math.round(en[0].contentRect.width);if(w&&w!==growW){growW=w;growAll($("invForm"));}}).observe($("invForm"));
+// la causale prende il posto della descrizione della riga del noleggio; cancellandola torna il testo automatico
+function invRowTa(r){return r?$("ivRows").querySelector('[data-rid="'+(window.CSS&&CSS.escape?CSS.escape(r.id):r.id)+'"] textarea'):null;}
+function invCausaleSync(){
+  const d=INV.d,c=String(d.causale||"");
+  if(INV.causLink===false){if(c.trim())return;INV.causLink=true;const n=$("ivCNote");if(n)n.textContent="· diventa la descrizione della riga del noleggio";}
+  const r=invCausTarget(d);if(!r)return;
+  const show=x=>{const ta=invRowTa(x);if(ta&&ta!==document.activeElement){ta.value=x.desc;autoGrow(ta);}};
+  if(c.trim()){
+    // la riga legata è cambiata (righe rifatte, spostate o eliminate): quella di prima riprende il suo testo
+    if(d.causaleId&&d.causaleId!==r.id){const old=d.righe.find(x=>x.id===d.causaleId);if(old&&old.auto){old.desc=old.auto;old.auto="";show(old);}}
+    if(!r.auto&&r.desc!==c)r.auto=r.desc;r.desc=c;d.causaleId=r.id;
+  }else{if(r.auto){r.desc=r.auto;r.auto="";}d.causaleId="";}
+  show(r);growAll($("invForm"));
 }
 const arrotHint=(d,C)=>d.arrotStep===1?"all'euro":d.arrotStep===0.5?"ai 50 cent":d.arrotStep===0.1?"ai 10 cent":C.opzioni.arrot==="no"||!d.arrotAuto?"0,00":"automatico";
 // totali, anteprima e controlli: si rifanno a ogni tasto, senza toccare i campi in cui si sta scrivendo
@@ -3034,7 +3174,7 @@ function invoiceHTML(d,k,C){
   h+='<table class="fe-t fe-doc"><thead><tr><th>Tipologia documento</th><th>Numero documento</th><th>Data documento</th><th>Codice destinatario</th></tr></thead><tbody><tr><td>'+esc(d.tipo)+' ('+esc((FT.TIPI_DOC[d.tipo]||"").toLowerCase())+')</td><td>'+(String(d.numero||"").trim()?esc(d.numero):'<span class="fe-bozza">BOZZA</span>')+'</td><td>'+esc(dt(d.data))+'</td><td>'+esc(dest)+'</td></tr></tbody></table>';
   const ord=d.pa.ordNum||d.pa.cig||d.pa.cup?"Vs.Ord. "+(d.pa.ordNum||"")+(d.pa.ordData?" del "+dt(d.pa.ordData):"")+(d.pa.cup?" CUP: "+d.pa.cup:"")+(d.pa.cig?" CIG: "+d.pa.cig:""):"";
   h+='<table class="fe-t fe-righe"><thead><tr><th class="l">Descrizione</th><th>Quantità</th><th>Prezzo unitario</th><th>Sconto o magg.</th><th>%IVA</th><th>Prezzo totale</th></tr></thead><tbody>'+
-    (ord?'<tr><td class="l" colspan="6">'+esc(ord)+'</td></tr>':"")+(String(d.causale||"").trim()?'<tr><td class="l" colspan="6">'+esc(d.causale)+'</td></tr>':"")+
+    (ord?'<tr><td class="l">'+esc(ord)+'</td><td></td><td></td><td></td><td></td><td></td></tr>':"")+(FT.causaleApart(d)?'<tr><td class="l">'+esc(d.causale)+'</td><td></td><td></td><td></td><td></td><td></td></tr>':"")+
     (k.lines.length?k.lines.map(l=>'<tr><td class="l">'+esc(l.desc)+'</td><td>'+eur2(l.qta)+'</td><td>'+Number(l.unit).toLocaleString("it-IT",{minimumFractionDigits:2,maximumFractionDigits:6})+'</td><td>'+([l.sc,l.docSc].filter(Boolean).map(x=>"SC "+eur2(x)+"%").join(" + "))+'</td><td>'+(l.aliqOk?(l.perc>0?eur2(l.perc):esc(l.natura)):'<span class="fe-miss">?</span>')+'</td><td>'+eur2(l.tot)+'</td></tr>').join(""):'<tr><td class="l" colspan="6">Nessuna riga</td></tr>')+'</tbody></table>';
   h+='<table class="fe-t"><caption>RIEPILOGHI IVA</caption><thead><tr><th class="l">esigibilità iva / riferimenti normativi</th><th>%IVA</th><th>Totale imponibile</th><th>Totale imposta</th></tr></thead><tbody>'+
     k.riepilogo.map(r=>'<tr><td class="l">'+(r.esigibilita==="S"?"S (scissione dei pagamenti)":r.esigibilita==="I"?"I (esigibilità immediata)":esc(r.rif||FT.NATURE[r.natura]||""))+'</td><td>'+(r.perc>0?eur2(r.perc):esc(r.natura||"?"))+'</td><td>'+eur2(r.imponibile)+'</td><td>'+eur2(r.imposta)+'</td></tr>').join("")+'</tbody></table>';
@@ -3052,8 +3192,9 @@ function invRegen(ask){
   if(ask&&INV.touched&&!confirm("Rifaccio le righe partendo dai servizi: quelle scritte o corrette a mano vanno perse. Continuo?"))return false;
   d.servizi=list.map(b=>({id:b.id,start:b.start,foglio:String(b.foglio||"")})); // un servizio spostato di giorno: data e n. foglio di adesso
   d.righe=FT.linesFor(list.map(invService),STORE.contab(),d.modo);d.bolloAddebita=false;INV.touched=false;
+  d.causaleId="";if(INV.causLink!==false&&String(d.causale||"").trim()){const r=FT.causaleRow(d);if(r){r.auto=r.desc;r.desc=d.causale;d.causaleId=r.id;}}
   const cb=$("iv-bolloadd");if(cb)cb.checked=false;
-  $("ivRows").innerHTML=invRowsHTML();invTouch();return true;
+  $("ivRows").innerHTML=invRowsHTML();growAll($("ivRows"));invTouch();return true;
 }
 function invPaChanged(){
   const d=INV.d,C=STORE.contab(),pa=d.cliente.pa;
@@ -3068,12 +3209,16 @@ function invInput(e){
     let rv=inpVal(el);
     if(el.dataset.rk==="prezzo"&&r.tipo==="sconto")rv=-Math.abs(rv); // lo sconto in euro toglie sempre, con o senza il segno meno
     r[el.dataset.rk]=rv;INV.touched=true;if(el.dataset.rk==="aliq")el.classList.toggle("miss",!el.value);
+    if(el.dataset.rk==="desc"){autoGrow(el);
+      // si corregge la descrizione della riga che fa da causale: la causale la segue
+      if(INV.causLink!==false&&String(d.causale||"").trim()&&r===invCausTarget(d)){d.causale=r.desc;r.auto="";d.causaleId=r.desc.trim()?r.id:"";const ca=$("iv-causale");if(ca){ca.value=d.causale;autoGrow(ca);}}}
     invTouch();return;
   }
   const p=el.dataset.m;if(!p)return;
   let v=inpVal(el);if(el.dataset.t==="bool")v=el.value==="1";
   if(p==="arrot"){d.arrotStep=0;d.arrotAuto=el.value===""&&C.opzioni.arrot!=="no";d.arrot=el.value===""?0:Number(el.value)||0;el.placeholder=arrotHint(d,C);document.querySelectorAll("#invForm [data-arr]").forEach(b=>b.setAttribute("aria-pressed","false"));invTouch();return;}
   setPath(d,p,v);
+  if(p==="causale"){autoGrow(el);invCausaleSync();INV.touched=true;}
   if(p==="pagamento.scad")INV.scadAuto=false;
   // la scadenza segue la data senza ridisegnare il modulo (scrivendo la data a mano il cursore resta dov'è)
   if(p==="data"&&INV.scadAuto&&FT.okDate(d.data)){d.pagamento.scad=FT.addDays(d.data,d.cliente.pa?C.opzioni.giorniPA:C.opzioni.giorni);const sc=$("iv-scad");if(sc)sc.value=d.pagamento.scad;}
@@ -3114,7 +3259,7 @@ $("invForm").addEventListener("click",e=>{
   }else if(del){d.righe=d.righe.filter(r=>r.id!==del.dataset.rdel);if(!d.righe.some(r=>r.tipo==="bollo")&&d.bolloAddebita){d.bolloAddebita=false;const cb=$("iv-bolloadd");if(cb)cb.checked=false;}}
   else if(up){const i=d.righe.findIndex(r=>r.id===up.dataset.rup);if(i>0){const x=d.righe[i];d.righe[i]=d.righe[i-1];d.righe[i-1]=x;}}
   else return;
-  INV.touched=true;$("ivRows").innerHTML=invRowsHTML();invTouch();
+  INV.touched=true;$("ivRows").innerHTML=invRowsHTML();growAll($("ivRows"));invTouch();
   if(add){const rows=$("ivRows").querySelectorAll(".iv-row"),last=rows[rows.length-1];if(last)last.querySelector(add.dataset.radd==="sconto"?'[data-rk="prezzo"]':"textarea").focus();}
 });
 // riga da una causale: il testo si riempie con i dati del primo servizio della bozza
@@ -3122,13 +3267,14 @@ $("invForm").addEventListener("change",e=>{
   if(!INV||e.target.id!=="ivCau"||!e.target.value)return;
   const d=INV.d,C=STORE.contab(),c=C.causali.find(x=>x.id===e.target.value);e.target.value="";if(!c)return;
   const list=invBookings(d).map(invService),s=list[0];
-  const vals=s?{MEZZO:FT.mezzo(s.vehicle,C),DATA:FT.itShort(s.start),DATA_FINE:FT.itShort(s.end||s.start),PERIODO:FT.periodo(s.start,s.end),MESE:FT.mesi(list),ITINERARIO:String(s.itin||"").replace(/\s*>\s*/g," - "),EVENTO:s.event||"",PAX:s.pax==null?"":String(s.pax),FOGLIO:s.foglio||"",TARGA:s.vehicle.plate||"",CLIENTE:s.client||"",N:String(list.length)}:{MEZZO:"",DATA:"",DATA_FINE:"",PERIODO:"",MESE:"",ITINERARIO:"",EVENTO:"",PAX:"",FOGLIO:"",TARGA:"",CLIENTE:"",N:""};
+  const vals=s?{MEZZO:FT.mezzo(s.vehicle,C),DATA:FT.itShort(s.start),DATA_FINE:FT.itShort(s.end||s.start),PERIODO:FT.periodo(s.start,s.end),MESE:FT.mesi(list),ITINERARIO:String(s.itin||"").replace(/\s*>\s*/g," - "),EVENTO:s.event||"",PAX:s.pax==null?"":String(s.pax),FOGLIO:s.foglio||"",TARGA:s.vehicle.plate||"",CLIENTE:s.client||"",N:String(list.length),PARCHEGGIO:""}:{MEZZO:"",DATA:"",DATA_FINE:"",PERIODO:"",MESE:"",ITINERARIO:"",EVENTO:"",PAX:"",FOGLIO:"",TARGA:"",CLIENTE:"",N:"",PARCHEGGIO:""};
   d.righe.push({id:FT.newId("r"),tipo:c.uso==="parcheggi"?"parcheggi":c.uso==="pasti"?"pasti":"libera",desc:FT.fill(c.testo,vals,C),qta:1,prezzo:0,sc:0,aliq:c.aliq||"",fogli:[]});
-  INV.touched=true;$("ivRows").innerHTML=invRowsHTML();invTouch();
+  INV.touched=true;$("ivRows").innerHTML=invRowsHTML();growAll($("ivRows"));invTouch();
   const rows=$("ivRows").querySelectorAll(".iv-row"),last=rows[rows.length-1];if(last)last.querySelector('[data-rk="prezzo"]').focus();
 });
 function closeInvoice(force){
   if(!INV){$("ovInv").hidden=true;return true;}
+  if(INV.busy){toast("Aspetta un momento: sto creando il file XML.");return false;}
   if(!force&&INV.dirty&&!S.readOnly&&!confirm(INV.isNew?"Chiudere senza salvare la bozza?":"Chiudere senza salvare le modifiche alla bozza?"))return false;
   $("ovInv").hidden=true;INV=null;if(S.view==="bill")renderBill();return true;
 }
@@ -3160,9 +3306,19 @@ $("invDel").onclick=async()=>{
   try{const d=INV.d;await STORE.deleteDraft(d.id);ACC.log("fattura","Eliminata la bozza di fattura «"+(d.cliente.nome||"")+"»",{id:d.id});INV.dirty=false;closeInvoice(true);toast("Bozza eliminata");}
   catch(err){invMsg(err&&err.code==="offline"?"Serve la connessione a internet.":"Non riesco a eliminarla: riprova tra poco.","err");}
 };
-// File XML per la contabilità: una copia in Dropbox › Fatture XML (con un nome che non c'è ancora), la bozza
-// salvata con il nome del file, e il file scaricato sul dispositivo. Rifacendolo per la stessa bozza il file
-// prende il posto del precedente: alla contabilità non restano due file della stessa fattura.
+// File XML per la contabilità (dalla 2.6): stesso nome del foglio di servizio (con più servizi: il primo e
+// «_e_altri_N»; nota di credito: «NC_» davanti) e cartella Fatture XML / anno / mese / giorno del servizio.
+// Una copia va in Dropbox, la bozza si salva con il nome del file e il file si scarica sul dispositivo.
+// Rifacendolo per la stessa bozza il file prende il posto del precedente: alla contabilità non restano due file
+// della stessa fattura. Se il nome è già di un'altra fattura si aggiunge _2, _3…
+function invServicesSorted(d){return invBookings(d).slice().sort((a,b)=>String(a.start).localeCompare(String(b.start))||String(a.foglio).localeCompare(String(b.foglio)));}
+function invFileBase(d){
+  const list=invServicesSorted(d),n=Math.max(list.length,(d.servizi||[]).length);let base;
+  if(list.length){const s=sheetNameParts(list[0]);base=n>1?s.fg+"_"+s.who+"_e_altri_"+(n-1):s.fg+"_"+s.who+(s.what?"_x_"+s.what:"");}
+  else{const f=String(((d.servizi||[])[0]||{}).foglio||"").replace(/[^0-9A-Za-z-]/g,"").slice(0,24);base=(f||"fattura")+"_"+(slug(d.cliente&&d.cliente.nome)||"cliente")+(n>1?"_e_altri_"+(n-1):"");}
+  return (d.tipo==="TD04"?"NC_":"")+base;
+}
+function invFileDate(d){const l=invServicesSorted(d);if(l.length)return l[0].start;const s=(d.servizi||[]).map(x=>x.start).filter(validDate).sort();return s[0]||d.data;}
 $("invXml").onclick=async()=>{
   if(!INV||S.readOnly)return;
   if(!canInv()){invMsg("Non hai più il permesso di preparare le bozze di fattura.","err");return;}
@@ -3171,29 +3327,37 @@ $("invXml").onclick=async()=>{
   const d=FT.cleanDraft(cur.d);
   const errs=FT.validate(cur.d,C).concat(d?FT.validate(d,C):[{lv:"err",msg:"La bozza non è valida."}]).filter(x=>x.lv==="err");
   if(errs.length){invMsg("Prima correggi: "+errs[0].msg,"err");return;}
-  $("invXml").disabled=true;invMsg("Preparo il file…");
+  // un altro dispositivo ha salvato questa bozza mentre era aperta qui: niente file fatto da una copia vecchia
+  if(!cur.isNew&&STORE.draftRev(cur.d.id)&&STORE.draftRev(cur.d.id)!==cur.rev){invMsg("Un altro dispositivo ha modificato questa bozza mentre era aperta qui: chiudila e riaprila prima di creare il file.","err");return;}
+  $("invXml").disabled=true;cur.busy=true;invMsg("Preparo il file…");
   try{
-    // rifatto per la stessa bozza: stesso nome e stesso posto del file di prima
-    const again=FT.progOf(cur.d.xmlName),oldPath=again?(cur.d.xmlPath||""):"";
-    let prog=again||FT.progressivo(),out=FT.xml(d,C,{prog}),path="",where="";
+    // rifatto per la stessa bozza: stesso progressivo d'invio, e il file nuovo prende il posto di quello di prima.
+    // I file delle altre bozze non si sovrascrivono né si eliminano; il progressivo è diverso dal loro.
+    const again=!!cur.d.xmlAt,oldPath=again?(cur.d.xmlPath||""):"";
+    const others=STORE.drafts().filter(x=>x.id!==cur.d.id),taken=new Set(others.map(x=>String(x.xmlPath||"").toLowerCase()).filter(Boolean));
+    let prog=cur.d.xmlProg||FT.progOf(cur.d.xmlName)||FT.progressivo();
+    const progs=new Set(others.map(x=>x.xmlProg||FT.progOf(x.xmlName)).filter(Boolean));for(let i=0;progs.has(prog)&&i<500;i++)prog=FT.nextProg(prog);
+    const out=FT.xml(d,C,{prog}),base=invFileBase(d),fdate=invFileDate(d);
+    out.name=base+".xml";let path="",where="",oldLeft=false;
     if(navigator.onLine){
       try{
         for(let i=0;;i++){
-          try{path=await STORE.saveInvoiceXml(out.name,out.xml,oldPath);break;}
-          catch(e){if(oldPath||!(e&&e.code==="conflict")||i>=30)throw e;prog=FT.nextProg(prog);out=FT.xml(d,C,{prog});} // nome già usato da un'altra fattura: il successivo
+          const nm=base+(i?"_"+(i+1):"")+".xml";
+          try{const r=await STORE.saveInvoiceXml(nm,out.xml,oldPath,fdate,taken);path=r.path;oldLeft=r.oldLeft;out.name=path.split("/").pop();break;}
+          catch(e){if(!(e&&e.code==="conflict")||i>=30)throw e;} // nome già usato da un'altra fattura: _2, _3…
         }
-        where=" Copia in Dropbox › "+path.replace(STORE.BASE+"/","").split("/").slice(0,-1).join(" › ")+".";
+        where=" Copia in Dropbox › "+path.replace(STORE.BASE+"/","").split("/").slice(0,-1).join(" › ")+"."+(oldLeft?" Il file di prima di questa bozza ("+oldPath.split("/").pop()+") non sono riuscito a toglierlo: eliminalo a mano in Dropbox, così alla contabilità non arrivano due file.":"");
       }catch(_){where=" Non sono riuscito a metterne una copia in Dropbox.";}
     }else where=" Sei offline: il file è solo su questo dispositivo.";
-    cur.d.xmlAt=new Date().toISOString();cur.d.xmlBy=meName();cur.d.xmlName=out.name;if(path)cur.d.xmlPath=path;cur.dirty=true;
+    cur.d.xmlAt=new Date().toISOString();cur.d.xmlBy=meName();cur.d.xmlName=out.name;cur.d.xmlProg=prog;if(path)cur.d.xmlPath=path;cur.dirty=true;
     const saved=INV===cur?await invSave(true):false;
     const blob=new Blob([out.xml],{type:"application/xml"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=out.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
     ACC.log("fattura",(again?"Rifatto":"Creato")+" il file XML "+out.name+" («"+(d.cliente.nome||"")+"», € "+eur2(out.calc.totale)+", formato "+out.formato+")",{id:d.id});
-    if(INV===cur)invMsg("File "+out.name+" scaricato."+where+(saved?"":" La bozza però non è stata salvata."),saved?"ok":"err");
+    if(INV===cur)invMsg("File "+out.name+" scaricato."+where+(saved?"":" La bozza però non è stata salvata."),saved&&!oldLeft?"ok":"err");
   }catch(err){console.error(err);ACC.tlog("errore","Bozza fattura: file XML non creato",String((err&&(err.code||err.message))||err));if(INV===cur)invMsg("Non sono riuscito a creare il file.","err");}
-  finally{if(INV===cur)renderInvLive();}
+  finally{cur.busy=false;if(INV===cur)renderInvLive();}
 };
-const FE_PRINT='@page{size:A4 portrait;margin:12mm}html,body{margin:0;background:#fff;color:#111;font:9.5pt/1.35 Arial,Helvetica,sans-serif}.fe h5{margin:0 0 3pt;font-size:9.5pt}.fe-parti{display:grid;grid-template-columns:1fr 1fr;border:1px solid #000;margin-bottom:10pt}.fe-parti>div{padding:5pt 8pt}.fe-parti>div+div{border-left:1px solid #000}.fe-t{width:100%;border-collapse:collapse;margin:0 0 12pt}.fe-t caption{border:1px solid #000;border-bottom:0;font-weight:700;padding:3pt}.fe-t th{border:1px solid #000;font-weight:400;padding:3pt 5pt;font-size:8.5pt}.fe-t td{padding:4pt 5pt;text-align:right;vertical-align:top;border-left:1px solid #000;border-right:1px solid #000}.fe-t tbody tr:last-child td{border-bottom:1px solid #000}.fe-t .l{text-align:left}.fe-doc td{text-align:center;font-weight:700}.fe-bozza{letter-spacing:.1em}.fe-righe td.l{white-space:pre-wrap}.fe-miss{color:#b00020;font-weight:700}';
+const FE_PRINT='@page{size:A4 portrait;margin:12mm}html,body{margin:0;background:#fff;color:#111;font:9.5pt/1.35 Arial,Helvetica,sans-serif}.fe h5{margin:0 0 3pt;font-size:9.5pt}.fe-parti{display:grid;grid-template-columns:1fr 1fr;border:1px solid #000;margin-bottom:10pt}.fe-parti>div{padding:5pt 8pt}.fe-parti>div+div{border-left:1px solid #000}.fe-t{width:100%;border-collapse:collapse;margin:0 0 12pt}.fe-t caption{border:1px solid #000;border-bottom:0;font-weight:700;padding:3pt}.fe-t th{border:1px solid #000;font-weight:400;padding:3pt 5pt;font-size:8.5pt}.fe-t td{padding:4pt 5pt;text-align:right;vertical-align:top;border-left:1px solid #000;border-right:1px solid #000}.fe-t tbody tr:last-child td{border-bottom:1px solid #000}.fe-t .l{text-align:left}.fe-doc td{text-align:center;font-weight:700}.fe-bozza{letter-spacing:.1em}.fe-righe td.l{white-space:pre-wrap;overflow-wrap:anywhere}.fe-miss{color:#b00020;font-weight:700}';
 $("invPrint").onclick=async()=>{
   if(!INV)return;
   const d=INV.d,C=STORE.contab(),html='<!doctype html><html lang="it"><head><meta charset="utf-8"><title>'+esc("Bozza fattura "+(d.cliente.nome||""))+'</title><style>'+FE_PRINT+'.wm{font-size:8pt;color:#666;margin:0 0 6pt}</style></head><body><p class="wm">BOZZA – non è la fattura: quella vera la emette la contabilità.</p>'+invoiceHTML(d,FT.calc(d,C),C)+'</body></html>';
@@ -3240,6 +3404,84 @@ function renderInvBar(){
 $("invSel").onclick=()=>{const l=invSelBookings();if(l.length)openInvoice(l);};
 $("invSelClear").onclick=()=>{invSel.clear();renderBill();};
 
+// ---------- Memoria di quello che si scrive (2.6) ----------
+// Mentre si scrive in itinerario, evento, programma, note per l'autista, note dei referenti e nelle righe della
+// bozza fattura compaiono i testi già scritti nelle altre prenotazioni e bozze (i più usati prima). Nel programma
+// il suggerimento vale per la riga in cui si scrive. «×» toglie un suggerimento per tutti (suggerimenti-tolti.json).
+const MEM_MIN=2,MEM_MAX=8;
+let memIdx=null,memAt=0,memEl=null,memList=[],memSel=-1;
+const memKey=t=>norm(t).replace(/\s+/g," ").trim();
+function memIndex(){
+  if(memIdx&&Date.now()-memAt<20000)return memIdx;
+  const idx={},hid=new Set(regRows("suggerimenti").map(r=>(r.f||"")+"|"+memKey(r.t||"")));
+  const add=(f,t,when)=>{t=String(t||"").replace(/\s+/g," ").trim();if(t.length<3||t.length>1000)return;const k=memKey(t);if(hid.has(f+"|"+k))return;const m=idx[f]||(idx[f]=new Map());const o=m.get(k);if(o){o.n++;if(when>o.at){o.at=when;o.t=t;}}else m.set(k,{t,k,n:1,at:when||""});};
+  for(const b of bookingsAll()){
+    const w=String(b.updatedAt||b.byAt||b.start||"");
+    add("itinerario",b.route,w);add("evento",b.event,w);
+    for(const x of Array.isArray(b.program)?b.program:[])for(const l of String(x||"").split("\n"))add("programma",l,w);
+    for(const x of Array.isArray(b.dnotes)?b.dnotes:[])if(x)add("note",x.t,w);
+    add("refnote",b.contactNote,w);for(const x of Array.isArray(b.refs)?b.refs:[])if(x)add("refnote",x.note,w);
+  }
+  if(canInv())for(const d of STORE.drafts()){const w=String(d.updatedAt||d.createdAt||"");add("fattura",d.causale,w);for(const r of d.righe||[])if(r&&(r.tipo==="noleggio"||r.tipo==="libera"||r.tipo==="parcheggi"||r.tipo==="pasti"))add("fattura",r.desc,w);}
+  memIdx=idx;memAt=Date.now();return idx;
+}
+function memQuery(el){
+  if(el.dataset.memline){const v=el.value,c=el.selectionStart==null?v.length:el.selectionStart,a=v.lastIndexOf("\n",c-1)+1;let z=v.indexOf("\n",c);if(z<0)z=v.length;return {q:v.slice(a,z),a,z};}
+  return {q:el.value,a:0,z:el.value.length};
+}
+function memFind(el){
+  const {q}=memQuery(el),qk=memKey(q);if(qk.length<MEM_MIN)return [];
+  const words=qk.split(/[^a-z0-9]+/).filter(Boolean);if(!words.length)return [];
+  const m=memIndex()[el.dataset.mem];if(!m)return [];
+  const out=[];for(const o of m.values()){if(o.k===qk)continue;if(words.every(w=>o.k.includes(w)))out.push(o);}
+  out.sort((x,y)=>(y.k.startsWith(qk)?1:0)-(x.k.startsWith(qk)?1:0)||y.n-x.n||String(y.at).localeCompare(String(x.at)));
+  return out.slice(0,MEM_MAX);
+}
+function memBox(){let b=$("memSug");if(!b){b=document.createElement("div");b.id="memSug";b.className="memsug";b.setAttribute("role","listbox");b.hidden=true;document.body.appendChild(b);
+  b.addEventListener("mousedown",e=>e.preventDefault()); // il campo resta attivo
+  b.addEventListener("click",e=>{const x=e.target.closest("[data-memdel]");if(x){memHide(+x.dataset.memdel);return;}const it=e.target.closest("[data-memi]");if(it)memPick(+it.dataset.memi);});}
+  return b;}
+function memClose(){const b=$("memSug");if(b){b.hidden=true;b.innerHTML="";}memList=[];memSel=-1;}
+function memShow(el){
+  if(S.readOnly&&el.closest("#fBooking,#invForm")){memClose();return;}
+  memList=memFind(el);memEl=el;memSel=-1;const b=memBox();
+  if(!memList.length){memClose();return;}
+  const canDel=!S.readOnly;
+  b.innerHTML='<div class="memsug-h">Già scritti'+(canDel?' <span>· × per toglierne uno</span>':'')+'</div>'+memList.map((o,i)=>'<div class="memsug-i" data-memi="'+i+'" role="option" title="'+esc(o.t)+'"><span>'+esc(o.t.length>160?o.t.slice(0,157)+"…":o.t)+'</span>'+(o.n>1?'<small>'+o.n+'×</small>':'')+(canDel?'<button type="button" data-memdel="'+i+'" aria-label="Togli questo suggerimento" title="Togli dai suggerimenti">×</button>':'')+'</div>').join("");
+  const r=el.getBoundingClientRect(),w=Math.max(260,Math.min(r.width,560)),vh=window.innerHeight;
+  b.style.width=w+"px";b.style.left=Math.max(8,Math.min(r.left,window.innerWidth-w-8))+"px";
+  b.hidden=false;const h=b.offsetHeight;
+  b.style.top=(r.bottom+4+h>vh&&r.top-4-h>0?r.top-4-h:r.bottom+4)+"px";
+}
+function memMark(){const b=$("memSug");if(!b)return;b.querySelectorAll("[data-memi]").forEach((x,i)=>x.setAttribute("aria-selected",String(i===memSel)));const s=b.querySelector('[aria-selected="true"]');if(s)s.scrollIntoView({block:"nearest"});}
+function memPick(i){
+  const o=memList[i],el=memEl;if(!o||!el)return;
+  const {a,z}=memQuery(el);el.value=el.value.slice(0,a)+o.t+el.value.slice(z);
+  const c=a+o.t.length;try{el.setSelectionRange(c,c);}catch(_){}
+  memClose();el.dispatchEvent(new Event("input",{bubbles:true}));el.dispatchEvent(new Event("change",{bubbles:true}));if(el.tagName==="TEXTAREA"&&typeof autoGrow==="function")autoGrow(el);el.focus();
+}
+async function memHide(i){
+  const o=memList[i],el=memEl;if(!o||!el)return;
+  if(!navigator.onLine){toast("Serve la connessione a internet per togliere un suggerimento.");return;}
+  if(!confirm("Togliere dai suggerimenti «"+(o.t.length>80?o.t.slice(0,77)+"…":o.t)+"»?\nLe prenotazioni dove è scritto non cambiano."))return;
+  try{await STORE.updateReg("suggerimenti",J=>{J.rows=J.rows||[];if(!J.rows.some(r=>r.f===el.dataset.mem&&memKey(r.t||"")===o.k))J.rows.push({id:nrid(),f:el.dataset.mem,t:o.t.slice(0,1000),by:meName(),at:new Date().toISOString()});if(J.rows.length>3000)J.rows=J.rows.slice(-3000);return J;});memIdx=null;memShow(el);}
+  catch(_){toast("Non riesco a togliere il suggerimento adesso: riprova.");}
+}
+document.addEventListener("input",e=>{const el=e.target;if(el&&el.dataset&&el.dataset.mem&&e.isTrusted)memShow(el);},true);
+document.addEventListener("focusout",e=>{if(e.target===memEl)setTimeout(()=>{if(document.activeElement!==memEl)memClose();},120);},true);
+document.addEventListener("keydown",e=>{
+  const b=$("memSug");if(!b||b.hidden||e.target!==memEl)return;
+  const ta=memEl.tagName==="TEXTAREA",lastLine=!ta||memEl.value.indexOf("\n",memEl.selectionEnd==null?0:memEl.selectionEnd)<0;
+  if(e.key==="ArrowDown"&&(memSel>=0||lastLine)){e.preventDefault();memSel=Math.min(memList.length-1,memSel+1);memMark();}
+  else if(e.key==="ArrowUp"&&memSel>=0){e.preventDefault();memSel=Math.max(-1,memSel-1);memMark();}
+  else if(e.key==="ArrowDown"||e.key==="ArrowUp")memClose();
+  else if(e.key==="Enter"&&memSel>=0){e.preventDefault();e.stopPropagation();memPick(memSel);}
+  else if(e.key==="Escape"){e.preventDefault();e.stopPropagation();memClose();}
+  else if(e.key==="Tab")memClose();
+},true);
+window.addEventListener("resize",memClose);
+document.addEventListener("scroll",e=>{const b=$("memSug");if(b&&!b.hidden&&!b.contains(e.target))memClose();},true);
+
 // ---------- Archivio (2.0): anagrafiche clienti, flotta, referenti, guide, hotel e tendine ----------
 const ARCH=[
   {k:"clienti",ic:"👥",t:"Anagrafica clienti",n:()=>S.clients.length.toLocaleString("it-IT")+" clienti",open:()=>openClients()},
@@ -3247,6 +3489,7 @@ const ARCH=[
   {k:"referenti",ic:"☎️",t:"Anagrafica referenti",n:()=>regRows("referenti").length+" referenti",open:()=>openReg("referenti")},
   {k:"guide",ic:"🧭",t:"Anagrafica guide",n:()=>regRows("guide").length+" guide",open:()=>openReg("guide")},
   {k:"hotel",ic:"🏨",t:"Anagrafica hotel",n:()=>regRows("hotel").length+" hotel",open:()=>openReg("hotel")},
+  {k:"parcheggi",ic:"🅿️",t:"Anagrafica parcheggi",n:()=>regRows("parcheggi").length+" parcheggi",open:()=>openReg("parcheggi")},
   {k:"note",ic:"📝",t:"Tendina note",n:()=>tendina("note").length+" voci (causali delle note per l'autista)",open:()=>openReg("note")},
   {k:"ruolo",ic:"🏷️",t:"Tendina ruolo",n:()=>tendina("ruolo").length+" voci (ruolo del referente)",open:()=>openReg("ruolo")},
   {k:"contab",ic:"🧾",t:"Contabilità",n:()=>"Dati societari, aliquote IVA, causali, pagamento, sconti e arrotondamenti delle bozze di fattura",open:()=>openContab(),show:()=>canCont()},
@@ -3265,12 +3508,14 @@ const REG_COLS={
   referenti:[["cliente","Cliente","dlCliNames"],["citta","Città","dlCities"],["nome","Nome"],["tel","Telefono"]],
   guide:[["nome","Nome"],["regione","Regione","dlRegions"],["citta","Città","dlCities"],["tel","Telefono"]],
   hotel:[["regione","Regione","dlRegions"],["citta","Città","dlCities"],["nome","Nome"],["indirizzo","Indirizzo"],["tel","Telefono"]],
+  parcheggi:[["nome","Nome"],["citta","Città","dlCities"],["indirizzo","Indirizzo"],["fatt","In fattura"],["aliq","IVA della ricevuta",null,"aliq"]],
   note:[["v","Causale"]],ruolo:[["v","Ruolo"]],
 };
-const REG_TITLE={referenti:"Anagrafica referenti",guide:"Anagrafica guide",hotel:"Anagrafica hotel",note:"Tendina note",ruolo:"Tendina ruolo"};
+const REG_TITLE={referenti:"Anagrafica referenti",guide:"Anagrafica guide",hotel:"Anagrafica hotel",parcheggi:"Anagrafica parcheggi",note:"Tendina note",ruolo:"Tendina ruolo"};
 const REG_NOTE={referenti:"Si scelgono nel modulo della prenotazione (riga Referente). I referenti scritti nelle prenotazioni si aggiungono da soli.",
   guide:"Si scelgono nel modulo della prenotazione (riga Guida). Le guide scritte nelle prenotazioni si aggiungono da sole.",
   hotel:"Si scelgono nel modulo della prenotazione (riga Hotel), insieme agli hotel di Google Maps. Gli hotel scritti nelle prenotazioni si aggiungono da soli.",
+  parcheggi:"Si scelgono nel modulo della prenotazione, accanto a «€ Parcheggi» (anche più di uno). «In fattura» è come il parcheggio compare nella riga di rimborso della bozza fattura (es. A SIRACUSA, ALL'APT. DI CATANIA): se è vuoto si usa la città. «IVA della ricevuta» è l'aliquota di quella riga.",
   note:"Voci della casella «Causale» delle note per l'autista. Parcheggi, autista e 3 ore vanno nelle righe 1°, 2° e 3° del foglio di servizio; le altre nella 4° (extra).",
   ruolo:"Voci della casella «Ruolo» del referente."};
 const isTend=k=>k==="note"||k==="ruolo";
@@ -3280,7 +3525,7 @@ let regKind=null,regNew=[];
 function regList(k){return isTend(k)?tendina(k).map(v=>({id:"v:"+v,v})):regRows(k).slice();}
 function regSort(k,l){
   if(isTend(k))return l;
-  const key=k==="referenti"?r=>[r.cliente,r.nome]:k==="hotel"?r=>[r.regione,r.citta,r.nome]:r=>[r.nome];
+  const key=k==="referenti"?r=>[r.cliente,r.nome]:k==="hotel"?r=>[r.regione,r.citta,r.nome]:k==="parcheggi"?r=>[r.citta,r.nome]:r=>[r.nome];
   return l.sort((a,b)=>{const x=key(a),y=key(b);for(let i=0;i<x.length;i++){const c=String(x[i]||"").localeCompare(String(y[i]||""),"it");if(c)return c;}return 0;});
 }
 function openReg(k){
@@ -3294,8 +3539,9 @@ function renderReg(){
   const k=regKind;if(!k)return;
   const cols=REG_COLS[k],ro=regRO(),words=norm($("regQ").value).split(/[^a-z0-9]+/).filter(Boolean);
   const all=regList(k),list=regSort(k,all.filter(r=>!words.length||wmatch(cols.map(c=>r[c[0]]).join(" "),words)));
-  const tpl=cols.map(c=>c[0]==="indirizzo"||c[0]==="nome"||c[0]==="cliente"||c[0]==="v"?"minmax(160px,1.6fr)":"minmax(110px,1fr)").join(" ")+(ro?"":" 36px");
-  const row=(r,isNew)=>'<div class="reg-row'+(isNew?" new":"")+'" data-id="'+esc(r.id)+'" style="grid-template-columns:'+tpl+'">'+cols.map(c=>'<input data-c="'+c[0]+'" maxlength="'+(c[0]==="v"?60:200)+'" value="'+esc(r[c[0]]||"")+'"'+(c[2]?' list="'+c[2]+'"':'')+(ro?' readonly':'')+' aria-label="'+esc(c[1])+'" autocomplete="off">').join("")+(ro?'':'<button type="button" class="del" data-regdel="'+esc(r.id)+'" title="Elimina" aria-label="Elimina">×</button>')+'</div>';
+  const tpl=cols.map(c=>c[0]==="indirizzo"||c[0]==="nome"||c[0]==="cliente"||c[0]==="v"?"minmax(160px,1.6fr)":c[3]==="aliq"?"minmax(150px,1fr)":"minmax(110px,1fr)").join(" ")+(ro?"":" 36px");
+  const cell=(c,r)=>c[3]==="aliq"?'<select data-c="'+c[0]+'"'+(ro?' disabled':'')+' aria-label="'+esc(c[1])+'">'+aliqOpts(STORE.contab(),r[c[0]]||"","da scegliere in fattura")+'</select>':'<input data-c="'+c[0]+'" maxlength="'+(c[0]==="v"?60:200)+'" value="'+esc(r[c[0]]||"")+'"'+(c[2]?' list="'+c[2]+'"':'')+(ro?' readonly':'')+' aria-label="'+esc(c[1])+'" autocomplete="off"'+(c[0]==="fatt"?' placeholder="A '+esc(String(r.citta||"città").toUpperCase())+'"':'')+'>';
+  const row=(r,isNew)=>'<div class="reg-row'+(isNew?" new":"")+'" data-id="'+esc(r.id)+'" style="grid-template-columns:'+tpl+'">'+cols.map(c=>cell(c,r)).join("")+(ro?'':'<button type="button" class="del" data-regdel="'+esc(r.id)+'" title="Elimina" aria-label="Elimina">×</button>')+'</div>';
   $("regTable").innerHTML='<div class="reg-row hd" style="grid-template-columns:'+tpl+'">'+cols.map(c=>'<span>'+esc(c[1])+'</span>').join("")+(ro?'':'<span></span>')+'</div>'+
     regNew.map(r=>row(r,true)).join("")+list.map(r=>row(r,false)).join("")+(list.length||regNew.length?'':'<div class="reg-empty">'+(words.length?"Nessun risultato.":"Ancora vuota."+(ro?"":" Premi «+ Nuovo» per aggiungere."))+'</div>');
   $("regCount").textContent=all.length+(isTend(k)?" voci":"")+(words.length?" · "+list.length+" trovati":"");
@@ -3318,7 +3564,7 @@ $("regTable").addEventListener("change",e=>{
 async function regSaveRow(rowEl,k){
   const id=rowEl.dataset.id,vals={},dirty=[...(rowEl._dirty||[])];if(rowEl._dirty)rowEl._dirty.clear();
   rowEl.querySelectorAll("[data-c]").forEach(x=>{vals[x.dataset.c]=cleanText(x.value);});
-  if(!Object.values(vals).some(Boolean))return;
+  if(!Object.entries(vals).some(([f,v])=>v&&f!=="aliq"))return; // una riga nuova con la sola IVA scelta aspetta il nome
   if(!navigator.onLine){regMsg("Serve la connessione a internet per salvare l'anagrafica.",true);return;}
   rowEl.classList.add("saving");
   try{
@@ -3549,9 +3795,9 @@ function autStart(){
 // messaggi sulla cartella degli autisti: il Super Master si nomina solo a lui
 const autMissing=()=>"La cartella «Autisti La Terra» non è ancora collegata: "+(isSuper()?"collegala dal Pannello Super Master, scheda Autisti.":"i fogli si potranno inviare appena sarà stata collegata.");
 const autBroken=()=>"Il collegamento con la cartella degli autisti non è più valido: "+(isSuper()?"ricollegala dal Pannello Super Master, scheda Autisti.":"va ricollegata. Il foglio NON è stato inviato.");
-// tour con busta (le spese valgono solo per questi)
-const hasBusta=b=>isMulti(b.type)&&b.envelope==="SI";
-// la scheda spese si apre per i tour con busta già inviati all'autista
+// servizi con busta (le spese valgono solo per questi): i tour e, dalla 2.6, gite, notturni e transfer con la spunta
+const hasBusta=b=>!!b&&b.envelope==="SI"; // dalla 2.6 anche gite, notturni e transfer con la spunta «Busta per l'autista»
+// la scheda spese si apre per i servizi con busta già inviati all'autista
 function speseFor(b){return !!b&&hasBusta(b)&&!!(b.sent&&b.sent.at)&&!isInvio();}
 // cosa parte verso l'autista: intestazione (cliente o alias), mezzo, autisti
 function sendOpts(b,o){
@@ -3610,6 +3856,7 @@ let sending=false;
 async function sendToDriver(b0,o,say){
   say=say||toast;
   if(sending)return false;
+  if(S.outdated){say("Questa pagina ha una versione vecchia dell'agenda: chiudila e riaprila prima di inviare.");return false;}
   const b=bookingsAll().find(x=>x.id===b0.id);
   if(!b){say("La prenotazione non c'è più (eliminata o spostata).");return false;}
   if(capoLock(b)){say(CAPO_NO);return false;}
@@ -3689,7 +3936,7 @@ $("sheetWithdraw").onclick=async()=>{if(!sheetBooking)return;await withdrawFromD
 $("sheetSpese").onclick=()=>{if(sheetBooking)openSpese(sheetBooking);};
 $("fSpese").onclick=()=>{if(!editing)return;const b=bookingsAll().find(x=>x.id===editing.id);if(b)openSpese(b);};
 
-// ---------- scheda con le spese dell'autista (tour con busta) ----------
+// ---------- scheda con le spese dell'autista (servizi con busta) ----------
 let spB=null,spData=null,spUrl="",spReq=0;
 function spClosePhoto(){$("spPhoto").hidden=true;$("spImg").removeAttribute("src");if(spUrl){try{URL.revokeObjectURL(spUrl);}catch(_){}spUrl="";}}
 function openSpese(b){

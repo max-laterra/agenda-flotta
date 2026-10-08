@@ -40,7 +40,10 @@
     return u && u.active !== false ? u.role : "";
   }
   // profilo «solo anteprima e invio» (2.5): non scrive mai niente, tranne il segno «inviato all'autista»
-  function noRO() { if (actorRole() === "invio") throw { code: "readonly" }; }
+  // outdated (2.6): su Dropbox c'è già una versione più nuova dell'agenda (versione-minima.json) e questa pagina è
+  // rimasta aperta con quella di prima: non scrive più niente finché non si ricarica.
+  let outdated = false;
+  function noRO() { if (outdated) throw { code: "outdated" }; if (actorRole() === "invio") throw { code: "readonly" }; }
   const sentOnly = (ops) => Array.isArray(ops) && ops.length > 0 && ops.every((op) => op && op.t === "put" && op.edit && op.only && Array.isArray(op.patch) && op.patch.length === 1 && op.patch[0] === "sent");
   // Scelta del capo (2.5): chi invia i fogli decide bus e autisti. La modifica porta il segno "boss" e tocca
   // solo questi campi; la possono fare il profilo «solo anteprima e invio» e il Super Master.
@@ -267,6 +270,7 @@
   function changed() { hooks.onChange(); emitStatus(); }
 
   function mutateDay(date, ops) {
+    if (outdated) throw { code: "outdated" };
     if (!validDate(date)) throw { code: "baddate" };
     const role = actorRole(), boss = role === "invio" || role === "super";
     if (role === "invio" && !(Array.isArray(ops) && ops.length > 0 && ops.every((op) => sentOnly([op]) || bossOnly(op)))) throw { code: "readonly" };
@@ -327,7 +331,7 @@
     throw { code: "busy" };
   }
   async function flush() {
-    if (!enabled || flushing || !navigator.onLine || !DBX.isLinked()) return;
+    if (!enabled || flushing || outdated || !navigator.onLine || !DBX.isLinked()) return;
     flushing = true; status.syncing = true; emitStatus();
     const skip = new Set(); let failed = null;
     try {
@@ -521,6 +525,8 @@
     for (const k of B_VAL) if (k in b && typeof b[k] !== "string" && !(typeof b[k] === "number" && isFinite(b[k]))) b[k] = "";
     for (const k of B_ROWS) if (k in b) b[k] = Array.isArray(b[k]) ? b[k].filter(isObj).map((r) => { for (const f of Object.keys(r)) if (typeof r[f] !== "string") r[f] = txt(r[f]); return r; }) : [];
     if ("program" in b && typeof b.program !== "string") b.program = Array.isArray(b.program) ? b.program.map((x) => txt(x)) : [];
+    // parcheggi (2.6): parcheggio dell'anagrafica (id e nome) e cifra
+    if ("parks" in b) b.parks = Array.isArray(b.parks) ? b.parks.filter(isObj).slice(0, 20).map((p) => { const a = typeof p.amt === "number" ? p.amt : typeof p.amt === "string" && p.amt.trim() !== "" ? Number(p.amt) : NaN; return { pid: txt(p.pid, 40), nome: txt(p.nome, 120), amt: isFinite(a) && a >= 0 && a < 1e7 ? Math.round(a * 100) / 100 : "" }; }) : [];
     if ("start" in b && !validDate(b.start) && validDate(date)) b.start = date;
     if (b.end && !validDate(b.end)) b.end = "";
     if ("sent" in b) { if (isObj(b.sent)) b.sent = cleanSent(b.sent); else delete b.sent; }
@@ -624,7 +630,7 @@
         if (e[".tag"] !== "file") continue;
         const isCfg = (n) => p === (P.cfg + "/" + n).toLowerCase();
         const regKind = Object.keys(REGF).find((k) => isCfg(REGF[k]));
-        if (!(regKind || isCfg("contabilita.json") || isCfg("flotta.json") || isCfg("righe-fatturato.json") || isCfg("impostazioni.json") || isCfg("accesso.json") || isCfg("utenti.json") || isCfg("autisti.json"))) continue;
+        if (!(regKind || isCfg(VER_FILE) || isCfg("contabilita.json") || isCfg("flotta.json") || isCfg("righe-fatturato.json") || isCfg("impostazioni.json") || isCfg("accesso.json") || isCfg("utenti.json") || isCfg("autisti.json"))) continue;
         const f = await DBX.download(e.path_lower); if (!f) continue;
         const j = parseJSON(f.buf); if (!j) { notice({ kind: "badcfg", path: e.path_display || p }); continue; }
         // ogni file per conto suo: se uno manda in errore i controlli si segnala e si passa al successivo
@@ -635,6 +641,7 @@
           else if (isCfg("impostazioni.json")) { const cs = cleanSettings(j); if (cs) { cache.settings = cs; touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); }
           else if (isCfg("autisti.json")) { const ca = cleanAut(j); if (ca) { cache.aut = ca; cache.autRev = f.meta.rev || e.rev; touched = true; try { hooks.onAutChanged && hooks.onAutChanged(ca); } catch (_) {} } else notice({ kind: "badcfg", path: e.path_display || p }); }
           else if (isCfg("accesso.json")) { if (!isObj(j)) continue; const was = cache.access; cache.access = j; if (was && was.hash !== j.hash) hooks.onAccessChanged(); touched = true; }
+          else if (isCfg(VER_FILE)) { const mv = txt(j.min, 16); if (VER_RE.test(mv)) { cache.minVer = mv; touched = true; try { hooks.onMinVer && hooks.onMinVer(mv); } catch (_) {} } }
           else if (regKind) { const c = cleanReg(regKind, j); if (c) { cache.regs = Object.assign({}, cache.regs || {}, { [regKind]: c }); touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); }
           else if (isCfg("utenti.json")) { const cu = cleanUsers(j); if (cu) { cache.users = cu; usersSeen = true; try { hooks.onUsersChanged(cu); } catch (_) {} touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); } // elenco non valido: resta l'ultimo buono
         } catch (_) { notice({ kind: "badcfg", path: e.path_display || p }); }
@@ -718,7 +725,7 @@
   }
   async function syncFatturatoOnce() {
     const files = fatFiles(), years = Object.keys(files).sort();
-    if (!enabled || !years.length || !hooks.rowFor || !navigator.onLine || !DBX.isLinked()) return;
+    if (!enabled || outdated || !years.length || !hooks.rowFor || !navigator.onLine || !DBX.isLinked()) return;
     // prima si leggono le novità degli altri dispositivi: con dati vecchi non si rimettono righe né si fa pulizia
     // (si rischierebbe di riscrivere servizi appena spostati o eliminati da un altro operatore)
     const fresh = (await pull()) && queue.days.length === 0;
@@ -1006,6 +1013,33 @@
     return DBX.upload(folder + "/" + name, blob, "overwrite");
   }
 
+  // ---------- versione minima (2.6) ----------
+  // config/versione-minima.json = { min: "2.6" }: il primo dispositivo che apre una versione nuova la scrive; le
+  // pagine rimaste aperte con una versione più vecchia (dalla 2.6 in poi) se ne accorgono e smettono di scrivere.
+  const VER_FILE = "versione-minima.json", VER_RE = /^\d{1,3}(\.\d{1,3}){1,3}$/;
+  const verCmp = (a, b) => { const x = String(a).split(".").map(Number), y = String(b).split(".").map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0 ? -1 : 1; } return 0; };
+  async function loadMinVer() {
+    if (!navigator.onLine || !DBX.isLinked()) return cache.minVer || "";
+    try { const f = await DBX.download(P.cfg + "/" + VER_FILE); const j = f ? parseJSON(f.buf) : null; const mv = isObj(j) ? txt(j.min, 16) : ""; if (VER_RE.test(mv) && mv !== cache.minVer) { cache.minVer = mv; persist(); } } catch (_) {}
+    return cache.minVer || "";
+  }
+  async function raiseMinVer(v) {
+    if (outdated || !VER_RE.test(String(v)) || !navigator.onLine || !DBX.isLinked()) return false;
+    const path = P.cfg + "/" + VER_FILE;
+    for (let i = 0; i < 4; i++) {
+      try {
+        const f = await DBX.download(path);
+        if (f && !f.meta.rev) f.meta = await DBX.metadata(path);
+        const j = f ? parseJSON(f.buf) : null, cur = isObj(j) && VER_RE.test(txt(j.min, 16)) ? txt(j.min, 16) : "";
+        if (cur && verCmp(cur, v) >= 0) { cache.minVer = cur; persist(); return false; } // c'è già questa o una più nuova
+        await DBX.upload(path, enc.encode(JSON.stringify({ min: String(v), at: new Date().toISOString() }, null, 1)), f ? { update: f.meta.rev } : "add");
+        cache.minVer = String(v); persist(); return true;
+      } catch (e) { if (!e || e.code !== "conflict") return false; }
+    }
+    return false;
+  }
+  function setOutdated(on) { outdated = !!on; }
+
   // Un dispositivo che era ancora alla 2.4 quando il file è stato scritto lo ha saltato: all'avvio lo si legge una volta.
   async function loadAut() {
     if (cache.aut || !navigator.onLine || !DBX.isLinked()) return cache.aut || null;
@@ -1043,7 +1077,8 @@
   // ---------- anagrafiche (2.0): referenti, guide, hotel e tendine (note, ruolo) ----------
   // Un file per anagrafica in config/. Ogni scrittura parte dall'ultima versione in Dropbox (niente
   // modifiche perse se due persone lavorano insieme); se il file non c'è ancora si crea.
-  const REGF = { referenti: "anagrafica-referenti.json", guide: "anagrafica-guide.json", hotel: "anagrafica-hotel.json", tendine: "tendine.json" };
+  // parcheggi (2.6): anagrafica dei parcheggi; suggerimenti (2.6): i testi tolti dai suggerimenti mentre si scrive
+  const REGF = { referenti: "anagrafica-referenti.json", guide: "anagrafica-guide.json", hotel: "anagrafica-hotel.json", tendine: "tendine.json", parcheggi: "anagrafica-parcheggi.json", suggerimenti: "suggerimenti-tolti.json" };
   const TENDINE = { note: ["parcheggi", "autista", "3 ore", "extra 1", "extra 2"], ruolo: ["contabile", "ufficio", "operativo", "sul bus"] };
   function defaultReg(kind) { return kind === "tendine" ? clone(TENDINE) : { rows: [] }; }
   function reg(kind) { const r = (cache.regs || {})[kind]; return isObj(r) ? r : defaultReg(kind); }
@@ -1146,21 +1181,31 @@
     await DBX.remove(draftPath(id));
     if (own(cache.drafts, id)) { cache.drafts = Object.assign({}, cache.drafts); delete cache.drafts[id]; persist(); changed(); }
   }
-  // Il file XML per la contabilità: Fatture XML / anno / mese in cui il file viene creato.
-  // Il nome contiene un progressivo che cresce col tempo: due file con lo stesso nome possono nascere solo nello
-  // stesso minuto, quindi nella stessa cartella, e lì il caricamento "add" se ne accorge (errore "conflict": chi
-  // chiama riprova con il progressivo successivo). again: percorso del file già creato per la stessa bozza, che
-  // viene sostituito (alla contabilità non restano due file della stessa fattura).
+  // Il file XML per la contabilità (dalla 2.6): Fatture XML / anno / mese / giorno del servizio, con il nome del
+  // foglio di servizio. Il caricamento "add" non scrive sopra un file che c'è già (errore "conflict": chi chiama
+  // riprova con _2, _3…). again: percorso del file già creato per la stessa bozza: se il nome e il posto sono gli
+  // stessi viene sostituito, altrimenti, scritto il nuovo, il vecchio si elimina (alla contabilità non restano due
+  // file della stessa fattura).
   const inXml = (path) => typeof path === "string" && path.toLowerCase().startsWith((P.xml + "/").toLowerCase()) && !/(^|\/)\.\.(\/|$)/.test(path) && /\.xml$/i.test(path) && path.length < 400;
-  async function saveInvoiceXml(name, text, again) {
+  function xmlFolder(date) {
+    const d = validDate(date) ? date : new Date().toISOString().slice(0, 10);
+    return P.xml + "/" + d.slice(0, 4) + "/" + d.slice(5, 7) + " - " + MESI[+d.slice(5, 7) - 1] + "/" + d.slice(8, 10);
+  }
+  // taken: percorsi (minuscoli) dei file delle altre bozze: non si sovrascrivono e non si eliminano.
+  // Restituisce { path, oldLeft }: oldLeft = il file di prima della stessa bozza non si è potuto eliminare.
+  async function saveInvoiceXml(name, text, again, date, taken) {
     noRO();
-    name = safeFileName(name);
-    if (inXml(again) && again.split("/").pop().toLowerCase() === name.toLowerCase()) { await DBX.upload(again, enc.encode(text), "overwrite"); return again; }
-    const d = new Date().toISOString().slice(0, 10), folder = P.xml + "/" + d.slice(0, 4) + "/" + d.slice(5, 7) + " - " + MESI[+d.slice(5, 7) - 1];
+    name = safeFileName(name); if (!/\.xml$/i.test(name)) name += ".xml";
+    const folder = xmlFolder(String(date || "")), path = folder + "/" + name, tk = taken instanceof Set ? taken : new Set();
+    if (tk.has(path.toLowerCase())) throw { code: "conflict" }; // è il file di un'altra fattura
+    const mine = inXml(again) && !tk.has(again.toLowerCase()) ? again : "";
+    if (mine && mine.toLowerCase() === path.toLowerCase()) { await DBX.upload(mine, enc.encode(text), "overwrite"); return { path: mine, oldLeft: false }; }
     let p = "";
     for (const part of folder.split("/").filter(Boolean)) { p += "/" + part; await DBX.createFolder(p).catch(() => {}); }
-    await DBX.upload(folder + "/" + name, enc.encode(text), "add");
-    return folder + "/" + name;
+    await DBX.upload(path, enc.encode(text), "add");
+    let oldLeft = false;
+    if (mine) { try { await DBX.remove(mine); } catch (e) { oldLeft = !(e && e.code === "not_found"); } }
+    return { path, oldLeft };
   }
   // Contabilità e bozze create mentre questo dispositivo aveva una versione precedente (che non le leggeva):
   // si scaricano una volta. Non scrive niente.
@@ -1188,7 +1233,7 @@
     if (idb) await new Promise((res) => { try { const t = idb.transaction(["days", "meta"], "readwrite"); t.objectStore("days").clear(); t.objectStore("meta").clear(); t.oncomplete = t.onerror = t.onabort = () => res(); } catch (_) { res(); } });
   }
 
-  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.5";
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.6";
   window.STORE = {
     BASE, P,
     configure(h) { Object.assign(hooks, h); },
@@ -1198,7 +1243,7 @@
     disable() { enabled = false; writesBlocked = true; clearTimeout(saveTimer); },
     fileFogli, validDate,
     view, mutateDay, pull, flush, watch, setupFolders, syncFatturato, isPending, whenSent, saveNow: writeNow,
-    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, updateAut, loadAut, actorRole, _usersGuard: usersGuard, _cleanUsers: cleanUsers, _cleanAut: cleanAut, _cleanBooking: cleanBooking, saveSheetFile, sheetFolder, safeFileName, ITER_MIN, ITER_MAX, reg, regLoaded, updateReg, loadRegs, REGF, contab, updateContab, drafts, draft, draftRev, saveDraft, deleteDraft, saveInvoiceXml, loadInvoices, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
+    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, updateAut, loadAut, loadMinVer, raiseMinVer, setOutdated, verCmp, minVer: () => cache.minVer || "", actorRole, _usersGuard: usersGuard, _cleanUsers: cleanUsers, _cleanAut: cleanAut, _cleanBooking: cleanBooking, saveSheetFile, sheetFolder, safeFileName, ITER_MIN, ITER_MAX, reg, regLoaded, updateReg, loadRegs, REGF, contab, updateContab, drafts, draft, draftRev, saveDraft, deleteDraft, saveInvoiceXml, loadInvoices, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
     bustaMax: (y) => { const m = cache.bustaMax || {}; return m[y] != null ? m[y] : m["*"] || 0; },
     get pendingClients() { return queue.clients.slice(); },
     clientDone: (tmp) => (cache.clientDone || {})[tmp] || null,
