@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="2.6">
+<html lang="it" data-v="2.7">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -974,6 +974,77 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 .qr-modal .set-row input{font-size:12px;min-width:0}
 .rec-code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:24px;font-weight:700;letter-spacing:.08em;text-align:center;border:2px dashed var(--line);border-radius:12px;padding:14px 8px;background:var(--bg);user-select:all}
 @media (max-width:760px){.ph-row{grid-template-columns:1fr}}
+
+/* ---------- 2.7: crocette dei pasti degli autisti ---------- */
+.pg-page{gap:10px}
+.pg-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 18px}
+.pg-head h2{margin:0 0 4px;font-family:var(--cond);font-weight:700;font-size:22px;text-transform:uppercase;letter-spacing:.03em}
+.pg-head p{margin:0;color:var(--ink-2);font-size:14px;max-width:70ch}
+.pg-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.pg-tools label{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;color:var(--ink-2)}
+.pg-nav{display:inline-flex;align-items:center;gap:6px}.pg-nav b{min-width:130px;text-align:center;font-size:15px;text-transform:capitalize}
+.pg-st{font-size:13px;color:var(--ink-2);padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+.pg-st.warn{background:var(--tbd-bg);color:var(--tbd-ink);border-color:var(--tbd)}
+.pg-leg{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--ink-2)}
+.pg-leg span{display:inline-flex;align-items:center;gap:6px}
+.pg-leg i{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:20px;padding:0 3px;box-sizing:border-box;border-radius:4px;border:1px solid var(--line);font-style:normal;font-weight:800;font-size:11px;color:var(--ink);background:var(--surface)}
+.pg-leg i.sv{background:color-mix(in srgb,var(--accent-soft) 75%,var(--surface))}
+.pg-leg i.cor{color:var(--sync);text-decoration:underline;text-decoration-thickness:2px}
+.pg-empty{padding:18px;text-align:center;color:var(--ink-2);border:1px dashed var(--line);border-radius:10px}
+.pg-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface);max-height:calc(100vh - 230px);-webkit-overflow-scrolling:touch}
+table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:100%}
+.pg th,.pg td{border-bottom:1px solid var(--line);border-right:1px solid color-mix(in srgb,var(--line) 55%,transparent);padding:0;text-align:center;white-space:nowrap}
+.pg thead th{position:sticky;top:0;z-index:2;background:var(--surface-2);font-weight:600;color:var(--ink-2);padding:4px 0;line-height:1.15}
+.pg thead th.pg-d{width:30px;min-width:30px}
+.pg thead th.pg-d span{display:block;font-size:10px;font-weight:600;text-transform:uppercase}
+.pg thead th.pg-d b{display:block;font-size:13px;color:var(--ink)}
+.pg thead th.sun{background:color-mix(in srgb,var(--surface-2) 70%,var(--line))}
+.pg thead th.today{background:var(--accent);color:var(--accent-ink)}.pg thead th.today b{color:var(--accent-ink)}
+.pg .pg-n{position:sticky;left:0;z-index:1;background:var(--surface);text-align:left;padding:4px 10px;width:170px;min-width:170px;max-width:170px;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;font-weight:600;color:var(--ink)}
+.pg .pg-k{position:sticky;left:170px;z-index:1;background:var(--surface);padding:0 8px;font-size:11px;font-weight:600;color:var(--ink-3);text-align:left;width:62px;min-width:62px;box-sizing:border-box}
+.pg thead .pg-n,.pg thead .pg-k{z-index:3;background:var(--surface-2)}
+.pg td.c{width:30px;min-width:30px;height:26px}
+.pg td.c button{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;height:26px;cursor:pointer;font-weight:800;font-size:12.5px;letter-spacing:.02em;color:var(--ink)}
+.pg td.c button:hover{background:var(--accent-soft)}
+.pg td.c button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.pg td.sun{background:color-mix(in srgb,var(--surface-2) 75%,transparent)}
+.pg td.sv{background:color-mix(in srgb,var(--accent-soft) 75%,var(--surface))}
+.pg td.today{box-shadow:inset 2px 0 0 var(--accent),inset -2px 0 0 var(--accent)}
+.pg td.fut button{color:var(--ink-3)}
+.pg td.cor button{color:var(--sync);text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:2px}
+.pg td.no button{color:var(--ink-3);font-weight:600}
+.pg tr.pg-o td{border-bottom-style:dashed;border-bottom-color:color-mix(in srgb,var(--line) 70%,transparent)}
+.pg tr.pg-l td,.pg tr.pg-l th,.pg tr.pg-o th,.pg tr.pg-o td.pg-s{border-bottom:2px solid var(--line)}
+.pg .pg-t{font-weight:700;padding:0 10px;min-width:46px;color:var(--ink)}
+.pg .pg-s{padding:0 10px;color:var(--ink-2);min-width:56px}
+.pg tfoot th,.pg tfoot td{background:var(--surface-2);font-weight:700;padding:7px 10px;color:var(--ink)}
+.pg tfoot .pg-n{background:var(--surface-2);width:auto;max-width:none}
+.pg tfoot .pg-sum{text-align:left;font-weight:600;color:var(--ink-2)}
+.sd-pasti{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column}
+.pasto-modal{width:min(520px,100%)}.pasto-modal .mfoot .btn:disabled{opacity:.4;cursor:not-allowed}
+.po-sv{display:flex;flex-direction:column;gap:6px}
+.po-sv>div{border:1px solid var(--line);border-left:5px solid var(--x,var(--line));border-radius:8px;padding:7px 10px;font-size:14px}
+.po-w{margin:0;font-size:13px;color:var(--tbd-ink)}
+.po-from{display:flex;flex-direction:column;gap:4px;font-size:14.5px}
+.po-from small{color:var(--ink-3);font-size:12.5px}
+.po-edit{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line);padding-top:10px}
+.po-q{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0}
+.po-q .seg button{min-width:52px;min-height:40px;font-size:16px}
+.po-q .seg button:disabled{opacity:.3;cursor:not-allowed}
+.bt .sub.pst{color:var(--ok);font-weight:600;white-space:normal;min-width:84px;line-height:1.3;margin-top:2px}.bt .sub.pst i{display:block;font-style:normal;font-weight:500;font-size:11px;color:var(--ink-3)}.bt .sub.pst.warn{color:var(--tbd-ink)}
+.pst-c{flex:none;align-self:stretch;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid color-mix(in srgb,var(--ok) 40%,var(--line));border-radius:8px;background:var(--ok-bg);color:var(--ok);font-size:11px;line-height:1.15;padding:0 7px;white-space:nowrap;cursor:default}
+.pst-c small{font-size:10.5px;font-weight:700}
+.pst-c.warn{background:var(--tbd-bg);color:var(--tbd-ink);border-color:var(--tbd)}
+.pst-f{margin-top:6px;font-size:12.5px;line-height:1.35}
+.pst-f-h{all:unset;cursor:pointer;display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline;color:var(--ok)}
+.pst-f-h:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.pst-f-d{text-decoration:underline;color:var(--ink-3);font-size:12px}
+.pst-x{color:var(--tbd-ink);font-size:12px}
+.pst-f-l{margin:6px 0 0;padding-left:16px;color:var(--ink-2);display:flex;flex-direction:column;gap:3px}
+.pst-f-l i{color:var(--sync);font-style:normal}
+.pst-w{display:block;color:var(--tbd-ink)}
+.iv-pst{font-size:12.5px;color:var(--ok);margin-left:auto}.iv-pst.warn{color:var(--tbd-ink)}
+@media (max-width:640px){.pg .pg-n{width:120px;min-width:120px;max-width:120px}.pg .pg-k{left:120px;width:52px;min-width:52px}.sd-pasti{padding:10px}}
 </style>
 </head>
 <body>
@@ -1072,6 +1143,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
       <img class="sd-logo" src="logo.jpg" alt="La Terra">
       <div class="sd-who"><b id="sdName"></b><span>Fogli di servizio per gli autisti</span></div>
       <span class="net" id="sdNet" hidden></span>
+      <button type="button" class="btn" id="sdPastiBtn">Crocette pasti</button>
       <button type="button" class="btn" id="sdSync">Aggiorna</button>
       <button type="button" class="btn" id="sdOut">Esci</button>
     </header>
@@ -1085,6 +1157,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
     <div class="banner" id="sdBanner" hidden></div>
     <div class="banner" id="sdWarn" hidden></div>
     <div class="sd-list" id="sdList"></div>
+    <div class="pg-page sd-pasti" id="sdPasti" hidden></div>
     <p class="sd-ver" id="sdVer"></p>
   </div>
 </div>
@@ -1110,6 +1183,9 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
       </div>
       <div class="seg solo" role="group" aria-label="Fatturato">
         <button id="vBill" aria-pressed="false">Fatturato</button>
+      </div>
+      <div class="seg solo" role="group" aria-label="Autisti">
+        <button id="vPasti" aria-pressed="false" title="Crocette dei pasti degli autisti, mese per mese">Autisti</button>
       </div>
       <button class="btn" id="btnToday">Oggi</button>
       <button class="btn" id="btnArch">Archivio</button>
@@ -1175,6 +1251,10 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
     <div class="grid-wrap"><table class="bt" id="btable"></table></div>
   </section>
 
+  <section id="pastiView" hidden>
+    <div class="bill pg-page" id="pastiBox"></div>
+  </section>
+
   <section id="monthView" hidden>
     <div style="display:flex;flex-direction:column;gap:12px">
       <div class="sign" id="msign"></div>
@@ -1212,7 +1292,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
         <div class="f fpark"><label for="pk-sel-0">€ Parcheggi <span class="pk-tot" id="pkTot" hidden></span></label><input type="hidden" id="f-park"><div class="pk-rows" id="pkRows"></div>
           <div class="pk-new" id="pkNew" hidden><b>Nuovo parcheggio in anagrafica</b><input id="pkNome" placeholder="Nome (es. Parcheggio bus Molo Sant'Antonio)" autocomplete="off"><input id="pkCitta" placeholder="Città" list="dlCities" autocomplete="off"><input id="pkFatt" placeholder="In fattura (es. A SIRACUSA)" autocomplete="off"><select id="pkAliq" aria-label="IVA della ricevuta"></select><span class="pk-new-b"><button type="button" class="btn primary" id="pkNewSave">Aggiungi</button><button type="button" class="btn" id="pkNewCancel">Annulla</button></span><span class="pk-new-msg" id="pkNewMsg" role="status"></span></div>
           <button type="button" class="linkbtn" id="pkAdd">+ altro parcheggio</button></div>
-        <div class="f"><label for="f-meals">€ Pasti</label><input id="f-meals" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
+        <div class="f"><label for="f-meals">€ Pasti</label><input id="f-meals" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"><div class="pst-f" id="fPasti" hidden></div></div>
       </div>
       <label class="perm bustaon" id="w-bustaon" hidden><input type="checkbox" id="f-bustaon"> <span><b>Busta per l'autista</b> – anticipo spese e busta numerata anche per questo servizio (come nei tour)</span></label>
       <div class="f full money3 tourcash" id="w-tourcash">
@@ -1283,7 +1363,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
       </div>
     </div>
     <p class="sheet-prov" id="sheetProv" hidden>N. foglio <b>provvisorio</b>: la prenotazione non è ancora arrivata in Dropbox, quindi il numero potrebbe cambiare. Il foglio lo riporta (PROVV.); appena torna la connessione il numero viene confermato e il foglio si aggiorna.</p>
-    <p class="sheet-hint">Impaginato del modello <b>automatico_2026_neutro</b>. «Stampa» stampa il foglio così come lo vedi (A4; se qualcosa non ci sta, anche la pagina 2).</p>
+    <p class="sheet-hint">Impaginato del modello <b>automatico_2026_neutro</b>. «Stampa» stampa il foglio così come lo vedi (A4; se qualcosa non ci sta, anche la pagina 2). Con «PDF» la copia che resta in Dropbox (Fogli di servizio) è sempre completa, con la copia ufficio; il PDF scaricato è quello scelto qui.</p>
     <div class="sheet-scroll"><div id="sheetView"></div></div>
     <div class="sent-bar" id="sheetSent" hidden></div>
     <div class="sheet-msg" id="sheetMsg" role="status"></div>
@@ -1327,6 +1407,27 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
     <div class="mfoot"><span class="spacer"></span><button type="button" class="btn primary" id="qrClose">Fatto</button></div>
   </div>
 </div>
+<div class="overlay" id="ovPasto" hidden>
+  <div class="modal pasto-modal" role="dialog" aria-modal="true" aria-labelledby="poTitle">
+    <h3 id="poTitle">Crocette</h3>
+    <p class="mst-sub" id="poSub"></p>
+    <div class="po-sv" id="poSv"></div>
+    <div class="po-from" id="poFrom"></div>
+    <div class="po-edit" id="poEdit">
+      <div class="po-q"><span><b>Pasti offerti</b></span><div class="seg" data-pq="po" role="group" aria-label="Pasti offerti"><button type="button" data-v="0">0</button><button type="button" data-v="1">1</button><button type="button" data-v="2">2</button></div></div>
+      <div class="po-q"><span><b>Pasti liberi</b></span><div class="seg" data-pq="pl" role="group" aria-label="Pasti liberi"><button type="button" data-v="0">0</button><button type="button" data-v="1">1</button><button type="button" data-v="2">2</button></div></div>
+      <p class="mst-sub">Al massimo 2 pasti al giorno in tutto. La correzione resta nell'Agenda con il tuo nome e prende il posto di quello che ha segnato l'autista; sul suo telefono non cambia niente.</p>
+    </div>
+    <div class="sheet-msg" id="poMsg" role="status"></div>
+    <div class="mfoot">
+      <button type="button" class="btn" id="poClose">Chiudi</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="poUndo" hidden>Togli la correzione</button>
+      <button type="button" class="btn primary" id="poSave">Salva la correzione</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="ovCapo" hidden>
   <div class="modal capo-modal" role="dialog" aria-labelledby="cpTitle">
     <h3 id="cpTitle">Bus e autisti</h3>
@@ -1562,7 +1663,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
       </div>
       <div class="set-card">
         <h4>Uscita automatica</h4>
-        <p class="mst-sub">Se nessuno usa l'agenda per questo tempo, il dispositivo torna alla schermata di accesso. Utile sui computer condivisi.</p>
+        <p class="mst-sub">Se nessuno usa l'agenda per questo tempo, il dispositivo torna alla schermata di accesso. Vale anche se nel frattempo l'agenda è stata chiusa e riaperta (o il telefono l'ha tolta dalla memoria). Utile sui computer condivisi.</p>
         <div class="set-row"><select id="setLock"><option value="0">Mai</option><option value="15">Dopo 15 minuti</option><option value="30">Dopo 30 minuti</option><option value="60">Dopo 1 ora</option><option value="120">Dopo 2 ore</option><option value="240">Dopo 4 ore</option></select></div>
       </div>
       <div class="set-card">

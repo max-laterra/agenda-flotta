@@ -1078,7 +1078,9 @@
   // Un file per anagrafica in config/. Ogni scrittura parte dall'ultima versione in Dropbox (niente
   // modifiche perse se due persone lavorano insieme); se il file non c'è ancora si crea.
   // parcheggi (2.6): anagrafica dei parcheggi; suggerimenti (2.6): i testi tolti dai suggerimenti mentre si scrive
-  const REGF = { referenti: "anagrafica-referenti.json", guide: "anagrafica-guide.json", hotel: "anagrafica-hotel.json", tendine: "tendine.json", parcheggi: "anagrafica-parcheggi.json", suggerimenti: "suggerimenti-tolti.json" };
+  // pasti (2.7): correzioni dell'ufficio alle crocette dei pasti degli autisti (le crocette vere restano nella
+  // cartella degli autisti, scritte dai telefoni: l'ufficio non le tocca)
+  const REGF = { referenti: "anagrafica-referenti.json", guide: "anagrafica-guide.json", hotel: "anagrafica-hotel.json", tendine: "tendine.json", parcheggi: "anagrafica-parcheggi.json", suggerimenti: "suggerimenti-tolti.json", pasti: "pasti-correzioni.json" };
   const TENDINE = { note: ["parcheggi", "autista", "3 ore", "extra 1", "extra 2"], ruolo: ["contabile", "ufficio", "operativo", "sul bus"] };
   function defaultReg(kind) { return kind === "tendine" ? clone(TENDINE) : { rows: [] }; }
   function reg(kind) { const r = (cache.regs || {})[kind]; return isObj(r) ? r : defaultReg(kind); }
@@ -1233,7 +1235,7 @@
     if (idb) await new Promise((res) => { try { const t = idb.transaction(["days", "meta"], "readwrite"); t.objectStore("days").clear(); t.objectStore("meta").clear(); t.oncomplete = t.onerror = t.onabort = () => res(); } catch (_) { res(); } });
   }
 
-  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.6";
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.7";
   window.STORE = {
     BASE, P,
     configure(h) { Object.assign(hooks, h); },

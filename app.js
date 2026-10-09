@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="2.6",APP_DATE="08/10/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="2.7",APP_DATE="08/10/2026";window.AGENDA_VERSION=APP_VERSION;
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -206,7 +206,7 @@ function on(date,vid,list){return (list?list.filter(b=>b.start<=date&&endOf(b)>=
 function vehicle(id){return S.fleet.find(v=>v.id===id);}
 
 // ---------- rendering ----------
-function renderAll(){renderMonthBar();renderStrip();if(S.view==="day")renderDay();else if(S.view==="week")renderWeek();else if(S.view==="bill")renderBill();else renderMonth();}
+function renderAll(){renderMonthBar();renderStrip();if(S.view==="day")renderDay();else if(S.view==="week")renderWeek();else if(S.view==="bill")renderBill();else if(S.view==="pasti")renderPasti();else renderMonth();}
 function weekStart(s){return addDays(s,-((wday(s)+6)%7));}
 
 function renderWeek(){
@@ -316,7 +316,7 @@ function bookingHTML(b,date){
     '<span class="c-cl">'+(over?'<span class="over" title="Passeggeri oltre la capienza">!</span> ':'')+esc(name)+'</span>'+
     '<span class="c-rt'+(dayProgram(b,date)?" pg":"")+'">'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+esc(whatToday(b,date)||"")+'</span>'+
     '<span class="c-dr">'+(b.capo?'<i class="capo-m" title="'+esc(capoTitle(b))+'">capo</i>':'')+drv+'</span>'+
-    '</button>'+sentChip(b)+'</div>';
+    '</button>'+sentChip(b)+mealChip(b,date)+'</div>';
 }
 
 function renderDay(){
@@ -414,7 +414,7 @@ function openForm(opts){
   $("fTitle").textContent=editing?"Modifica prenotazione"+(b.foglio?" · n. "+b.foglio:""):"Nuova prenotazione";
   formClient=b.clientCode!==""&&b.clientCode!=null?{code:b.clientCode,name:b.client||""}:null;
   $("f-price").value=b.price==null?"":b.price;$("f-driver2").value=b.driver2||"";
-  $("f-park").value=b.park==null?"":b.park;renderParks(b);$("f-meals").value=b.meals==null?"":b.meals;$("f-advance").value=b.advance==null?"":b.advance;$("f-envelope").value=b.envelope||"";$("f-envno").value=b.envno||"";bustaAuto="";
+  $("f-park").value=b.park==null?"":b.park;renderParks(b);$("f-meals").value=b.meals==null?"":b.meals;renderFormMeals(opts.booking?b:null);$("f-advance").value=b.advance==null?"":b.advance;$("f-envelope").value=b.envelope||"";$("f-envno").value=b.envno||"";bustaAuto="";
   $("cSug").hidden=true;
   $("f-vehicle").innerHTML=S.fleet.map(v=>'<option value="'+esc(v.id)+'">'+esc(vehLabel(v))+'</option>').join("");
   $("t-"+normType(b.type)).checked=true;
@@ -1355,7 +1355,7 @@ $("extraText").addEventListener("blur",()=>{if(exTimer)saveExtra();});
 
 // ---------- navigazione ----------
 function go(date){if(exTimer)saveExtra();$("extraSaved").textContent="";S.sel=date;if(mkey(date)!==subMonth)subscribe();renderAll();}
-function setView(v){S.view=v;["day","week","month","bill"].forEach(k=>{const id={day:"vDay",week:"vWeek",month:"vMonth",bill:"vBill"}[k];$(id).setAttribute("aria-pressed",v===k);$(k+"View").hidden=v!==k;});try{localStorage.setItem("agenda-view",v);}catch(_){}renderAll();}
+function setView(v){S.view=v;["day","week","month","bill","pasti"].forEach(k=>{const id={day:"vDay",week:"vWeek",month:"vMonth",bill:"vBill",pasti:"vPasti"}[k];$(id).setAttribute("aria-pressed",v===k);$(k+"View").hidden=v!==k;});try{localStorage.setItem("agenda-view",v);}catch(_){}renderAll();}
 $("vDay").onclick=()=>setView("day");
 $("vWeek").onclick=()=>setView("week");
 $("wsign").addEventListener("click",e=>{if(e.target.id==="wPrev")go(addDays(S.sel,-7));if(e.target.id==="wNext")go(addDays(S.sel,7));});
@@ -1368,6 +1368,7 @@ $("wgrid").addEventListener("click",e=>{
 });
 $("vMonth").onclick=()=>setView("month");
 $("vBill").onclick=()=>setView("bill");
+$("vPasti").onclick=()=>setView("pasti");
 $("btnToday").onclick=()=>go(todayISO());
 $("btnNew").onclick=()=>{if(S.readOnly){toast("Accesso in sola lettura");return;}openForm({date:S.sel});};
 $("mPrev").onclick=()=>go(shiftMonth(mkey(S.sel),-1)+"-01");
@@ -1386,6 +1387,7 @@ $("sheet").addEventListener("click",e=>{
 });
 $("mgrid").addEventListener("click",e=>{const c=e.target.closest("[data-day]");if(c){S.sel=c.dataset.day;setView("day");}});
 document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;
+  if(!$("ovPasto").hidden){closePasto();return;}
   if(!$("ovCapo").hidden){$("cpCancel").click();return;}
   if(!$("ovQr").hidden){$("qrClose").click();return;}
   if(!$("ovSpese").hidden){$("spClose").click();return;}
@@ -1486,11 +1488,12 @@ async function renderBill(){
   if(inv)fb.innerHTML=[["all","Tutti"],["todo","Da fatturare"],["draft","Con bozza"],["done","Emesse"]].map(([f,l])=>'<button type="button" class="bf bf-'+f+'" data-bf="'+f+'" aria-pressed="'+(billFilter===f)+'"'+(cnt[f]||f==="all"?"":" disabled")+'><b>'+l+'</b><span>'+cnt[f]+(cnt[f]===1?" servizio":" servizi")+' · € '+money(amt[f])+'</span></button>').join("")+'<span class="bf-note">«Emessa» vuol dire che il file XML per la contabilità è stato creato.</span>';
   const show=inv&&billFilter!=="all"?rows.filter(r=>(st.get(r.id+"|"+r.start)||{}).k===billFilter):rows;
   const NC=inv?14:12;
-  const head='<thead><tr>'+(inv?'<th class="selc" title="Spunta i servizi da mettere in una fattura unica"></th>':"")+'<th>N. foglio</th>'+(inv?'<th>Fattura</th>':"")+'<th>Servizio</th><th>Cliente</th><th>Mezzo</th><th>Date</th><th>Itinerario</th><th>Autisti</th><th class="r">€ Noleggio</th><th class="r">€ Parcheggi</th><th class="r">€ Pasti</th><th class="r">€ Totale</th><th>Anticipo</th><th></th></tr></thead>';
+  const head='<thead><tr>'+(inv?'<th class="selc" title="Spunta i servizi da mettere in una fattura unica"></th>':"")+'<th>N. foglio</th>'+(inv?'<th>Fattura</th>':"")+'<th>Servizio</th><th>Cliente</th><th>Mezzo</th><th>Date</th><th>Itinerario</th><th>Autisti</th><th class="r">€ Noleggio</th><th class="r">€ Parcheggi</th><th class="r" title="Sotto l\'importo: le crocette dei pasti messe dagli autisti nell\'app">€ Pasti</th><th class="r">€ Totale</th><th>Anticipo</th><th></th></tr></thead>';
   if(!show.length){$("btable").innerHTML=head+'<tbody><tr><td class="empty" colspan="'+(NC+1)+'">'+(rows.length?"Nessun servizio con questo stato.":"Nessun servizio "+(all?"in agenda":"in questo mese")+".")+'</td></tr></tbody>';return;}
   const sum=k=>show.reduce((a,r)=>a+(r[k]===""?0:r[k]),0),tot=show.reduce((a,r)=>a+billTotal(r),0);
   const spIds=new Set(src.filter(speseFor).map(b=>b.id)); // servizi con busta già inviati all'autista
   const dates=r=>esc(itDate(r.I))+(r.J&&r.J!==r.I?'<span class="sub">al '+esc(itDate(r.J))+'</span>':"");
+  const meals=new Map(show.map(r=>[r.id+"|"+r.start,serviceMeals(bmap.get(r.id+"|"+r.start))])); // crocette dei pasti (2.7)
   const drv=r=>(r.Z?esc(r.Z):r.dz?'<span class="tbdtxt">da assegnare</span>':"—")+(r.AA?'<span class="sub">'+esc(r.AA)+'</span>':r.daa?'<span class="sub tbdtxt">2° da assegnare</span>':"");
   $("btable").innerHTML=head+'<tbody>'+show.map(r=>{
     const c=r.C!==""?clientByCode(r.C):null,key=r.id+"|"+r.start,s=st.get(key);
@@ -1505,9 +1508,9 @@ async function renderBill(){
       '<td class="num">'+dates(r)+'</td>'+
       '<td class="iti">'+esc(r.M)+(r.O?'<span class="sub">'+esc(r.O)+'</span>':'')+'</td>'+
       '<td>'+drv(r)+'</td>'+
-      '<td class="num r">'+money(r.P)+'</td><td class="num r">'+money(r.Q)+'</td><td class="num r">'+money(r.R)+'</td><td class="num r"><b>'+(r.P===""&&r.Q===""&&r.R===""?"":money(billTotal(r)))+'</b></td>'+
+      '<td class="num r">'+money(r.P)+'</td><td class="num r">'+money(r.Q)+'</td><td class="num r">'+money(r.R)+mealsSub(meals.get(key))+'</td><td class="num r"><b>'+(r.P===""&&r.Q===""&&r.R===""?"":money(billTotal(r)))+'</b></td>'+
       '<td class="num">'+(r.AH!==""?"€ "+money(r.AH):"")+(r.AI?'<span class="sub">Busta '+esc(r.AI)+(r.AJ?" n. "+esc(r.AJ):"")+'</span>':"")+'</td><td class="acts"><button type="button" class="mini" data-fs="1">Foglio di servizio</button>'+(spIds.has(r.id)?'<button type="button" class="mini" data-sp="1">Spese autista</button>':"")+(inv?'<button type="button" class="mini inv" data-inv="1">Bozza Fattura</button>':"")+'</td></tr>';
-  }).join("")+'</tbody><tfoot><tr><td colspan="'+(inv?9:7)+'">'+show.length+' servizi'+(inv&&billFilter!=="all"?" ("+({todo:"da fatturare",draft:"con bozza",done:"emesse"}[billFilter])+")":"")+'</td><td class="num r">'+money(sum("P"))+'</td><td class="num r">'+money(sum("Q"))+'</td><td class="num r">'+money(sum("R"))+'</td><td class="num r">'+money(tot)+'</td><td class="num">'+(sum("AH")?"€ "+money(sum("AH")):"")+'</td><td></td></tr></tfoot>';
+  }).join("")+'</tbody><tfoot><tr><td colspan="'+(inv?9:7)+'">'+show.length+' servizi'+(inv&&billFilter!=="all"?" ("+({todo:"da fatturare",draft:"con bozza",done:"emesse"}[billFilter])+")":"")+'</td><td class="num r">'+money(sum("P"))+'</td><td class="num r">'+money(sum("Q"))+'</td><td class="num r">'+money(sum("R"))+(()=>{const t=mealsSum([...meals.values()]);return t.rows.length?'<span class="sub pst'+(t.shared?" warn":"")+'"'+(t.shared?' title="Lo stesso autista nello stesso giorno conta una volta sola"':"")+'><i>crocette</i> '+(t.shared?"⚠ ":"")+esc(mealsTxt(t.po,t.pl))+'</span>':"";})()+'</td><td class="num r">'+money(tot)+'</td><td class="num">'+(sum("AH")?"€ "+money(sum("AH")):"")+'</td><td></td></tr></tfoot>';
 }
 $("billFilter").addEventListener("click",e=>{const b=e.target.closest("[data-bf]");if(!b||b.disabled)return;billFilter=b.dataset.bf;renderBill();});
 $("btable").addEventListener("click",e=>{const tr=e.target.closest("[data-bid]");if(!tr)return;const b=bookingsAll().concat(S.allDays?billSourceAll():[]).find(x=>x.id===tr.dataset.bid&&x.start===tr.dataset.bstart);if(!b)return;
@@ -2206,8 +2209,12 @@ async function sheetSave(kind){
   const part=sheetPart(),btns=[$("sheetPdf"),$("sheetPrint")];btns.forEach(x=>x.disabled=true);
   $("sheetMsg").textContent="Preparo il file…";
   try{
-    const blob=await tplPDF(sheetBooking,part);
-    const where=await saveXlsx(blob,sheetFileName(sheetBooking)+PART_SUFFIX[part]+(sheetBooking.provisional?"_PROVVISORIO":"")+".pdf");
+    const blob=await tplPDF(sheetBooking,part),prov=sheetBooking.provisional?"_PROVVISORIO":"";
+    // 2.7: la copia nella cartella «Fogli di servizio» in Dropbox è sempre completa (foglio per l'autista + copia
+    // ufficio), qualunque cosa sia scelta in «Stampa»: il PDF scaricato resta quello scelto. All'app degli autisti
+    // va sempre e solo il foglio per l'autista (autisti.js, «Invia all'autista»): questa copia non c'entra.
+    const full=part==="full"?blob:await tplPDF(sheetBooking,"full");
+    const where=await saveXlsx(blob,sheetFileName(sheetBooking)+PART_SUFFIX[part]+prov+".pdf",{blob:full,name:sheetFileName(sheetBooking)+PART_SUFFIX.full+prov+".pdf"});
     sheetsOut[sheetBooking.id]=String(sheetBooking.foglio);
     $("sheetMsg").textContent="PDF pronto. "+where;
   }catch(err){
@@ -2414,7 +2421,7 @@ function showGate(mode,o){
   else gateSuper(mode,o);
 }
 function closeOverlays(){
-  ["ovBooking","ovFleet","ovMenu","ovSheet","ovClients","ovClientNew","ovMaster","ovArch","ovReg","ovInv","ovInvList","ovCont","ovSpese","ovQr","ovCapo"].forEach(id=>{const x=$(id);if(x)x.hidden=true;});try{closeCapo();}catch(_){}try{$("recOut").textContent="";$("recShown").hidden=true;}catch(_){}INV=null;CT=null;ctOrig=null;ctDirty=false;invPending=null;invSel.clear();
+  ["ovBooking","ovFleet","ovMenu","ovSheet","ovClients","ovClientNew","ovMaster","ovArch","ovReg","ovInv","ovInvList","ovCont","ovSpese","ovQr","ovCapo","ovPasto"].forEach(id=>{const x=$(id);if(x)x.hidden=true;});PO=null;try{closeCapo();}catch(_){}try{$("recOut").textContent="";$("recShown").hidden=true;}catch(_){}INV=null;CT=null;ctOrig=null;ctDirty=false;invPending=null;invSel.clear();
   if(typeof spClosePhoto==="function")spClosePhoto();
 }
 let gateFromMenu=false;
@@ -2461,10 +2468,10 @@ $("gCodeForm").addEventListener("submit",async e=>{
   finally{btn.disabled=false;}
 });
 // dopo l'accesso: l'agenda, oppure (profilo «solo anteprima e invio») la schermata con l'elenco dei fogli
-function hideGate(){const iv=isInvio();$("gate").hidden=true;$("app").hidden=iv;$("invio").hidden=!iv;if(iv)renderInvio();else renderAll();renderNet();}
+function hideGate(){const iv=isInvio();if(sdPastiOn){sdPastiOn=false;showSdPasti();}$("gate").hidden=true;$("app").hidden=iv;$("invio").hidden=!iv;if(iv)renderInvio();else renderAll();renderNet();}
 let started=false;
 function unlocked(){
-  hideGate();applyRole();refreshFromStore();lastAct=Date.now();
+  hideGate();applyRole();refreshFromStore();lastAct=Date.now();saveAct(true);
   if(!started){started=true;STORE.flush();STORE.syncFatturato();STORE.watch();ACC.startBeat();autStart();ACC.tlog("info","Avvio della versione "+APP_VERSION+" su "+(ACC.devLabel(ACC.device.id)||ACC.device.auto));}
   ACC.beat();ACC.flushLog();
   setTimeout(()=>{if(isInvio()||!ACC.session())return;seedRegs();flushRegAdd();},2500);
@@ -2499,7 +2506,12 @@ async function afterSync(o){
     }
   }
   const s=ACC.session(),why=ACC.sessionProblem(s,U);
-  if(!why){ACC.refreshSession(U);enterApp();return;}
+  if(!why){
+    // agenda riaperta dopo più del tempo dell'uscita automatica senza attività: si rientra con la password
+    const min=lockMin(),la=storedAct();
+    if(min&&la&&Date.now()-la>min*60000){doLogout(lockMsg(min),"Uscita automatica (inattività, agenda riaperta)");return;}
+    ACC.refreshSession(U);enterApp();return;
+  }
   if(why==="blocked"){blockedDevice();return;}
   showGate("login",Object.assign({},o,{msg:o.msg||reasonMsg(why)}));
 }
@@ -2654,12 +2666,24 @@ async function blockedDevice(){
   blocking=false;
 }
 // uscita automatica dopo un periodo senza attività (impostazione del Master)
-["pointerdown","keydown","wheel","touchstart"].forEach(t=>document.addEventListener(t,()=>{lastAct=Date.now();},{passive:true,capture:true}));
-setInterval(()=>{
-  const min=+((STORE.settings||{}).autoLock||0);
+// 2.7: l'ora dell'ultima attività resta anche sul dispositivo (agenda-last-act). Prima, chiudendo l'agenda (o se il
+// telefono la toglieva dalla memoria) e riaprendola dopo ore, il conteggio ripartiva da zero e si era ancora dentro.
+// Il controllo si fa anche appena la pagina torna in primo piano: sul telefono, in secondo piano, i timer si fermano.
+// Con un modulo aperto e modificato non si esce (si perderebbero le modifiche): si esce appena viene chiuso.
+const LA_KEY="agenda-last-act";let laSaved=0;
+function saveAct(force){if(!force&&lastAct-laSaved<15000)return;laSaved=lastAct;try{localStorage.setItem(LA_KEY,String(lastAct));}catch(_){}}
+function storedAct(){try{const v=Number(localStorage.getItem(LA_KEY));return isFinite(v)&&v>0?v:0;}catch(_){return 0;}}
+const lockMin=()=>+((STORE.settings||{}).autoLock||0);
+const lockMsg=min=>"Sei uscito automaticamente dopo "+(min<60?min+" minuti":(min/60)+(min===60?" ora":" ore"))+" senza attività.";
+["pointerdown","keydown","wheel","touchstart"].forEach(t=>document.addEventListener(t,()=>{lastAct=Date.now();saveAct();},{passive:true,capture:true}));
+function checkIdle(){
+  const min=lockMin();
   if(!min||!ACC.session()||($("app").hidden&&$("invio").hidden)||formDirty())return;
-  if(Date.now()-lastAct>min*60000)doLogout("Sei uscito automaticamente dopo "+(min<60?min+" minuti":(min/60)+(min===60?" ora":" ore"))+" senza attività.","Uscita automatica (inattività)");
-},20000);
+  if(Date.now()-lastAct>min*60000)doLogout(lockMsg(min),"Uscita automatica (inattività)");
+}
+setInterval(checkIdle,10000);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkIdle();else saveAct(true);});
+window.addEventListener("pageshow",checkIdle);window.addEventListener("focus",checkIdle);window.addEventListener("pagehide",()=>saveAct(true));
 
 // ---------- registro: cosa è cambiato in una prenotazione ----------
 const FIELD_LBL={type:"Categoria",vehicle:"Mezzo",start:"Data partenza",end:"Data rientro",time:"Ora partenza",time2:"Ora rientro",client:"Cliente",clientCode:"Codice cliente",route:"Itinerario",event:"Evento",escort:"Accompagnatore",pax:"Passeggeri",price:"Prezzo",park:"Parcheggi",parks:"Parcheggi scelti",meals:"Pasti",advance:"Acconto",envelope:"Busta",envno:"N. busta",driver:"1° autista",driver2:"2° autista",contact:"Telefono referente 1",contactName:"Referente 1",contactRole:"Ruolo referente 1",contactNote:"Note referente 1",dnotes:"Note per l'autista",status:"Stato",notes:"Note",saldo:"Saldo da ricevere",saldoAmt:"€ Saldo",npark:"Note 1° park",ndriver:"Note 2° autista",n3h:"Note 3° 3 ore",nextra:"Note 4° extra",refs:"Altri referenti",hotels:"Hotel",guides:"Guide",program:"Programma"};
@@ -2837,7 +2861,7 @@ $("devList").addEventListener("click",async e=>{
   }catch(_){mstMsg("Operazione non riuscita: controlla la connessione e riprova.",true);}
 });
 // registro
-const LOG_KIND={accesso:"Accesso",prenotazione:"Prenotazione",cliente:"Cliente",foglio:"Foglio",fattura:"Fattura",impostazioni:"Impostazioni",utenti:"Utenti",dispositivi:"Dispositivi"};
+const LOG_KIND={accesso:"Accesso",prenotazione:"Prenotazione",cliente:"Cliente",foglio:"Foglio",fattura:"Fattura",pasti:"Pasti autisti",impostazioni:"Impostazioni",utenti:"Utenti",dispositivi:"Dispositivi"};
 function logRange(){const n=+$("lgPer").value,to=ACC.localDate(),d=new Date();d.setDate(d.getDate()-n);return {from:ACC.localDate(d),to};}
 async function loadLog(){
   const r=logRange(),key=r.from+"|"+r.to;
@@ -3112,7 +3136,7 @@ function renderInvForm(){
   h+='<section class="iv-sec"><h4>Righe</h4><div class="iv-bar">'+
     '<label>Prezzi <select id="iv-lordi" data-m="lordi" data-t="bool"><option value="1"'+(d.lordi?" selected":"")+'>IVA compresa (come in agenda)</option><option value="0"'+(d.lordi?"":" selected")+'>IVA esclusa</option></select></label>'+
     (d.servizi.length>1?'<label>Noleggio <select id="iv-modo" data-m="modo"><option value="riepilogo"'+(d.modo==="riepilogo"?" selected":"")+'>una riga riepilogativa</option><option value="singole"'+(d.modo==="singole"?" selected":"")+'>una riga per servizio</option></select></label>':"")+
-    (d.servizi.length?'<button type="button" class="linkbtn" id="ivRegen" title="Rifà le righe partendo dai dati dei servizi come sono adesso in agenda">↻ Rifai le righe dai servizi</button>':"")+'</div>'+
+    (d.servizi.length?'<button type="button" class="linkbtn" id="ivRegen" title="Rifà le righe partendo dai dati dei servizi come sono adesso in agenda">↻ Rifai le righe dai servizi</button>':"")+invMealsNote(d)+'</div>'+
     '<div class="iv-rows"><div class="iv-row hd"><span>N.</span><span>Descrizione</span><span>Q.tà</span><span id="ivPriceHd">Prezzo</span><span>Sc. %</span><span>IVA</span><span class="r">Imponibile</span><span></span></div><div id="ivRows">'+invRowsHTML()+'</div></div>'+
     '<div class="iv-add"><button type="button" class="btn" data-radd="libera">+ Riga</button><select id="ivCau" aria-label="Causale da aggiungere"><option value="">+ Riga da causale…</option>'+C.causali.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.nome)+'</option>').join("")+'</select><button type="button" class="btn" data-radd="sconto">+ Sconto in euro</button></div></section>';
   h+='<section class="iv-sec"><h4>Sconto, arrotondamento, bollo</h4><div class="iv-grid g4">'+
@@ -3751,9 +3775,10 @@ async function migrateFleet2026(){
 }
 
 // ---------- file dei fogli di servizio: in Dropbox e sul dispositivo ----------
-async function saveXlsx(blob,filename){
+// arch: la copia per la cartella in Dropbox, se è diversa dal file scaricato ({blob, name})
+async function saveXlsx(blob,filename,arch){
   let where="";
-  try{if(navigator.onLine){const sd=(sheetBooking&&sheetBooking.start)||todayISO();await STORE.saveSheetFile(filename,blob,sd);where="Copia salvata in Dropbox › "+STORE.sheetFolder(sd).replace(STORE.BASE+"/","").split("/").join(" › ")+".";}else where="Sei offline: il file è solo su questo dispositivo.";}
+  try{if(navigator.onLine){const sd=(sheetBooking&&sheetBooking.start)||todayISO();await STORE.saveSheetFile(arch?arch.name:filename,arch?arch.blob:blob,sd);where=(arch?"Copia completa (con la copia ufficio) salvata in Dropbox › ":"Copia salvata in Dropbox › ")+STORE.sheetFolder(sd).replace(STORE.BASE+"/","").split("/").join(" › ")+".";}else where="Sei offline: il file è solo su questo dispositivo, in Dropbox non è stata salvata nessuna copia.";}
   catch(_){where="Non sono riuscito a salvarlo in Dropbox.";}
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
@@ -3784,6 +3809,9 @@ $("sheetShare").onclick=shareSheet;
 let autReturn=null; // ritorno da Dropbox dopo aver autorizzato la cartella o un telefono
 AUT.configure({onChange:()=>{
   if(!$("app").hidden&&S.view==="day")renderDay();
+  if(!$("app").hidden&&S.view==="pasti")renderPasti(); // crocette dei pasti (2.7)
+  if(!$("app").hidden&&S.view==="bill")renderBill();
+  if(!$("ovBooking").hidden&&editing)renderFormMeals(editing);
   if(!$("invio").hidden)renderInvio();
   if(!$("ovSheet").hidden)renderSheetSent();
   if(!$("ovMaster").hidden&&mstTab==="aut")renderAut();
@@ -4021,6 +4049,7 @@ function renderInvio(){
       '<div class="sd-st">'+stTxt+'</div></div>'+
       '<div class="sd-act"><button type="button" class="btn" data-sdprev="'+esc(b.id)+'">Anteprima</button><button type="button" class="btn send" data-sdsend="'+esc(b.id)+'">'+(live?"Invia di nuovo":"Invia all'autista")+'</button>'+(live?'<button type="button" class="btn quiet" data-sdoff="'+esc(b.id)+'">Ritira il foglio</button>':'')+'</div></div>';
   }).join("")||'<div class="sd-empty">Nessun servizio in questo giorno.</div>';
+  if(sdPastiOn)renderSdPasti();
 }
 function sdGo(day){if(validDate(day)){sdDay=day;renderInvio();}}
 $("sdPrev").onclick=()=>sdGo(addDays(sdDay||todayISO(),-1));
@@ -4038,6 +4067,252 @@ $("sdList").addEventListener("click",async e=>{
   let al=false;try{al=localStorage.getItem("agenda-sheet-alias")==="1";}catch(_){}
   openCapo(b,b.sent&&b.sent.at&&!b.sent.off?{alias:b.sent.alias,noPlate:b.sent.noPlate}:{alias:al,noPlate:false});
 });
+
+// =====================================================================================
+// 2.7 — Crocette dei pasti degli autisti
+// =====================================================================================
+// Le X le mette l'autista nell'app («Pasto offerto», «Pasto libero», al massimo 2 al giorno): il telefono le scrive
+// nella cartella degli autisti e l'Agenda le legge (AUT.pasti). L'ufficio le può correggere: la correzione sta
+// nell'Agenda (anagrafica «pasti» = config/pasti-correzioni.json) con il nome di chi l'ha fatta e prende il posto
+// di quello che ha segnato l'autista; sul telefono non cambia niente. Il capo vede tutto ma non corregge.
+// I pasti si vedono anche su ogni servizio (Fatturato, modulo, vista Giorno, bozza fattura): solo i numeri,
+// l'importo in fattura lo decide l'ufficio.
+const pstN=v=>{const n=Number(v);return Number.isInteger(n)&&n>0?Math.min(2,n):0;};
+const _drvIdC=new Map(),_bkIds=new WeakMap();
+function drvId(n){let v=_drvIdC.get(n);if(v===undefined){v=AUT.slug(driverCanon(n));_drvIdC.set(n,v);}return v;}
+// autisti di una prenotazione (le prenotazioni si ricreano a ogni cambio dei dati: la memoria si svuota da sola)
+function bookingDrvIds(b){let v=_bkIds.get(b);if(!v){v=[...new Set([b.driver,b.driver2].map(realDriver).filter(Boolean).map(drvId).filter(Boolean))];_bkIds.set(b,v);}return v;}
+let _pcIdx={src:null,map:null};
+function pastiCorr(){
+  pastiNeedRegs(renderPastiAny);
+  const r=STORE.reg("pasti");
+  if(_pcIdx.src!==r){
+    const m=new Map();
+    for(const x of (r&&Array.isArray(r.rows))?r.rows:[]){
+      if(!x||!/^[a-z0-9-]{1,60}$/.test(String(x.a||""))||!validDate(String(x.d||"")))continue;
+      const po=pstN(x.po),pl=Math.min(2-po,pstN(x.pl));
+      m.set(x.a+"|"+x.d,{po,pl,by:cleanText(x.by||"").slice(0,80),at:String(x.at||"").slice(0,30),name:cleanText(x.n||"").slice(0,80)});
+    }
+    _pcIdx={src:r,map:m};
+  }
+  return _pcIdx.map;
+}
+// pasti di un autista in un giorno: quelli corretti dall'ufficio, altrimenti quelli dell'autista
+function mealDay(aid,d){
+  const e=AUT.pasti(aid,d.slice(0,7)),g=e&&e.g[d],drv=g?{po:g.po,pl:g.pl}:null,c=pastiCorr().get(aid+"|"+d)||null,v=c||drv;
+  return {po:v?v.po:0,pl:v?v.pl:0,drv,corr:c,none:!!(e&&e.rec[d]==="no"),src:c?"ufficio":drv?"autista":""};
+}
+function mealsTxt(po,pl){const p=[];if(po)p.push(po+(po>1?" offerti":" offerto"));if(pl)p.push(pl+(pl>1?" liberi":" libero"));return p.join(" · ")||"nessun pasto";}
+const mealsShort=(po,pl)=>[po?po+" off.":"",pl?pl+" lib.":""].filter(Boolean).join(" · ");
+const dShort=d=>WD[wday(d)].toLowerCase()+" "+parse(d).getUTCDate()+" "+MN[parse(d).getUTCMonth()].slice(0,3);
+const svcName=x=>dispClient(x)+(x.foglio?" (n. "+x.foglio+")":"");
+// pasti di un servizio: ogni giorno del servizio (o solo il giorno «only»), per ognuno dei suoi autisti.
+// others: altri servizi dello stesso autista nello stesso giorno (i pasti compaiono su tutti, con l'avviso)
+function serviceMeals(b,only){
+  const out={po:0,pl:0,rows:[],shared:false,corr:false};
+  if(!b)return out;
+  const names=new Map();
+  for(const n of [b.driver,b.driver2].map(realDriver).filter(Boolean)){const id=drvId(n);if(id&&!names.has(id))names.set(id,driverCanon(n));}
+  if(!names.size)return out;
+  const e=endOf(b);
+  for(let d=b.start,n=0;d<=e&&n<32;d=addDays(d,1),n++){
+    if(only&&d!==only)continue;
+    for(const [aid,name] of names){
+      const m=mealDay(aid,d);if(!m.po&&!m.pl)continue;
+      const others=dayList(d).filter(x=>x.id!==b.id&&bookingDrvIds(x).includes(aid));
+      out.po+=m.po;out.pl+=m.pl;if(others.length)out.shared=true;if(m.corr)out.corr=true;
+      out.rows.push({d,aid,name,po:m.po,pl:m.pl,src:m.src,others});
+    }
+  }
+  return out;
+}
+// somma di più servizi: lo stesso autista nello stesso giorno conta una volta sola
+function mealsSum(list){
+  const seen=new Map();let sh=false;
+  for(const m of list){if(!m)continue;sh=sh||m.shared;for(const r of m.rows)seen.set(r.aid+"|"+r.d,r);}
+  let po=0,pl=0;for(const r of seen.values()){po+=r.po;pl+=r.pl;}
+  return {po,pl,rows:[...seen.values()].sort((a,b)=>a.d.localeCompare(b.d)||a.name.localeCompare(b.name)),shared:sh};
+}
+function mealsTitle(m){
+  return m.rows.map(r=>dShort(r.d)+" · "+r.name+": "+mealsTxt(r.po,r.pl)+(r.src==="ufficio"?" (corretto dall'ufficio)":"")+
+    (r.others.length?"\n   ⚠ lo stesso giorno ha anche: "+r.others.map(svcName).join(", "):"")).join("\n");
+}
+// vista Giorno: i pasti di quel giorno, accanto allo stato del foglio
+function mealChip(b,date){
+  const m=serviceMeals(b,date);if(!m.rows.length)return "";
+  const t=spans(b)?serviceMeals(b):m;
+  return '<span class="pst-c'+(m.shared?" warn":"")+'" title="'+esc("Pasti dell'autista (crocette dell'app): "+mealsTxt(m.po,m.pl)+(t.rows.length>m.rows.length?"\nIn tutto il servizio: "+mealsTxt(t.po,t.pl):"")+"\n"+mealsTitle(m))+'"><b>Pasti</b><small>'+(m.shared?"⚠ ":"")+esc(mealsShort(m.po,m.pl))+'</small></span>';
+}
+// Fatturato: sotto «€ Pasti»
+function mealsSub(m){
+  if(!m||!m.rows.length)return "";
+  return '<span class="sub pst'+(m.shared?" warn":"")+'" title="'+esc("Crocette dei pasti messe dagli autisti nell'app\n"+mealsTitle(m))+'"><i>crocette</i> '+(m.shared?"⚠ ":"")+esc(mealsTxt(m.po,m.pl))+'</span>';
+}
+// modulo della prenotazione: sotto «€ Pasti», con il dettaglio giorno per giorno
+function renderFormMeals(b){
+  const el=$("fPasti");if(!el)return;
+  const all=bookingsAll(),cur=b&&b.id?all.find(x=>x.id===b.id&&(!b.start||x.start===b.start))||all.find(x=>x.id===b.id)||b:null,m=cur?serviceMeals(cur):null;
+  if(!m||!m.rows.length){el.hidden=true;el.innerHTML="";return;}
+  el.hidden=false;
+  el.innerHTML='<button type="button" class="pst-f-h" aria-expanded="false"><b>Crocette autista: '+esc(mealsTxt(m.po,m.pl))+'</b>'+(m.shared?'<span class="pst-x">⚠ stesso giorno di un altro servizio</span>':'')+'<span class="pst-f-d">dettaglio</span></button>'+
+    '<ul class="pst-f-l" hidden>'+m.rows.map(r=>'<li>'+esc(dShort(r.d))+' · '+esc(r.name)+': <b>'+esc(mealsTxt(r.po,r.pl))+'</b>'+(r.src==="ufficio"?' <i>corretto dall\'ufficio</i>':'')+
+      (r.others.length?'<span class="pst-w">⚠ lo stesso giorno ha anche: '+esc(r.others.map(svcName).join(", "))+'</span>':'')+'</li>').join("")+'</ul>';
+}
+$("fPasti").addEventListener("click",e=>{const h=e.target.closest(".pst-f-h");if(!h)return;const l=$("fPasti").querySelector(".pst-f-l");l.hidden=!l.hidden;h.setAttribute("aria-expanded",String(!l.hidden));h.querySelector(".pst-f-d").textContent=l.hidden?"dettaglio":"chiudi";});
+// bozza fattura: quanti pasti hanno segnato gli autisti nei servizi della fattura
+function invMealsNote(d){
+  const all=bookingsAll(),t=mealsSum(((d&&d.servizi)||[]).map(s=>{const b=all.find(x=>x.id===s.id&&(!s.start||x.start===s.start))||all.find(x=>x.id===s.id);return b?serviceMeals(b):null;}));
+  if(!t.rows.length)return "";
+  return '<span class="iv-pst'+(t.shared?" warn":"")+'" title="'+esc(mealsTitle(t))+'">Crocette dei pasti degli autisti: <b>'+esc(mealsTxt(t.po,t.pl))+'</b>'+(t.shared?" ⚠":"")+'</span>';
+}
+
+// ---------- pagina Autisti: le crocette del mese ----------
+let pgOnly=true,pgRegAt=0,sdPastiOn=false,sdPastiMonth="";
+// autisti della pagina: l'elenco fisso, i nomi veri dei servizi del mese che non ci sono, chi ha mandato crocette
+function pastiPeople(k){
+  const map=new Map(),from=k+"-01",to=k+"-"+pad(dim(k));
+  for(const d of DRIVERS){const id=AUT.slug(d[0]);if(id)map.set(id,{id,name:d[0]});}
+  for(const b of bookingsAll()){if(b.start>to||endOf(b)<from)continue;for(const n of [b.driver,b.driver2].map(realDriver).filter(Boolean)){const id=drvId(n);if(id&&!map.has(id))map.set(id,{id,name:driverCanon(n)});}}
+  for(const w of AUT.pastiWho())if(!map.has(w.id)&&w.months.includes(k))map.set(w.id,{id:w.id,name:w.name||w.id});
+  for(const [key,c] of pastiCorr()){const [a,d]=key.split("|");if(mkey(d)===k&&!map.has(a))map.set(a,{id:a,name:c.name||a});}
+  return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name,"it"));
+}
+// servizi di ogni autista giorno per giorno nel mese: "id|data" → prenotazioni
+function pastiServices(k){
+  const out=new Map(),from=k+"-01",to=k+"-"+pad(dim(k));
+  for(const b of bookingsAll()){
+    if(b.start>to||endOf(b)<from)continue;const ids=bookingDrvIds(b);if(!ids.length)continue;
+    const e=endOf(b)>to?to:endOf(b);
+    for(let d=b.start<from?from:b.start,n=0;d<=e&&n<32;d=addDays(d,1),n++)for(const id of ids){const key=id+"|"+d;if(!out.has(key))out.set(key,[]);out.get(key).push(b);}
+  }
+  return out;
+}
+function pastiHTML(k,ro,nav){
+  const n=dim(k),t=todayISO(),days=[];for(let i=1;i<=n;i++)days.push(k+"-"+pad(i));
+  const svc=pastiServices(k),mName=MN[+k.slice(5,7)-1]+" "+k.slice(0,4);
+  const data=pastiPeople(k).map(p=>{let po=0,pl=0,sd=0,extra=false;const cells=days.map(d=>{const m=mealDay(p.id,d),s=svc.get(p.id+"|"+d)||[];po+=m.po;pl+=m.pl;if(s.length)sd++;if(m.corr||m.none)extra=true;return {d,m,s};});return {p,cells,po,pl,sd,busy:po||pl||sd||extra};});
+  const shown=pgOnly?data.filter(x=>x.busy):data;
+  const TP=shown.reduce((a,x)=>a+x.po,0),TL=shown.reduce((a,x)=>a+x.pl,0);
+  const linked=AUT.linked();
+  const st=!linked?'<div class="pg-st warn">'+esc(autMissing())+' Finché non è collegata qui si vedono solo le correzioni dell\'ufficio.</div>':
+    '<div class="pg-st">'+(AUT.lastSync?"Crocette lette dalla cartella degli autisti "+esc(fmtTime(new Date(AUT.lastSync).toISOString())):"Crocette non ancora lette dalla cartella degli autisti")+(AUT.lastError?' · <b>ultima lettura non riuscita</b>, riprova con «Aggiorna»':"")+'. Le X arrivano quando il telefono dell\'autista è collegato a internet.</div>';
+  const xs=v=>v>=2?"XX":v===1?"X":"";
+  const cell=(p,c,q)=>{
+    const m=c.m,v=m[q],w=wday(c.d),fut=c.d>t;
+    const cls=["c",w===0?"sun":"",c.d===t?"today":"",fut?"fut":"",c.s.length?"sv":"",m.corr?"cor":"",!m.po&&!m.pl&&m.none?"no":""].filter(Boolean).join(" ");
+    const tip=[p.name+" · "+WDL[w]+" "+parse(c.d).getUTCDate()+" "+MN[parse(c.d).getUTCMonth()]];
+    if(c.s.length)tip.push("Servizio: "+c.s.map(svcName).join(", "));
+    if(m.drv)tip.push("Dall'app: "+mealsTxt(m.drv.po,m.drv.pl));else if(m.none)tip.push("L'autista ha risposto «nessun pasto»");
+    if(m.corr)tip.push("Corretto dall'ufficio: "+mealsTxt(m.corr.po,m.corr.pl)+(m.corr.by?" ("+m.corr.by+")":""));
+    return '<td class="'+cls+'"><button type="button" data-pa="'+esc(p.id)+'" data-pd="'+c.d+'" title="'+esc(tip.join("\n"))+'" aria-label="'+esc(tip[0]+", pasto "+(q==="po"?"offerto":"libero")+": "+(v?xs(v):"vuoto"))+'">'+(v?xs(v):(!m.po&&!m.pl&&m.none?"–":""))+'</button></td>';
+  };
+  let h='<div class="pg-head"><div><h2>Crocette dei pasti · '+esc(mName)+'</h2><p>Le X che gli autisti mettono nell\'app: «Pasto offerto» e «Pasto libero», al massimo 2 al giorno. Clicca una casella per vedere il dettaglio'+(ro?".":" e, se serve, correggerla.")+'</p></div>'+
+    '<div class="pg-tools">'+(nav?'<span class="pg-nav"><button type="button" class="btn icon" data-pgnav="-1" aria-label="Mese precedente">‹</button><b>'+esc(mName)+'</b><button type="button" class="btn icon" data-pgnav="1" aria-label="Mese successivo">›</button></span>':"")+
+    '<label><input type="checkbox" data-pgonly'+(pgOnly?" checked":"")+'> Solo autisti con servizi o crocette</label><button type="button" class="btn" data-pgsync>Aggiorna</button></div></div>'+st+
+    '<div class="pg-leg"><span><i>X</i>un pasto</span><span><i>XX</i>due pasti</span><span><i class="sv"></i>giorno con un servizio in agenda</span><span><i>–</i>l\'autista ha detto «nessun pasto»</span><span><i class="cor">X</i>corretto dall\'ufficio</span></div>';
+  if(!shown.length){h+='<div class="pg-empty">'+(data.length?"In questo mese nessun autista ha servizi o crocette. Togli la spunta «Solo autisti con servizi o crocette» per vedere tutti.":"Nessun autista.")+'</div>';return h;}
+  h+='<div class="pg-wrap"><table class="pg"><thead><tr><th class="pg-n">Autista</th><th class="pg-k"></th>'+days.map(d=>{const w=wday(d);return '<th class="pg-d'+(w===0?" sun":"")+(d===t?" today":"")+'"><span>'+WD[w].slice(0,1)+'</span><b>'+parse(d).getUTCDate()+'</b></th>';}).join("")+'<th class="pg-t">Mese</th><th class="pg-s" title="Giorni con un servizio in agenda">Giorni<br>servizio</th></tr></thead><tbody>';
+  for(const x of shown){
+    h+='<tr class="pg-o"><th class="pg-n" rowspan="2" scope="rowgroup" title="'+esc(x.p.name)+'">'+esc(x.p.name)+'</th><td class="pg-k">Offerto</td>'+x.cells.map(c=>cell(x.p,c,"po")).join("")+'<td class="pg-t">'+(x.po||"")+'</td><td class="pg-s" rowspan="2">'+(x.sd||"")+'</td></tr>'+
+       '<tr class="pg-l"><td class="pg-k">Libero</td>'+x.cells.map(c=>cell(x.p,c,"pl")).join("")+'<td class="pg-t">'+(x.pl||"")+'</td></tr>';
+  }
+  h+='</tbody><tfoot><tr><th class="pg-n" colspan="2">Totale del mese</th><td class="pg-sum" colspan="'+n+'">'+esc(mealsTxt(TP,TL))+' · '+shown.length+(shown.length===1?" autista":" autisti")+'</td><td class="pg-t">'+TP+' / '+TL+'</td><td class="pg-s"></td></tr></tfoot></table></div>';
+  return h;
+}
+// correzioni dell'ufficio che questo dispositivo non ha ancora (per esempio scritte mentre era alla 2.6): si
+// leggono una volta; se non riesce (offline, o il file non c'è ancora) si riprova dopo un minuto
+function pastiNeedRegs(again){
+  if(STORE.regLoaded("pasti")||Date.now()-pgRegAt<60000||!navigator.onLine||!ACC.session())return;
+  pgRegAt=Date.now();STORE.loadRegs().then(got=>{if(got&&STORE.regLoaded("pasti"))again();}).catch(()=>{});
+}
+// la tabella si ridisegna a ogni aggiornamento: resta dov'era; con un mese nuovo parte dal giorno di oggi
+function pastiPaint(box,k,ro,nav){
+  const sx=box.querySelector(".pg-wrap"),pos=sx&&box.dataset.k===k?[sx.scrollLeft,sx.scrollTop]:null;
+  box.innerHTML=pastiHTML(k,ro,nav);box.dataset.k=k;
+  const nx=box.querySelector(".pg-wrap");if(!nx)return;
+  if(pos){nx.scrollLeft=pos[0];nx.scrollTop=pos[1];return;}
+  const th=nx.querySelector("thead th.today"),h1=nx.querySelector("thead .pg-n"),h2=nx.querySelector("thead .pg-k");
+  if(th&&h1&&h2)nx.scrollLeft=Math.max(0,th.offsetLeft-h1.offsetWidth-h2.offsetWidth-2*th.offsetWidth);
+}
+function renderPasti(){
+  if(S.view!=="pasti")return;
+  pastiPaint($("pastiBox"),mkey(S.sel),isInvio()||S.readOnly,false);
+}
+function renderSdPasti(){
+  if(!sdPastiOn)return;
+  if(!sdPastiMonth)sdPastiMonth=mkey(todayISO());
+  pastiPaint($("sdPasti"),sdPastiMonth,true,true);
+}
+function renderPastiAny(){if(!$("app").hidden)renderAll();if(!$("invio").hidden)renderSdPasti();}
+function pastiClick(e,again){
+  const c=e.target.closest("[data-pa]");if(c){openPasto(c.dataset.pa,c.dataset.pd);return;}
+  const nv=e.target.closest("[data-pgnav]");if(nv){sdPastiMonth=shiftMonth(sdPastiMonth||mkey(todayISO()),Number(nv.dataset.pgnav));again();return;}
+  const sy=e.target.closest("[data-pgsync]");
+  if(sy){sy.disabled=true;sy.textContent="Aggiorno…";Promise.all([STORE.pull().catch(()=>{}),AUT.sync()]).finally(()=>{again();toast(navigator.onLine?"Crocette aggiornate":"Sei offline");});}
+}
+$("pastiBox").addEventListener("click",e=>pastiClick(e,renderPasti));
+$("sdPasti").addEventListener("click",e=>pastiClick(e,renderSdPasti));
+const pgOnlyChange=again=>e=>{if(e.target.matches("[data-pgonly]")){pgOnly=e.target.checked;again();}};
+$("pastiBox").addEventListener("change",pgOnlyChange(renderPasti));
+$("sdPasti").addEventListener("change",pgOnlyChange(renderSdPasti));
+$("sdPastiBtn").onclick=()=>{sdPastiOn=!sdPastiOn;showSdPasti();};
+function showSdPasti(){
+  $("sdPastiBtn").textContent=sdPastiOn?"← Fogli di servizio":"Crocette pasti";
+  document.querySelector("#invio .sd-nav").hidden=sdPastiOn;$("sdList").hidden=sdPastiOn;$("sdPasti").hidden=!sdPastiOn;
+  if(sdPastiOn)renderSdPasti();else renderInvio();
+}
+
+// ---------- finestra di una casella: dettaglio e correzione ----------
+let PO=null,poBusy=false;
+function openPasto(aid,d){
+  if(!/^[a-z0-9-]{1,60}$/.test(aid)||!validDate(d))return;
+  if(poBusy){toast("Sto salvando la correzione di prima: un attimo…");return;}
+  const ro=isInvio()||S.readOnly,p=pastiPeople(mkey(d)).find(x=>x.id===aid)||{id:aid,name:aid},m=mealDay(aid,d);
+  const sv=dayList(d).filter(b=>bookingDrvIds(b).includes(aid)).sort((a,b)=>(a.time||"99").localeCompare(b.time||"99"));
+  PO={aid,d,name:p.name,po:m.po,pl:m.pl,ro,had:!!m.corr};
+  $("poTitle").textContent=p.name;
+  $("poSub").textContent=WDL[wday(d)]+" "+parse(d).getUTCDate()+" "+MN[parse(d).getUTCMonth()]+" "+d.slice(0,4)+(d===todayISO()?" · oggi":d>todayISO()?" · giorno non ancora arrivato":"");
+  $("poSv").innerHTML=sv.length?sv.map(b=>'<div style="--x:var(--'+esc(b.type)+'-fill)"><b>'+esc(TYPES[b.type]||"Servizio")+'</b> · '+esc(dispClient(b))+(b.foglio?' · n. '+esc(b.foglio):'')+(spans(b)?' · giorno '+(diff(b.start,d)+1)+' di '+(diff(b.start,endOf(b))+1):b.time?' · '+esc(b.time)+(b.time2?"–"+esc(b.time2):""):'')+'</div>').join("")+(sv.length>1?'<p class="po-w">⚠ Due servizi nello stesso giorno: i pasti compaiono su tutti e due.</p>':''):'<p class="mst-sub">Nessun servizio in agenda per questo autista in questo giorno.</p>';
+  const from=[];
+  from.push(m.drv?"Dall'app dell'autista: <b>"+esc(mealsTxt(m.drv.po,m.drv.pl))+"</b>":m.none?"L'autista ha risposto <b>«nessun pasto»</b>.":"L'autista non ha messo crocette in questo giorno.");
+  if(m.corr)from.push("Correzione dell'ufficio: <b>"+esc(mealsTxt(m.corr.po,m.corr.pl))+"</b>"+(m.corr.by||m.corr.at?' <small>('+esc([m.corr.by,m.corr.at?fmtTime(m.corr.at):""].filter(Boolean).join(", "))+')</small>':''));
+  if(ro)from.push('<small>'+(isInvio()?"Le correzioni le fa l'ufficio.":"Accesso in sola lettura: non si può correggere.")+'</small>');
+  $("poFrom").innerHTML=from.map(x=>'<span>'+x+'</span>').join("");
+  $("poEdit").hidden=ro;$("poSave").hidden=ro;$("poUndo").hidden=ro||!m.corr;$("poUndo").disabled=false;$("poMsg").textContent="";
+  paintPo();
+  $("ovPasto").hidden=false;
+  setTimeout(()=>{const b=ro?$("poClose"):$("poEdit").querySelector("button[aria-pressed='true']");if(b)b.focus();},30);
+}
+function paintPo(){
+  if(!PO)return;
+  for(const g of $("poEdit").querySelectorAll("[data-pq]")){const q=g.dataset.pq,other=q==="po"?PO.pl:PO.po;
+    for(const b of g.querySelectorAll("button")){const v=Number(b.dataset.v);b.setAttribute("aria-pressed",String(v===PO[q]));b.disabled=v+other>2;}}
+  const m=mealDay(PO.aid,PO.d),base=m.corr||m.drv||{po:0,pl:0};
+  $("poSave").disabled=PO.po===base.po&&PO.pl===base.pl;
+}
+$("poEdit").addEventListener("click",e=>{const b=e.target.closest("[data-v]");if(!b||b.disabled||!PO)return;PO[b.parentElement.dataset.pq]=Number(b.dataset.v);paintPo();});
+function closePasto(){$("ovPasto").hidden=true;PO=null;}
+$("poClose").onclick=closePasto;
+$("ovPasto").addEventListener("click",e=>{if(e.target===$("ovPasto"))closePasto();});
+async function savePasto(undo){
+  if(!PO||PO.ro||poBusy)return;
+  const me=PO,{aid,d,name,po,pl}=me,m=mealDay(aid,d),drv=m.drv||{po:0,pl:0};
+  const same=!undo&&po===drv.po&&pl===drv.pl; // uguale a quello dell'autista: la correzione non serve più
+  if(same&&!m.corr){closePasto();return;}
+  poBusy=true;$("poMsg").textContent="Salvo…";$("poSave").disabled=$("poUndo").disabled=true;
+  try{
+    const who=meName()||"Ufficio",at=new Date().toISOString();
+    await STORE.updateReg("pasti",r=>{r.rows=(Array.isArray(r.rows)?r.rows:[]).filter(x=>!(x&&x.a===aid&&x.d===d));if(!undo&&!same)r.rows.push({id:aid+"_"+d,a:aid,d,n:name,po:String(po),pl:String(pl),by:who,at});return r;});
+    ACC.log("pasti",(undo||same?"Tolta la correzione delle crocette di ":"Corrette le crocette di ")+name+" del "+itD(d)+(undo||same?" (resta quello dell'autista: "+(m.drv?mealsTxt(drv.po,drv.pl):"niente")+")":": "+mealsTxt(po,pl)+" (l'autista aveva segnato: "+(m.drv?mealsTxt(drv.po,drv.pl):"niente")+")"));
+    if(PO===me)closePasto();
+    renderPastiAny();toast(undo||same?"Correzione tolta":"Correzione salvata");
+  }catch(e){
+    const t=e&&e.code==="offline"?"Sei offline: la correzione si salva solo con la connessione.":e&&e.code==="outdated"?"Questa pagina ha una versione vecchia dell'Agenda: ricaricala e riprova.":e&&e.code==="readonly"?"Questo profilo non può correggere le crocette.":"Non sono riuscito a salvare la correzione. Riprova.";
+    if(PO===me){$("poMsg").textContent=t;paintPo();$("poUndo").disabled=false;}else toast(t+" ("+name+", "+itD(d)+")");
+  }finally{poBusy=false;}
+}
+$("poSave").onclick=()=>savePasto(false);
+$("poUndo").onclick=()=>savePasto(true);
 
 // ---------- scelta del capo: bus e autisti si decidono all'invio ----------
 // Chi ha il profilo «solo anteprima e invio» (il capo) quando invia un foglio sceglie il bus e gli autisti:
@@ -4410,7 +4685,7 @@ function takeWindow(steal){
 
 // ---------- avvio ----------
 async function boot(){
-  try{const v=localStorage.getItem("agenda-view");if(v==="month"||v==="week"||v==="bill")setView(v);}catch(_){}
+  try{const v=localStorage.getItem("agenda-view");if(v==="month"||v==="week"||v==="bill"||v==="pasti")setView(v);}catch(_){}
   if("serviceWorker" in navigator&&location.protocol!=="file:")navigator.serviceWorker.register("./sw.js").catch(()=>{});
   showGate("loading",{title:"Avvio…"});
   let steal=false;try{steal=sessionStorage.getItem("agenda-steal")==="1";sessionStorage.removeItem("agenda-steal");}catch(_){}

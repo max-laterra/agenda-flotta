@@ -12,6 +12,7 @@
 //   /servizi/<anno>/<id>/spese.json        spese, km e note della busta (scrive il telefono)
 //   /servizi/<anno>/<id>/scontrini/<nome>.jpg   foto degli scontrini (scrive il telefono)
 //   /telefoni/<id telefono>.json           il telefono si è collegato (scrive il telefono)
+//   /telefoni/pasti/<autista>/<AAAA-MM>.json   crocette dei pasti del mese (scrive il telefono; letto dalla 2.7)
 //
 // Tutto quello che arriva dai telefoni è controllato prima di essere usato (cleanSpese, cleanLetto…).
 (function (root) {
@@ -94,6 +95,22 @@
     const a = num(anticipo), k1 = sp ? sp.kmPartenza : null, k2 = sp ? sp.kmRientro : null;
     return { contanti: c2(cash), carta: c2(card), totale: c2(cash + card), cat, anticipo: a, rimanenza: a == null ? null : c2(a - cash), km: k1 != null && k2 != null && k2 >= k1 ? k2 - k1 : null, n: ((sp && sp.righe) || []).length };
   }
+  // crocette dei pasti (2.7): un file per autista e per mese. Per ogni giorno: pasti offerti (po) e liberi (pl),
+  // al massimo 2 in tutto; "recupero" = risposta dell'autista alla domanda su ieri ("no" = nessun pasto).
+  // Contano solo i giorni del mese del file; l'autista è quello del percorso, non quello scritto dentro.
+  const realDay = (d) => { if (!validDate(d)) return false; const [y, m, g] = d.split("-").map(Number), x = new Date(Date.UTC(y, m - 1, g)); return x.getUTCFullYear() === y && x.getUTCMonth() === m - 1 && x.getUTCDate() === g; };
+  const nPasti = (v) => { const n = v === true ? 1 : typeof v === "number" || (typeof v === "string" && /^\d$/.test(v)) ? Number(v) : 0; return Number.isInteger(n) && n > 0 ? Math.min(2, n) : 0; };
+  function cleanPasti(j, mese) {
+    if (!isObj(j) || !isObj(j.giorni) || !/^20\d\d-(0[1-9]|1[0-2])$/.test(String(mese || ""))) return null;
+    const g = Object.create(null), rec = Object.create(null);
+    for (const d of Object.keys(j.giorni).slice(0, 100)) {
+      if (!realDay(d) || d.slice(0, 7) !== mese || !isObj(j.giorni[d])) continue;
+      const po = nPasti(j.giorni[d].po), pl = Math.min(2 - po, nPasti(j.giorni[d].pl));
+      if (po || pl) g[d] = { po, pl };
+    }
+    if (isObj(j.recupero)) for (const d of Object.keys(j.recupero).slice(0, 100)) if (realDay(d) && d.slice(0, 7) === mese) rec[d] = j.recupero[d] === "no" ? "no" : "fatto";
+    return { g, rec, upd: when(j.updatedAt), name: txt(j.autista, 80).trim() };
+  }
   function cleanLetto(j) { if (!isObj(j) || !when(j.at)) return null; const n = Number(j.n); return { at: j.at, n: Number.isInteger(n) && n > 0 && n < 100000 ? n : 0, autista: txt(j.autista, 80) }; }
   function cleanPhone(j) { if (!isObj(j)) return null; return { at: when(j.collegatoAt) || when(j.at), last: when(j.ultimoAccesso) || when(j.last), ua: txt(j.dispositivo || j.ua, 120), autista: txt(j.autista, 80) }; }
   // collegamento per il telefono: i dati stanno dopo il # (non arrivano mai al sito, restano sul telefono)
@@ -110,7 +127,7 @@
     return "";
   }
 
-  const PURE = { payload, hash, sheetHash, cleanSpese, totals, cleanLetto, cleanPhone, phoneLink, imageType, slug, safeId, CATS };
+  const PURE = { payload, hash, sheetHash, cleanSpese, totals, cleanLetto, cleanPhone, cleanPasti, phoneLink, imageType, slug, safeId, CATS };
   if (!root.document) { if (typeof module !== "undefined") module.exports = PURE; return; }
 
   // =====================================================================================
@@ -128,11 +145,17 @@
   function newItem(it) { it = isObj(it) ? it : {}; return { op: flat(it.op), sp: isObj(it.sp) ? it.sp : null, re: when(it.re), revs: flat(it.revs) }; }
   function okState(x) {
     // elenchi senza prototipo: un nome come "__proto__" o "constructor" scritto da un telefono resta un nome qualsiasi
-    const o = { cursor: "", fp: "", items: Object.create(null), phones: Object.create(null), at: 0 };
+    // pasti (2.7): crocette per autista e per mese. pv: con la 2.6 i file dei pasti venivano saltati e il segnalibro
+    // della cartella è già andato oltre: senza pv la cartella si rilegge una volta da capo (i file già letti non si riscaricano)
+    const o = { cursor: "", fp: "", items: Object.create(null), phones: Object.create(null), pasti: Object.create(null), at: 0, pv: 1 };
     if (!isObj(x)) return o;
-    o.cursor = txt(x.cursor, 2000); o.fp = txt(x.fp, 80); o.at = Number(x.at) || 0;
+    o.cursor = x.pv === 1 ? txt(x.cursor, 2000) : ""; o.fp = txt(x.fp, 80); o.at = Number(x.at) || 0;
     if (isObj(x.items)) for (const k of Object.keys(x.items)) { const it = x.items[k]; if (!/^[a-z0-9_-]{1,80}$/.test(k) || badName(k) || !isObj(it)) continue; o.items[k] = newItem(it); }
     if (isObj(x.phones)) for (const k of Object.keys(x.phones)) if (/^[a-z0-9]{6,24}$/.test(k) && !badName(k) && isObj(x.phones[k])) o.phones[k] = x.phones[k];
+    if (isObj(x.pasti)) for (const a of Object.keys(x.pasti)) {
+      if (!/^[a-z0-9-]{1,60}$/.test(a) || badName(a) || !isObj(x.pasti[a])) continue;
+      for (const m of Object.keys(x.pasti[a])) { const e = x.pasti[a][m]; if (!isObj(e)) continue; const c = cleanPasti({ giorni: e.g, recupero: e.rec, updatedAt: e.upd, autista: e.name }, m); if (c) (o.pasti[a] || (o.pasti[a] = Object.create(null)))[m] = Object.assign(c, { rev: txt(e.rev, 80) }); }
+    }
     return o;
   }
   st = okState(st);
@@ -222,6 +245,7 @@
   async function pool(items, n, fn) { let i = 0; const w = async () => { while (i < items.length) { const k = i++; try { await fn(items[k]); } catch (_) {} } }; await Promise.all(Array.from({ length: Math.min(n, items.length) }, w)); }
   const parse = (buf) => { try { return JSON.parse(dec.decode(buf)); } catch (_) { return null; } };
   const RE_SRV = /^\/servizi\/\d{4}\/([a-z0-9_-]{1,80})\/(letto_([a-z0-9-]{1,60})\.json|spese\.json|ufficio\.json)$/, RE_TEL = /^\/telefoni\/([a-z0-9]{6,24})\.json$/;
+  const RE_PAS = /^\/telefoni\/pasti\/([a-z0-9-]{1,60})\/(20\d\d-(?:0[1-9]|1[0-2]))\.json$/;
   let syncing = null, lastErr = "";
   function sync() { if (!syncing) syncing = syncOnce().finally(() => { syncing = null; }); return syncing; }
   async function syncOnce() {
@@ -238,8 +262,14 @@
       const jobs = []; let touched = false;
       for (const [p, e] of seen) {
         try { // una voce guasta non deve fermare le altre (né il segnalibro della cartella)
-          const m = RE_SRV.exec(p), t = m ? null : RE_TEL.exec(p);
-          if (m) {
+          const m = RE_SRV.exec(p), t = m ? null : RE_TEL.exec(p), pa = m || t ? null : RE_PAS.exec(p);
+          if (pa) {
+            if (badName(pa[1])) continue;
+            const cur = st.pasti[pa[1]] && st.pasti[pa[1]][pa[2]];
+            if (e[".tag"] === "deleted") { if (cur) { delete st.pasti[pa[1]][pa[2]]; touched = true; } continue; }
+            if (e[".tag"] !== "file" || (cur && cur.rev === e.rev) || (e.size || 0) > 300000) continue;
+            jobs.push({ p, e, pas: pa });
+          } else if (m) {
             if (badName(m[1]) || (m[3] && badName(m[3]))) continue;
             const it = st.items[m[1]] || (st.items[m[1]] = newItem()), f = m[2];
             if (e[".tag"] === "deleted") { if (m[3]) delete it.op[m[3]]; else if (f === "spese.json") it.sp = null; else it.re = ""; delete it.revs[f]; touched = true; continue; }
@@ -257,12 +287,13 @@
         const f = await c.download(jb.e.path_lower || jb.p); if (!f) return;
         const j = parse(f.buf), rev = (f.meta && f.meta.rev) || jb.e.rev || "";
         if (jb.tel) { const ph = cleanPhone(j); if (ph) { st.phones[jb.tel] = Object.assign(ph, { rev }); touched = true; } return; }
+        if (jb.pas) { const c = cleanPasti(j, jb.pas[2]); if (c) { (st.pasti[jb.pas[1]] || (st.pasti[jb.pas[1]] = Object.create(null)))[jb.pas[2]] = Object.assign(c, { rev }); touched = true; } return; }
         if (jb.who) { const l = cleanLetto(j); if (l) jb.it.op[jb.who] = l; else delete jb.it.op[jb.who]; }
         else if (jb.f === "spese.json") { const sp = cleanSpese(j); jb.it.sp = sp ? { n: sp.righe.length, contanti: totals(sp).contanti, carta: totals(sp).carta, km1: sp.kmPartenza, km2: sp.kmRientro, deliv: sp.consegnata, delivAt: sp.consegnataAt, upd: sp.updatedAt, by: sp.autista } : null; }
         else { jb.it.re = isObj(j) && isObj(j.riaperta) ? when(j.riaperta.at) : ""; }
         jb.it.revs[jb.f] = rev; touched = true;
       });
-      st.cursor = next || ""; st.at = Date.now(); lastErr = "";
+      st.cursor = next || ""; st.at = Date.now(); st.pv = 1; lastErr = "";
       lsSet(CK, st);
       if (touched) hooks.onChange();
       return true;
@@ -302,12 +333,15 @@
   }
   const newPhoneId = () => { const r = crypto.getRandomValues(new Uint8Array(8)); let s = "t"; for (const x of r) s += (x % 36).toString(36); return s; };
 
-  (root.AGENDA_FILES = root.AGENDA_FILES || {}).autisti = "2.6";
+  (root.AGENDA_FILES = root.AGENDA_FILES || {}).autisti = "2.7";
   const API = Object.assign({}, PURE, {
     configure(h) { Object.assign(hooks, h); },
     linked, startLink, redirectMine, purpose, takeRedirect, revoke, prepare,
     send, withdraw, reopen, sync, status, spese, photo, qrSvg, newPhoneId, dirOf,
     phone: (pid) => st.phones[pid] || null,
+    // crocette dei pasti (2.7): quelle di un autista in un mese, e gli autisti che ne hanno mandate
+    pasti: (aid, mese) => (st.pasti[aid] && st.pasti[aid][mese]) || null,
+    pastiWho: () => Object.keys(st.pasti).map((a) => { const ms = Object.keys(st.pasti[a]); const last = ms.sort().slice(-1)[0]; return { id: a, name: last ? st.pasti[a][last].name : "", months: ms }; }),
     forget() { st = okState(null); lsSet(CK, st); officeTok = null; },
   });
   Object.defineProperty(API, "lastSync", { get: () => st.at, enumerable: true });
