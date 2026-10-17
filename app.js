@@ -1,7 +1,11 @@
 
 (function(){
 "use strict";
-const APP_VERSION="2.7",APP_DATE="08/10/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="2.8",APP_DATE="17/10/2026";window.AGENDA_VERSION=APP_VERSION;
+// Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
+// numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
+// 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
+const APP_FAMILY="2.8",APP_PATCH={};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -24,9 +28,9 @@ if(framed){stopPage("Agenda Flotta La Terra","Per sicurezza l'agenda non si può
 //    per qualche minuto, il sito può dare alcuni file nuovi e altri ancora vecchi: invece di partire a metà
 //    (pulsanti che non rispondono, errori) l'app aspetta e riprova da sola.
 {
-  const F=window.AGENDA_FILES||{},bad=[];
-  if(document.documentElement.getAttribute("data-v")!==APP_VERSION)bad.push("index.html");
-  for(const f of ["dropbox","fatturato","fatture","store","accessi","autisti"])if(F[f]!==APP_VERSION)bad.push(f+".js");
+  const F=window.AGENDA_FILES||{},FP=window.AGENDA_PATCH||{},bad=[];
+  if(document.documentElement.getAttribute("data-v")!==APP_FAMILY||(APP_PATCH.index&&document.documentElement.getAttribute("data-p")!==APP_PATCH.index))bad.push("index.html");
+  for(const f of ["dropbox","fatturato","fatture","store","accessi","autisti"])if(F[f]!==APP_FAMILY||(APP_PATCH[f]&&FP[f]!==APP_PATCH[f]))bad.push(f+".js");
   let n=0;try{n=+sessionStorage.getItem("agenda-upd-try")||0;}catch(_){}
   if(bad.length){
     // ricaricando, ogni file viene richiesto di nuovo al sito (la copia per l'uso offline non si cancella:
@@ -79,29 +83,38 @@ const hasEvent=t=>normType(t)==="notturno";
 const GEN1="Autista Generico 1",GEN2="Autista Generico 2";
 const isGen=x=>/^autista\s+generico\b/i.test(String(x||"").trim());
 const realDriver=x=>{x=String(x||"").trim();return x&&!isGen(x)?x:"";};
-const DRIVERS=[["Accardi Giovanni","g"],["Buscema Salvatore","r"],["Calabrese Saro","g"],["Campo Gianfranco","g"],["Capuano Cosimo","r"],["Cascone Saro","g"],["Di Blasi Antonio","g"],["Giannone Piero","r"],["Giannone Roberto","r"],["Giummarra Luca","g"],["Giunta Fabio","g"],["Giurdanella Giorgio","r"],["Gurrieri Angelo","r"],["La Terra Massimo","r"],["Lo Buglio Antonio","g"],["Lucenti Franco","r"],["Panasia Giovanni","r"],["Senia Fabio","g"],["Silipo Graziano","r"],["Sortino Giorgio","g"],["Virduzzo Luca","g"]];
+const DRIVERS0=[["Accardi Giovanni","g"],["Buscema Salvatore","r"],["Calabrese Saro","g"],["Campo Gianfranco","g"],["Capuano Cosimo","r"],["Cascone Saro","g"],["Di Blasi Antonio","g"],["Giannone Piero","r"],["Giannone Roberto","r"],["Giummarra Luca","g"],["Giunta Fabio","g"],["Giurdanella Giorgio","r"],["Gurrieri Angelo","r"],["La Terra Massimo","r"],["Lo Buglio Antonio","g"],["Lucenti Franco","r"],["Panasia Giovanni","r"],["Senia Fabio","g"],["Silipo Graziano","r"],["Sortino Giorgio","g"],["Virduzzo Luca","g"]];
+// 2.8: l'elenco degli autisti si cambia nell'Archivio (anagrafica autisti, config/anagrafica-autisti.json). Finché
+// l'anagrafica non è stata toccata vale l'elenco di sempre (DRIVERS0); colore "g" verde, "r" rosso.
+let _drvSrc=null,_drvList=DRIVERS0;
+function drivers(){
+  const r=STORE.reg("autisti");
+  if(r!==_drvSrc){_drvSrc=r;_drvList=r&&r.seeded&&Array.isArray(r.rows)?r.rows.filter(x=>x&&typeof x==="object"&&String(x.nome||"").trim()).map(x=>[String(x.nome).trim().replace(/\s+/g," "),x.colore==="r"?"r":"g"]).sort((a,b)=>a[0].localeCompare(b[0],"it")):DRIVERS0;}
+  return _drvList;
+}
 // nomi abbreviati delle prenotazioni vecchie (es. "Campo G.") → nome per esteso, per contare una persona una volta sola
 function driverCanon(x){
   x=String(x||"").trim().replace(/\s+/g," ");if(!x||isGen(x))return x;
   const n=norm(x).replace(/\bold\b/g,"").replace(/[.]/g," ").replace(/\s+/g," ").trim();
-  const exact=DRIVERS.find(d=>norm(d[0])===n);if(exact)return exact[0];
+  const exact=drivers().find(d=>norm(d[0])===n);if(exact)return exact[0];
   const parts=n.split(" "),ini=parts.length>1&&parts[parts.length-1].length===1?parts.pop():"",sur=parts.join(" ");
-  const same=DRIVERS.filter(d=>norm(d[0]).startsWith(sur+" "));
+  const same=drivers().filter(d=>norm(d[0]).startsWith(sur+" "));
   if(same.length===1)return same[0][0];
   if(ini){const m=same.filter(d=>norm(d[0]).slice(sur.length+1).startsWith(ini));if(m.length===1)return m[0][0];}
   return x;
 }
-const driverColor=x=>{const d=DRIVERS.find(d=>d[0]===driverCanon(x));return d?d[1]:"";};
+const driverColor=x=>{const d=drivers().find(d=>d[0]===driverCanon(x));return d?d[1]:"";};
 // autisti che servono per un servizio: i nomi veri contano una volta sola al giorno,
 // ogni generico (o servizio senza autista) conta come una persona in più
 function dayCounts(ds){
   const list=dayList(ds),named=new Set();let gen=0;
   for(const b of list){
+    if(isXbus(b.vehicle))continue; // extra bus (2.8): autisti di altre aziende
     const ds2=[b.driver,b.driver2].map(x=>String(x||"").trim()).filter(Boolean);
     if(!ds2.length)gen++;
     for(const d of ds2){if(isGen(d))gen++;else named.add(driverCanon(d).toLowerCase());}
   }
-  return {a:named.size+gen,gen:gen,s:list.length,p:new Set(list.map(b=>b.vehicle)).size};
+  return {a:named.size+gen,gen:gen,s:list.length,p:new Set(list.filter(b=>!isXbus(b.vehicle)).map(b=>b.vehicle)).size};
 }
 function driversText(b){
   const l=[b.driver,b.driver2].map(x=>String(x||"").trim()).filter(Boolean);
@@ -150,7 +163,7 @@ function cleanText(t,multi){
 // flotta in ordine decrescente di posti (l'auto in fondo)
 function sortFleet(list){return (Array.isArray(list)?list:[]).filter(v=>v&&typeof v==="object"&&!Array.isArray(v)).map((v,i)=>[v,i]).sort((a,b)=>(a[0].ord&&b[0].ord?a[0].ord-b[0].ord:0)||((b[0].seats||0)-(a[0].seats||0))||(a[1]-b[1])).map(x=>x[0]);}
 // come si vede il mezzo nell'elenco a sinistra delle viste Giorno, Settimana e Mese: "81 p. - GM701RZ (50)"
-function vehLabelHTML(v){const s=v.seats?v.seats+" p.":"Auto";return '<b>'+esc(s)+'</b>'+(v.h?'<span class="badge-h" title="Accessibile">H</span>':'')+(v.plate?' - '+esc(v.plate):'')+(v.num?' ('+esc(v.num)+')':'');}
+function vehLabelHTML(v){if(v&&v.xbus)return '<b class="xb-tag">EXTRA</b><span class="xb-n">'+(v.seats?'<b>'+esc(v.seats+" p.")+'</b> ':'')+esc(v.az||"altra azienda")+(v.plate?' - '+esc(v.plate):'')+'</span>';const s=v.seats?v.seats+" p.":"Auto";return '<b>'+esc(s)+'</b>'+(v.h?'<span class="badge-h" title="Accessibile">H</span>':'')+(v.plate?' - '+esc(v.plate):'')+(v.num?' ('+esc(v.num)+')':'');}
 // larghezza della colonna dei mezzi: quanto basta per l'etichetta più lunga, così il resto è per i servizi
 let _vw={k:"",w:{}};
 function vehColW(px){
@@ -166,7 +179,7 @@ function vehColW(px){
 // nome con cui il cliente compare nelle viste: l'alias, quando c'è
 function dispClient(b){const c=b.clientCode!==""&&b.clientCode!=null?clientByCode(b.clientCode):null;return (c&&c[2]?String(c[2]):"")||b.client||"Senza cliente";}
 const pending=b=>b.status==="opzione"; // prenotazione in sospeso (da confermare)
-function vehLabel(v){return (v.seats?v.seats+" posti"+(v.h?" H":""):"Auto")+(v.plate?" - "+v.plate:"")+(v.num?" ("+v.num+")":"");}
+function vehLabel(v){if(v&&v.xbus)return "Extra bus "+[v.az||"altra azienda",v.seats?v.seats+" posti":"",v.plate].filter(Boolean).join(" - ");return (v.seats?v.seats+" posti"+(v.h?" H":""):"Auto")+(v.plate?" - "+v.plate:"")+(v.num?" ("+v.num+")":"");}
 const S={fleet:sortFleet(DEFAULT_FLEET),fleetStored:false,days:{},sel:todayISO(),view:"day",readOnly:false,clients:[],regole:{autisti:[],targhe:{},numeri:{}},allDays:null};
 let db=null, unsubDays=null, subMonth=null;
 const $=id=>document.getElementById(id);
@@ -203,7 +216,29 @@ function byDay(){
 }
 const dayList=ds=>byDay()[ds]||[];
 function on(date,vid,list){return (list?list.filter(b=>b.start<=date&&endOf(b)>=date):dayList(date)).filter(b=>b.vehicle===vid).sort((a,b)=>(a.time||"99").localeCompare(b.time||"99"));}
-function vehicle(id){return S.fleet.find(v=>v.id===id);}
+function vehicle(id){return S.fleet.find(v=>v.id===id)||(isXbus(id)?xbVeh(id):undefined);}
+// ---------- extra bus (2.8): bus di altre aziende che fanno un nostro servizio, aggiunti giorno per giorno ----------
+// Nella giornata (giorni/…json, campo xbus) c'è l'elenco degli extra bus di quel giorno; la prenotazione su un extra
+// bus ha vehicle "xb:<id>" e una copia dei dati (b.xbus: azienda, posti, targa), così si vede anche negli altri
+// giorni del servizio. Non contano tra i mezzi della flotta.
+const isXbus=id=>/^xb:/.test(String(id||""));
+let _xbFor=null,_xbIdx=new Map();
+function xbIndex(){
+  const all=bookingsAll();if(_xbFor===all)return _xbIdx;
+  const m=new Map();
+  for(const ds in S.days){const l=(S.days[ds]||{}).xbus;if(Array.isArray(l))for(const x of l)if(x&&x.id&&!m.has("xb:"+x.id))m.set("xb:"+x.id,x);}
+  for(const b of all)if(isXbus(b.vehicle)&&b.xbus&&typeof b.xbus==="object")m.set(b.vehicle,Object.assign({},b.xbus,{id:b.vehicle.slice(3)}));
+  _xbFor=all;_xbIdx=m;return m;
+}
+function xbVehOf(x,vid){const n=x&&+x.posti?+x.posti:null;return {id:vid,name:n?n+" posti":"Extra bus",seats:n,plate:(x&&x.targa)||"",num:"EXTRA",kind:"bus",xbus:true,az:(x&&x.az)||""};}
+function xbVeh(vid){return xbVehOf(xbIndex().get(vid),vid);}
+// extra bus di una giornata: quelli aggiunti quel giorno e quelli con un servizio in corso quel giorno
+function dayXbus(ds){
+  const out=new Map(),doc=S.days[ds];
+  for(const x of (doc&&Array.isArray(doc.xbus)?doc.xbus:[]))if(x&&x.id)out.set("xb:"+x.id,{vid:"xb:"+x.id,def:x,own:true});
+  for(const b of dayList(ds))if(isXbus(b.vehicle)&&!out.has(b.vehicle))out.set(b.vehicle,{vid:b.vehicle,def:Object.assign({},xbIndex().get(b.vehicle)||{},b.xbus||{}),own:false});
+  return [...out.values()];
+}
 
 // ---------- rendering ----------
 function renderAll(){renderMonthBar();renderStrip();if(S.view==="day")renderDay();else if(S.view==="week")renderWeek();else if(S.view==="bill")renderBill();else if(S.view==="pasti")renderPasti();else renderMonth();}
@@ -213,7 +248,7 @@ function renderWeek(){
   const mon=weekStart(S.sel),sun=addDays(mon,6),all=bookingsAll(),t=todayISO();
   const days=[];for(let i=0;i<7;i++)days.push(addDays(mon,i));
   const inWeek=all.filter(b=>b.start<=sun&&endOf(b)>=mon);
-  const busyAny=new Set(inWeek.map(b=>b.vehicle)).size;
+  const busyAny=new Set(inWeek.filter(b=>!isXbus(b.vehicle)).map(b=>b.vehicle)).size;
   const cnt=tp=>inWeek.filter(b=>b.type===tp).length;
   const a=parse(mon),z=parse(sun);
   const range=a.getUTCMonth()===z.getUTCMonth()?a.getUTCDate()+"–"+z.getUTCDate()+" "+MN[z.getUTCMonth()]+" "+z.getUTCFullYear():a.getUTCDate()+" "+MN[a.getUTCMonth()].slice(0,3)+" – "+z.getUTCDate()+" "+MN[z.getUTCMonth()].slice(0,3)+" "+z.getUTCFullYear();
@@ -222,12 +257,15 @@ function renderWeek(){
     '<div class="sright"><div class="nav"><button id="wPrev" aria-label="Settimana precedente">‹</button><button id="wNext" aria-label="Settimana successiva">›</button></div></div>';
   let h='<colgroup><col class="vcol" style="width:'+(vehColW(13.5)+14)+'px">'+days.map(()=>"<col>").join("")+'</colgroup><thead><tr><th class="vc">Mezzo</th>';
   for(const ds of days){
-    const w=wday(ds),busy=new Set(dayList(ds).map(b=>b.vehicle)).size;
-    h+='<th class="'+(w===0?"sun ":"")+(ds===t?"today ":"")+(ds===S.sel?"sel":"")+'" data-goday="'+ds+'" title="Apri la giornata"><span class="wdn">'+WDL[w]+'</span><span class="dnum">'+parse(ds).getUTCDate()+" "+MN[parse(ds).getUTCMonth()].slice(0,3)+'</span><span class="occ">'+busy+"/"+S.fleet.length+' impegnati</span></th>';
+    const w=wday(ds),busy=new Set(dayList(ds).filter(b=>!isXbus(b.vehicle)).map(b=>b.vehicle)).size;
+    h+='<th class="'+(w===0?"sun ":"")+(ds===t?"today ":"")+(ds===S.sel?"sel":"")+'" data-goday="'+ds+'" title="Apri la giornata"><span class="wdn">'+WDL[w]+'</span><span class="dnum">'+parse(ds).getUTCDate()+" "+MN[parse(ds).getUTCMonth()].slice(0,3)+'</span><span class="occ">'+busy+"/"+S.fleet.length+' impegnati'+(()=>{const rp=riposoNames(ds);return rp.length?'<b class="rp-n" title="'+esc("A riposo: "+rp.map(x=>x.n).join(", "))+'">'+rp.length+'</b>':"";})()+'</span></th>';
   }
   h+='</tr></thead><tbody>';
-  for(const v of S.fleet){
-    h+='<tr><th class="vc"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span></th>';
+  // 2.8: in fondo gli extra bus della settimana (altre aziende); «+ Aggiungi» solo nei giorni in cui ci sono
+  const xbw=new Map();for(const ds of days)for(const x of dayXbus(ds)){if(!xbw.has(x.vid))xbw.set(x.vid,{def:x.def,days:new Set()});xbw.get(x.vid).days.add(ds);}
+  const rowsV=S.fleet.map(v=>({v,xb:null})).concat([...xbw].map(([vid,o])=>({v:xbVehOf(o.def,vid),xb:o})));
+  for(const {v,xb} of rowsV){
+    h+='<tr'+(xb?' class="xbrow"':'')+'><th class="vc"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span></th>';
     for(const ds of days){
       const list=on(ds,v.id);
       let inner="";
@@ -235,11 +273,12 @@ function renderWeek(){
         let tp=TYPES[b.type]||"",tm=b.time||"";
         if(spans(b)){const tot=diff(b.start,endOf(b))+1,i=diff(b.start,ds)+1;tp+=" "+i+"/"+tot;if(i>1)tm=i===tot&&b.time2?b.time2:"";}
         inner+='<button class="wb '+esc(b.type)+(pending(b)?" opzione":"")+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc((pending(b)?"IN SOSPESO · ":"Confermata · ")+(b.foglio?"n. "+b.foglio+" · ":"")+(b.client||"")+(b.event?" – "+b.event:"")+(whatToday(b,ds)?" – "+whatToday(b,ds):"")+(b.driver?" · Autista: "+b.driver:"")+(b.escort?" · Accompagnatore: "+b.escort:""))+'">'+
-          '<span class="l1">'+(tm?'<span class="tm">'+esc(tm)+'</span>':"")+'<span class="tp">'+tp+'</span><span class="stm '+(pending(b)?"q":"ok")+'" aria-hidden="true">'+(pending(b)?"?":"✓")+'</span></span>'+
+          '<span class="l1">'+missBadge(b)+(tm?'<span class="tm">'+esc(tm)+'</span>':"")+'<span class="tp">'+tp+'</span><span class="stm '+(pending(b)?"q":"ok")+'" aria-hidden="true">'+(pending(b)?"?":"✓")+'</span></span>'+
           '<span class="cl">'+esc(dispClient(b))+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(whatToday(b,ds)?'<span class="rt'+(dayProgram(b,ds)?" pg":"")+'">'+esc(whatToday(b,ds))+'</span>':"")+'</button>';
       }
-      if(!S.readOnly)inner+='<span class="plus">+ Aggiungi</span>';
-      h+='<td class="wc'+(wday(ds)===0?" sun":"")+'" data-addv="'+esc(v.id)+'" data-addd="'+esc(ds)+'"><div class="wcell">'+inner+'</div></td>';
+      const canAdd=!S.readOnly&&(!xb||xb.days.has(ds));
+      if(canAdd)inner+='<span class="plus">+ Aggiungi</span>';
+      h+='<td class="wc'+(wday(ds)===0?" sun":"")+'"'+(canAdd?' data-addv="'+esc(v.id)+'" data-addd="'+esc(ds)+'"':'')+'><div class="wcell">'+inner+'</div></td>';
     }
     h+='</tr>';
   }
@@ -249,6 +288,9 @@ function renderWeek(){
   $("wgrid").innerHTML=h;
 }
 
+// 2.8: campi importanti non compilati → punto esclamativo rosso sul servizio e sul giorno nella barra del mese
+function missingOf(b){const m=[];if(!b)return m;if(b.price===""||b.price==null)m.push("prezzo noleggio");if(!String(b.time||"").trim())m.push("ora di partenza");if(b.clientCode===""||b.clientCode==null)m.push("codice cliente");return m;}
+function missBadge(b){const m=missingOf(b);if(!m.length)return "";const t="Da completare: "+m.join(", ");return '<span class="miss-x" title="'+esc(t)+'" aria-label="'+esc(t)+'">!</span>';}
 function renderMonthBar(){
   const k=mkey(S.sel);$("mTitle").textContent=MN[+k.slice(5,7)-1]+" "+k.slice(0,4);
   $("fleetCount").textContent=S.fleet.length+" mezzi";
@@ -267,7 +309,8 @@ function renderStrip(){
     const c=dayCounts(ds);
     const pct=Math.round(c.p/Math.max(1,nf)*100);
     const when=WDL[w]+" "+d+": ";
-    g+='<button class="dbtn'+(w===0?" sun":"")+(ds===t?" today":"")+(inwk?" inweek":"")+'" data-day="'+ds+'"'+(ds===S.sel?' aria-current="date"':"")+' title="'+c.p+' mezzi impegnati"><span class="wd">'+WD[w]+'</span><span class="dn">'+d+'</span><span class="load"><b style="width:'+pct+'%"></b></span></button>';
+    const nm=dayList(ds).filter(b=>missingOf(b).length).length;
+    g+='<button class="dbtn'+(w===0?" sun":"")+(ds===t?" today":"")+(inwk?" inweek":"")+'" data-day="'+ds+'"'+(ds===S.sel?' aria-current="date"':"")+' title="'+c.p+' mezzi impegnati'+(nm?" · "+nm+(nm===1?" servizio":" servizi")+" da completare (prezzo, ora o codice cliente)":"")+'">'+(nm?'<i class="miss-d" aria-hidden="true">!</i>':"")+'<span class="wd">'+WD[w]+'</span><span class="dn">'+d+'</span><span class="load"><b style="width:'+pct+'%"></b></span></button>';
     const cls="cc r2"+(w===0?" sun":"")+(ds===S.sel?" sel":"")+(inwk?" inweek":"");
     ra+='<button type="button" class="'+cls+(c.a?"":" z")+'" data-day="'+ds+'" title="'+when+c.a+' autisti'+(c.gen?" (di cui "+c.gen+" da assegnare)":"")+'">'+c.a+(c.gen?'<span class="tbd"></span>':"")+'</button>';
     rs+='<button type="button" class="'+cls+(c.s?"":" z")+'" data-day="'+ds+'" title="'+when+c.s+' servizi">'+c.s+'</button>';
@@ -297,6 +340,7 @@ function bookingHTML(b,date){
   if(has(b.price))det.push("Noleggio € "+eu(b.price));
   if(has(b.park))det.push("Parcheggi € "+eu(b.park));
   if(has(b.meals))det.push("Pasti € "+eu(b.meals));
+  for(const e of cleanExtras(b.extras))if(e.amt!=="")det.push((e.c?e.c.charAt(0).toUpperCase()+e.c.slice(1):"Extra")+" € "+eu(e.amt));
   if(cashOn(b)&&has(b.advance))det.push("Anticipo € "+eu(b.advance));
   if(cashOn(b)&&b.envelope)det.push("Busta "+b.envelope+(b.envno?" n. "+b.envno:""));
   if(hasEvent(b.type)&&b.escort)det.push("Accompagnatore: "+b.escort);
@@ -313,7 +357,7 @@ function bookingHTML(b,date){
     '<span class="c-t1">'+esc(t1||(multi&&i>1?"":"—"))+'</span>'+
     '<span class="c-t2">'+esc(t2)+'</span>'+
     '<span class="c-du">'+esc(durShort(b,date))+'</span>'+
-    '<span class="c-cl">'+(over?'<span class="over" title="Passeggeri oltre la capienza">!</span> ':'')+esc(name)+'</span>'+
+    '<span class="c-cl">'+missBadge(b)+(over?'<span class="over" title="Passeggeri oltre la capienza">!</span> ':'')+esc(name)+'</span>'+
     '<span class="c-rt'+(dayProgram(b,date)?" pg":"")+'">'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+esc(whatToday(b,date)||"")+'</span>'+
     '<span class="c-dr">'+(b.capo?'<i class="capo-m" title="'+esc(capoTitle(b))+'">capo</i>':'')+drv+'</span>'+
     '</button>'+sentChip(b)+mealChip(b,date)+'</div>';
@@ -322,13 +366,13 @@ function bookingHTML(b,date){
 function renderDay(){
   const date=S.sel,w=wday(date),all=bookingsAll(),d=parse(date);
   const today=dayList(date);
-  const busy=new Set(today.map(b=>b.vehicle)),dc=dayCounts(date);
+  const busy=new Set(today.filter(b=>!isXbus(b.vehicle)).map(b=>b.vehicle)),dc=dayCounts(date);
   // giorno e data sulla stessa riga; la domenica in rosso. Numeri: autisti, servizi, mezzi | tipi di servizio
   $("sign").className="sign"+(w===0?" sun":"");
   const tcount=Object.keys(STAT_LABELS).map(k=>[k,today.filter(b=>b.type===k).length]).filter(x=>x[1]);
   $("sign").innerHTML=
     '<div class="date"><span>'+WDL[w]+'</span><span>'+d.getUTCDate()+" "+MN[d.getUTCMonth()]+" "+d.getUTCFullYear()+'</span>'+(date===todayISO()?'<span class="today-tag">Oggi</span>':'')+'</div>'+
-    '<div class="sright"><div class="stats">'+
+    '<div class="sright">'+(()=>{const rp=riposoNames(date);return rp.length?'<div class="rp-day" title="Autisti che hanno chiesto il riposo per questo giorno"><span class="rp-lab">Riposo</span>'+rp.map(x=>'<span class="rp-name"'+(x.nota?' title="'+esc(x.nota)+'"':'')+'>'+esc(x.n)+'</span>').join("")+'</div>':"";})()+'<div class="stats">'+
       '<div class="grp">'+
         '<div class="stat" title="'+(dc.gen?"di cui "+dc.gen+" da assegnare":"")+'"><b>'+dc.a+'</b><span>Autisti</span></div>'+
         '<div class="stat"><b>'+today.length+'</b><span>Servizi</span></div>'+
@@ -348,6 +392,16 @@ function renderDay(){
       (S.readOnly?"<span></span>":'<button class="add" data-add="'+esc(v.id)+'">+ Aggiungi</button>')+
     '</div>';
   }
+  // extra bus del giorno (2.8)
+  for(const x of dayXbus(date)){
+    const v=xbVehOf(x.def,x.vid),list=on(date,x.vid);
+    h+='<div class="row xbrow'+(list.length?" busy":"")+'">'+
+      '<div class="veh"><span class="vl" title="'+esc(vehLabel(v))+'">'+vehLabelHTML(v)+'</span>'+(x.own&&!list.length&&!S.readOnly?'<button type="button" class="xb-del" data-xbdel="'+esc(x.vid.slice(3))+'" title="Togli questo extra bus dalla giornata" aria-label="Togli questo extra bus">×</button>':'')+'</div>'+
+      '<div class="slots">'+(list.length?list.map(b=>bookingHTML(b,date)).join(""):'<span class="free">Libero</span>')+'</div>'+
+      (S.readOnly?"<span></span>":'<button class="add" data-add="'+esc(x.vid)+'">+ Aggiungi</button>')+
+    '</div>';
+  }
+  if(!S.readOnly&&!isInvio())h+='<div class="xb-bar"><button type="button" class="btn xb-add" id="xbAdd">+ Extra bus</button><span>Bus di un\'altra azienda che fa un nostro servizio: vale solo per questa giornata.</span></div>';
   // la vista viene ridisegnata anche da sola (sincronizzazione): chi usa la tastiera non deve perdere il punto
   const af=document.activeElement,keep=af&&af!==document.body&&$("sheet").contains(af)?Object.assign({},af.dataset):null;
   $("sheet").innerHTML=h;
@@ -382,7 +436,7 @@ function renderMonth(){
     h+='</tr>';
   }
   h+='</tbody><tfoot><tr><th class="vc" style="font-size:11.5px;color:var(--ink-3)">Mezzi liberi</th>';
-  for(let d=1;d<=n;d++){const ds=k+"-"+pad(d);const busy=new Set(dayList(ds).map(b=>b.vehicle)).size;h+='<td class="'+(wday(ds)===0?"sun":"")+'">'+(S.fleet.length-busy)+'</td>';}
+  for(let d=1;d<=n;d++){const ds=k+"-"+pad(d);const busy=new Set(dayList(ds).filter(b=>!isXbus(b.vehicle)).map(b=>b.vehicle)).size;h+='<td class="'+(wday(ds)===0?"sun":"")+'">'+(S.fleet.length-busy)+'</td>';}
   h+='</tr></tfoot>';
   $("mgrid").innerHTML=h;
 }
@@ -414,9 +468,10 @@ function openForm(opts){
   $("fTitle").textContent=editing?"Modifica prenotazione"+(b.foglio?" · n. "+b.foglio:""):"Nuova prenotazione";
   formClient=b.clientCode!==""&&b.clientCode!=null?{code:b.clientCode,name:b.client||""}:null;
   $("f-price").value=b.price==null?"":b.price;$("f-driver2").value=b.driver2||"";
-  $("f-park").value=b.park==null?"":b.park;renderParks(b);$("f-meals").value=b.meals==null?"":b.meals;renderFormMeals(opts.booking?b:null);$("f-advance").value=b.advance==null?"":b.advance;$("f-envelope").value=b.envelope||"";$("f-envno").value=b.envno||"";bustaAuto="";
+  $("f-park").value=b.park==null?"":b.park;renderParks(b);renderExtras(b);formExOwn=!!(editing&&(b.exOwn||cleanExtras(b.extras).length));$("f-meals").value=b.meals==null?"":b.meals;renderFormMeals(opts.booking?b:null);$("f-advance").value=b.advance==null?"":b.advance;$("f-envelope").value=b.envelope||"";$("f-envno").value=b.envno||"";bustaAuto="";
   $("cSug").hidden=true;
-  $("f-vehicle").innerHTML=S.fleet.map(v=>'<option value="'+esc(v.id)+'">'+esc(vehLabel(v))+'</option>').join("");
+  formXbCur=isXbus(b.vehicle)?{vid:b.vehicle,def:Object.assign({},xbIndex().get(b.vehicle)||{},b.xbus||{})}:null;
+  fillVehOpts(b.vehicle,b.start);
   $("t-"+normType(b.type)).checked=true;
   $("f-vehicle").value=b.vehicle;if(!$("f-vehicle").value&&S.fleet[0])$("f-vehicle").value=S.fleet[0].id;$("f-start").value=b.start;$("f-end").value=(b.end&&b.end>=b.start)?b.end:b.start;$("f-end").min=b.start||"";formStart=b.start;
   $("f-time").value=b.time||"";$("f-time2").value=b.time2||"";$("f-client").value=b.client||"";$("f-route").value=b.route||"";
@@ -432,7 +487,8 @@ function openForm(opts){
   formCashWas=!!(editing&&cashOn(b)&&((b.advance!==""&&b.advance!=null)||b.envelope||b.envno));
   $("fDelete").hidden=!editing;$("fConfirm").hidden=true;$("fCloseAsk").hidden=true;
   $("fSpese").hidden=!(editing&&speseFor(b));
-  [...$("fBooking").elements].forEach(el=>{if(el.id!=="fCancel")el.disabled=S.readOnly;});
+  $("fBusta").hidden=!(editing&&hasBusta(b)); // 2.8: modello spese della busta da stampare
+  [...$("fBooking").elements].forEach(el=>{if(el.id!=="fCancel"&&el.id!=="fBusta")el.disabled=S.readOnly;});
   // bus e autisti decisi dal capo: l'ufficio non li cambia più (il Super Master sì)
   {const dec=!!(editing&&b.capo),lock=dec&&!isSuper();
     if(lock){["f-vehicle","f-driver","f-driver2"].forEach(id=>{$(id).disabled=true;});document.querySelectorAll('#fBooking [data-gen],#fBooking [data-drvopen]').forEach(x=>{x.disabled=true;});}
@@ -444,27 +500,28 @@ function openForm(opts){
   $("ovBooking").hidden=false;setTimeout(()=>$("f-client").focus(),30);
 }
 let formOrig=null,saving=false,editConfirmed=false;
-const FORM_SKIP=["updatedAt","foglio","bustaOff"];
+const FORM_SKIP=["updatedAt","foglio","bustaOff","exOwn","xbus"];
 // campi cambiati dall'utente rispetto a quando il modulo è stato aperto
 function formChanges(){if(!formOrig)return [];const now=readForm();return Object.keys(now).filter(k=>!FORM_SKIP.includes(k)&&JSON.stringify(now[k])!==JSON.stringify(formOrig[k]));}
 function formDirty(){return !$("ovBooking").hidden&&!S.readOnly&&formChanges().length>0;}
 // chiusura del modulo: se ci sono modifiche non salvate chiede conferma
 function tryCloseForm(){if(formDirty()){$("fCloseAsk").hidden=false;$("fCloseNo").focus();return false;}closeForm();return true;}
 // elenco autisti: i due generici in cima, poi quelli del foglio "regole"
-function fillDrivers(){} // l'elenco autisti è quello fisso (DRIVERS): non si legge più dal foglio "regole"
+function fillDrivers(){} // l'elenco autisti è quello dell'anagrafica autisti (Archivio, 2.8): non si legge dal foglio "regole"
 // tendina autisti: generici in cima, poi l'elenco per esteso con i colori; si può anche scrivere
 let drvIdx=-1;
 function drvItems(id,q){
   q=norm(q||"").trim();
   const gens=(id==="f-driver"?[GEN1,GEN2]:[GEN2,GEN1]).map(n=>({n,c:"x"}));
-  const all=gens.concat(DRIVERS.map(d=>({n:d[0],c:d[1]})));
+  const all=gens.concat(drivers().map(d=>({n:d[0],c:d[1]})));
   return q?all.filter(x=>norm(x.n).split(/\s+/).some(w=>w.startsWith(q))||norm(x.n).includes(q)):all;
 }
 function drvRender(id,show){
   const box=$("dl-"+id),inp=$(id);
   if(!show){box.hidden=true;inp.setAttribute("aria-expanded","false");return;}
-  const q=inp.value,cur=driverCanon(q),items=drvItems(id,DRIVERS.some(d=>d[0]===cur)||isGen(q)?"":q);
-  let h="";items.forEach((x,i)=>{if(i===2&&x.c!=="x"&&items[1]&&items[1].c==="x")h+='<div class="sep"></div>';h+='<button type="button" role="option" data-drv="'+esc(x.n)+'" class="drv-'+x.c+'" aria-selected="'+(i===drvIdx)+'">'+esc(x.n)+(x.c==="x"?'<small>da assegnare</small>':'')+'</button>';});
+  const q=inp.value,cur=driverCanon(q),items=drvItems(id,drivers().some(d=>d[0]===cur)||isGen(q)?"":q);
+  const fs=$("f-start").value,fe=$("f-end").value||fs,rpOf=n=>{if(!validDate(fs))return null;for(let d=fs,i=0;d<=fe&&i<32;d=addDays(d,1),i++){const r=riposoOf(n,d);if(r)return r;}return null;}; // riposo (2.8)
+  let h="";items.forEach((x,i)=>{if(i===2&&x.c!=="x"&&items[1]&&items[1].c==="x")h+='<div class="sep"></div>';const rp=x.c!=="x"?rpOf(x.n):null;h+='<button type="button" role="option" data-drv="'+esc(x.n)+'" class="drv-'+x.c+'" aria-selected="'+(i===drvIdx)+'">'+esc(x.n)+(x.c==="x"?'<small>da assegnare</small>':'')+(rp?'<small class="rp-tag">riposo '+esc(rpDates(rp))+'</small>':'')+'</button>';});
   box.innerHTML=h||'<div class="none">Nessun autista con questo nome: resterà scritto così.</div>';
   box.hidden=false;inp.setAttribute("aria-expanded","true");
 }
@@ -553,6 +610,43 @@ function pkSync(){
   $("pkTot").hidden=rows.length<2;$("pkTot").textContent=rows.length>1?"· totale € "+money(t===""?0:t):"";
   $("pkAdd").hidden=S.readOnly||rows.length>=8;
 }
+// ---------- extra della prenotazione (2.8): causale spese (tendina dell'Archivio) + importo, fino a 3 ----------
+// Vanno nel file fatturato nelle colonne «€ varie / tipo varie» 1, 2 e 3 e nella bozza fattura (una riga per causale).
+const EX_MAX=3;
+function cleanExtras(l){return (Array.isArray(l)?l:[]).filter(e=>e&&typeof e==="object").map(e=>({c:String(e.c==null?"":e.c).trim().slice(0,60),amt:e.amt===""||e.amt==null||!isFinite(Number(e.amt))?"":Math.round(Number(e.amt)*100)/100})).filter(e=>e.c||e.amt!=="").slice(0,EX_MAX);}
+const exSum=b=>Math.round(cleanExtras(b&&b.extras).reduce((a,e)=>a+(Number(e.amt)||0),0)*100)/100;
+function exRowHTML(e,i){
+  return '<div class="pk-row ex-row"><select id="ex-sel-'+i+'" data-ex="c" aria-label="Causale extra '+(i+1)+'">'+tendinaOpts("spese",e.c||"")+'</select>'+
+    '<input data-ex="amt" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00" value="'+esc(e.amt==null?"":e.amt)+'" aria-label="€ extra '+(i+1)+'">'+
+    '<button type="button" class="pk-del" data-exdel="1" aria-label="Togli questo extra" title="Togli">×</button></div>';
+}
+function renderExtras(b){let l=cleanExtras(b&&b.extras);if(!l.length)l=[{c:"",amt:""}];$("exRows").innerHTML=l.map(exRowHTML).join("");exSync();}
+function readExtras(){return cleanExtras([...$("exRows").querySelectorAll(".ex-row")].map(r=>({c:r.querySelector('[data-ex="c"]').value,amt:r.querySelector('[data-ex="amt"]').value})));}
+function exSync(){
+  const rows=$("exRows").querySelectorAll(".ex-row"),l=readExtras(),t=l.reduce((a,e)=>a+(Number(e.amt)||0),0);
+  rows.forEach(r=>{r.querySelector("[data-exdel]").hidden=rows.length<2;});
+  $("exTot").hidden=rows.length<2;$("exTot").textContent=rows.length>1?"· totale € "+money(t):"";
+  $("exAdd").hidden=S.readOnly||rows.length>=EX_MAX;
+}
+$("exRows").addEventListener("input",()=>{exSync();checkWarns();});
+$("exRows").addEventListener("change",()=>{exSync();checkWarns();});
+$("exRows").addEventListener("click",e=>{if(!e.target.closest("[data-exdel]")||S.readOnly)return;const r=e.target.closest(".ex-row");if(r&&$("exRows").children.length>1){r.remove();exSync();checkWarns();}});
+$("exAdd").onclick=()=>{const i=$("exRows").children.length;if(i>=EX_MAX)return;$("exRows").insertAdjacentHTML("beforeend",exRowHTML({c:"",amt:""},i));exSync();$("exRows").lastElementChild.querySelector("select").focus();};
+let formExOwn=false; // la prenotazione ha già avuto degli extra: l'agenda gestisce le colonne «varie» del fatturato
+// mezzi del modulo: la flotta e, in fondo, gli extra bus del giorno di partenza (2.8)
+let formXbCur=null,formXb=new Map();
+function fillVehOpts(sel,date){
+  const keep=isXbus(sel)&&formXb.has(sel)?[sel,formXb.get(sel)]:null; // l'extra bus scelto resta anche cambiando la data
+  formXb=new Map();
+  if(formXbCur)formXb.set(formXbCur.vid,formXbCur.def);
+  if(keep&&!formXb.has(keep[0]))formXb.set(keep[0],keep[1]);
+  if(validDate(date))for(const x of dayXbus(date))if(!formXb.has(x.vid))formXb.set(x.vid,x.def);
+  let h=S.fleet.map(v=>'<option value="'+esc(v.id)+'">'+esc(vehLabel(v))+'</option>').join("");
+  if(formXb.size)h+='<optgroup label="Extra bus (altre aziende)">'+[...formXb].map(([vid,def])=>'<option value="'+esc(vid)+'">'+esc(vehLabel(xbVehOf(def,vid)))+'</option>').join("")+'</optgroup>';
+  $("f-vehicle").innerHTML=h;
+  if(sel!=null){$("f-vehicle").value=sel;if(!$("f-vehicle").value&&S.fleet[0])$("f-vehicle").value=S.fleet[0].id;}
+}
+const formXbusOf=vid=>{if(!isXbus(vid))return "";const d=formXb.get(vid)||{};return {id:vid.slice(3),az:String(d.az||""),posti:String(d.posti||""),targa:String(d.targa||"")};};
 let pkAsk=null; // la tendina che ha chiesto «Nuovo parcheggio»
 $("pkRows").addEventListener("input",e=>{if(e.target.dataset.pk==="amt"){pkSync();checkWarns();}});
 $("pkRows").addEventListener("change",e=>{
@@ -596,10 +690,10 @@ $("f-end").addEventListener("input",()=>{endAuto=false;});
 function readForm(){
   const type=curType(),start=$("f-start").value,T=id=>cleanText($(id).value);
   const client=T("f-client");
-  return {type:type,vehicle:$("f-vehicle").value,start:start,end:$("f-end").value||start,
+  return {type:type,vehicle:$("f-vehicle").value,xbus:formXbusOf($("f-vehicle").value),start:start,end:$("f-end").value||start,
     time:$("f-time").value,time2:$("f-time2").value,client:client,clientCode:formClient&&formClient.name===client?formClient.code:"",route:T("f-route"),
     event:hasEvent(type)?T("f-event"):"",escort:hasEvent(type)?T("f-escort"):"",
-    pax:T("f-pax"),price:eur("f-price"),park:pkTotal(),parks:readParks(),bustaOff:formCashWas&&!cashForm(type),meals:eur("f-meals"),advance:cashForm(type)?eur("f-advance"):"",envelope:isMulti(type)?$("f-envelope").value:cashForm(type)?"SI":"",envno:cashForm(type)?T("f-envno"):"",driver:T("f-driver"),driver2:T("f-driver2"),contact:T("f-contact"),contactName:T("f-contactname"),
+    pax:T("f-pax"),price:eur("f-price"),park:pkTotal(),parks:readParks(),bustaOff:formCashWas&&!cashForm(type),meals:eur("f-meals"),extras:readExtras(),exOwn:formExOwn||readExtras().length>0,advance:cashForm(type)?eur("f-advance"):"",envelope:isMulti(type)?$("f-envelope").value:cashForm(type)?"SI":"",envno:cashForm(type)?T("f-envno"):"",driver:T("f-driver"),driver2:T("f-driver2"),contact:T("f-contact"),contactName:T("f-contactname"),
     status:$("f-status").value,notes:cleanText($("f-notes").value,true),
     contactRole:$("f-contactrole").value,contactNote:T("f-contactnote"),
     saldo:$("f-saldo").value,saldoAmt:eur("f-saldoamt"),
@@ -613,6 +707,8 @@ function withOldNoteKeys(patch){
   if(patch.includes("dnotes"))patch=patch.concat(NOTE_OLD.map(x=>x[0]).filter(k=>!patch.includes(k)));
   // busta tolta (gita, notturno, transfer): il segno che fa svuotare anticipo e busta nel file fatturato va insieme
   if(["type","envelope","advance","envno"].some(k=>patch.includes(k))&&!patch.includes("bustaOff"))patch=patch.concat("bustaOff");
+  if(patch.includes("extras")&&!patch.includes("exOwn"))patch=patch.concat("exOwn"); // 2.8: colonne «varie» del fatturato
+  if(patch.includes("vehicle")&&!patch.includes("xbus"))patch=patch.concat("xbus"); // 2.8: dati dell'extra bus
   return patch;
 }
 // prenotazioni (tranne quella aperta) in corso tra due date
@@ -623,6 +719,13 @@ function overlapping(start,end){
   return [...out.values()];
 }
 const drvKey=x=>driverCanon(String(x||"").trim()).toLowerCase().replace(/\s+/g," "); // "Campo G." = "Campo Gianfranco"
+// ---------- giorni di riposo degli autisti (2.8): config/riposi-autisti.json, segnati nella pagina Autisti ----------
+function riposi(){return regRows("riposi").filter(r=>String(r.nome||"").trim()&&validDate(String(r.dal||"")));}
+const rpEnd=r=>validDate(String(r.al||""))&&r.al>=r.dal?r.al:r.dal;
+function riposiOn(ds){return riposi().filter(r=>r.dal<=ds&&rpEnd(r)>=ds);}
+function riposoOf(name,ds){const k=drvKey(name);return k?riposiOn(ds).find(r=>drvKey(r.nome)===k)||null:null;}
+function riposoNames(ds){const m=new Map();for(const r of riposiOn(ds)){const n=driverCanon(r.nome);if(!m.has(drvKey(n)))m.set(drvKey(n),{n,nota:r.nota||""});}return [...m.values()].sort((a,b)=>a.n.localeCompare(b.n,"it"));}
+const rpDates=r=>r.dal===rpEnd(r)?itD(r.dal):itD(r.dal)+"–"+itD(rpEnd(r));
 const when=x=>short(x.start)+(endOf(x)!==x.start?"–"+short(endOf(x)):"")+(x.time?" ore "+x.time:"");
 function checkWarns(){
   const b=readForm(),w=[],v=vehicle(b.vehicle);
@@ -645,6 +748,11 @@ function checkWarns(){
       w.push("Autista "+dn+" già impegnato"+(hard.length?"":" (transfer: verifica gli orari)")+": "+busy.map(x=>(TYPES[x.type]||"")+" "+(x.client||"")+" su "+((vehicle(x.vehicle)||{}).name||"altro mezzo")+" ("+when(x)+")").join("; "));
     }
   }
+  if(validDate(b.start))for(const dn of [b.driver,b.driver2].map(realDriver).filter(Boolean)){ // riposo chiesto (2.8)
+    const hit=[];for(let d=b.start,i=0;d<=(b.end||b.start)&&i<32;d=addDays(d,1),i++){const r=riposoOf(dn,d);if(r&&!hit.includes(r))hit.push(r);}
+    if(hit.length)w.push("Autista "+driverCanon(dn)+" ha chiesto il riposo: "+hit.map(r=>rpDates(r)+(r.nota?" ("+r.nota+")":"")).join("; ")+".");
+  }
+  for(const e of b.extras||[]){if(e.amt!==""&&!e.c)w.push("Extra di € "+money(e.amt)+" senza causale: scegli la causale spese.");else if(e.c&&e.amt==="")w.push("Extra «"+e.c+"» senza importo.");}
   if(pkMismatch!=null)w.push("I parcheggi scelti (€ "+money(pkTotal()===""?0:pkTotal())+") superano «€ Parcheggi» salvato (€ "+money(pkMismatch===""?0:pkMismatch)+"), forse cambiato da un dispositivo non aggiornato: controlla le cifre prima di salvare.");
   $("fWarns").innerHTML=w.map(x=>"<div>"+esc(x)+"</div>").join("");
   return w;
@@ -663,7 +771,8 @@ async function nextSeq(date){
 // ---------- referenti, guide, hotel e note per l'autista (2.0) ----------
 // Ogni riga ha le sue caselle. Il nome si sceglie dalla tendina collegata all'anagrafica (per gli hotel
 // anche da Google Maps) oppure si scrive. Il referente 1 usa i campi f-contact*, gli altri vanno in "refs".
-const TENDINE_DEF={note:["parcheggi","autista","3 ore","extra 1","extra 2"],ruolo:["contabile","ufficio","operativo","sul bus"]};
+const TENDINE_DEF={note:["parcheggi","autista","3 ore","extra 1","extra 2"],ruolo:["contabile","ufficio","operativo","sul bus"],
+  spese:["bottigliette d'acqua","alloggio dell'autista","kilometri extra","notturno extra","rimborso traghetto","radioline e auricolari","anticipo spese","altro"]}; // spese: causale degli extra (2.8)
 function tendina(kind){const t=STORE.reg("tendine")||{};const l=Array.isArray(t[kind])?t[kind].filter(x=>typeof x==="string"&&x.trim()):[];return l.length?l:TENDINE_DEF[kind].slice();}
 function tendinaOpts(kind,cur){const l=tendina(kind);if(cur&&!l.includes(cur))l.push(cur);return '<option value=""></option>'+l.map(v=>'<option'+(v===cur?' selected':'')+'>'+esc(v)+'</option>').join("");}
 const rinp=(f,val,attrs)=>'<input data-f="'+f+'" value="'+esc(val==null?"":val)+'"'+(attrs||' autocomplete="off"')+'>';
@@ -930,7 +1039,7 @@ function renderProgram(){
 }
 // la data di rientro segue la partenza finché non la cambi tu
 let formStart="";
-$("f-start").addEventListener("change",()=>{const st=$("f-start").value,en=$("f-end").value;if(st&&(!en||en<st||en===formStart||(endAuto&&en===addDays(formStart,1))))$("f-end").value=st;syncEndNextDay();$("f-end").min=st||"";formStart=st;checkWarns();if(isMulti(curType()))renderProgram();});
+$("f-start").addEventListener("change",()=>{fillVehOpts($("f-vehicle").value,$("f-start").value);const st=$("f-start").value,en=$("f-end").value;if(st&&(!en||en<st||en===formStart||(endAuto&&en===addDays(formStart,1))))$("f-end").value=st;syncEndNextDay();$("f-end").min=st||"";formStart=st;checkWarns();if(isMulti(curType()))renderProgram();});
 $("f-end").addEventListener("change",()=>{if(isMulti(curType()))renderProgram();});
 let openSheetAfterSave=false;
 $("fSheet").onclick=()=>{if(S.readOnly)return;openSheetAfterSave=true;$("fBooking").requestSubmit();};
@@ -1294,10 +1403,37 @@ $("fDelete").onclick=()=>{$("fConfirm").hidden=false;$("fDelete").hidden=true;};
 $("fDeleteNo").onclick=()=>{$("fConfirm").hidden=true;$("fDelete").hidden=false;};
 $("fDeleteYes").onclick=async()=>{
   if(!editing)return;
-  try{const gone=bookingsAll().find(x=>x.id===editing.id);
+  try{const gone=bookingsAll().find(x=>x.id===editing.id),wasPending=STORE.isPending(editing.id); // mai arrivata in Dropbox: n. foglio provvisorio
     const del=Object.assign({},formOrig||{},{foglio:editing.foglio,start:editing.start});writeDayOps(editing.start,{bookings:{[editing.id]:null}},{client:cleanText($("f-client").value),know:knowOf(gone)});ACC.log("prenotazione","Eliminata la prenotazione "+bookingLabel(del),{id:editing.id});closeForm();renderAll();toast("Prenotazione eliminata");
-    withdrawAfterDelete(gone);}catch(err){handleErr(err);}
+    withdrawAfterDelete(gone);if(!wasPending)pdfDelAdd(gone);}catch(err){handleErr(err);}
 };
+// 2.8: PDF dei servizi eliminati da cancellare in Dropbox (Fogli di servizio). Senza internet restano in fila su
+// questo dispositivo e si cancellano appena torna la connessione.
+const PDQ="agenda-pdf-del";
+function pdfDelQ(){try{const l=JSON.parse(localStorage.getItem(PDQ)||"[]");return Array.isArray(l)?l.filter(x=>x&&/^\d{6,12}$/.test(String(x.f||""))&&validDate(String(x.d||""))):[];}catch(_){return [];}}
+function pdfDelSave(l){try{l.length?localStorage.setItem(PDQ,JSON.stringify(l.slice(-50))):localStorage.removeItem(PDQ);}catch(_){}}
+function pdfDelAdd(b){
+  if(!b||!/^\d{6,12}$/.test(String(b.foglio||""))||isInvio())return;
+  const l=pdfDelQ();if(!l.some(x=>x.f===String(b.foglio)&&x.d===b.start))l.push({f:String(b.foglio),d:b.start,c:String(b.client||"").slice(0,60)});
+  pdfDelSave(l);pdfDelRun();
+}
+let pdfDelBusy=false;
+async function pdfDelRun(){
+  if(pdfDelBusy||!navigator.onLine||S.readOnly||isInvio())return;
+  const l=pdfDelQ();if(!l.length)return;pdfDelBusy=true;let again=true;
+  const drop=x=>pdfDelSave(pdfDelQ().filter(y=>!(y.f===x.f&&y.d===x.d))); // si rilegge la fila: nel frattempo può esserne arrivata un'altra
+  try{
+    for(const x of l){
+      try{
+        const n=await STORE.deleteSheetFiles(x.f,x.d);
+        if(n){ACC.log("foglio","Cancellati in Dropbox "+n+" PDF del foglio n. "+x.f+(x.c?" «"+x.c+"»":"")+" (prenotazione eliminata)");toast(n===1?"Cancellato in Dropbox il PDF del foglio n. "+x.f:"Cancellati in Dropbox i "+n+" PDF del foglio n. "+x.f);}
+        drop(x);
+      }catch(e){if(e&&(e.code==="readonly"||e.code==="outdated"))drop(x);else{again=false;break;}}
+    }
+  }finally{pdfDelBusy=false;}
+  if(again&&pdfDelQ().length)setTimeout(pdfDelRun,500); // arrivate mentre cancellava
+}
+window.addEventListener("online",()=>setTimeout(pdfDelRun,1500));
 
 // ---------- flotta ----------
 function openFleet(){
@@ -1355,7 +1491,11 @@ $("extraText").addEventListener("blur",()=>{if(exTimer)saveExtra();});
 
 // ---------- navigazione ----------
 function go(date){if(exTimer)saveExtra();$("extraSaved").textContent="";S.sel=date;if(mkey(date)!==subMonth)subscribe();renderAll();}
-function setView(v){S.view=v;["day","week","month","bill","pasti"].forEach(k=>{const id={day:"vDay",week:"vWeek",month:"vMonth",bill:"vBill",pasti:"vPasti"}[k];$(id).setAttribute("aria-pressed",v===k);$(k+"View").hidden=v!==k;});try{localStorage.setItem("agenda-view",v);}catch(_){}renderAll();}
+function setView(v){S.view=v;["day","week","month","bill","pasti"].forEach(k=>{const id={day:"vDay",week:"vWeek",month:"vMonth",bill:"vBill",pasti:"vPasti"}[k];$(id).setAttribute("aria-pressed",v===k);$(k+"View").hidden=v!==k;});$("stickHead").classList.toggle("on",v==="day"||v==="week");try{localStorage.setItem("agenda-view",v);}catch(_){}renderAll();stickSize();}
+// 2.8: altezza della parte ferma in alto (e della barra grigia della Settimana), per mettere sotto la barra grigia
+function stickSize(){const r=document.documentElement.style;r.setProperty("--headH",$("stickHead").offsetHeight+"px");r.setProperty("--wsignH",$("wsign").offsetHeight+"px");}
+if(window.ResizeObserver){const ro=new ResizeObserver(()=>stickSize());ro.observe($("stickHead"));ro.observe($("wsign"));}
+window.addEventListener("resize",()=>stickSize());
 $("vDay").onclick=()=>setView("day");
 $("vWeek").onclick=()=>setView("week");
 $("wsign").addEventListener("click",e=>{if(e.target.id==="wPrev")go(addDays(S.sel,-7));if(e.target.id==="wNext")go(addDays(S.sel,7));});
@@ -1379,6 +1519,8 @@ $("strip").addEventListener("click",e=>{
   const b=e.target.closest("[data-day]");if(b)go(b.dataset.day);});
 $("sign").addEventListener("click",e=>{if(e.target.id==="dPrev")go(addDays(S.sel,-1));if(e.target.id==="dNext")go(addDays(S.sel,1));});
 $("sheet").addEventListener("click",e=>{
+  if(e.target.closest("#xbAdd")){openXbus();return;}
+  const xd=e.target.closest("[data-xbdel]");if(xd){delXbus(xd.dataset.xbdel);return;}
   const a=e.target.closest("[data-add]");if(a){openForm({vehicle:a.dataset.add,date:S.sel});return;}
   const cf=e.target.closest("[data-conf]");if(cf){toggleConfirm(cf.dataset.conf,cf.dataset.start);return;}
   const sn=e.target.closest("[data-sent]");if(sn){const b=bookingsAll().find(x=>x.id===sn.dataset.sent&&x.start===sn.dataset.start);if(b)openSheet(b);return;}
@@ -1386,7 +1528,37 @@ $("sheet").addEventListener("click",e=>{
   if(ed){const b=bookingsAll().find(x=>x.id===ed.dataset.edit&&x.start===ed.dataset.start);if(b)openForm({booking:b});}
 });
 $("mgrid").addEventListener("click",e=>{const c=e.target.closest("[data-day]");if(c){S.sel=c.dataset.day;setView("day");}});
+// --- extra bus (2.8): aggiunta e rimozione nella giornata ---
+function openXbus(){
+  if(S.readOnly||isInvio())return;
+  const d=parse(S.sel);
+  $("xbInfo").textContent="Bus di un'altra azienda che fa un nostro servizio. Vale solo per "+WDL[wday(S.sel)].toLowerCase()+" "+d.getUTCDate()+" "+MN[d.getUTCMonth()]+": poi con «+ Aggiungi» sulla sua riga inserisci il servizio, come per i nostri bus.";
+  $("dlXbAz").innerHTML=[...new Set([...xbIndex().values()].map(x=>String(x.az||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"it")).map(a=>'<option value="'+esc(a)+'">').join("");
+  $("xbAz").value="";$("xbPosti").value="";$("xbTarga").value="";$("xbMsg").textContent="";$("xbSave").disabled=false;
+  $("ovXbus").hidden=false;setTimeout(()=>{try{$("xbAz").focus();}catch(_){}},30);
+}
+function closeXbus(){$("ovXbus").hidden=true;}
+$("xbCancel").onclick=closeXbus;
+backdropClose($("ovXbus"),closeXbus);
+$("xbSave").onclick=()=>{
+  const az=cleanText($("xbAz").value).slice(0,80),posti=String($("xbPosti").value||"").replace(/\D/g,"").slice(0,3),targa=cleanText($("xbTarga").value).toUpperCase().replace(/\s+/g,"").slice(0,12);
+  if(!az){$("xbMsg").textContent="Scrivi il nome dell'azienda.";$("xbAz").focus();return;}
+  if(!(+posti>0)){$("xbMsg").textContent="Scrivi quanti posti ha il bus.";$("xbPosti").focus();return;}
+  const x={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),az,posti,targa};
+  try{STORE.mutateDay(S.sel,[{t:"xbus",add:x}]);ACC.log("prenotazione","Extra bus aggiunto il "+itD(S.sel)+": "+[az,posti?posti+" posti":"",targa].filter(Boolean).join(" · "));closeXbus();toast("Extra bus aggiunto: ora puoi inserire il servizio sulla sua riga.");}
+  catch(err){handleErr(err);}
+};
+["xbAz","xbPosti","xbTarga"].forEach(id=>$(id).addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("xbSave").click();}}));
+function delXbus(id){
+  if(S.readOnly||isInvio())return;
+  const vid="xb:"+id;if(on(S.sel,vid).length){toast("Su questo extra bus c'è un servizio: prima spostalo o eliminalo.");return;}
+  const x=(dayXbus(S.sel).find(y=>y.vid===vid)||{}).def||{};
+  try{STORE.mutateDay(S.sel,[{t:"xbus",del:id}]);ACC.log("prenotazione","Extra bus tolto il "+itD(S.sel)+": "+(x.az||""));}catch(err){handleErr(err);}
+}
 document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;
+  if(!$("ovRiposo").hidden){closeRiposo();return;}
+  if(!$("ovXbus").hidden){closeXbus();return;}
+  if(!$("ovBusta").hidden){closeBusta();return;}
   if(!$("ovPasto").hidden){closePasto();return;}
   if(!$("ovCapo").hidden){$("cpCancel").click();return;}
   if(!$("ovQr").hidden){$("qrClose").click();return;}
@@ -1422,19 +1594,21 @@ function billNote(b){
   if(hasEvent(b.type)&&b.escort)p.push("Accompagnatore: "+b.escort);
   const cl=b.clientCode!==""&&b.clientCode!=null?clientByCode(b.clientCode):null;
   if(b.contactName||(b.contact&&!(cl&&cl[4]===b.contact)))p.push("Ref. "+[b.contactName,b.contact&&!(cl&&cl[4]===b.contact)?b.contact:""].filter(Boolean).join(" "));
+  if(isXbus(b.vehicle)){const x=vehicle(b.vehicle)||{};p.push("EXTRA BUS "+[x.az,x.plate].filter(Boolean).join(" "));} // 2.8: bus di un'altra azienda
   if(b.status==="opzione")p.unshift("IN SOSPESO"); // per primo: nella casella del foglio non deve essere tagliato
   return p.join(" · ");
 }
 function billItin(b){return hasEvent(b.type)&&b.event?b.event+(b.route?" – "+b.route:""):(b.route||"");}
 // una riga del fatturato per prenotazione
 function num(x){return x===""||x==null?"":Number(x);}
-function billTotal(r){return [r.P,r.Q,r.R].reduce((a,x)=>a+(x===""?0:x),0);}
+const exTot=r=>Math.round((r.EX||[]).reduce((a,e)=>a+(Number(e.amt)||0),0)*100)/100;
+function billTotal(r){return [r.P,r.Q,r.R].reduce((a,x)=>a+(x===""?0:x),0)+exTot(r);}
 function billRow(b){
   const v=vehicle(b.vehicle)||{},type=normType(b.type);
   return {foglio:b.foglio,id:b.id,start:b.start,type:type,
     A:Number(b.foglio),B:TYPE_XL[type],C:b.clientCode===""||b.clientCode==null?"":b.clientCode,
     D:b.client||"",G:xcatOf(v),H:(v.plate||"").trim(),I:b.start,J:endOf(b),
-    M:billItin(b),O:billNote(b),P:num(b.price),Q:num(b.park),R:num(b.meals),AH:cashOn(b)?num(b.advance):"",AI:cashOn(b)?(b.envelope||""):"",AJ:cashOn(b)?(b.envno||""):"",Z:realDriver(b.driver),AA:realDriver(b.driver2),dz:!realDriver(b.driver),daa:isGen(b.driver2),
+    M:billItin(b),O:billNote(b),P:num(b.price),Q:num(b.park),R:num(b.meals),EX:cleanExtras(b.extras),ex:!!(b.exOwn||cleanExtras(b.extras).length),AH:cashOn(b)?num(b.advance):"",AI:cashOn(b)?(b.envelope||""):"",AJ:cashOn(b)?(b.envno||""):"",Z:realDriver(b.driver),AA:realDriver(b.driver2),dz:!realDriver(b.driver),daa:isGen(b.driver2),
     vehicleName:v.name||""};
 }
 function billRows(days){
@@ -1487,8 +1661,8 @@ async function renderBill(){
   if(inv&&!cnt[billFilter]&&billFilter!=="all")billFilter="all";
   if(inv)fb.innerHTML=[["all","Tutti"],["todo","Da fatturare"],["draft","Con bozza"],["done","Emesse"]].map(([f,l])=>'<button type="button" class="bf bf-'+f+'" data-bf="'+f+'" aria-pressed="'+(billFilter===f)+'"'+(cnt[f]||f==="all"?"":" disabled")+'><b>'+l+'</b><span>'+cnt[f]+(cnt[f]===1?" servizio":" servizi")+' · € '+money(amt[f])+'</span></button>').join("")+'<span class="bf-note">«Emessa» vuol dire che il file XML per la contabilità è stato creato.</span>';
   const show=inv&&billFilter!=="all"?rows.filter(r=>(st.get(r.id+"|"+r.start)||{}).k===billFilter):rows;
-  const NC=inv?14:12;
-  const head='<thead><tr>'+(inv?'<th class="selc" title="Spunta i servizi da mettere in una fattura unica"></th>':"")+'<th>N. foglio</th>'+(inv?'<th>Fattura</th>':"")+'<th>Servizio</th><th>Cliente</th><th>Mezzo</th><th>Date</th><th>Itinerario</th><th>Autisti</th><th class="r">€ Noleggio</th><th class="r">€ Parcheggi</th><th class="r" title="Sotto l\'importo: le crocette dei pasti messe dagli autisti nell\'app">€ Pasti</th><th class="r">€ Totale</th><th>Anticipo</th><th></th></tr></thead>';
+  const NC=inv?15:13;
+  const head='<thead><tr>'+(inv?'<th class="selc" title="Spunta i servizi da mettere in una fattura unica"></th>':"")+'<th>N. foglio</th>'+(inv?'<th>Fattura</th>':"")+'<th>Servizio</th><th>Cliente</th><th>Mezzo</th><th>Date</th><th>Itinerario</th><th>Autisti</th><th class="r">€ Noleggio</th><th class="r">€ Parcheggi</th><th class="r" title="Sotto l\'importo: le crocette dei pasti messe dagli autisti nell\'app">€ Pasti</th><th class="r" title="Extra con la causale spese (colonne «€ varie» del file fatturato)">€ Extra</th><th class="r">€ Totale</th><th>Anticipo</th><th></th></tr></thead>';
   if(!show.length){$("btable").innerHTML=head+'<tbody><tr><td class="empty" colspan="'+(NC+1)+'">'+(rows.length?"Nessun servizio con questo stato.":"Nessun servizio "+(all?"in agenda":"in questo mese")+".")+'</td></tr></tbody>';return;}
   const sum=k=>show.reduce((a,r)=>a+(r[k]===""?0:r[k]),0),tot=show.reduce((a,r)=>a+billTotal(r),0);
   const spIds=new Set(src.filter(speseFor).map(b=>b.id)); // servizi con busta già inviati all'autista
@@ -1508,9 +1682,9 @@ async function renderBill(){
       '<td class="num">'+dates(r)+'</td>'+
       '<td class="iti">'+esc(r.M)+(r.O?'<span class="sub">'+esc(r.O)+'</span>':'')+'</td>'+
       '<td>'+drv(r)+'</td>'+
-      '<td class="num r">'+money(r.P)+'</td><td class="num r">'+money(r.Q)+'</td><td class="num r">'+money(r.R)+mealsSub(meals.get(key))+'</td><td class="num r"><b>'+(r.P===""&&r.Q===""&&r.R===""?"":money(billTotal(r)))+'</b></td>'+
+      '<td class="num r">'+money(r.P)+'</td><td class="num r">'+money(r.Q)+'</td><td class="num r">'+money(r.R)+mealsSub(meals.get(key))+'</td><td class="num r">'+(r.EX&&r.EX.length?money(exTot(r))+'<span class="sub">'+esc(r.EX.map(e=>e.c||"extra").join(", "))+'</span>':"")+'</td><td class="num r"><b>'+(r.P===""&&r.Q===""&&r.R===""&&!exTot(r)?"":money(billTotal(r)))+'</b></td>'+
       '<td class="num">'+(r.AH!==""?"€ "+money(r.AH):"")+(r.AI?'<span class="sub">Busta '+esc(r.AI)+(r.AJ?" n. "+esc(r.AJ):"")+'</span>':"")+'</td><td class="acts"><button type="button" class="mini" data-fs="1">Foglio di servizio</button>'+(spIds.has(r.id)?'<button type="button" class="mini" data-sp="1">Spese autista</button>':"")+(inv?'<button type="button" class="mini inv" data-inv="1">Bozza Fattura</button>':"")+'</td></tr>';
-  }).join("")+'</tbody><tfoot><tr><td colspan="'+(inv?9:7)+'">'+show.length+' servizi'+(inv&&billFilter!=="all"?" ("+({todo:"da fatturare",draft:"con bozza",done:"emesse"}[billFilter])+")":"")+'</td><td class="num r">'+money(sum("P"))+'</td><td class="num r">'+money(sum("Q"))+'</td><td class="num r">'+money(sum("R"))+(()=>{const t=mealsSum([...meals.values()]);return t.rows.length?'<span class="sub pst'+(t.shared?" warn":"")+'"'+(t.shared?' title="Lo stesso autista nello stesso giorno conta una volta sola"':"")+'><i>crocette</i> '+(t.shared?"⚠ ":"")+esc(mealsTxt(t.po,t.pl))+'</span>':"";})()+'</td><td class="num r">'+money(tot)+'</td><td class="num">'+(sum("AH")?"€ "+money(sum("AH")):"")+'</td><td></td></tr></tfoot>';
+  }).join("")+'</tbody><tfoot><tr><td colspan="'+(inv?9:7)+'">'+show.length+' servizi'+(inv&&billFilter!=="all"?" ("+({todo:"da fatturare",draft:"con bozza",done:"emesse"}[billFilter])+")":"")+'</td><td class="num r">'+money(sum("P"))+'</td><td class="num r">'+money(sum("Q"))+'</td><td class="num r">'+money(sum("R"))+(()=>{const t=mealsSum([...meals.values()]);return t.rows.length?'<span class="sub pst'+(t.shared?" warn":"")+'"'+(t.shared?' title="Lo stesso autista nello stesso giorno conta una volta sola"':"")+'><i>crocette</i> '+(t.shared?"⚠ ":"")+esc(mealsTxt(t.po,t.pl))+'</span>':"";})()+'</td><td class="num r">'+(()=>{const x=show.reduce((a,r)=>a+exTot(r),0);return x?money(x):"";})()+'</td><td class="num r">'+money(tot)+'</td><td class="num">'+(sum("AH")?"€ "+money(sum("AH")):"")+'</td><td></td></tr></tfoot>';
 }
 $("billFilter").addEventListener("click",e=>{const b=e.target.closest("[data-bf]");if(!b||b.disabled)return;billFilter=b.dataset.bf;renderBill();});
 $("btable").addEventListener("click",e=>{const tr=e.target.closest("[data-bid]");if(!tr)return;const b=bookingsAll().concat(S.allDays?billSourceAll():[]).find(x=>x.id===tr.dataset.bid&&x.start===tr.dataset.bstart);if(!b)return;
@@ -1534,7 +1708,7 @@ function rowTSV(r){
   const put=(col,v)=>{cells[colIdx(col)-1]=noFormula(String(v==null?"":v).replace(/[\t\r\n]+/g," "));};
   put("A",r.foglio);put("B",r.B);put("C",r.C);put("D",c?c[1]:r.D);put("E",c?c[2]:"");put("F",c?c[4]:"");
   put("G",r.G);put("H",r.H);put("I",itDate(r.I));put("J",itDate(r.J));put("K",diff(r.I,r.J)+1);
-  put("M",r.M);put("O",r.O);put("P",money(r.P));put("Q",money(r.Q));put("R",money(r.R));put("Y",r.P===""&&r.Q===""&&r.R===""?"":money(billTotal(r)));
+  put("M",r.M);put("O",r.O);put("P",money(r.P));put("Q",money(r.Q));put("R",money(r.R));(r.EX||[]).forEach((e,i)=>{const c=[["S","T"],["U","V"],["W","X"]][i];if(c){put(c[0],money(e.amt));put(c[1],e.c);}});put("Y",r.P===""&&r.Q===""&&r.R===""&&!exTot(r)?"":money(billTotal(r)));
   put("AH",money(r.AH));put("AI",r.AI);put("AJ",r.AJ);put("AQ",money(r.AH));put("Z",r.Z);put("AA",r.AA);
   return cells.join("\t");
 }
@@ -1753,7 +1927,7 @@ const guideCell=x=>x?[x.name,x.city].filter(Boolean).join(" – ")+(x.note?" · 
 function ref1Of(b){return {name:b.contactName||"",role:b.contactRole||"",note:b.contactNote||"",tel:b.contact||""};}
 // opzioni della finestra del foglio di servizio. alias: nella casella Cliente del foglio per l'autista
 // si scrive l'alias (quando il cliente ne ha uno); nella parte contabile resta sempre la ragione sociale.
-const SHO={noPlate:false,alias:false};
+const SHO={noPlate:true,alias:false}; // 2.8: di serie targa e ID mezzo nascosti (si fanno vedere togliendo la spunta)
 function shClient(b){return b.clientCode!==""&&b.clientCode!=null?clientByCode(b.clientCode):null;}
 const numOrE=x=>x===""||x==null||!isFinite(Number(x))?"":Number(x);
 // referenti della prenotazione, in ordine: il 1° (riga Referente 1 del modulo) e gli altri
@@ -1765,8 +1939,12 @@ function refsOf(b){
 // Struttura del foglio per questa prenotazione. Il modello ha 2 righe per referenti, guide e hotel e 4 per le
 // note: se ne servono di più si aggiungono sotto (Referente 3 sotto il 2, e così via); le note hanno tante
 // righe quante sono (senza note resta solo «Note 1», vuota).
-function tplPlan(b){
+function tplPlan(b,measure){
   const P={refs:refsOf(b),gs:guidesOf(b),hs:hotelsOf(b),ns:notesOf(b)};
+  // 2.8: programma dinamico. Almeno le 7 righe del modello; se il programma ne ha di più (tour di più giorni) o una
+  // riga è troppo lunga (va a capo), si aggiungono righe. Niente più «segue a pagina 2»: il foglio si allunga e
+  // nella stampa e nel PDF si rimpicciolisce quanto basta per stare in una pagina A4.
+  P.prog=tplProgLines(b,measure);P.nP=Math.max(7,P.prog.length);
   const cap=(n,min)=>Math.max(min,Math.min(n,12));
   // foglio dinamico: "Ref.te 1" e "Note 1" ci sono sempre; il 2° referente, le guide e gli hotel solo se scritti
   P.nR=cap(P.refs.length,1);P.nG=cap(P.gs.length,0);P.nH=cap(P.hs.length,0);P.nN=cap(P.ns.length,1);
@@ -1778,7 +1956,7 @@ function tplPlan(b){
   P.rGuide=rows.length+1;for(let i=0;i<P.nG;i++)rows.push(row(TR.guide,"Guida "+(i+1),true));
   P.rHotel=rows.length+1;for(let i=0;i<P.nH;i++)rows.push(row(TR.hotel,"Hotel "+(i+1),true));
   rows.push(TPL_ROWS[14]);
-  P.rProg=rows.length+1;rows.push(...TPL_ROWS.slice(15,22)); // 7 righe del programma
+  P.rProg=rows.length+1;rows.push(TPL_ROWS[15]);for(let i=0;i<P.nP-2;i++)rows.push(TPL_ROWS[16]);rows.push(TPL_ROWS[21]); // righe del programma (prima, centrali, ultima)
   rows.push(TPL_ROWS[22]);
   P.rSaldo=rows.length+1;rows.push(TPL_ROWS[23]);
   P.rNote=rows.length+1;for(let i=0;i<P.nN;i++)rows.push(row(TR.note,"Note "+(i+1)));
@@ -1814,13 +1992,24 @@ function tplProgramAll(b,all){
   }
   return lines;
 }
-// righe per le 7 caselle del programma. Se non bastano la settima rimanda alla pagina 2, dove c'è tutto.
-function tplProgram(b){
-  const lines=tplProgramAll(b,false);
-  if(lines.length<=7)return lines;
-  const head=lines.slice(0,6);
-  head.push("▸ Il programma continua a pagina 2 (altre "+(lines.length-6)+" righe)");
-  return head;
+// righe del programma sul foglio (2.8): una per tappa o per giorno; quelle troppo lunghe per la riga vanno a capo
+// sulla riga sotto (rientrata). measure: come misura il testo chi disegna (anteprima, stampa o PDF).
+const TPL_PROG_W=()=>{let w=0;TPL_COLS.forEach(c=>{w+=Math.round(c*9+5);});return w-8;};
+function tplProgLines(b,measure){
+  const lines=tplProgramAll(b,false);if(!measure)return lines;
+  const size=14*4/3,maxW=TPL_PROG_W(),out=[];
+  for(const l of lines){
+    if(measure(l,size,false)<=maxW){out.push(l);continue;}
+    let cur="",first=true;
+    for(const w of l.split(/\s+/)){
+      const test=cur?cur+" "+w:(first?w:"    "+w);
+      if(measure(test,size,false)<=maxW||!cur.trim()){cur=test;continue;}
+      out.push(cur);first=false;cur="    "+w;
+    }
+    if(cur.trim())out.push(cur);
+  }
+  if(out.length>90){const n=out.length-89;out.length=89;out.push("… (il programma continua: altre "+n+" righe nel modulo della prenotazione)");}
+  return out;
 }
 // ---------- durata del servizio ----------
 // Gite e transfer di un giorno: ore tra partenza e rientro. Tour, notturni e servizi di più giorni: giorni.
@@ -1845,8 +2034,8 @@ function durShort(b,date){
   return "";
 }
 // valori delle caselle. k: s testo, i numero intero, d data, e euro, a euro contabile
-function tplValues(b){
-  const P=tplPlan(b),o={};
+function tplValues(b,measure){
+  const P=tplPlan(b,measure),o={};
   const v=vehicle(b.vehicle)||{},cl=shClient(b),plate=(v.plate||"").trim(),type=normType(b.type);
   const nr=v.num!=null&&String(v.num).trim()!==""?v.num:(S.regole.numeri||{})[plate],numero=nr==null?"":(/^\d+$/.test(String(nr).trim())?Number(nr):String(nr).trim());
   const nd=diff(b.start,endOf(b))+1,pr=numOrE(b.price),pk=numOrE(b.park),ml=numOrE(b.meals);
@@ -1866,7 +2055,7 @@ function tplValues(b){
   P.refs.slice(0,P.nR).forEach((x,i)=>{const r=P.rRef+i;put("B",r,{v:one(x.role,x.name,x.note)});put("H",r,{v:x.tel||""});});
   P.gs.slice(0,P.nG).forEach((x,i)=>{const r=P.rGuide+i;put("B",r,{v:one(x.city,x.name,x.note)});put("H",r,{v:x.tel||""});});
   P.hs.slice(0,P.nH).forEach((x,i)=>{const r=P.rHotel+i;put("B",r,{v:one(x.city,hotelShort(x.name),x.addr)});put("H",r,{v:x.tel||""});});
-  tplProgram(b).forEach((t,i)=>put("A",P.rProg+i,{v:t}));
+  P.prog.forEach((t,i)=>put("A",P.rProg+i,{v:t}));
   put("C",P.rSaldo,{v:b.saldo==="SI"?"SI":"NO"});put("D",P.rSaldo,{v:numOrE(b.saldoAmt),k:"a"});put("H",P.rSaldo,{v:cashOn(b)?numOrE(b.advance):"",k:"e"});
   P.ns.slice(0,P.nN).forEach((x,i)=>{put("B",P.rNote+i,{v:x.c||""});put("C",P.rNote+i,{v:x.t||""});});
   // parte contabile: sempre la ragione sociale del cliente, mai l'alias
@@ -1894,7 +2083,7 @@ function tplText(x){
 // Disegno del modello (unità: pixel del foglio Excel a 100%). Usato da anteprima, PDF e stampa.
 // part: "driver" solo la copia per l'autista, "full" anche la parte contabile, "office" solo la parte contabile.
 function tplLayout(b,part,measure){
-  const {vals,P}=tplValues(b),rows=P.rows;let cut=P.over;
+  const {vals,P}=tplValues(b,measure),rows=P.rows;let cut=P.over;
   const first=part==="office"?P.rOff:1,last=part==="driver"?P.last:rows.length;
   const X=[0];TPL_COLS.forEach(w=>X.push(X[X.length-1]+Math.round(w*9+5)));
   const fills=[],lines=[],texts=[];let y=0;
@@ -1956,7 +2145,7 @@ function tplLayout(b,part,measure){
         const minSz=size*(val&&!c.m?0.72:0.6);
         for(let n=0;n<8&&tw>w-6&&sz>minSz;n++){sz=Math.max(minSz,sz*Math.min(0.995,(w-6)/tw*0.995));tw=measure(txt,sz,bold);}
         // ancora troppo lungo: si accorcia e si rimanda alla pagina 2, dove c'è per intero
-        const prog=r>=P.rProg&&r<=P.rProg+6&&i===0,dyn=!!val&&((r>=P.rRef&&r<P.rHotel+P.nH)||(r>=P.rNote&&r<P.rNote+P.nN)),p2=prog||!!c.m||dyn,suf=prog?"… (segue a pag. 2)":"…";
+        const prog=r>=P.rProg&&r<P.rProg+P.nP&&i===0,dyn=!!val&&((r>=P.rRef&&r<P.rHotel+P.nH)||(r>=P.rNote&&r<P.rNote+P.nN)),p2=!prog&&(!!c.m||dyn),suf="…";
         if(tw>w-6){if(p2&&part!=="office")cut=true;let base=txt;while(tw>w-6&&base.length>1){base=base.slice(0,-2);txt=base.replace(/\s+$/,"")+suf;tw=measure(txt,sz,bold);}}}
       const tx=al==="c"?x0+(w-tw)/2:al==="r"?x0+w-3-tw:x0+3;
       texts.push({x:tx,y:y+h-Math.max(3,(h-sz)/2-1)-sz*0.2,t:txt,size:sz,bold});
@@ -1970,7 +2159,9 @@ function tplLayout(b,part,measure){
   return {W:X[8],H:y,fills,lines:solid,texts,cut,part};
 }
 // serve la pagina 2? (programma più lungo delle 7 righe del modello o testi tagliati). Mai per la sola parte contabile.
-function needPage2(b,L){return (!L||L.part!=="office")&&(tplProgramAll(b).length>7||!!(L&&L.cut));}
+// pagina 2 (2.8): non più per il programma (il foglio si allunga); resta solo se referenti, guide, hotel o note sono
+// tantissimi (oltre 12) o troppo lunghi per la loro casella: lì c'è tutto per esteso.
+function needPage2(b,L){return (!L||L.part!=="office")&&!!(L&&L.cut);}
 function page2Head(b){
   const v=vehicle(b.vehicle)||{},cl=shClient(b),alias=cl&&cl[2]?String(cl[2]):"";
   return {title:"Foglio di servizio n. "+(b.foglio||"")+(b.provisional?" (provvisorio)":"")+" – programma completo",
@@ -2146,7 +2337,8 @@ function sheetPart(){if(isInvio())return "driver";const v=$("sheetPart").value;r
 const PART_SUFFIX={driver:"",full:"_completo",office:"_contabile"},PART_LOG={driver:"",full:" (con la parte contabile)",office:" (solo parte contabile)"};
 function openSheet(b){
   sheetBooking=Object.assign({},b,{provisional:STORE.isPending(b.id)});
-  $("sheetNoPlate").checked=false;SHO.noPlate=false;$("sheetPart").value="driver";
+  // 2.8: «Nascondi Targa e ID Mezzo» è spuntata di serie: targa e ID si fanno vedere togliendo la spunta
+  $("sheetNoPlate").checked=true;SHO.noPlate=true;$("sheetPart").value="driver";
   // Cliente o alias nell'intestazione: la scelta resta quella dell'ultima volta su questo dispositivo
   let al=false;try{al=localStorage.getItem("agenda-sheet-alias")==="1";}catch(_){}
   SHO.alias=al;
@@ -2155,6 +2347,7 @@ function openSheet(b){
   // profilo «solo anteprima e invio»: niente stampa, niente PDF, niente ritorno alla prenotazione
   const iv=isInvio();
   $("sheetBack").hidden=iv;$("sheetPdf").hidden=iv;$("sheetPrint").hidden=iv;$("sheetShare").hidden=iv||!canShareFile;
+  $("sheetPrint").textContent=S.readOnly?"Stampa":"Salva e stampa";$("sheetPrint").title=S.readOnly?"":"Stampa il foglio e salva la copia completa in Dropbox (Fogli di servizio)";
   $("sheetPart").closest("label").hidden=iv;document.querySelector("#ovSheet .sheet-hint").hidden=iv;
   renderSheet();$("sheetMsg").textContent="";
   ensureSheetFont().then(ok=>{if(ok&&!$("ovSheet").hidden)renderSheet();});
@@ -2225,15 +2418,27 @@ async function sheetSave(kind){
 }
 $("sheetPdf").onclick=()=>{sheetSave("pdf");if(sheetBooking)ACC.log("foglio","PDF del foglio di servizio n. "+(sheetBooking.foglio||"")+" «"+(sheetBooking.client||"")+"»"+PART_LOG[sheetPart()],{id:sheetBooking.id});};
 // Stampa: il foglio come nell'anteprima (A4); se il programma non ci sta, anche la pagina 2 come nel PDF
+// 2.8 «Salva e stampa»: mentre si stampa, la copia completa del foglio (con la copia ufficio, come per «Salva PDF»)
+// va in Dropbox, nella cartella del giorno (Fogli di servizio › anno › mese › giorno). Il messaggio dice com'è andata.
+function sheetCopyToDropbox(b){
+  if(isInvio()||S.readOnly)return Promise.resolve("");
+  if(!navigator.onLine)return Promise.resolve("Sei offline: in Dropbox non è stata salvata nessuna copia.");
+  const prov=b.provisional?"_PROVVISORIO":"";
+  return tplPDF(b,"full").then(blob=>STORE.saveSheetFile(sheetFileName(b)+PART_SUFFIX.full+prov+".pdf",blob,b.start))
+    .then(()=>"Copia completa (con la copia ufficio) salvata in Dropbox › "+STORE.sheetFolder(b.start).replace(STORE.BASE+"/","").split("/").join(" › ")+".")
+    .catch(e=>{ACC.tlog("errore","Salva e stampa: copia in Dropbox non salvata",String((e&&(e.code||e.message))||e));return "Non sono riuscito a salvare la copia in Dropbox.";});
+}
 async function printSheet(){
   if(!sheetBooking)return;
   refreshSheetBooking();
   const b=sheetBooking,full=sheetPart(),ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
   sheetsOut[b.id]=String(b.foglio);
-  ACC.log("foglio","Stampa del foglio di servizio n. "+(b.foglio||"")+" «"+(b.client||"")+"»"+PART_LOG[full],{id:b.id});
+  ACC.log("foglio",(isInvio()?"Stampa":"Salva e stampa")+" del foglio di servizio n. "+(b.foglio||"")+" «"+(b.client||"")+"»"+PART_LOG[full],{id:b.id});
+  const saving=sheetCopyToDropbox(b),done=()=>saving.then(t=>{if(sheetBooking&&sheetBooking.id===b.id)$("sheetMsg").textContent=t?"Stampa aperta. "+t:"";});
+  $("sheetMsg").textContent=isInvio()||S.readOnly?"":"Preparo la stampa e salvo la copia in Dropbox…";
   if(ios){ // su iPhone/iPad si stampa dal PDF (Condividi › Stampa)
     try{const blob=await tplPDF(b,full);const u=URL.createObjectURL(blob);window.open(u,"_blank");setTimeout(()=>URL.revokeObjectURL(u),60000);}catch(_){toast("Non riesco a preparare la stampa.");}
-    return;
+    done();return;
   }
   let p2="";
   if(needPage2(b,tplLayout(b,full,measureCanvas))){
@@ -2252,6 +2457,7 @@ async function printSheet(){
   await new Promise(r=>{fr.onload=r;fr.srcdoc=html;});
   try{await Promise.race([fr.contentDocument.fonts.ready,new Promise(r=>setTimeout(r,1500))]);}catch(_){}
   try{fr.contentWindow.focus();fr.contentWindow.print();}catch(_){toast("Non riesco ad aprire la stampa.");}
+  done();
 }
 $("sheetPrint").onclick=printSheet;
 
@@ -2423,6 +2629,9 @@ function showGate(mode,o){
 function closeOverlays(){
   ["ovBooking","ovFleet","ovMenu","ovSheet","ovClients","ovClientNew","ovMaster","ovArch","ovReg","ovInv","ovInvList","ovCont","ovSpese","ovQr","ovCapo","ovPasto"].forEach(id=>{const x=$(id);if(x)x.hidden=true;});PO=null;try{closeCapo();}catch(_){}try{$("recOut").textContent="";$("recShown").hidden=true;}catch(_){}INV=null;CT=null;ctOrig=null;ctDirty=false;invPending=null;invSel.clear();
   if(typeof spClosePhoto==="function")spClosePhoto();
+  try{closeBusta();}catch(_){}
+  try{closeXbus();}catch(_){}
+  try{closeRiposo();}catch(_){}
 }
 let gateFromMenu=false;
 $("gLinkBtn").onclick=async()=>{try{await DBX.startLogin();}catch(e){$("gMsg").textContent="Configurazione mancante: manca la chiave dell'app Dropbox in config.js.";}};
@@ -2475,6 +2684,7 @@ function unlocked(){
   if(!started){started=true;STORE.flush();STORE.syncFatturato();STORE.watch();ACC.startBeat();autStart();ACC.tlog("info","Avvio della versione "+APP_VERSION+" su "+(ACC.devLabel(ACC.device.id)||ACC.device.auto));}
   ACC.beat();ACC.flushLog();
   setTimeout(()=>{if(isInvio()||!ACC.session())return;seedRegs();flushRegAdd();},2500);
+  setTimeout(()=>{if(ACC.session()&&navigator.onLine)STORE.loadRegs().catch(()=>{});},3500); // anche il capo: anagrafica autisti e riposi (2.8)
   autAfterRedirect();(STORE.aut?Promise.resolve():STORE.loadAut()).then(()=>AUT.sync());
   // versione minima (2.6): questa versione la alza; se su Dropbox ce n'è già una più nuova la pagina smette di scrivere
   STORE.loadMinVer().then(()=>{checkMinVer();if(!S.outdated&&!S.readOnly)return STORE.raiseMinVer(APP_VERSION);}).catch(()=>{});
@@ -2519,6 +2729,7 @@ async function afterSync(o){
 function enterApp(){
   if(isMaster()&&!Object.keys(STORE.fatFiles()).length&&navigator.onLine&&!sessionStorage.getItem("fat-later")){showGate("fatturato",{});return;}
   unlocked();
+  setTimeout(pdfDelRun,4000); // PDF di servizi eliminati rimasti da cancellare (2.8)
 }
 
 // ---------- menu ----------
@@ -2686,7 +2897,7 @@ document.addEventListener("visibilitychange",()=>{if(document.visibilityState===
 window.addEventListener("pageshow",checkIdle);window.addEventListener("focus",checkIdle);window.addEventListener("pagehide",()=>saveAct(true));
 
 // ---------- registro: cosa è cambiato in una prenotazione ----------
-const FIELD_LBL={type:"Categoria",vehicle:"Mezzo",start:"Data partenza",end:"Data rientro",time:"Ora partenza",time2:"Ora rientro",client:"Cliente",clientCode:"Codice cliente",route:"Itinerario",event:"Evento",escort:"Accompagnatore",pax:"Passeggeri",price:"Prezzo",park:"Parcheggi",parks:"Parcheggi scelti",meals:"Pasti",advance:"Acconto",envelope:"Busta",envno:"N. busta",driver:"1° autista",driver2:"2° autista",contact:"Telefono referente 1",contactName:"Referente 1",contactRole:"Ruolo referente 1",contactNote:"Note referente 1",dnotes:"Note per l'autista",status:"Stato",notes:"Note",saldo:"Saldo da ricevere",saldoAmt:"€ Saldo",npark:"Note 1° park",ndriver:"Note 2° autista",n3h:"Note 3° 3 ore",nextra:"Note 4° extra",refs:"Altri referenti",hotels:"Hotel",guides:"Guide",program:"Programma"};
+const FIELD_LBL={type:"Categoria",vehicle:"Mezzo",start:"Data partenza",end:"Data rientro",time:"Ora partenza",time2:"Ora rientro",client:"Cliente",clientCode:"Codice cliente",route:"Itinerario",event:"Evento",escort:"Accompagnatore",pax:"Passeggeri",price:"Prezzo",park:"Parcheggi",parks:"Parcheggi scelti",meals:"Pasti",extras:"Extra",advance:"Acconto",envelope:"Busta",envno:"N. busta",driver:"1° autista",driver2:"2° autista",contact:"Telefono referente 1",contactName:"Referente 1",contactRole:"Ruolo referente 1",contactNote:"Note referente 1",dnotes:"Note per l'autista",status:"Stato",notes:"Note",saldo:"Saldo da ricevere",saldoAmt:"€ Saldo",npark:"Note 1° park",ndriver:"Note 2° autista",n3h:"Note 3° 3 ore",nextra:"Note 4° extra",refs:"Altri referenti",hotels:"Hotel",guides:"Guide",program:"Programma"};
 function logVal(k,v){
   if(v===""||v==null||(Array.isArray(v)&&!v.filter(Boolean).length))return "—";
   if(k==="vehicle"){const vv=vehicle(v);return vv?vehLabel(vv):String(v);}
@@ -2697,6 +2908,7 @@ function logVal(k,v){
   if(k==="refs"||k==="hotels"||k==="guides")return v.map(x=>[x.name,x.role?"("+x.role+")":"",x.addr,x.city,x.tel,x.note].filter(Boolean).join(" ")).join("; ").slice(0,200);
   if(k==="dnotes")return v.map(x=>[x.c,x.t].filter(Boolean).join(": ")).join("; ").slice(0,200);
   if(k==="parks")return v.map(x=>(x.nome||"senza parcheggio")+(x.amt!==""&&x.amt!=null?" € "+money(x.amt):"")).join("; ").slice(0,200);
+  if(k==="extras")return cleanExtras(v).map(x=>(x.c||"senza causale")+(x.amt!==""?" € "+money(x.amt):"")).join("; ").slice(0,200);
   if(k==="program")return v.filter(Boolean).map(x=>String(x).replace(/\n/g," / ")).join(" | ").slice(0,160);
   const t=String(v).replace(/\s+/g," ");return t.length>120?t.slice(0,117)+"…":t;
 }
@@ -2861,7 +3073,7 @@ $("devList").addEventListener("click",async e=>{
   }catch(_){mstMsg("Operazione non riuscita: controlla la connessione e riprova.",true);}
 });
 // registro
-const LOG_KIND={accesso:"Accesso",prenotazione:"Prenotazione",cliente:"Cliente",foglio:"Foglio",fattura:"Fattura",pasti:"Pasti autisti",impostazioni:"Impostazioni",utenti:"Utenti",dispositivi:"Dispositivi"};
+const LOG_KIND={accesso:"Accesso",prenotazione:"Prenotazione",cliente:"Cliente",foglio:"Foglio",fattura:"Fattura",pasti:"Pasti autisti",riposi:"Riposi autisti",impostazioni:"Impostazioni",utenti:"Utenti",dispositivi:"Dispositivi"};
 function logRange(){const n=+$("lgPer").value,to=ACC.localDate(),d=new Date();d.setDate(d.getDate()-n);return {from:ACC.localDate(d),to};}
 async function loadLog(){
   const r=logRange(),key=r.from+"|"+r.to;
@@ -3036,7 +3248,7 @@ $("contSave").onclick=async()=>{
 const invKey=b=>b.id+"|"+b.start;
 function invService(b){
   const v=vehicle(b.vehicle)||{};
-  return {id:b.id,start:b.start,end:endOf(b),type:normType(b.type),foglio:String(b.foglio||""),itin:billItin(b),event:b.event||"",pax:b.pax,client:b.client||"",vehicle:{kind:v.kind,seats:v.seats,plate:(v.plate||"").trim()},price:Number(b.price)||0,park:Number(b.park)||0,meals:Number(b.meals)||0,parks:(Array.isArray(b.parks)?b.parks:[]).filter(p=>p&&p.pid).map(p=>{const r=parkReg(p.pid);return {key:p.pid,testo:parkFatt(r,p),aliq:r?String(r.aliq||""):"",amt:Number(p.amt)||0};})};
+  return {id:b.id,start:b.start,end:endOf(b),type:normType(b.type),foglio:String(b.foglio||""),itin:billItin(b),event:b.event||"",pax:b.pax,client:b.client||"",vehicle:{kind:v.kind,seats:v.seats,plate:(v.plate||"").trim()},price:Number(b.price)||0,park:Number(b.park)||0,meals:Number(b.meals)||0,extras:cleanExtras(b.extras).filter(e=>Number(e.amt)>0).map(e=>({c:e.c,amt:Number(e.amt)})),parks:(Array.isArray(b.parks)?b.parks:[]).filter(p=>p&&p.pid).map(p=>{const r=parkReg(p.pid);return {key:p.pid,testo:parkFatt(r,p),aliq:r?String(r.aliq||""):"",amt:Number(p.amt)||0};})};
 }
 // dati del cliente dall'anagrafica (foglio "clienti" del fatturato)
 function invClient(b){
@@ -3420,7 +3632,7 @@ const invSel=new Set();
 function invSelBookings(){const all=bookingsAll().concat(S.allDays?billSourceAll():[]);return [...invSel].map(k=>all.find(b=>invKey(b)===k)).filter(Boolean);}
 function renderInvBar(){
   const on=canInv();$("billInv").hidden=!on;if(!on)return;
-  const sel=invSelBookings(),n=sel.length,tot=sel.reduce((a,b)=>a+(Number(b.price)||0)+(Number(b.park)||0)+(Number(b.meals)||0),0);
+  const sel=invSelBookings(),n=sel.length,tot=sel.reduce((a,b)=>a+(Number(b.price)||0)+(Number(b.park)||0)+(Number(b.meals)||0)+exSum(b),0);
   $("invSel").disabled=!n;$("invSel").textContent=n?"Bozza fattura unica dei "+n+" servizi selezionati (€ "+eur2(tot)+")":"Bozza fattura di più servizi";
   $("invSelClear").hidden=!n;
   const nd=STORE.drafts().length;$("invList").textContent="Bozze fattura"+(nd?" ("+nd+")":"");
@@ -3510,12 +3722,14 @@ document.addEventListener("scroll",e=>{const b=$("memSug");if(b&&!b.hidden&&!b.c
 const ARCH=[
   {k:"clienti",ic:"👥",t:"Anagrafica clienti",n:()=>S.clients.length.toLocaleString("it-IT")+" clienti",open:()=>openClients()},
   {k:"flotta",ic:"🚌",t:"Anagrafica flotta",n:()=>S.fleet.length+" mezzi",open:()=>openFleet()},
+  {k:"autisti",ic:"🧑‍✈️",t:"Anagrafica autisti",n:()=>drivers().length+" autisti",open:()=>openReg("autisti")},
   {k:"referenti",ic:"☎️",t:"Anagrafica referenti",n:()=>regRows("referenti").length+" referenti",open:()=>openReg("referenti")},
   {k:"guide",ic:"🧭",t:"Anagrafica guide",n:()=>regRows("guide").length+" guide",open:()=>openReg("guide")},
   {k:"hotel",ic:"🏨",t:"Anagrafica hotel",n:()=>regRows("hotel").length+" hotel",open:()=>openReg("hotel")},
   {k:"parcheggi",ic:"🅿️",t:"Anagrafica parcheggi",n:()=>regRows("parcheggi").length+" parcheggi",open:()=>openReg("parcheggi")},
   {k:"note",ic:"📝",t:"Tendina note",n:()=>tendina("note").length+" voci (causali delle note per l'autista)",open:()=>openReg("note")},
   {k:"ruolo",ic:"🏷️",t:"Tendina ruolo",n:()=>tendina("ruolo").length+" voci (ruolo del referente)",open:()=>openReg("ruolo")},
+  {k:"spese",ic:"💶",t:"Tendina causale spese",n:()=>tendina("spese").length+" voci (causale degli extra della prenotazione)",open:()=>openReg("spese")},
   {k:"contab",ic:"🧾",t:"Contabilità",n:()=>"Dati societari, aliquote IVA, causali, pagamento, sconti e arrotondamenti delle bozze di fattura",open:()=>openContab(),show:()=>canCont()},
 ];
 function openArchive(){
@@ -3533,20 +3747,28 @@ const REG_COLS={
   guide:[["nome","Nome"],["regione","Regione","dlRegions"],["citta","Città","dlCities"],["tel","Telefono"]],
   hotel:[["regione","Regione","dlRegions"],["citta","Città","dlCities"],["nome","Nome"],["indirizzo","Indirizzo"],["tel","Telefono"]],
   parcheggi:[["nome","Nome"],["citta","Città","dlCities"],["indirizzo","Indirizzo"],["fatt","In fattura"],["aliq","IVA della ricevuta",null,"aliq"]],
-  note:[["v","Causale"]],ruolo:[["v","Ruolo"]],
+  note:[["v","Causale"]],ruolo:[["v","Ruolo"]],spese:[["v","Causale spese"]],
+  autisti:[["nome","Cognome e nome"],["colore","Colore nell'elenco",null,"col"]],
 };
-const REG_TITLE={referenti:"Anagrafica referenti",guide:"Anagrafica guide",hotel:"Anagrafica hotel",parcheggi:"Anagrafica parcheggi",note:"Tendina note",ruolo:"Tendina ruolo"};
+const REG_TITLE={referenti:"Anagrafica referenti",guide:"Anagrafica guide",hotel:"Anagrafica hotel",parcheggi:"Anagrafica parcheggi",note:"Tendina note",ruolo:"Tendina ruolo",spese:"Tendina causale spese",autisti:"Anagrafica autisti"};
 const REG_NOTE={referenti:"Si scelgono nel modulo della prenotazione (riga Referente). I referenti scritti nelle prenotazioni si aggiungono da soli.",
   guide:"Si scelgono nel modulo della prenotazione (riga Guida). Le guide scritte nelle prenotazioni si aggiungono da sole.",
   hotel:"Si scelgono nel modulo della prenotazione (riga Hotel), insieme agli hotel di Google Maps. Gli hotel scritti nelle prenotazioni si aggiungono da soli.",
   parcheggi:"Si scelgono nel modulo della prenotazione, accanto a «€ Parcheggi» (anche più di uno). «In fattura» è come il parcheggio compare nella riga di rimborso della bozza fattura (es. A SIRACUSA, ALL'APT. DI CATANIA): se è vuoto si usa la città. «IVA della ricevuta» è l'aliquota di quella riga.",
   note:"Voci della casella «Causale» delle note per l'autista. Parcheggi, autista e 3 ore vanno nelle righe 1°, 2° e 3° del foglio di servizio; le altre nella 4° (extra).",
-  ruolo:"Voci della casella «Ruolo» del referente."};
-const isTend=k=>k==="note"||k==="ruolo";
+  ruolo:"Voci della casella «Ruolo» del referente.",
+  autisti:"Gli autisti delle caselle «1° autista» e «2° autista» del modulo, della pagina Autisti e del profilo del capo. Scrivi cognome e nome per esteso (es. Rossi Mario), uguale al nome usato nell'app degli autisti. Togliendo un autista (×) sparisce dagli elenchi, ma i servizi già inseriti tengono il suo nome; cambiare il nome vale per i servizi nuovi. «Autista generico» resta sempre.",
+  spese:"Voci della casella «€ Extra» del modulo della prenotazione (accanto a «€ Pasti»). L'extra va nel file fatturato (colonne «€ varie / tipo varie») e nella bozza fattura, con la causale scritta qui."};
+const isTend=k=>k==="note"||k==="ruolo"||k==="spese";
 const regFile=k=>isTend(k)?"tendine":k;
 const nrid=()=>"r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 let regKind=null,regNew=[];
-function regList(k){return isTend(k)?tendina(k).map(v=>({id:"v:"+v,v})):regRows(k).slice();}
+function regList(k){return isTend(k)?tendina(k).map(v=>({id:"v:"+v,v})):k==="autisti"?drvRegRows():regRows(k).slice();}
+// anagrafica autisti (2.8): finché non è stata toccata, l'elenco di sempre; alla prima modifica si scrive tutto
+const drvSeedRows=()=>DRIVERS0.map(d=>({id:"d-"+(AUT.slug(d[0])||nrid()),nome:d[0],colore:d[1]}));
+function drvRegRows(){const r=STORE.reg("autisti");return r&&r.seeded?regRows("autisti").slice():drvSeedRows();}
+function seedDrivers(J){if(J&&J.seeded)return J;J=J||{};const have=new Set(drvSeedRows().map(x=>norm(x.nome)));J.rows=drvSeedRows().concat((Array.isArray(J.rows)?J.rows:[]).filter(r=>r&&r.nome&&!have.has(norm(r.nome))));J.seeded=true;return J;}
+const updReg=(k,fn)=>STORE.updateReg(k,J=>fn(k==="autisti"?seedDrivers(J):J));
 function regSort(k,l){
   if(isTend(k))return l;
   const key=k==="referenti"?r=>[r.cliente,r.nome]:k==="hotel"?r=>[r.regione,r.citta,r.nome]:k==="parcheggi"?r=>[r.citta,r.nome]:r=>[r.nome];
@@ -3564,7 +3786,7 @@ function renderReg(){
   const cols=REG_COLS[k],ro=regRO(),words=norm($("regQ").value).split(/[^a-z0-9]+/).filter(Boolean);
   const all=regList(k),list=regSort(k,all.filter(r=>!words.length||wmatch(cols.map(c=>r[c[0]]).join(" "),words)));
   const tpl=cols.map(c=>c[0]==="indirizzo"||c[0]==="nome"||c[0]==="cliente"||c[0]==="v"?"minmax(160px,1.6fr)":c[3]==="aliq"?"minmax(150px,1fr)":"minmax(110px,1fr)").join(" ")+(ro?"":" 36px");
-  const cell=(c,r)=>c[3]==="aliq"?'<select data-c="'+c[0]+'"'+(ro?' disabled':'')+' aria-label="'+esc(c[1])+'">'+aliqOpts(STORE.contab(),r[c[0]]||"","da scegliere in fattura")+'</select>':'<input data-c="'+c[0]+'" maxlength="'+(c[0]==="v"?60:200)+'" value="'+esc(r[c[0]]||"")+'"'+(c[2]?' list="'+c[2]+'"':'')+(ro?' readonly':'')+' aria-label="'+esc(c[1])+'" autocomplete="off"'+(c[0]==="fatt"?' placeholder="A '+esc(String(r.citta||"città").toUpperCase())+'"':'')+'>';
+  const cell=(c,r)=>c[3]==="col"?'<select data-c="'+c[0]+'"'+(ro?' disabled':'')+' aria-label="'+esc(c[1])+'"><option value="g"'+(r[c[0]]!=="r"?" selected":"")+'>verde</option><option value="r"'+(r[c[0]]==="r"?" selected":"")+'>rosso</option></select>':c[3]==="aliq"?'<select data-c="'+c[0]+'"'+(ro?' disabled':'')+' aria-label="'+esc(c[1])+'">'+aliqOpts(STORE.contab(),r[c[0]]||"","da scegliere in fattura")+'</select>':'<input data-c="'+c[0]+'" maxlength="'+(c[0]==="v"?60:200)+'" value="'+esc(r[c[0]]||"")+'"'+(c[2]?' list="'+c[2]+'"':'')+(ro?' readonly':'')+' aria-label="'+esc(c[1])+'" autocomplete="off"'+(c[0]==="fatt"?' placeholder="A '+esc(String(r.citta||"città").toUpperCase())+'"':'')+'>';
   const row=(r,isNew)=>'<div class="reg-row'+(isNew?" new":"")+'" data-id="'+esc(r.id)+'" style="grid-template-columns:'+tpl+'">'+cols.map(c=>cell(c,r)).join("")+(ro?'':'<button type="button" class="del" data-regdel="'+esc(r.id)+'" title="Elimina" aria-label="Elimina">×</button>')+'</div>';
   $("regTable").innerHTML='<div class="reg-row hd" style="grid-template-columns:'+tpl+'">'+cols.map(c=>'<span>'+esc(c[1])+'</span>').join("")+(ro?'':'<span></span>')+'</div>'+
     regNew.map(r=>row(r,true)).join("")+list.map(r=>row(r,false)).join("")+(list.length||regNew.length?'':'<div class="reg-empty">'+(words.length?"Nessun risultato.":"Ancora vuota."+(ro?"":" Premi «+ Nuovo» per aggiungere."))+'</div>');
@@ -3588,7 +3810,13 @@ $("regTable").addEventListener("change",e=>{
 async function regSaveRow(rowEl,k){
   const id=rowEl.dataset.id,vals={},dirty=[...(rowEl._dirty||[])];if(rowEl._dirty)rowEl._dirty.clear();
   rowEl.querySelectorAll("[data-c]").forEach(x=>{vals[x.dataset.c]=cleanText(x.value);});
-  if(!Object.entries(vals).some(([f,v])=>v&&f!=="aliq"))return; // una riga nuova con la sola IVA scelta aspetta il nome
+  if(!Object.entries(vals).some(([f,v])=>v&&f!=="aliq"&&f!=="colore"))return; // una riga nuova con la sola IVA (o il colore) aspetta il nome
+  if(k==="autisti"){
+    vals.nome=String(vals.nome||"").replace(/\s+/g," ").trim();if(!vals.nome)return;
+    const nk=x=>norm(x).replace(/\s+/g," ").trim(),was=nk(((regList(k).find(r=>r.id===id)||{}).nome)||"");
+    const dup=drivers().find(d=>nk(d[0])===nk(vals.nome)&&(id.startsWith("new:")||nk(d[0])!==was));
+    if(dup){regMsg("«"+dup[0]+"» c'è già nell'elenco degli autisti.",true);return;}
+  }
   if(!navigator.onLine){regMsg("Serve la connessione a internet per salvare l'anagrafica.",true);return;}
   rowEl.classList.add("saving");
   try{
@@ -3599,12 +3827,12 @@ async function regSaveRow(rowEl,k){
       newId="v:"+v;ACC.log("impostazioni",(old!=null?"Tendina "+k+": «"+old+"» → «"+v+"»":"Tendina "+k+": aggiunta «"+v+"»"));
     }else if(id.startsWith("new:")){
       newId=nrid();
-      await STORE.updateReg(k,J=>{J.rows=J.rows||[];J.rows.push(Object.assign({id:newId,by:meName(),at:new Date().toISOString()},vals));return J;});
+      await updReg(k,J=>{J.rows=J.rows||[];J.rows.push(Object.assign({id:newId,by:meName(),at:new Date().toISOString()},vals));return J;});
       ACC.log("impostazioni",REG_TITLE[k]+": aggiunto «"+(vals.nome||vals.cliente||"")+"»");
     }else{
       // solo le caselle cambiate su questo dispositivo: le modifiche fatte intanto da altri sulla stessa riga restano
       let before=null,after=null;if(!dirty.length)return;
-      await STORE.updateReg(k,J=>{const r=(J.rows||[]).find(x=>x.id===id);if(!r)return null;before=Object.assign({},r);for(const f of dirty)r[f]=vals[f]||"";Object.assign(r,{updBy:meName(),updAt:new Date().toISOString()});after=Object.assign({},r);return J;});
+      await updReg(k,J=>{const r=(J.rows||[]).find(x=>x.id===id);if(!r)return null;before=Object.assign({},r);for(const f of dirty)r[f]=vals[f]||"";Object.assign(r,{updBy:meName(),updAt:new Date().toISOString()});after=Object.assign({},r);return J;});
       if(!before){regMsg("Questa riga è stata eliminata da un altro dispositivo: la modifica non è stata salvata.",true);renderReg();return;}
       ACC.log("impostazioni",REG_TITLE[k]+": modificato «"+(after.nome||after.cliente||"")+"»",{ch:REG_COLS[k].filter(c=>(before[c[0]]||"")!==(after[c[0]]||"")).map(c=>[c[1],before[c[0]]||"",after[c[0]]||""])});
     }
@@ -3621,12 +3849,12 @@ $("regTable").addEventListener("click",async e=>{
   const d=e.target.closest("[data-regdel]");if(!d||regRO())return;
   const id=d.dataset.regdel,k=regKind;
   if(id.startsWith("new:")){regNew=regNew.filter(r=>r.id!==id);renderReg();return;}
-  const rowEl=d.closest(".reg-row"),label=[...rowEl.querySelectorAll("[data-c]")].map(x=>x.value).filter(Boolean).join(" · ");
+  const rowEl=d.closest(".reg-row"),label=[...rowEl.querySelectorAll("input[data-c]")].map(x=>x.value).filter(Boolean).join(" · ");
   if(!confirm("Eliminare «"+label+"»?"))return;
   if(!navigator.onLine){regMsg("Serve la connessione a internet.",true);return;}
   try{
     if(isTend(k)){const v=id.slice(2);await STORE.updateReg("tendine",J=>{J[k]=(Array.isArray(J[k])?J[k]:TENDINE_DEF[k].slice()).filter(x=>x!==v);return J;});}
-    else await STORE.updateReg(k,J=>{J.rows=(J.rows||[]).filter(x=>x.id!==id);return J;});
+    else await updReg(k,J=>{J.rows=(J.rows||[]).filter(x=>x.id!==id);return J;});
     ACC.log("impostazioni",REG_TITLE[k]+": eliminato «"+label+"»");renderReg();regMsg("Eliminato.");
   }catch(_){regMsg("Non riesco a eliminare adesso: riprova.",true);}
 });
@@ -3807,7 +4035,9 @@ $("sheetShare").onclick=shareSheet;
 // All'autista arrivano il PDF del foglio (solo la parte per l'autista) e pochi dati del servizio:
 // prezzi e parte contabile non vengono mai inviati.
 let autReturn=null; // ritorno da Dropbox dopo aver autorizzato la cartella o un telefono
-AUT.configure({onChange:()=>{
+AUT.configure({onChange:(ch)=>{
+  // 2.7.1: finestra delle spese aperta e il telefono ha scritto qualcosa di quel servizio: si ricarica da sola
+  if(!$("ovSpese").hidden&&spB&&ch&&ch.has&&ch.has(AUT.safeId(spB.id)))refreshSpese();
   if(!$("app").hidden&&S.view==="day")renderDay();
   if(!$("app").hidden&&S.view==="pasti")renderPasti(); // crocette dei pasti (2.7)
   if(!$("app").hidden&&S.view==="bill")renderBill();
@@ -3817,6 +4047,7 @@ AUT.configure({onChange:()=>{
   if(!$("ovMaster").hidden&&mstTab==="aut")renderAut();
 }});
 function autStart(){
+  if(AUT.watch)AUT.watch(()=>!!ACC.session()); // 2.7.1: le novità dei telefoni arrivano subito (longpoll); il giro ogni 2 minuti resta
   setInterval(()=>{if(document.visibilityState==="visible"&&ACC.session()&&AUT.linked())AUT.sync();},120000);
   document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&ACC.session()&&AUT.linked()&&Date.now()-AUT.lastSync>30000)AUT.sync();});
 }
@@ -3852,7 +4083,9 @@ function sentTitle(b,st){
   return l.join("\n");
 }
 function sentChip(b){
-  const st=sentInfo(b);if(!st)return "";
+  const st=sentInfo(b);
+  // 2.8: anche i fogli non ancora inviati hanno la casella («In attesa»); niente casella sugli extra bus (altre aziende)
+  if(!st)return isXbus(b.vehicle)?"":'<button type="button" class="snt k-attesa" data-sent="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="Foglio di servizio non ancora inviato all\'autista: clic per aprirlo">In attesa</button>';
   return '<button type="button" class="snt k-'+st.k+(st.stale?" stale":"")+'" data-sent="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc(sentTitle(b,st))+'">'+esc(st.stale?"Da reinviare":SENT_SHORT[st.k])+'</button>';
 }
 // riga di stato nella finestra del foglio: inviato → aperto → busta consegnata
@@ -3878,6 +4111,7 @@ function renderSheetSent(){
   $("sheetSend").disabled=lock;$("sheetSend").title=lock?"Bus e autisti decisi dal capo: il foglio lo invia lui":"";
   $("sheetWithdraw").hidden=!live||lock;
   $("sheetSpese").hidden=!(live&&speseFor(b));
+  $("sheetBusta").hidden=!hasBusta(b);
 }
 let sending=false;
 // Invia il foglio (parte per l'autista) e i dati del servizio. say: dove scrivere i messaggi.
@@ -3964,6 +4198,190 @@ $("sheetWithdraw").onclick=async()=>{if(!sheetBooking)return;await withdrawFromD
 $("sheetSpese").onclick=()=>{if(sheetBooking)openSpese(sheetBooking);};
 $("fSpese").onclick=()=>{if(!editing)return;const b=bookingsAll().find(x=>x.id===editing.id);if(b)openSpese(b);};
 
+// =====================================================================================
+// 2.8 — Modello spese della busta (modello Word «00_neutro»), da stampare e dare all'autista
+// =====================================================================================
+// Stesso impaginato del modello (A4 orizzontale, sei tabelle, carattere Carlito = Calibri). L'ufficio compila
+// l'intestazione (cliente, referente, destinazione, periodo, bus, autisti) e l'anticipo in contanti; le tabelle delle
+// spese restano vuote: le compila l'autista a penna. In alto a destra: n. busta e n. foglio. Le correzioni fatte nella
+// finestra valgono solo per il modello (la prenotazione non cambia). Copia in Dropbox con i fogli di servizio (_busta).
+// Misure in punti tipografici come nel modello; tutto rimpicciolito del 3% per lasciare spazio alla riga in alto e ai
+// margini della stampante.
+const BM_W=841.89,BM_H=595.28,BM_K=0.97,BM_TX=x=>421+(x-421)*BM_K,BM_TY=y=>27+(y-19.4)*BM_K;
+const BM_FOOT=[["Intestazione",1],[": La Terra s.r.l.  -  ",0],["Partita Iva",1],[": 00826460883  -  ",0],["Codice Univoco",1],[": M5UXCR1   -   ",0],["Indirizzo",1],[": via Archimede, 285C   -   97100  -  Ragusa",0]];
+const bmDate=s=>validDate(String(s||""))?s.slice(8,10)+"/"+s.slice(5,7)+"/"+s.slice(2,4):""; // gg/mm/aa come nel modello
+function bmLayout(d,measure){
+  const lines=[],texts=[],FS=15;
+  // c: colore della riga (nel modello alcune righe interne sono grigio chiaro: F2F2F2 e D9D9D9)
+  const ln=(x1,y1,x2,y2,w,c)=>lines.push({x1:BM_TX(x1),y1:BM_TY(y1),x2:BM_TX(x2),y2:BM_TY(y2),w:w*BM_K,c:c||"#000000"});
+  const H=(y,x1,x2,w,c)=>ln(x1,y,x2,y,w,c),V=(x,y1,y2,w,c)=>ln(x,y1,x,y2,w,c);
+  // testo dentro una casella (coordinate del modello): si rimpicciolisce per starci, poi si accorcia con «…»
+  const put=(t,x0,x1,y0,y1,o)=>{
+    o=o||{};t=String(t==null?"":t).replace(/\s+/g," ").trim();if(!t)return;
+    const bold=!!o.b,pad=3*BM_K,maxW=BM_TX(x1)-BM_TX(x0)-2*pad;let size=(o.size||FS)*BM_K,w=measure(t,size,bold);
+    const min=size*(o.min||0.55);
+    for(let n=0;n<10&&w>maxW&&size>min;n++){size=Math.max(min,size*maxW/w*0.985);w=measure(t,size,bold);}
+    while(w>maxW&&t.length>1){t=t.slice(0,-2).replace(/\s+$/,"")+"…";w=measure(t,size,bold);}
+    const X0=BM_TX(x0)+pad,X1=BM_TX(x1)-pad,al=o.al||"c",x=al==="l"?X0:al==="r"?X1-w:(X0+X1-w)/2;
+    texts.push({x,y:(BM_TY(y0)+BM_TY(y1))/2+size*0.34,t,size,bold});
+  };
+  // riga in alto a destra: n. busta e n. foglio
+  {const segs=[["Busta n. "+(d.busta||"—"),1],["   ·   Foglio di servizio n. "+(d.foglio||"—"),0]],size=10.5;
+   let x=BM_TX(825.1)-segs.reduce((a,s)=>a+measure(s[0],size,!!s[1]),0);
+   for(const s of segs){texts.push({x,y:BM_TY(10.5),t:s[0],size,bold:!!s[1]});x+=measure(s[0],size,!!s[1]);}}
+  // 1) Cliente, contatto, referente, contatto, destinazione
+  {const X=[17.1,187.1,328.9,499.0,640.7,825.1],Y=[19.4,38.7,58.0];
+   H(Y[0],X[0],X[5],1.5);H(Y[1],X[0],X[5],0.5);H(Y[2],X[0],X[5],1.5);X.forEach(x=>V(x,Y[0],Y[2],1.5));
+   ["Cliente","Contatto","Referente","Contatto","Destinazione"].forEach((t,i)=>put(t,X[i],X[i+1],Y[0],Y[1],{b:1}));
+   [d.cliente,d.telCliente||"-",d.referente,d.telRef,d.dest].forEach((t,i)=>put(t,X[i],X[i+1],Y[1],Y[2]));}
+  // 2) Periodo, bus, targa, autisti
+  {const X=[17.6,229.1,378.1,527.1,676.1,825.1],P=[17.6,46.9,123.3,144.8,229.1],Y=[71.7,91.0,110.3];
+   H(Y[0],X[0],X[5],1.5);H(Y[1],X[0],X[5],0.5);H(Y[2],X[0],X[5],1.5);X.forEach(x=>V(x,Y[0],Y[2],1.5));[P[1],P[2],P[3]].forEach(x=>V(x,Y[1],Y[2],0.5,"#F2F2F2"));
+   ["Periodo","Bus posti:","Targa:","1° autista:","2° autista:"].forEach((t,i)=>put(t,X[i],X[i+1],Y[0],Y[1],{b:1}));
+   put("dal",P[0],P[1],Y[1],Y[2],{al:"l"});put(d.dal,P[1],P[2],Y[1],Y[2],{al:"l"});put("al",P[2],P[3],Y[1],Y[2]);put(d.al,P[3],P[4],Y[1],Y[2],{al:"l"});
+   [d.posti,d.targa,d.aut1,d.aut2].forEach((t,i)=>put(t,X[i+1],X[i+2],Y[1],Y[2]));}
+  // 3) Pasti, Hotel, Parcheggi: 7 righe vuote e il totale
+  {const G=[[17.1,116.3,180.0,284.3,"Pasti","Totale pasti:"],[284.3,385.6,449.4,558.2,"Hotel","Totale hotel:"],[558.2,649.5,740.8,825.1,"Parcheggi","Totale parcheggi:"]];
+   const Y=[124.0,143.3,162.1,180.9,199.7,218.5,237.3,256.1,274.9,293.7,313.0];
+   H(Y[0],17.1,825.1,1.5);H(Y[10],17.1,825.1,1.5);for(let i=1;i<10;i++)H(Y[i],17.1,825.1,0.5);
+   [17.1,284.3,558.2,825.1].forEach(x=>V(x,Y[0],Y[10],1.5));
+   for(const g of G){V(g[1],Y[1],Y[9],0.5);V(g[2],Y[1],Y[10],0.5);
+     put(g[4],g[0],g[3],Y[0],Y[1],{b:1});put("Luogo",g[0],g[1],Y[1],Y[2]);put("Data",g[1],g[2],Y[1],Y[2]);put("€",g[2],g[3],Y[1],Y[2]);put(g[5],g[0],g[2],Y[9],Y[10],{al:"r"});}}
+  // 4) Carburante, Spese extra, Acconto
+  {const Y=[326.7,346.0,364.8,383.6,402.4,421.2,440.0,458.8,477.6,496.9];
+   const C=[17.1,96.3,183.7,258.1,343.1];
+   H(Y[0],C[0],C[4],1.5);H(Y[9],C[0],C[4],1.5);for(let i=1;i<9;i++)H(Y[i],C[0],C[4],0.5);
+   V(C[0],Y[0],Y[9],1.5);V(C[4],Y[0],Y[9],1.5);V(C[1],Y[1],Y[9],0.5);V(C[2],Y[1],Y[8],0.5);V(C[3],Y[1],Y[8],0.5);
+   put("Carburante",C[0],C[4],Y[0],Y[1],{b:1});["Km","Località","Litri","€"].forEach((t,i)=>put(t,C[i],C[i+1],Y[1],Y[2]));
+   put("Rimessa",C[1],C[2],Y[2],Y[3]);put("-",C[2],C[3],Y[2],Y[3]);put("-",C[3],C[4],Y[2],Y[3]);put("Rimessa",C[1],C[2],Y[7],Y[8]);
+   put("=",C[0],C[1],Y[8],Y[9],{al:"r"});put("Totale km effettuati",C[1],C[4],Y[8],Y[9],{al:"l"});
+   const E=[357.2,484.9,506.1,591.1];
+   H(Y[0],E[0],E[3],1.5);H(Y[9],E[0],E[3],1.5);for(let i=1;i<9;i++)H(Y[i],E[0],E[3],0.25);
+   V(E[0],Y[0],Y[9],1.5);V(E[3],Y[0],Y[9],1.5);V(E[1],Y[1],Y[9],0.25);V(E[2],Y[1],Y[9],0.25,"#D9D9D9");
+   put("Spese extra",E[0],E[3],Y[0],Y[1],{b:1});for(let i=1;i<8;i++)put("€",E[1],E[2],Y[i],Y[i+1]);
+   put("Totale spese extra",E[0],E[1],Y[8],Y[9],{al:"l"});put("€",E[1],E[2],Y[8],Y[9]);
+   const A=[605.3,704.6,740.0,825.1];
+   H(Y[0],A[0],A[3],1.5);H(Y[9],A[0],A[3],1.5);for(let i=1;i<9;i++)H(Y[i],A[0],A[3],0.5);
+   V(A[0],Y[0],Y[9],1.5);V(A[3],Y[0],Y[9],1.5);[[A[1],""],[A[2],"#F2F2F2"]].forEach(([x,c])=>{V(x,Y[1],Y[3],0.5,c);V(x,Y[4],Y[9],0.5,c);});
+   put("Acconto",A[0],A[3],Y[0],Y[1],{b:1});
+   const R=[["carta di credito","n°",d.carta],["contanti","+ €",d.contanti],null,["parcheggi","-  €"],["pasti","-  €"],["hotel","-  €"],["spese extra","-  €"],["Rimanenza","= €"]];
+   R.forEach((r,i)=>{const y0=Y[i+1],y1=Y[i+2];if(!r){put("spese sostenute",A[0],A[3],y0,y1,{b:1,al:"l"});return;}
+     put(r[0],A[0],A[1],y0,y1,{al:"l"});put(r[1],A[1],A[2],y0,y1,{al:"l"});if(r[2])put(r[2],A[2],A[3],y0,y1,{al:"r"});});}
+  // 5) Note e segnalazioni (la nota dell'ufficio, se c'è, dopo l'etichetta: al massimo 2 righe)
+  {const y0=510.6,y1=548.7;H(y0,17.1,825.1,1.5);H(y1,17.1,825.1,1.5);V(17.1,y0,y1,1.5);V(825.1,y0,y1,1.5);
+   const lab="Note e Segnalazioni:",size=FS*BM_K,x0=BM_TX(17.1)+4,lw=measure(lab,size,true),base=BM_TY(y0)+size*1.05;
+   texts.push({x:x0,y:base,t:lab,size,bold:true});
+   const note=String(d.note||"").replace(/\s+/g," ").trim();
+   if(note){const ns=13*BM_K,maxW=BM_TX(825.1)-4-x0,words=note.split(" "),out=[];let line="",first=true;
+     const room=()=>first?maxW-lw-6:maxW;
+     for(const w of words){const test=line?line+" "+w:w;if(measure(test,ns,false)<=room()){line=test;continue;}out.push(line);first=false;line=w;if(out.length===2)break;}
+     if(out.length<2&&line)out.push(line);
+     if(out.length===2&&words.join(" ")!==out.join(" ")){let l=out[1];while(l.length>1&&measure(l+"…",ns,false)>maxW)l=l.slice(0,-1);out[1]=l.replace(/\s+$/,"")+"…";}
+     out.slice(0,2).forEach((l,i)=>texts.push({x:i?x0:x0+lw+6,y:base+i*ns*1.25,t:l,size:ns,bold:false}));}}
+  // 6) Intestazione della società (testo fisso del modello)
+  {const y0=562.4,y1=581.0;H(y0,17.1,825.1,1.5);H(y1,17.1,825.1,1.5);V(17.1,y0,y1,1.5);V(825.1,y0,y1,1.5);
+   const size=14*BM_K,tot=BM_FOOT.reduce((a,s)=>a+measure(s[0],size,!!s[1]),0);let x=(BM_TX(17.1)+BM_TX(825.1)-tot)/2;
+   for(const s of BM_FOOT){texts.push({x,y:(BM_TY(y0)+BM_TY(y1))/2+size*0.34,t:s[0],size,bold:!!s[1]});x+=measure(s[0],size,!!s[1]);}}
+  return {W:BM_W,H:BM_H,lines,texts};
+}
+function bmSVG(d){
+  const L=bmLayout(d,measureCanvas);
+  let s='<svg class="bm-page" viewBox="0 0 '+L.W+' '+L.H+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Anteprima del modello spese della busta"><rect width="'+L.W+'" height="'+L.H+'" fill="#fff"/>';
+  for(const l of L.lines.slice().sort((a,b)=>(a.c==="#000000")-(b.c==="#000000")))s+='<line x1="'+l.x1.toFixed(2)+'" y1="'+l.y1.toFixed(2)+'" x2="'+l.x2.toFixed(2)+'" y2="'+l.y2.toFixed(2)+'" stroke="'+l.c+'" stroke-width="'+l.w.toFixed(2)+'" stroke-linecap="square"/>';
+  for(const t of L.texts)s+='<text x="'+t.x.toFixed(2)+'" y="'+t.y.toFixed(2)+'" font-size="'+t.size.toFixed(2)+'"'+(t.bold?' font-weight="700"':'')+' font-family="'+esc(TPL_FONT)+'" fill="#000">'+esc(t.t.replace(/ /g,"\u00a0"))+'</text>'; // spazi fissi: l'SVG unirebbe quelli doppi e toglierebbe quelli in testa
+  return s+'</svg>';
+}
+async function bmPDF(d){
+  const PL=await loadPdfLib(),{PDFDocument,StandardFonts,rgb}=PL,pdf=await PDFDocument.create();
+  pdf.setTitle("Modello spese busta n. "+(d.busta||"")+" – foglio "+(d.foglio||""));pdf.setAuthor("La Terra s.r.l.");
+  let reg,bold,HK=1,conv=t=>String(t==null?"":t);
+  try{const F=await loadPdfFonts();reg=customFont(pdf,PL,F.regular,"AGENDA+AgendaSans-Regular");bold=customFont(pdf,PL,F.bold,"AGENDB+AgendaSans-Bold");}
+  catch(e){reg=await pdf.embedFont(StandardFonts.Helvetica);bold=await pdf.embedFont(StandardFonts.HelveticaBold);HK=0.88;conv=pdfTxt;}
+  const L=bmLayout(d,(t,size,bd)=>(bd?bold:reg).widthOfTextAtSize(conv(t),size*HK)),page=pdf.addPage([L.W,L.H]),ink=rgb(0,0,0);
+  const col=h=>h==="#000000"?ink:rgb(parseInt(h.slice(1,3),16)/255,parseInt(h.slice(3,5),16)/255,parseInt(h.slice(5,7),16)/255);
+  // le righe grigie prima, quelle nere sopra (dove si incrociano resta il nero, come nel modello)
+  for(const l of L.lines.slice().sort((a,b)=>(a.c==="#000000")-(b.c==="#000000")))page.drawLine({start:{x:l.x1,y:L.H-l.y1},end:{x:l.x2,y:L.H-l.y2},thickness:l.w,color:col(l.c),lineCap:PL.LineCapStyle?PL.LineCapStyle.Projecting:undefined});
+  for(const t of L.texts)page.drawText(conv(t.t),{x:t.x,y:L.H-t.y,size:t.size*HK,font:t.bold?bold:reg,color:ink});
+  return new Blob([await pdf.save()],{type:"application/pdf"});
+}
+// dati di partenza: dalla prenotazione salvata (bus e autisti: quelli decisi, anche dal capo)
+function bmDefaults(b){
+  const cl=shClient(b),v=vehicle(b.vehicle)||{},r=refsOf(b)[0]||{};
+  // destinazione: l'itinerario senza la partenza e senza il ritorno al punto di partenza
+  let parts=String(b.route||"").split(/\s*(?:>|→|–|—|\s-\s)\s*/).map(x=>x.trim()).filter(Boolean);
+  if(parts.length>2){const inner=parts.slice(1);if(norm(inner[inner.length-1])===norm(parts[0]))inner.pop();parts=inner;}else if(parts.length===2)parts=parts.slice(1);
+  const adv=b.advance===""||b.advance==null?"":money(b.advance);
+  return {cliente:(cl&&cl[1])||b.client||"",telCliente:(cl&&cl[4])?String(cl[4]):"",referente:r.name||"",telRef:r.tel||"",
+    dest:parts.join(" – ")||(hasEvent(b.type)&&b.event?b.event:""),dal:bmDate(b.start),al:bmDate(endOf(b)),posti:v.seats?String(v.seats):"",targa:(v.plate||"").trim(),
+    aut1:realDriver(b.driver)?driverCanon(b.driver):"",aut2:realDriver(b.driver2)?driverCanon(b.driver2):"",carta:"",contanti:adv,note:"",busta:String(b.envno||""),foglio:String(b.foglio||"")+(b.provisional?" (provvisorio)":"")};
+}
+let BM=null,bmT=0;
+function openBusta(b0){
+  const b=Object.assign({},bookingsAll().find(x=>x.id===b0.id)||b0);b.provisional=STORE.isPending(b.id);
+  if(!hasBusta(b)){toast("Questo servizio non ha la busta per l'autista.");return;}
+  BM={b,d:bmDefaults(b)};
+  for(const el of $("bmForm").querySelectorAll("[data-bm]"))el.value=BM.d[el.dataset.bm]==null?"":BM.d[el.dataset.bm];
+  $("bmTitle").textContent="Modello spese della busta n. "+(b.envno||"—");
+  $("bmInfo").textContent="Foglio di servizio n. "+(b.foglio||"—")+(b.provisional?" (provvisorio)":"")+" · "+(b.client||"")+" · "+itDate(b.start)+(endOf(b)!==b.start?" – "+itDate(endOf(b)):"");
+  $("bmMsg").textContent="";$("ovBusta").hidden=false;
+  $("bmPrint").textContent=isInvio()||S.readOnly?"Stampa":"Salva e stampa";
+  renderBusta();ensureSheetFont().then(()=>{if(BM)renderBusta();});
+}
+function bmRead(){if(!BM)return;for(const el of $("bmForm").querySelectorAll("[data-bm]"))BM.d[el.dataset.bm]=cleanText(el.value,el.tagName==="TEXTAREA").slice(0,400);}
+function renderBusta(){if(!BM)return;bmRead();$("bmView").innerHTML=bmSVG(BM.d);}
+function closeBusta(){$("ovBusta").hidden=true;BM=null;}
+$("bmForm").addEventListener("input",()=>{clearTimeout(bmT);bmT=setTimeout(renderBusta,120);});
+$("bmClose").onclick=closeBusta;
+backdropClose($("ovBusta"),closeBusta);
+const bmName=b=>sheetFileName(b)+"_busta"+(b.provisional?"_PROVVISORIO":"")+".pdf";
+async function bmSave(){
+  if(!BM)return;renderBusta();const {b,d}=BM,btn=$("bmPdf");btn.disabled=true;$("bmMsg").textContent="Preparo il PDF…";
+  try{
+    const blob=await bmPDF(d),name=bmName(b);let where="";
+    if(isInvio())where="La copia in Dropbox la salva l'ufficio.";
+    else if(!navigator.onLine)where="Sei offline: il PDF è solo su questo dispositivo, in Dropbox non è stata salvata nessuna copia.";
+    else{try{await STORE.saveSheetFile(name,blob,b.start);where="Copia salvata in Dropbox › "+STORE.sheetFolder(b.start).replace(STORE.BASE+"/","").split("/").join(" › ")+".";}catch(_){where="Non sono riuscito a salvarlo in Dropbox.";}}
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
+    if(BM&&BM.b===b)$("bmMsg").textContent="PDF pronto. "+where;
+    ACC.log("foglio","PDF del modello spese della busta n. "+(b.envno||"")+" (foglio n. "+(b.foglio||"")+" «"+(b.client||"")+"»)",{id:b.id});
+  }catch(e){$("bmMsg").textContent="Non sono riuscito a creare il PDF. Riprova.";console.error(e);}
+  finally{btn.disabled=false;}
+}
+// 2.8 «Salva e stampa»: insieme alla stampa, il PDF del modello va in Dropbox con i fogli di servizio (non per il capo)
+function bmCopyToDropbox(b,d){
+  if(isInvio()||S.readOnly)return Promise.resolve("");
+  if(!navigator.onLine)return Promise.resolve("Sei offline: in Dropbox non è stata salvata nessuna copia.");
+  return bmPDF(d).then(blob=>STORE.saveSheetFile(bmName(b),blob,b.start)).then(()=>"Copia salvata in Dropbox › "+STORE.sheetFolder(b.start).replace(STORE.BASE+"/","").split("/").join(" › ")+".").catch(()=>"Non sono riuscito a salvarlo in Dropbox.");
+}
+async function bmPrint(){
+  if(!BM)return;renderBusta();const {b,d}=BM;
+  ACC.log("foglio",(isInvio()||S.readOnly?"Stampa":"Salva e stampa")+" del modello spese della busta n. "+(b.envno||"")+" (foglio n. "+(b.foglio||"")+" «"+(b.client||"")+"»)",{id:b.id});
+  const saving=bmCopyToDropbox(b,d),done=()=>saving.then(t=>{if(t&&BM&&BM.b===b)$("bmMsg").textContent="Stampa aperta. "+t;});
+  const ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+  if(ios){try{const u=URL.createObjectURL(await bmPDF(d));window.open(u,"_blank");setTimeout(()=>URL.revokeObjectURL(u),60000);}catch(_){toast("Non riesco a preparare la stampa.");}done();return;}
+  let fontCss="";
+  try{const F=await loadPdfFonts();fontCss='@font-face{font-family:AgendaSans;font-weight:400;src:url(data:font/ttf;base64,'+F.regular.b64+') format("truetype")}@font-face{font-family:AgendaSans;font-weight:700;src:url(data:font/ttf;base64,'+F.bold.b64+') format("truetype")}';}catch(_){}
+  const html='<!doctype html><html lang="it"><head><meta charset="utf-8"><title>'+esc("Modello spese busta n. "+(d.busta||"")+" – foglio "+(d.foglio||""))+'</title><style>'+fontCss+'@page{size:A4 landscape;margin:0}html,body{margin:0;background:#fff}svg{display:block;width:297mm;height:209mm}</style></head><body>'+bmSVG(d)+'</body></html>';
+  let fr=$("printFrame");if(fr)fr.remove();
+  fr=document.createElement("iframe");fr.id="printFrame";fr.setAttribute("aria-hidden","true");fr.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  document.body.appendChild(fr);
+  await new Promise(r=>{fr.onload=r;fr.srcdoc=html;});
+  try{await Promise.race([fr.contentDocument.fonts.ready,new Promise(r=>setTimeout(r,1500))]);}catch(_){}
+  try{fr.contentWindow.focus();fr.contentWindow.print();}catch(_){toast("Non riesco ad aprire la stampa.");}
+  try{if(!$("ovBusta").hidden)$("bmPrint").focus();}catch(_){} // chiusa la stampa, Esc e i tasti tornano alla finestra
+  done();
+}
+$("bmPdf").onclick=bmSave;$("bmPrint").onclick=bmPrint;
+$("bmReset").onclick=()=>{if(BM)openBusta(BM.b);};
+// pulsanti «Modello spese»: modulo della prenotazione (servizio salvato con la busta), finestra del foglio, schermata del capo
+$("fBusta").onclick=()=>{
+  if(!editing)return;
+  if(formDirty()){toast("Prima salva la prenotazione: il modello prende i dati salvati.");return;}
+  const b=bookingsAll().find(x=>x.id===editing.id);if(b)openBusta(b);
+};
+$("sheetBusta").onclick=()=>{if(sheetBooking)openBusta(sheetBooking);};
+
+
 // ---------- scheda con le spese dell'autista (servizi con busta) ----------
 let spB=null,spData=null,spUrl="",spReq=0;
 function spClosePhoto(){$("spPhoto").hidden=true;$("spImg").removeAttribute("src");if(spUrl){try{URL.revokeObjectURL(spUrl);}catch(_){}spUrl="";}}
@@ -3979,6 +4397,15 @@ async function loadSpese(){
   try{await AUT.sync();if(!mine())return;const d=await AUT.spese(spB);if(!mine())return;spData=d||{v:1,righe:[],kmPartenza:null,kmRientro:null,note:"",consegnata:false,consegnataAt:"",autista:"",updatedAt:"",none:true};$("spMsg").textContent="";}
   catch(e){if(!mine())return;$("spMsg").textContent=e&&e.code==="no_auth"?autBroken():"Non riesco a leggere le spese adesso. Riprova.";}
   renderSpese();
+}
+// 2.7.1: ricarica senza rileggere la cartella (l'ha appena fatto la lettura che ha trovato la novità) e senza
+// spostare la finestra; la foto dello scontrino aperta resta aperta
+async function refreshSpese(){
+  if(!spB||!AUT.linked()||!navigator.onLine)return;
+  const req=++spReq,id=spB.id,mine=()=>req===spReq&&!!spB&&spB.id===id;
+  try{const d=await AUT.spese(spB);if(!mine())return;if(d){spData=d;$("spMsg").textContent="Aggiornato dal telefono "+fmtTime(new Date().toISOString())+".";}}
+  catch(_){return;}
+  const box=$("ovSpese"),y=box.scrollTop;renderSpese();box.scrollTop=y;
 }
 function renderSpese(){
   if(!spB)return;
@@ -4065,7 +4492,7 @@ $("sdList").addEventListener("click",async e=>{
   if(of){of.disabled=true;try{await withdrawFromDriver(b);}finally{renderInvio();}return;}
   // prima di inviare si scelgono bus e autisti; intestazione e targa: come all'ultimo invio (o quelle solite, al primo)
   let al=false;try{al=localStorage.getItem("agenda-sheet-alias")==="1";}catch(_){}
-  openCapo(b,b.sent&&b.sent.at&&!b.sent.off?{alias:b.sent.alias,noPlate:b.sent.noPlate}:{alias:al,noPlate:false});
+  openCapo(b,b.sent&&b.sent.at&&!b.sent.off?{alias:b.sent.alias,noPlate:b.sent.noPlate}:{alias:al,noPlate:true}); // 2.8: targa e ID nascosti di serie
 });
 
 // =====================================================================================
@@ -4171,7 +4598,7 @@ let pgOnly=true,pgRegAt=0,sdPastiOn=false,sdPastiMonth="";
 // autisti della pagina: l'elenco fisso, i nomi veri dei servizi del mese che non ci sono, chi ha mandato crocette
 function pastiPeople(k){
   const map=new Map(),from=k+"-01",to=k+"-"+pad(dim(k));
-  for(const d of DRIVERS){const id=AUT.slug(d[0]);if(id)map.set(id,{id,name:d[0]});}
+  for(const d of drivers()){const id=AUT.slug(d[0]);if(id)map.set(id,{id,name:d[0]});}
   for(const b of bookingsAll()){if(b.start>to||endOf(b)<from)continue;for(const n of [b.driver,b.driver2].map(realDriver).filter(Boolean)){const id=drvId(n);if(id&&!map.has(id))map.set(id,{id,name:driverCanon(n)});}}
   for(const w of AUT.pastiWho())if(!map.has(w.id)&&w.months.includes(k))map.set(w.id,{id:w.id,name:w.name||w.id});
   for(const [key,c] of pastiCorr()){const [a,d]=key.split("|");if(mkey(d)===k&&!map.has(a))map.set(a,{id:a,name:c.name||a});}
@@ -4199,8 +4626,10 @@ function pastiHTML(k,ro,nav){
   const xs=v=>v>=2?"XX":v===1?"X":"";
   const cell=(p,c,q)=>{
     const m=c.m,v=m[q],w=wday(c.d),fut=c.d>t;
-    const cls=["c",w===0?"sun":"",c.d===t?"today":"",fut?"fut":"",c.s.length?"sv":"",m.corr?"cor":"",!m.po&&!m.pl&&m.none?"no":""].filter(Boolean).join(" ");
+    const rp=riposoOf(p.name,c.d);
+    const cls=["c",w===0?"sun":"",c.d===t?"today":"",fut?"fut":"",c.s.length?"sv":"",m.corr?"cor":"",!m.po&&!m.pl&&m.none?"no":"",rp?"rp":""].filter(Boolean).join(" ");
     const tip=[p.name+" · "+WDL[w]+" "+parse(c.d).getUTCDate()+" "+MN[parse(c.d).getUTCMonth()]];
+    if(rp)tip.push("Riposo chiesto"+(rp.nota?": "+rp.nota:""));
     if(c.s.length)tip.push("Servizio: "+c.s.map(svcName).join(", "));
     if(m.drv)tip.push("Dall'app: "+mealsTxt(m.drv.po,m.drv.pl));else if(m.none)tip.push("L'autista ha risposto «nessun pasto»");
     if(m.corr)tip.push("Corretto dall'ufficio: "+mealsTxt(m.corr.po,m.corr.pl)+(m.corr.by?" ("+m.corr.by+")":""));
@@ -4208,8 +4637,8 @@ function pastiHTML(k,ro,nav){
   };
   let h='<div class="pg-head"><div><h2>Crocette dei pasti · '+esc(mName)+'</h2><p>Le X che gli autisti mettono nell\'app: «Pasto offerto» e «Pasto libero», al massimo 2 al giorno. Clicca una casella per vedere il dettaglio'+(ro?".":" e, se serve, correggerla.")+'</p></div>'+
     '<div class="pg-tools">'+(nav?'<span class="pg-nav"><button type="button" class="btn icon" data-pgnav="-1" aria-label="Mese precedente">‹</button><b>'+esc(mName)+'</b><button type="button" class="btn icon" data-pgnav="1" aria-label="Mese successivo">›</button></span>':"")+
-    '<label><input type="checkbox" data-pgonly'+(pgOnly?" checked":"")+'> Solo autisti con servizi o crocette</label><button type="button" class="btn" data-pgsync>Aggiorna</button></div></div>'+st+
-    '<div class="pg-leg"><span><i>X</i>un pasto</span><span><i>XX</i>due pasti</span><span><i class="sv"></i>giorno con un servizio in agenda</span><span><i>–</i>l\'autista ha detto «nessun pasto»</span><span><i class="cor">X</i>corretto dall\'ufficio</span></div>';
+    '<label><input type="checkbox" data-pgonly'+(pgOnly?" checked":"")+'> Solo autisti con servizi o crocette</label><button type="button" class="btn" data-pgsync>Aggiorna</button>'+(ro?'':'<button type="button" class="btn rp-btn" data-rpnew>Giorno di riposo</button>')+'</div></div>'+st+
+    '<div class="pg-leg"><span><i>X</i>un pasto</span><span><i>XX</i>due pasti</span><span><i class="sv"></i>giorno con un servizio in agenda</span><span><i>–</i>l\'autista ha detto «nessun pasto»</span><span><i class="cor">X</i>corretto dall\'ufficio</span><span><i class="rp"></i>riposo chiesto</span></div>'+rpListHTML(k,ro);
   if(!shown.length){h+='<div class="pg-empty">'+(data.length?"In questo mese nessun autista ha servizi o crocette. Togli la spunta «Solo autisti con servizi o crocette» per vedere tutti.":"Nessun autista.")+'</div>';return h;}
   h+='<div class="pg-wrap"><table class="pg"><thead><tr><th class="pg-n">Autista</th><th class="pg-k"></th>'+days.map(d=>{const w=wday(d);return '<th class="pg-d'+(w===0?" sun":"")+(d===t?" today":"")+'"><span>'+WD[w].slice(0,1)+'</span><b>'+parse(d).getUTCDate()+'</b></th>';}).join("")+'<th class="pg-t">Mese</th><th class="pg-s" title="Giorni con un servizio in agenda">Giorni<br>servizio</th></tr></thead><tbody>';
   for(const x of shown){
@@ -4226,6 +4655,43 @@ function pastiNeedRegs(again){
   pgRegAt=Date.now();STORE.loadRegs().then(got=>{if(got&&STORE.regLoaded("pasti"))again();}).catch(()=>{});
 }
 // la tabella si ridisegna a ogni aggiornamento: resta dov'era; con un mese nuovo parte dal giorno di oggi
+// giorni di riposo del mese (2.8): elenco sopra la tabella, con × per toglierli (solo l'ufficio)
+function rpListHTML(k,ro){
+  const a=k+"-01",z=k+"-"+pad(dim(k)),l=riposi().filter(r=>r.dal<=z&&rpEnd(r)>=a).sort((x,y)=>x.dal.localeCompare(y.dal)||String(x.nome).localeCompare(String(y.nome),"it"));
+  if(!l.length)return ro?"":'<div class="rp-list none">Nessun giorno di riposo segnato in questo mese. Quando un autista chiede un giorno, premi «Giorno di riposo»: in agenda il suo nome compare in rosso.</div>';
+  return '<div class="rp-list"><b>Giorni di riposo</b>'+l.map(r=>'<span class="rp-it"><span class="rp-name">'+esc(driverCanon(r.nome))+'</span> '+esc(rpDates(r))+(r.nota?' · '+esc(r.nota):'')+(ro?'':'<button type="button" data-rpdel="'+esc(r.id)+'" title="Togli questo riposo" aria-label="Togli il riposo di '+esc(r.nome)+'">×</button>')+'</span>').join("")+'</div>';
+}
+function openRiposo(){
+  if(S.readOnly||isInvio())return;
+  const ds=S.sel||todayISO();
+  $("rpDrv").innerHTML='<option value="">Scegli l\'autista…</option>'+drivers().map(d=>'<option>'+esc(d[0])+'</option>').join("");
+  $("rpDal").value=ds;$("rpAl").value=ds;$("rpNota").value="";$("rpMsg").textContent="";$("rpSave").disabled=false;
+  $("ovRiposo").hidden=false;setTimeout(()=>{try{$("rpDrv").focus();}catch(_){}},30);
+}
+function closeRiposo(){$("ovRiposo").hidden=true;}
+$("rpCancel").onclick=closeRiposo;backdropClose($("ovRiposo"),closeRiposo);
+$("rpDal").addEventListener("change",()=>{if(!$("rpAl").value||$("rpAl").value<$("rpDal").value)$("rpAl").value=$("rpDal").value;});
+$("rpSave").onclick=async()=>{
+  const nome=$("rpDrv").value,dal=$("rpDal").value,al=$("rpAl").value||dal,nota=cleanText($("rpNota").value).slice(0,120);
+  if(!nome){$("rpMsg").textContent="Scegli l'autista.";return;}
+  if(!validDate(dal)||!validDate(al)||al<dal){$("rpMsg").textContent="Controlla le date: «al» non può essere prima di «dal».";return;}
+  if(diff(dal,al)>60){$("rpMsg").textContent="Al massimo 61 giorni alla volta.";return;}
+  if(!navigator.onLine){$("rpMsg").textContent="Serve la connessione a internet: l'elenco dei riposi è condiviso.";return;}
+  $("rpSave").disabled=true;$("rpMsg").textContent="Salvo…";
+  try{
+    await updReg("riposi",J=>{J.rows=Array.isArray(J.rows)?J.rows:[];J.rows.push({id:nrid(),nome,dal,al,nota,by:meName(),at:new Date().toISOString()});return J;});
+    ACC.log("riposi","Riposo segnato: "+nome+" "+(dal===al?itD(dal):itD(dal)+"–"+itD(al))+(nota?" ("+nota+")":""));
+    closeRiposo();toast("Riposo segnato: "+nome);renderPastiAny();
+  }catch(e){$("rpMsg").textContent="Non riesco a salvare adesso: riprova.";$("rpSave").disabled=false;}
+};
+async function delRiposo(id){
+  if(S.readOnly||isInvio())return;
+  const r=riposi().find(x=>x.id===id);if(!r)return;
+  if(!confirm("Togliere il riposo di "+r.nome+" ("+rpDates(r)+")?"))return;
+  if(!navigator.onLine){toast("Serve la connessione a internet.");return;}
+  try{await updReg("riposi",J=>{J.rows=(Array.isArray(J.rows)?J.rows:[]).filter(x=>x.id!==id);return J;});ACC.log("riposi","Riposo tolto: "+r.nome+" "+rpDates(r));renderPastiAny();}
+  catch(_){toast("Non riesco a togliere il riposo adesso: riprova.");}
+}
 function pastiPaint(box,k,ro,nav){
   const sx=box.querySelector(".pg-wrap"),pos=sx&&box.dataset.k===k?[sx.scrollLeft,sx.scrollTop]:null;
   box.innerHTML=pastiHTML(k,ro,nav);box.dataset.k=k;
@@ -4245,6 +4711,8 @@ function renderSdPasti(){
 }
 function renderPastiAny(){if(!$("app").hidden)renderAll();if(!$("invio").hidden)renderSdPasti();}
 function pastiClick(e,again){
+  if(e.target.closest("[data-rpnew]")){openRiposo();return;}
+  const rd=e.target.closest("[data-rpdel]");if(rd){delRiposo(rd.dataset.rpdel);return;}
   const c=e.target.closest("[data-pa]");if(c){openPasto(c.dataset.pa,c.dataset.pd);return;}
   const nv=e.target.closest("[data-pgnav]");if(nv){sdPastiMonth=shiftMonth(sdPastiMonth||mkey(todayISO()),Number(nv.dataset.pgnav));again();return;}
   const sy=e.target.closest("[data-pgsync]");
@@ -4338,11 +4806,12 @@ function openCapo(b0,o){
   oth.forEach(x=>[x.driver,x.driver2].map(realDriver).filter(Boolean).forEach(d=>busyD.add(drvKey(d))));
   $("cpTitle").textContent="Bus e autisti · foglio n. "+(b.foglio||"—");
   $("cpInfo").innerHTML="<b>"+esc(dispClient(b))+"</b> · "+esc(TYPES[b.type]||"Servizio")+" · "+esc(itD(b.start))+(endOf(b)!==b.start?" – "+esc(itD(endOf(b))):"")+(b.time?" · ore "+esc(b.time):"")+(b.pax!==""&&b.pax!=null?" · "+esc(b.pax)+" passeggeri":"")+(b.route?"<br>"+esc(b.route):"");
-  $("cpVeh").innerHTML=S.fleet.map(v=>'<option value="'+esc(v.id)+'">'+esc(vehLabel(v))+(busyV.has(v.id)?" · già impegnato":"")+'</option>').join("");
+  $("cpVeh").innerHTML=S.fleet.map(v=>'<option value="'+esc(v.id)+'">'+esc(vehLabel(v))+(busyV.has(v.id)?" · già impegnato":"")+'</option>').join("")+(isXbus(b.vehicle)?'<option value="'+esc(b.vehicle)+'">'+esc(vehLabel(vehicle(b.vehicle)))+'</option>':""); // extra bus (2.8): resta tra le scelte
   $("cpVeh").value=b.vehicle;
-  const c1=cpName(b.driver),c2=cpName(b.driver2),names=DRIVERS.map(d=>d[0]);
+  const c1=cpName(b.driver),c2=cpName(b.driver2),names=drivers().map(d=>d[0]);
   [c1,c2].forEach(n=>{if(n&&!names.includes(n))names.push(n);}); // nomi di prenotazioni vecchie, fuori elenco
-  const opts=first=>'<option value="">'+esc(first)+'</option>'+names.map(n=>'<option value="'+esc(n)+'">'+esc(n)+(busyD.has(drvKey(n))?" · già impegnato":"")+'</option>').join("");
+  const rpB=n=>{for(let d=b.start,i=0;d<=endOf(b)&&i<32;d=addDays(d,1),i++)if(riposoOf(n,d))return true;return false;}; // riposo (2.8)
+  const opts=first=>'<option value="">'+esc(first)+'</option>'+names.map(n=>'<option value="'+esc(n)+'">'+esc(n)+(busyD.has(drvKey(n))?" · già impegnato":"")+(rpB(n)?" · riposo":"")+'</option>').join("");
   $("cpDrv").innerHTML=opts("— scegli l'autista —");$("cpDrv2").innerHTML=opts("— nessuno —");
   $("cpDrv").value=c1;$("cpDrv2").value=c2&&c2!==c1?c2:"";
   const v0=vehicle(b.vehicle)||{};
@@ -4534,7 +5003,7 @@ function renderAut(){
   $("autLink").textContent=on?"Ricollega la cartella":"Collega la cartella";
   if(document.activeElement!==$("autUrl"))$("autUrl").value=(a&&a.appUrl)||"";
   const sel=$("phDriver"),cur=sel.value;
-  sel.innerHTML='<option value="">Scegli l\'autista…</option>'+DRIVERS.map(d=>'<option'+(d[0]===cur?" selected":"")+'>'+esc(d[0])+'</option>').join("");
+  sel.innerHTML='<option value="">Scegli l\'autista…</option>'+drivers().map(d=>'<option'+(d[0]===cur?" selected":"")+'>'+esc(d[0])+'</option>').join("");
   const ph=Object.entries((a&&a.phones)||{}).sort((x,y)=>x[1].driver.localeCompare(y[1].driver,"it")||(x[1].created<y[1].created?-1:1));
   $("phList").innerHTML=ph.map(([pid,f])=>{
     const s=phoneState(pid,f);

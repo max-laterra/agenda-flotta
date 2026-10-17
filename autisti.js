@@ -13,6 +13,7 @@
 //   /servizi/<anno>/<id>/scontrini/<nome>.jpg   foto degli scontrini (scrive il telefono)
 //   /telefoni/<id telefono>.json           il telefono si è collegato (scrive il telefono)
 //   /telefoni/pasti/<autista>/<AAAA-MM>.json   crocette dei pasti del mese (scrive il telefono; letto dalla 2.7)
+//   /telefoni/push/…, /telefoni/notifiche/…    notifiche dell'app degli autisti: l'Agenda non li usa e li salta
 //
 // Tutto quello che arriva dai telefoni è controllato prima di essere usato (cleanSpese, cleanLetto…).
 (function (root) {
@@ -259,7 +260,7 @@
       catch (e) { if (e && e.code === "reset") { st.cursor = ""; res = await c.listFolder("", null); } else throw e; }
       const seen = new Map(); let next = st.cursor;
       while (res) { for (const e of res.entries) seen.set(String(e.path_lower || "").toLowerCase(), e); next = res.cursor; res = res.has_more ? await c.listFolder("", res.cursor) : null; }
-      const jobs = []; let touched = false;
+      const jobs = []; let touched = false; const changed = new Set(); // id dei servizi cambiati (per la finestra spese)
       for (const [p, e] of seen) {
         try { // una voce guasta non deve fermare le altre (né il segnalibro della cartella)
           const m = RE_SRV.exec(p), t = m ? null : RE_TEL.exec(p), pa = m || t ? null : RE_PAS.exec(p);
@@ -272,7 +273,7 @@
           } else if (m) {
             if (badName(m[1]) || (m[3] && badName(m[3]))) continue;
             const it = st.items[m[1]] || (st.items[m[1]] = newItem()), f = m[2];
-            if (e[".tag"] === "deleted") { if (m[3]) delete it.op[m[3]]; else if (f === "spese.json") it.sp = null; else it.re = ""; delete it.revs[f]; touched = true; continue; }
+            if (e[".tag"] === "deleted") { if (m[3]) delete it.op[m[3]]; else if (f === "spese.json") it.sp = null; else it.re = ""; delete it.revs[f]; touched = true; changed.add(m[1]); continue; }
             if (e[".tag"] !== "file" || it.revs[f] === e.rev || (e.size || 0) > 2000000) continue;
             jobs.push({ p, e, it, f, who: m[3] || "" });
           } else if (t) {
@@ -291,14 +292,51 @@
         if (jb.who) { const l = cleanLetto(j); if (l) jb.it.op[jb.who] = l; else delete jb.it.op[jb.who]; }
         else if (jb.f === "spese.json") { const sp = cleanSpese(j); jb.it.sp = sp ? { n: sp.righe.length, contanti: totals(sp).contanti, carta: totals(sp).carta, km1: sp.kmPartenza, km2: sp.kmRientro, deliv: sp.consegnata, delivAt: sp.consegnataAt, upd: sp.updatedAt, by: sp.autista } : null; }
         else { jb.it.re = isObj(j) && isObj(j.riaperta) ? when(j.riaperta.at) : ""; }
-        jb.it.revs[jb.f] = rev; touched = true;
+        jb.it.revs[jb.f] = rev; touched = true; changed.add(jb.p.split("/")[3]);
       });
       st.cursor = next || ""; st.at = Date.now(); st.pv = 1; lastErr = "";
       lsSet(CK, st);
-      if (touched) hooks.onChange();
+      if (touched) hooks.onChange(changed);
       return true;
     } catch (e) { lastErr = (e && e.code) || "error"; return false; }
   }
+  // ---------- aggiornamento immediato (2.7.1) ----------
+  // Dropbox tiene aperta la richiesta (longpoll) finché nella cartella degli autisti non cambia qualcosa, al massimo
+  // per «LP» secondi: appena un telefono scrive (foglio aperto, spese, busta consegnata, crocette) la cartella si
+  // rilegge. «backoff»: Dropbox chiede di aspettare prima della richiesta seguente. Il giro ogni 2 minuti di app.js
+  // resta come riserva. active(): c'è qualcuno dentro l'agenda (fuori dall'agenda non si legge niente).
+  const LP = 60, nap = (ms) => new Promise((r) => setTimeout(r, ms));
+  let watchGen = 0, watchOn = false;
+  function watch(active) {
+    if (watchOn) return; watchOn = true; const gen = ++watchGen;
+    (async () => {
+      let fails = 0;
+      while (gen === watchGen) {
+        if (!linked() || !navigator.onLine || (active && !active())) { await nap(5000); continue; }
+        if (!st.cursor) { await sync(); if (!st.cursor) await nap(15000); continue; }
+        let r = null; const t0 = Date.now();
+        try { r = await cli.longpoll(st.cursor, LP); fails = 0; }
+        catch (e) {
+          if (gen !== watchGen) break;
+          // Dropbox può tenere la richiesta oltre il tempo chiesto (fino a 90 s in più) e qui la si chiude prima:
+          // non è un errore, si riparte subito con la stessa domanda
+          if (e && e.code === "network" && navigator.onLine && Date.now() - t0 >= (LP + 25) * 1000) continue;
+          // segnalibro non più valido: si rilegge la cartella da capo (i file già letti non si riscaricano)
+          if (e && e.code === "api" && (e.status === 400 || e.status === 409)) { st.cursor = ""; lsSet(CK, st); await sync(); continue; }
+          fails++; await nap(Math.min(60000, 5000 * fails)); continue;
+        }
+        if (gen !== watchGen) break;
+        if (active && !active()) continue; // uscito dall'agenda mentre aspettava
+        // lettura non riuscita (rete, collegamento revocato): il segnalibro resta lo stesso e Dropbox risponderebbe
+        // subito «cambiato» di nuovo: si aspetta sempre di più prima di riprovare
+        if (r && r.changes && !(await sync())) { fails++; await nap(Math.min(60000, 5000 * fails)); continue; }
+        const bo = r ? Number(r.backoff) : 0;
+        if (bo > 0) await nap(Math.min(300, bo) * 1000);
+      }
+    })().finally(() => { if (gen === watchGen) watchOn = false; });
+  }
+  function unwatch() { watchGen++; watchOn = false; }
+
   // stato di un foglio inviato: "ritirato" | "consegnata" | "aperto" | "inviato"
   function status(b) {
     const s = b && b.sent; if (!s || !s.at) return null;
@@ -333,16 +371,16 @@
   }
   const newPhoneId = () => { const r = crypto.getRandomValues(new Uint8Array(8)); let s = "t"; for (const x of r) s += (x % 36).toString(36); return s; };
 
-  (root.AGENDA_FILES = root.AGENDA_FILES || {}).autisti = "2.7";
+  (root.AGENDA_FILES = root.AGENDA_FILES || {}).autisti = "2.8";
   const API = Object.assign({}, PURE, {
     configure(h) { Object.assign(hooks, h); },
     linked, startLink, redirectMine, purpose, takeRedirect, revoke, prepare,
-    send, withdraw, reopen, sync, status, spese, photo, qrSvg, newPhoneId, dirOf,
+    send, withdraw, reopen, sync, watch, unwatch, status, spese, photo, qrSvg, newPhoneId, dirOf,
     phone: (pid) => st.phones[pid] || null,
     // crocette dei pasti (2.7): quelle di un autista in un mese, e gli autisti che ne hanno mandate
     pasti: (aid, mese) => (st.pasti[aid] && st.pasti[aid][mese]) || null,
     pastiWho: () => Object.keys(st.pasti).map((a) => { const ms = Object.keys(st.pasti[a]); const last = ms.sort().slice(-1)[0]; return { id: a, name: last ? st.pasti[a][last].name : "", months: ms }; }),
-    forget() { st = okState(null); lsSet(CK, st); officeTok = null; },
+    forget() { unwatch(); st = okState(null); lsSet(CK, st); officeTok = null; },
   });
   Object.defineProperty(API, "lastSync", { get: () => st.at, enumerable: true });
   Object.defineProperty(API, "lastError", { get: () => lastErr, enumerable: true });

@@ -247,6 +247,12 @@
         const cur = doc.extra || "";
         if (strict && op.base != null && cur !== op.base && cur !== op.v) { doc.extra = merge3(op.base, op.v, cur); notes.push({ kind: "extraMerged", date: doc.date }); }
         else doc.extra = op.v;
+      } else if (op.t === "xbus") {
+        // 2.8: extra bus del giorno (bus di altre aziende): si aggiunge (add) o si toglie (del) uno alla volta
+        const l = Array.isArray(doc.xbus) ? doc.xbus.filter(isObj) : [];
+        if (op.add && isObj(op.add) && typeof op.add.id === "string") { if (!l.some((x) => x.id === op.add.id)) l.push(cleanXbus(op.add)); }
+        else if (typeof op.del === "string") { const i = l.findIndex((x) => x.id === op.del); if (i >= 0) l.splice(i, 1); }
+        doc.xbus = l;
       }
     }
     return { fat, notes, movesGone, movesKept };
@@ -519,6 +525,8 @@
   const B_TXT = ["type", "vehicle", "start", "end", "time", "time2", "client", "route", "event", "escort", "driver", "driver2", "contact", "contactName", "contactRole", "contactNote", "status", "notes", "saldo", "npark", "ndriver", "n3h", "nextra", "envelope", "envno", "updatedAt", "by", "byAt", "updBy"];
   const B_VAL = ["pax", "price", "park", "meals", "advance", "saldoAmt", "clientCode", "foglio"]; // numero o testo
   const B_ROWS = ["refs", "guides", "hotels", "dnotes"];
+  // extra bus (2.8): id, azienda, posti, targa
+  function cleanXbus(x) { return { id: txt(x.id, 40).replace(/[^\w:-]/g, ""), az: txt(x.az, 80).trim(), posti: txt(x.posti, 6).replace(/\D/g, ""), targa: txt(x.targa, 20).trim().toUpperCase() }; }
   function cleanBooking(b, date) {
     if (!isObj(b)) return null;
     for (const k of B_TXT) if (k in b && typeof b[k] !== "string") b[k] = txt(b[k]);
@@ -531,6 +539,10 @@
     if (b.end && !validDate(b.end)) b.end = "";
     if ("sent" in b) { if (isObj(b.sent)) b.sent = cleanSent(b.sent); else delete b.sent; }
     if ("capo" in b) { if (isObj(b.capo)) b.capo = { at: txt(b.capo.at, 40), by: txt(b.capo.by, 80) }; else delete b.capo; }
+    // extra (2.8): fino a 3 voci con causale e cifra; exOwn: l'agenda gestisce le colonne «varie» del fatturato
+    if ("extras" in b) b.extras = Array.isArray(b.extras) ? b.extras.filter(isObj).slice(0, 3).map((e) => { const a = typeof e.amt === "number" ? e.amt : typeof e.amt === "string" && e.amt.trim() !== "" ? Number(e.amt) : NaN; return { c: txt(e.c, 60), amt: isFinite(a) ? Math.round(a * 100) / 100 : "" }; }) : [];
+    if ("exOwn" in b) b.exOwn = b.exOwn === true;
+    if ("xbus" in b) { if (isObj(b.xbus) && typeof b.xbus.id === "string") b.xbus = cleanXbus(b.xbus); else delete b.xbus; }
     return b;
   }
   function cleanDoc(doc, date) {
@@ -540,6 +552,7 @@
     doc.bookings = bk;
     if (validDate(date)) { doc.date = date; doc.month = date.slice(0, 7); } // la data è quella del nome del file
     if ("extra" in doc && typeof doc.extra !== "string") doc.extra = txt(doc.extra);
+    if ("xbus" in doc) doc.xbus = Array.isArray(doc.xbus) ? doc.xbus.filter((x) => isObj(x) && typeof x.id === "string").slice(0, 30).map(cleanXbus) : [];
     doc.seq = typeof doc.seq === "number" && isFinite(doc.seq) && doc.seq >= 0 ? Math.floor(doc.seq) : 0;
     if ("applied" in doc) doc.applied = Array.isArray(doc.applied) ? doc.applied.filter((x) => typeof x === "string") : [];
     return doc;
@@ -567,7 +580,7 @@
     if (cache.regs) { const g = {}; if (isObj(cache.regs)) for (const k of Object.keys(REGF)) { const c = cache.regs[k] ? cleanReg(k, cache.regs[k]) : null; if (c) g[k] = c; } cache.regs = Object.keys(g).length ? g : null; }
     if (cache.contab) cache.contab = isObj(cache.contab) && window.FATTURE ? window.FATTURE.cleanContab(cache.contab) : null;
     if (cache.drafts) { const g = {}; if (isObj(cache.drafts) && window.FATTURE) for (const k of Object.keys(cache.drafts)) { const e = cache.drafts[k], d = isObj(e) ? window.FATTURE.cleanDraft(e.doc) : null; if (d && d.id === k && !badKey(k)) g[k] = { doc: d, rev: txt(e.rev, 80) }; } cache.drafts = g; }
-    queue.days = queue.days.filter((it) => isObj(it) && validDate(it.date) && Array.isArray(it.ops)).map((it) => { it.ops = it.ops.filter((op) => isObj(op) && (op.t === "extra" || (typeof op.id === "string" && !badKey(op.id) && (op.t === "del" || (op.t === "put" && isObj(op.b)))))); return it; });
+    queue.days = queue.days.filter((it) => isObj(it) && validDate(it.date) && Array.isArray(it.ops)).map((it) => { it.ops = it.ops.filter((op) => isObj(op) && (op.t === "extra" || op.t === "xbus" || (typeof op.id === "string" && !badKey(op.id) && (op.t === "del" || (op.t === "put" && isObj(op.b)))))); return it; });
     queue.clients = queue.clients.filter(isObj);
   }
 
@@ -1004,6 +1017,23 @@
   }
   // nome di file sicuro: niente / \ : * ? " < > | né ".." (un n. foglio scritto apposta non fa uscire il file dalla sua cartella)
   const safeFileName = (n) => String(n || "").replace(/[\u0000-\u001f\/\\:*?"<>|]+/g, "_").replace(/\.{2,}/g, "_").replace(/^[\s._]+/, "").slice(0, 150) || "foglio";
+  // 2.8: prenotazione eliminata → si cancellano i suoi PDF (foglio di servizio, copia completa, modello spese della
+  // busta) nella cartella del giorno. Si riconoscono dal n. foglio all'inizio del nome ("26100801_…"). Restituisce
+  // quanti file ha cancellato (in Dropbox finiscono tra i file eliminati, recuperabili per un certo periodo).
+  async function deleteSheetFiles(foglio, date) {
+    noRO();
+    foglio = String(foglio || "").trim();
+    if (!/^\d{6,12}$/.test(foglio) || !validDate(String(date || ""))) return 0;
+    const folder = sheetFolder(date), re = new RegExp("^" + foglio + "(_|\\.pdf$)", "i");
+    let res = await DBX.listFolder(folder), n = 0;
+    const names = [];
+    while (res) {
+      for (const e of res.entries || []) if (e[".tag"] === "file" && re.test(e.name) && String(e.path_lower || "").startsWith(folder.toLowerCase() + "/")) names.push(e.path_display || e.path_lower);
+      res = res.has_more ? await DBX.listFolder(folder, res.cursor) : null;
+    }
+    for (const p of names) { await DBX.remove(p); n++; }
+    return n;
+  }
   async function saveSheetFile(name, blob, date) {
     noRO();
     name = safeFileName(name);
@@ -1078,10 +1108,13 @@
   // Un file per anagrafica in config/. Ogni scrittura parte dall'ultima versione in Dropbox (niente
   // modifiche perse se due persone lavorano insieme); se il file non c'è ancora si crea.
   // parcheggi (2.6): anagrafica dei parcheggi; suggerimenti (2.6): i testi tolti dai suggerimenti mentre si scrive
+  // autisti (2.8): anagrafica degli autisti (nome e colore) che si cambia nell'Archivio; riposi (2.8): giorni di
+  // riposo chiesti dagli autisti, segnati dall'ufficio nella pagina Autisti
   // pasti (2.7): correzioni dell'ufficio alle crocette dei pasti degli autisti (le crocette vere restano nella
   // cartella degli autisti, scritte dai telefoni: l'ufficio non le tocca)
-  const REGF = { referenti: "anagrafica-referenti.json", guide: "anagrafica-guide.json", hotel: "anagrafica-hotel.json", tendine: "tendine.json", parcheggi: "anagrafica-parcheggi.json", suggerimenti: "suggerimenti-tolti.json", pasti: "pasti-correzioni.json" };
-  const TENDINE = { note: ["parcheggi", "autista", "3 ore", "extra 1", "extra 2"], ruolo: ["contabile", "ufficio", "operativo", "sul bus"] };
+  const REGF = { referenti: "anagrafica-referenti.json", guide: "anagrafica-guide.json", hotel: "anagrafica-hotel.json", tendine: "tendine.json", parcheggi: "anagrafica-parcheggi.json", suggerimenti: "suggerimenti-tolti.json", pasti: "pasti-correzioni.json", autisti: "anagrafica-autisti.json", riposi: "riposi-autisti.json" };
+  const TENDINE = { note: ["parcheggi", "autista", "3 ore", "extra 1", "extra 2"], ruolo: ["contabile", "ufficio", "operativo", "sul bus"],
+    spese: ["bottigliette d'acqua", "alloggio dell'autista", "kilometri extra", "notturno extra", "rimborso traghetto", "radioline e auricolari", "anticipo spese", "altro"] }; // spese: causale degli extra (2.8)
   function defaultReg(kind) { return kind === "tendine" ? clone(TENDINE) : { rows: [] }; }
   function reg(kind) { const r = (cache.regs || {})[kind]; return isObj(r) ? r : defaultReg(kind); }
   function regLoaded(kind) { return !!(cache.regs && cache.regs[kind]); }
@@ -1235,7 +1268,7 @@
     if (idb) await new Promise((res) => { try { const t = idb.transaction(["days", "meta"], "readwrite"); t.objectStore("days").clear(); t.objectStore("meta").clear(); t.oncomplete = t.onerror = t.onabort = () => res(); } catch (_) { res(); } });
   }
 
-  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.7";
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.8";
   window.STORE = {
     BASE, P,
     configure(h) { Object.assign(hooks, h); },
@@ -1245,7 +1278,7 @@
     disable() { enabled = false; writesBlocked = true; clearTimeout(saveTimer); },
     fileFogli, validDate,
     view, mutateDay, pull, flush, watch, setupFolders, syncFatturato, isPending, whenSent, saveNow: writeNow,
-    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, updateAut, loadAut, loadMinVer, raiseMinVer, setOutdated, verCmp, minVer: () => cache.minVer || "", actorRole, _usersGuard: usersGuard, _cleanUsers: cleanUsers, _cleanAut: cleanAut, _cleanBooking: cleanBooking, saveSheetFile, sheetFolder, safeFileName, ITER_MIN, ITER_MAX, reg, regLoaded, updateReg, loadRegs, REGF, contab, updateContab, drafts, draft, draftRev, saveDraft, deleteDraft, saveInvoiceXml, loadInvoices, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
+    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, updateAut, loadAut, loadMinVer, raiseMinVer, setOutdated, verCmp, minVer: () => cache.minVer || "", actorRole, _usersGuard: usersGuard, _cleanUsers: cleanUsers, _cleanAut: cleanAut, _cleanBooking: cleanBooking, saveSheetFile, deleteSheetFiles, sheetFolder, safeFileName, ITER_MIN, ITER_MAX, reg, regLoaded, updateReg, loadRegs, REGF, contab, updateContab, drafts, draft, draftRev, saveDraft, deleteDraft, saveInvoiceXml, loadInvoices, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
     bustaMax: (y) => { const m = cache.bustaMax || {}; return m[y] != null ? m[y] : m["*"] || 0; },
     get pendingClients() { return queue.clients.slice(); },
     clientDone: (tmp) => (cache.clientDone || {})[tmp] || null,

@@ -192,8 +192,24 @@
       out.push({ id: newId("r"), tipo: "noleggio", desc: fill(c.testo, { MESE: mesi(list), PERIODO: periodo(list[0].start, list[list.length - 1].start), CLIENTE: list[0].client || "", N: String(list.length), PARCHEGGIO: "" }, C), qta: 1, prezzo: sum("price"), sc: 0, aliq: c.aliq || "", fogli });
     } else for (const s of list) out.push(lineFromService(s, C));
     const extra = (k, uso, tipo) => { const tot = sum(k); if (!(tot > 0)) return; const c = causaleFor(C, uso) || { testo: tipo === "parcheggi" ? "RIMBORSO SPESE ANTICIPATE PER PARCHEGGI" : "RIMBORSO SPESE ANTICIPATE PER PASTI", aliq: "" }; out.push({ id: newId("r"), tipo, desc: fill(c.testo, { MESE: mesi(list), PARCHEGGIO: "" }, C), qta: 1, prezzo: tot, sc: 0, aliq: c.aliq || "", fogli: list.filter((s) => numOr(s[k], 0) > 0).map((s) => String(s.foglio || "")).filter(Boolean) }); };
-    parkLines(list, C, out); extra("meals", "pasti", "pasti");
+    parkLines(list, C, out); extra("meals", "pasti", "pasti"); extraLines(list, C, out);
     return out;
+  }
+  // Extra (2.8): ogni servizio può avere fino a 3 voci con la causale spese (es. "rimborso traghetto") e la cifra.
+  // Una riga per causale, sommando i servizi; l'IVA proposta è quella del noleggio (si controlla nella bozza).
+  function extraLines(list, C, out) {
+    const groups = new Map();
+    for (const s of list) for (const e of Array.isArray(s.extras) ? s.extras : []) {
+      const a = r2(numOr(e && e.amt, 0)), t = String((e && e.c) || "").trim(); if (!(a > 0)) continue;
+      const k = t.toLowerCase() || "extra";
+      if (!groups.has(k)) groups.set(k, { testo: t || "extra", amt: 0, fogli: [], type: s.type });
+      const g = groups.get(k); g.amt = r2(g.amt + a); if (s.foglio && !g.fogli.includes(String(s.foglio))) g.fogli.push(String(s.foglio));
+    }
+    for (const g of groups.values()) {
+      const uso = ["gita", "tour", "notturno", "transfer"].includes(g.type) ? g.type : "gita", c = causaleFor(C, uso);
+      const low = C && C.opzioni && C.opzioni.maiuscole === false, desc = low ? g.testo.charAt(0).toUpperCase() + g.testo.slice(1) : g.testo.toUpperCase();
+      out.push({ id: newId("r"), tipo: "libera", desc, qta: 1, prezzo: g.amt, sc: 0, aliq: (c && c.aliq) || "", fogli: g.fogli });
+    }
   }
   // Parcheggi (2.6): ogni servizio può avere più parcheggi dell'anagrafica, ognuno con la sua cifra (s.parks:
   // { key, testo: "A SIRACUSA", aliq, amt }). Una riga di rimborso per parcheggio, sommando i servizi, con l'IVA
@@ -407,7 +423,7 @@
     return { xml: x, name: A.paese + latin(A.piva, 28).replace(/[^A-Za-z0-9]/g, "") + "_" + prog + ".xml", prog, formato: fmt, calc: k };
   }
 
-  const API = { VERSION: "2.7", REGIMI, NATURE, TIPI_DOC, TIPI_SCELTA, causaleRow, causaleApart, parkLines, MOD_PAG, COND_PAG, USI, ARROT, VERSI, defaults, cleanContab, cleanDraft, cleanCliente, newDraft, linesFor, lineFromService, fill, mezzo, periodo, mesi, calc, validate, xml, latin, isPA, okDate, addDays, itLong, itShort, newId, r2, amt, numOr, progressivo, nextProg, progOf, numeroDoc };
+  const API = { VERSION: "2.8", REGIMI, NATURE, TIPI_DOC, TIPI_SCELTA, causaleRow, causaleApart, parkLines, extraLines, MOD_PAG, COND_PAG, USI, ARROT, VERSI, defaults, cleanContab, cleanDraft, cleanCliente, newDraft, linesFor, lineFromService, fill, mezzo, periodo, mesi, calc, validate, xml, latin, isPA, okDate, addDays, itLong, itShort, newId, r2, amt, numOr, progressivo, nextProg, progOf, numeroDoc };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
-  if (root) { root.FATTURE = API; if (root.document) (root.AGENDA_FILES = root.AGENDA_FILES || {}).fatture = "2.7"; }
+  if (root) { root.FATTURE = API; if (root.document) (root.AGENDA_FILES = root.AGENDA_FILES || {}).fatture = "2.8"; }
 })(typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null);

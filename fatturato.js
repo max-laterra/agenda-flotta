@@ -174,8 +174,13 @@
     if (r.C !== "" && r.C != null) { v.C = isFinite(Number(r.C)) ? { n: Number(r.C) } : { t: String(r.C) }; v.D = "formula"; }
     else { v.C = null; v.D = r.D ? { t: r.D } : "formula"; }
     if (r.tour) { v.AH = num(r.AH); v.AI = txt(r.AI); v.AJ = txt(r.AJ); }
+    // 2.8: extra del servizio (causale + importo) nelle colonne «€ varie / tipo varie» 1, 2 e 3. Solo per le
+    // prenotazioni che hanno (o hanno avuto) degli extra: lì le sei colonne le scrive l'agenda (le varie scritte a
+    // mano su quella riga vengono sostituite); sulle altre righe le varie scritte a mano non si toccano.
+    if (r.ex) { const l = Array.isArray(r.EX) ? r.EX : []; EXC.forEach(([ce, ct], i) => { const e = l[i] || {}; v[ce] = num(e.amt); v[ct] = txt(e.c); }); }
     return v;
   }
+  const EXC = [["S", "T"], ["U", "V"], ["W", "X"]];
   const OWN = ["A", "B", "C", "D", "G", "H", "I", "J", "M", "O", "P", "Q", "R", "Z", "AA", "AH", "AI", "AJ"];
 
   // sposta i riferimenti relativi di una formula (A1, $A1, A$1) di dr righe e dc colonne, come quando Excel
@@ -278,11 +283,11 @@
     const upKeys = new Set(), collisions = [], addedFogli = [], clearedFogli = [], invalid = [];
     // la riga contiene dati scritti dall'ufficio (colonne che l'agenda non gestisce)?
     const FX = ["D", "E", "F", "K", "Y", "AQ"];
-    function officeData(r) {
+    function officeData(r, own) {
       if (byNum[r] == null) return false;
       const cells = rowCells(rows[byNum[r]].xml);
       for (const c in cells) {
-        if (OWN.includes(c) || FX.includes(c)) continue;
+        if (OWN.includes(c) || FX.includes(c) || (own && own.includes(c))) continue;
         const x = cells[c]; if (!x.inner || /<f[\s>\/]/.test(x.inner)) continue;
         const am = /<c r="[A-Z]+\d+"([^>]*?)(?:\/>|>)/.exec(x.xml);
         if (String(cellValue(am ? am[1] : "", x.inner, sst)).trim() !== "") return true;
@@ -333,7 +338,9 @@
     function clearRow(key, c) {
       const r = where[key], vals = {};
       const sig = rowNow(r); clearedSig[key] = { B: sig.B || "", C: sig.C || "", D: sig.D == null ? null : sig.D };
-      if (officeData(r)) {
+      const exOwn = c && c.row && c.row.ex ? EXC.flat() : []; // varie scritte dall'agenda (2.8): si svuotano con la riga
+      for (const col of exOwn) vals[col] = null;
+      if (officeData(r, exOwn)) {
         // l'ufficio ha già scritto qualcosa (fattura, spese…): la riga resta con il suo n. foglio e una nota,
         // così non viene riusata e si capisce a cosa si riferivano quei dati
         for (const col of OWN) if (col !== "A") vals[col] = col === "D" ? "formula" : null;
@@ -672,6 +679,6 @@
   // Legge solo gli elenchi, senza modificare il file
   async function lists(buf) { const zip = await openZip(buf); const sstF = zip.file("xl/sharedStrings.xml"); const sst = sstF ? parseSST(await readText(zip, "xl/sharedStrings.xml")) : []; const out = await readLists(zip, sst); if (zip._agendaTooBig) throw { code: "toobig" }; return out; }
 
-  (window.AGENDA_FILES = window.AGENDA_FILES || {}).fatturato = "2.7";
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).fatturato = "2.8";
   window.FAT = { apply, lists, COLS, colIdx, xEsc, openZip, readText, wholeSheet, balanced };
 })();
