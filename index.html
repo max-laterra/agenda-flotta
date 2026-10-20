@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="2.8">
+<html lang="it" data-v="2.8" data-p="2.9">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -504,6 +504,7 @@ img{max-width:100%}
 .net{font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;border:1px solid var(--line);color:var(--ink-2);white-space:nowrap;align-self:center}
 .net::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px;background:currentColor}
 .net.on{color:var(--ok)} .net.sync{color:var(--sync)} .net.off{color:var(--warn);background:var(--warn-bg);border-color:transparent}
+.net.pdfst{color:var(--sync);cursor:help} /* 2.9: PDF dei fogli da salvare in Dropbox */
 .brand{flex-wrap:wrap}
 .gate{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px;background:var(--bg)}
 .gate-card{width:100%;max-width:460px;background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
@@ -793,6 +794,16 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 .bill-inv>b{font-family:var(--cond);font-size:17px;text-transform:uppercase;letter-spacing:.04em;margin-right:4px}
 .bill-inv .hint{font-size:13px;color:var(--ink-3);flex:1 1 320px}
 .bill-inv .btn:disabled{opacity:.55;cursor:default}
+/* 2.9: archivio delle buste (Fatturato › Buste) */
+.bill-inv.no-inv .inv-ctl{display:none}
+.modal.reg-modal.bs-modal{max-width:1440px}.bs-modal .bill-filter{border-top:0;padding-top:0}
+.bs-lt td{padding:7px 8px}.bs-lt th{padding:8px 8px}.bs-lt td.cli{min-width:110px;max-width:180px}
+.bs-lt td.r,.bs-lt th.r{text-align:right}.bs-lt tbody tr{cursor:pointer}.bs-lt tbody tr:hover td{background:var(--surface-2)}
+.bs-lt .neg{color:var(--warn);font-weight:700}.bs-lt .acts{white-space:nowrap}
+.bs-st{display:inline-block;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:700;white-space:nowrap;border:1px solid currentColor;background:#fff}
+.bs-st.k-cons{color:#1B5E20}.bs-st.k-dac{color:#8A6100}.bs-st.k-late{color:#B71C1C}.bs-st.k-nos{color:var(--ink-3)}.bs-st.k-rit{color:#B71C1C}
+.bs-lt tfoot td{font-weight:700;border-top:2px solid var(--line);background:var(--surface-2)}
+.bf-dac b{color:#8A6100}.bf-cons b{color:var(--ok)}
 .bt th.selc,.bt td.selc{width:34px;padding-right:0;text-align:center;cursor:pointer}
 .bt td.selc input{width:17px;height:17px;cursor:pointer;accent-color:var(--accent)}
 .bt tbody tr.sel{background:color-mix(in srgb,var(--accent-soft) 70%,transparent)}
@@ -1237,7 +1248,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
   <div class="stickhead on" id="stickHead">
   <header class="top">
     <div class="topline">
-      <div class="brand"><h1>Agenda Flotta</h1><span id="fleetCount">26 mezzi</span><span class="net" id="netStatus" hidden></span><span class="appver" id="appVer"></span><button type="button" class="whoami" id="whoAmI" hidden></button></div>
+      <div class="brand"><h1>Agenda Flotta</h1><span id="fleetCount">26 mezzi</span><span class="net" id="netStatus" hidden></span><span class="net pdfst" id="pdfStatus" hidden></span><span class="appver" id="appVer"></span><button type="button" class="whoami" id="whoAmI" hidden></button></div>
       <img class="logo" src="logo.jpg" alt="La Terra" width="1000" height="138">
     </div>
     <div class="bar">
@@ -1312,11 +1323,12 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       </div>
       <div class="bill-msg" id="billMsg" role="status"></div>
       <div class="bill-inv" id="billInv" hidden>
-        <b>Fatture</b>
-        <button type="button" class="btn primary" id="invSel" disabled>Bozza fattura di più servizi</button>
-        <button type="button" class="btn" id="invSelClear" hidden>Togli la selezione</button>
-        <button type="button" class="btn" id="invList">Bozze fattura</button>
-        <span class="hint">Per un solo servizio usa «Bozza Fattura» sulla sua riga. Per una fattura unica di più servizi dello stesso cliente spunta le caselle a sinistra.</span>
+        <b class="inv-ctl">Fatture</b>
+        <button type="button" class="btn primary inv-ctl" id="invSel" disabled>Bozza fattura di più servizi</button>
+        <button type="button" class="btn inv-ctl" id="invSelClear" hidden>Togli la selezione</button>
+        <button type="button" class="btn inv-ctl" id="invList">Bozze fattura</button>
+        <button type="button" class="btn" id="bsOpen" title="Archivio delle buste per l'autista: anticipo, spese, rimanenza e consegna">Buste</button>
+        <span class="hint inv-ctl">Per un solo servizio usa «Bozza Fattura» sulla sua riga. Per una fattura unica di più servizi dello stesso cliente spunta le caselle a sinistra. «Buste»: tutte le buste per l'autista con spese e rimanenza.</span>
       </div>
       <div class="bill-filter" id="billFilter" hidden></div>
     </div>
@@ -1438,7 +1450,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       </div>
     </div>
     <p class="sheet-prov" id="sheetProv" hidden>N. foglio <b>provvisorio</b>: la prenotazione non è ancora arrivata in Dropbox, quindi il numero potrebbe cambiare. Il foglio lo riporta (PROVV.); appena torna la connessione il numero viene confermato e il foglio si aggiorna.</p>
-    <p class="sheet-hint">Impaginato del modello <b>automatico_2026_neutro</b>. «Salva e stampa» stampa il foglio così come lo vedi (una pagina A4) e intanto lo salva in Dropbox. Con «Salva e stampa» e con «Salva PDF» la copia che resta in Dropbox (Fogli di servizio) è sempre completa, con la copia ufficio; il PDF scaricato è quello scelto qui.</p>
+    <p class="sheet-hint">Impaginato del modello <b>automatico_2026_neutro</b>. «Salva e stampa» stampa il foglio così come lo vedi (una pagina A4). La copia in Dropbox (Fogli di servizio) si aggiorna da sola a ogni modifica della prenotazione: è sempre completa, con la copia ufficio, e senza targa e ID mezzo; le scelte di questa finestra valgono solo per la stampa e per il PDF scaricato.</p>
     <div class="sheet-scroll"><div id="sheetView"></div></div>
     <div class="sent-bar" id="sheetSent" hidden></div>
     <div class="sheet-msg" id="sheetMsg" role="status"></div>
@@ -1679,6 +1691,15 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
     <div class="reg-top"><h3 id="invListTitle">Bozze fattura</h3><span class="reg-count" id="invListCount"></span><span class="spacer"></span><button type="button" class="btn primary" id="invListNew" hidden>+ Nuova bozza per questi servizi</button><button type="button" class="btn" id="invListAll" hidden>Tutte le bozze</button><button type="button" class="btn" id="invListClose">Chiudi</button></div>
     <input id="invQ" type="search" class="cli-q" placeholder="Cerca per cliente, n. foglio, numero…" autocomplete="off" aria-label="Cerca tra le bozze">
     <div class="grid-wrap inv-list" id="invListBody"></div>
+  </div>
+</div>
+<div class="overlay" id="ovBuste" hidden>
+  <div class="modal reg-modal bs-modal" role="dialog" aria-labelledby="bsTitle">
+    <div class="reg-top"><h3 id="bsTitle">Buste per l'autista</h3><span class="reg-count" id="bsCount"></span><span class="spacer"></span><button type="button" class="btn" id="bsCsv">Scarica Excel</button><button type="button" class="btn" id="bsClose">Chiudi</button></div>
+    <p class="mst-sub" id="bsSub"></p>
+    <div class="bill-filter" id="bsFilter"></div>
+    <input id="bsQ" type="search" class="cli-q" placeholder="Cerca per cliente, autista, n. busta, n. foglio…" autocomplete="off" aria-label="Cerca tra le buste">
+    <div class="grid-wrap inv-list" id="bsBody"></div>
   </div>
 </div>
 <div class="overlay" id="ovInv" hidden>

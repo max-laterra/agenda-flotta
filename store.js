@@ -1034,13 +1034,43 @@
     for (const p of names) { await DBX.remove(p); n++; }
     return n;
   }
+  // cartelle già create in questa sessione: non si ricreano a ogni file (2.9)
+  const madeFolders = new Set();
+  async function ensureFolder(folder) {
+    let p = "";
+    for (const part of folder.split("/").filter(Boolean)) { p += "/" + part; const k = p.toLowerCase(); if (madeFolders.has(k)) continue; await DBX.createFolder(p).catch(() => {}); madeFolders.add(k); }
+  }
   async function saveSheetFile(name, blob, date) {
     noRO();
     name = safeFileName(name);
     const folder = sheetFolder(String(date || ""));
-    let p = "";
-    for (const part of folder.split("/").filter(Boolean)) { p += "/" + part; await DBX.createFolder(p).catch(() => {}); }
+    await ensureFolder(folder);
     return DBX.upload(folder + "/" + name, blob, "overwrite");
+  }
+  // 2.9: copia del foglio di servizio che l'agenda tiene aggiornata da sola in Dropbox (a ogni modifica della
+  // prenotazione). La scrive anche il telefono del capo dopo la sua scelta di bus e autisti: solo questo file.
+  async function saveSheetCopy(name, blob, date) {
+    if (outdated) throw { code: "outdated" };
+    name = safeFileName(name);
+    const folder = sheetFolder(String(date || ""));
+    await ensureFolder(folder);
+    return DBX.upload(folder + "/" + name, blob, "overwrite");
+  }
+  // file PDF di una cartella dei fogli (anche tutta «Fogli di servizio», con le sottocartelle): {name, path, lower, mod}
+  async function sheetFiles(folder) {
+    const out = [];
+    let res = await DBX.listFolder(folder || P.sheets);
+    while (res) {
+      for (const e of res.entries || []) if (e[".tag"] === "file" && /\.pdf$/i.test(e.name || "")) { out.push({ name: e.name, path: e.path_display || e.path_lower, lower: String(e.path_lower || "").toLowerCase(), mod: e.server_modified || "" }); const d = String(e.path_lower || "").replace(/\/[^/]*$/, ""); if (d) madeFolders.add(d); }
+      res = res.has_more ? await DBX.listFolder(folder || P.sheets, res.cursor) : null;
+    }
+    return out;
+  }
+  // toglie un PDF vecchio della cartella dei fogli (nome cambiato); solo dentro «Fogli di servizio»
+  async function removeSheetFile(path) {
+    if (outdated) throw { code: "outdated" };
+    if (!String(path || "").toLowerCase().startsWith(P.sheets.toLowerCase() + "/") || !/\.pdf$/i.test(path)) throw { code: "path" };
+    return DBX.remove(path);
   }
 
   // ---------- versione minima (2.6) ----------
@@ -1108,11 +1138,12 @@
   // Un file per anagrafica in config/. Ogni scrittura parte dall'ultima versione in Dropbox (niente
   // modifiche perse se due persone lavorano insieme); se il file non c'è ancora si crea.
   // parcheggi (2.6): anagrafica dei parcheggi; suggerimenti (2.6): i testi tolti dai suggerimenti mentre si scrive
+  // fogli (2.9): stato della creazione iniziale dei PDF di tutti i fogli di servizio (chi la fa, a che punto è)
   // autisti (2.8): anagrafica degli autisti (nome e colore) che si cambia nell'Archivio; riposi (2.8): giorni di
   // riposo chiesti dagli autisti, segnati dall'ufficio nella pagina Autisti
   // pasti (2.7): correzioni dell'ufficio alle crocette dei pasti degli autisti (le crocette vere restano nella
   // cartella degli autisti, scritte dai telefoni: l'ufficio non le tocca)
-  const REGF = { referenti: "anagrafica-referenti.json", guide: "anagrafica-guide.json", hotel: "anagrafica-hotel.json", tendine: "tendine.json", parcheggi: "anagrafica-parcheggi.json", suggerimenti: "suggerimenti-tolti.json", pasti: "pasti-correzioni.json", autisti: "anagrafica-autisti.json", riposi: "riposi-autisti.json" };
+  const REGF = { referenti: "anagrafica-referenti.json", guide: "anagrafica-guide.json", hotel: "anagrafica-hotel.json", tendine: "tendine.json", parcheggi: "anagrafica-parcheggi.json", suggerimenti: "suggerimenti-tolti.json", pasti: "pasti-correzioni.json", autisti: "anagrafica-autisti.json", riposi: "riposi-autisti.json", fogli: "fogli-pdf.json" };
   const TENDINE = { note: ["parcheggi", "autista", "3 ore", "extra 1", "extra 2"], ruolo: ["contabile", "ufficio", "operativo", "sul bus"],
     spese: ["bottigliette d'acqua", "alloggio dell'autista", "kilometri extra", "notturno extra", "rimborso traghetto", "radioline e auricolari", "anticipo spese", "altro"] }; // spese: causale degli extra (2.8)
   function defaultReg(kind) { return kind === "tendine" ? clone(TENDINE) : { rows: [] }; }
@@ -1269,6 +1300,7 @@
   }
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.8";
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "2.9"; // 2.9: fogli di servizio salvati da soli in Dropbox
   window.STORE = {
     BASE, P,
     configure(h) { Object.assign(hooks, h); },
@@ -1278,7 +1310,7 @@
     disable() { enabled = false; writesBlocked = true; clearTimeout(saveTimer); },
     fileFogli, validDate,
     view, mutateDay, pull, flush, watch, setupFolders, syncFatturato, isPending, whenSent, saveNow: writeNow,
-    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, updateAut, loadAut, loadMinVer, raiseMinVer, setOutdated, verCmp, minVer: () => cache.minVer || "", actorRole, _usersGuard: usersGuard, _cleanUsers: cleanUsers, _cleanAut: cleanAut, _cleanBooking: cleanBooking, saveSheetFile, deleteSheetFiles, sheetFolder, safeFileName, ITER_MIN, ITER_MAX, reg, regLoaded, updateReg, loadRegs, REGF, contab, updateContab, drafts, draft, draftRev, saveDraft, deleteDraft, saveInvoiceXml, loadInvoices, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
+    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, updateAut, loadAut, loadMinVer, raiseMinVer, setOutdated, verCmp, minVer: () => cache.minVer || "", actorRole, _usersGuard: usersGuard, _cleanUsers: cleanUsers, _cleanAut: cleanAut, _cleanBooking: cleanBooking, saveSheetFile, saveSheetCopy, sheetFiles, removeSheetFile, sheetsRoot: () => P.sheets, deleteSheetFiles, sheetFolder, safeFileName, ITER_MIN, ITER_MAX, reg, regLoaded, updateReg, loadRegs, REGF, contab, updateContab, drafts, draft, draftRev, saveDraft, deleteDraft, saveInvoiceXml, loadInvoices, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
     bustaMax: (y) => { const m = cache.bustaMax || {}; return m[y] != null ? m[y] : m["*"] || 0; },
     get pendingClients() { return queue.clients.slice(); },
     clientDone: (tmp) => (cache.clientDone || {})[tmp] || null,

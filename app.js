@@ -1,11 +1,12 @@
 
 (function(){
 "use strict";
-const APP_VERSION="2.8",APP_DATE="17/10/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="2.9",APP_DATE="20/10/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
-const APP_FAMILY="2.8",APP_PATCH={};
+// 2.9: aggiornamento parziale sopra la 2.8: cambiano app.js, store.js e index.html (gli altri restano della 2.8).
+const APP_FAMILY="2.8",APP_PATCH={store:"2.9",index:"2.9"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -1403,7 +1404,7 @@ $("fDelete").onclick=()=>{$("fConfirm").hidden=false;$("fDelete").hidden=true;};
 $("fDeleteNo").onclick=()=>{$("fConfirm").hidden=true;$("fDelete").hidden=false;};
 $("fDeleteYes").onclick=async()=>{
   if(!editing)return;
-  try{const gone=bookingsAll().find(x=>x.id===editing.id),wasPending=STORE.isPending(editing.id); // mai arrivata in Dropbox: n. foglio provvisorio
+  try{const gone=bookingsAll().find(x=>x.id===editing.id),wasPending=false; // 2.9: la fila delle cancellazioni aspetta Dropbox e non tocca numeri ancora in uso
     const del=Object.assign({},formOrig||{},{foglio:editing.foglio,start:editing.start});writeDayOps(editing.start,{bookings:{[editing.id]:null}},{client:cleanText($("f-client").value),know:knowOf(gone)});ACC.log("prenotazione","Eliminata la prenotazione "+bookingLabel(del),{id:editing.id});closeForm();renderAll();toast("Prenotazione eliminata");
     withdrawAfterDelete(gone);if(!wasPending)pdfDelAdd(gone);}catch(err){handleErr(err);}
 };
@@ -1412,28 +1413,214 @@ $("fDeleteYes").onclick=async()=>{
 const PDQ="agenda-pdf-del";
 function pdfDelQ(){try{const l=JSON.parse(localStorage.getItem(PDQ)||"[]");return Array.isArray(l)?l.filter(x=>x&&/^\d{6,12}$/.test(String(x.f||""))&&validDate(String(x.d||""))):[];}catch(_){return [];}}
 function pdfDelSave(l){try{l.length?localStorage.setItem(PDQ,JSON.stringify(l.slice(-50))):localStorage.removeItem(PDQ);}catch(_){}}
-function pdfDelAdd(b){
+function pdfDelAdd(b,why){
   if(!b||!/^\d{6,12}$/.test(String(b.foglio||""))||isInvio())return;
-  const l=pdfDelQ();if(!l.some(x=>x.f===String(b.foglio)&&x.d===b.start))l.push({f:String(b.foglio),d:b.start,c:String(b.client||"").slice(0,60)});
+  const l=pdfDelQ();if(!l.some(x=>x.f===String(b.foglio)&&x.d===b.start))l.push({f:String(b.foglio),d:b.start,c:String(b.client||"").slice(0,60),id:b.id?String(b.id).slice(0,90):"",w:why||"del"});
   pdfDelSave(l);pdfDelRun();
 }
 let pdfDelBusy=false;
+let pdfDelT=0;
 async function pdfDelRun(){
   if(pdfDelBusy||!navigator.onLine||S.readOnly||isInvio())return;
-  const l=pdfDelQ();if(!l.length)return;pdfDelBusy=true;let again=true;
+  const l=pdfDelQ();if(!l.length)return;pdfDelBusy=true;let again=true,wait=false;
   const drop=x=>pdfDelSave(pdfDelQ().filter(y=>!(y.f===x.f&&y.d===x.d))); // si rilegge la fila: nel frattempo può esserne arrivata un'altra
+  const WHY={del:"prenotazione eliminata",move:"prenotazione spostata a un'altra data",renum:"n. foglio cambiato"};
   try{
     for(const x of l){
+      // 2.9: si aspetta che l'eliminazione o lo spostamento arrivi in Dropbox (potrebbe anche essere rifiutato) e non si
+      // cancella mai un n. foglio che in quel giorno appartiene ancora a una prenotazione (spostamento rifiutato, numero
+      // provvisorio uguale a quello di un altro servizio)
+      if(x.id&&STORE.isPending(x.id)){wait=true;continue;}
+      if(bookingsAll().some(b=>String(b.foglio)===x.f&&b.start===x.d)){drop(x);continue;}
       try{
         const n=await STORE.deleteSheetFiles(x.f,x.d);
-        if(n){ACC.log("foglio","Cancellati in Dropbox "+n+" PDF del foglio n. "+x.f+(x.c?" «"+x.c+"»":"")+" (prenotazione eliminata)");toast(n===1?"Cancellato in Dropbox il PDF del foglio n. "+x.f:"Cancellati in Dropbox i "+n+" PDF del foglio n. "+x.f);}
+        if(n){ACC.log("foglio","Cancellati in Dropbox "+n+" PDF del foglio n. "+x.f+(x.c?" «"+x.c+"»":"")+" ("+(WHY[x.w]||WHY.del)+")");if(x.w!=="renum")toast(n===1?"Cancellato in Dropbox il PDF del foglio n. "+x.f:"Cancellati in Dropbox i "+n+" PDF del foglio n. "+x.f);}
         drop(x);
       }catch(e){if(e&&(e.code==="readonly"||e.code==="outdated"))drop(x);else{again=false;break;}}
     }
   }finally{pdfDelBusy=false;}
-  if(again&&pdfDelQ().length)setTimeout(pdfDelRun,500); // arrivate mentre cancellava
+  clearTimeout(pdfDelT);
+  if(again&&pdfDelQ().length)pdfDelT=setTimeout(pdfDelRun,wait?8000:500); // arrivate mentre cancellava, o in attesa di Dropbox
 }
 window.addEventListener("online",()=>setTimeout(pdfDelRun,1500));
+// ---------- 2.9: i fogli di servizio si salvano da soli in Dropbox ----------
+// Appena una prenotazione ha il cliente, il suo foglio (completo: per l'autista e copia ufficio) va in Dropbox, in
+// Fogli di servizio › anno › mese › giorno; a ogni modifica il file viene riscritto, così c'è sempre l'ultima
+// versione. Sempre senza targa e ID mezzo, con il nome del cliente (l'alias serve solo per l'autista). Se il nome
+// cambia (cliente o destinazione) il file col nome vecchio si cancella (anche le copie «solo autista» e «solo
+// contabile» salvate a mano prima della 2.9; il modello spese della busta resta); se la prenotazione cambia data
+// (nuovo n. foglio) si cancellano i PDF del vecchio numero nella cartella del giorno vecchio (vedi writeDayOps).
+// Lo fa il dispositivo che ha fatto la modifica (anche il telefono del capo dopo la sua scelta di bus e autisti);
+// senza internet le modifiche restano in fila su questo dispositivo e i PDF si scrivono appena torna la rete.
+const PDF_AUTO="agenda-pdf-auto",PDF_DONE="agenda-pdf-done2";
+try{localStorage.removeItem("agenda-pdf-done");}catch(_){} // formato provato prima del rilascio
+const pdfOpts=()=>({alias:false,noPlate:true}); // copia d'archivio: nome vero del cliente, mai targa e ID mezzo
+const pdfName=b=>STORE.safeFileName(sheetFileName(b)+PART_SUFFIX.full+".pdf");
+const stab=v=>Array.isArray(v)?"["+v.map(stab).join(",")+"]":v&&typeof v==="object"?"{"+Object.keys(v).sort().map(k=>JSON.stringify(k)+":"+stab(v[k])).join(",")+"}":String(JSON.stringify(v)); // stesso testo qualunque sia l'ordine dei campi
+const djb=t=>{let h=5381;for(let i=0;i<t.length;i++)h=((h<<5)+h+t.charCodeAt(i))|0;return (h>>>0).toString(36);};
+// impronta di quello che finisce nel PDF (e nel nome del file): se non cambia, il PDF non si riscrive
+function pdfKey(b){
+  const x=Object.assign({},b);for(const k of ["byAt","by","updBy","sent","base","provisional","capo"])delete x[k]; // updatedAt resta: una modifica fatta altrove e poi annullata qui si riscrive
+  const t=stab([x,vehicle(b.vehicle)||null,shClient(b)||null,refsOf(b),pdfName(b)]);return djb(t)+t.length.toString(36);
+}
+// PDF scritti da questo dispositivo: id → "impronta|quando" (al massimo 2000, i più vecchi escono)
+function pdfDoneMap(){try{const m=JSON.parse(localStorage.getItem(PDF_DONE)||"{}");return m&&typeof m==="object"&&!Array.isArray(m)?m:{};}catch(_){return {};}}
+const pdfDoneKey=(m,id)=>String(m[id]||"").split("|")[0];
+function pdfDoneSet(id,k){try{const m=pdfDoneMap();delete m[id];if(k)m[id]=k+"|"+Date.now().toString(36);const ks=Object.keys(m);if(ks.length>2000)for(const x of ks.slice(0,ks.length-2000))delete m[x];localStorage.setItem(PDF_DONE,JSON.stringify(m));}catch(_){}}
+function pdfAutoQ(){try{const l=JSON.parse(localStorage.getItem(PDF_AUTO)||"[]");return Array.isArray(l)?l.filter(x=>x&&typeof x.id==="string"&&x.id.length<90):[];}catch(_){return [];}}
+function pdfAutoSave(l){try{l.length?localStorage.setItem(PDF_AUTO,JSON.stringify(l.slice(-400))):localStorage.removeItem(PDF_AUTO);}catch(_){}}
+let pdfAutoT=0;
+function pdfAutoAdd(id){
+  if(!id)return;const l=pdfAutoQ().filter(x=>x.id!==id);l.push({id,at:Date.now()});pdfAutoSave(l);
+  clearTimeout(pdfAutoT);pdfAutoT=setTimeout(pdfAutoRun,2000);pdfPill();
+}
+const okFoglio=b=>/^\d{6,12}$/.test(String(b&&b.foglio||""));
+// cliente dell'anagrafica ma elenco clienti non ancora su questo dispositivo: il PDF verrebbe senza i dati del cliente
+// (e con un altro nome di file); lo scrive un dispositivo che ce l'ha
+const pdfNoClients=b=>b.clientCode!==""&&b.clientCode!=null&&!(S.clients&&S.clients.length);
+const sameFoglio=(b,id)=>bookingsAll().some(y=>y.id!==id&&String(y.foglio)===String(b.foglio)&&y.start===b.start); // dati vecchi con un numero doppio
+// scrive il PDF della prenotazione e toglie dalla stessa cartella i PDF vecchi di quel n. foglio (nome cambiato).
+// files: i file della cartella, se già letti (creazione iniziale di tutti i fogli)
+async function pdfWrite(b,files){
+  const name=pdfName(b),folder=STORE.sheetFolder(b.start),fl=folder.toLowerCase();
+  const blob=await tplPDF(Object.assign({},b,{provisional:false}),"full",pdfOpts());
+  await STORE.saveSheetCopy(name,blob,b.start);
+  if(!sameFoglio(b,b.id)){
+    const list=files||await STORE.sheetFiles(folder),pre=String(b.foglio)+"_",keep=(fl+"/"+name).toLowerCase();
+    for(const f of list){
+      if(!f.lower.startsWith(fl+"/")||f.lower.slice(fl.length+1).includes("/"))continue; // solo questa cartella
+      if(!f.name.toLowerCase().startsWith(pre)||f.lower===keep||/_busta(_provvisorio)?\.pdf$/i.test(f.name))continue; // il modello spese della busta resta com'è
+      try{await STORE.removeSheetFile(f.path);}catch(_){}
+    }
+  }
+  pdfDoneSet(b.id,pdfKey(b));
+  // eliminata, spostata o rinumerata mentre si scriveva il PDF: il file appena scritto non serve più
+  if(!bookingsAll().some(y=>y.id===b.id&&String(y.foglio)===String(b.foglio)&&y.start===b.start)&&!sameFoglio(b,b.id))try{await STORE.removeSheetFile(folder+"/"+name);}catch(_){}
+  return folder;
+}
+const pdfTransient=e=>!!(e&&(e.code==="network"||e.code==="busy"||e.code==="no_auth"||e.code==="offline"));
+let pdfAutoBusy=false,pdfErrUntil=0;
+async function pdfAutoRun(){
+  clearTimeout(pdfAutoT);
+  if(pdfAutoBusy){pdfAutoT=setTimeout(pdfAutoRun,3000);return;}
+  if(!navigator.onLine||S.readOnly||S.outdated||!ACC.session()||!DBX.isLinked()){pdfPill();return;}
+  const l=pdfAutoQ();if(!l.length){pdfPill();return;}
+  pdfAutoBusy=true;let next=0;
+  const drop=x=>pdfAutoSave(pdfAutoQ().filter(y=>!(y.id===x.id&&y.at===x.at)));
+  const later=(x,ms)=>{next=next?Math.min(next,ms):ms;};
+  try{
+    for(const x of l){
+      if(x.nt&&x.nt>Date.now()){later(x,x.nt-Date.now());continue;} // dopo un errore: si riprova più tardi
+      const b=bookingsAll().find(y=>y.id===x.id);
+      if(!b||!String(b.client||"").trim()||!okFoglio(b)||!validDate(b.start)){drop(x);continue;}
+      if(STORE.isPending(b.id)){later(x,8000);continue;} // la modifica (o il n. foglio) deve ancora arrivare in Dropbox
+      if(pdfNoClients(b)){if(isInvio()||Date.now()-x.at>30*60000)drop(x);else later(x,30000);continue;} // il capo: lo riscrive l'ufficio (pdfRecheck)
+      if(pdfDoneKey(pdfDoneMap(),b.id)===pdfKey(b)){drop(x);continue;} // niente di cambiato sul foglio
+      try{await pdfWrite(b);drop(x);}
+      catch(e){
+        if(e&&(e.code==="outdated"||e.code==="readonly"||e.code==="path")){drop(x);continue;}
+        const det=String((e&&(e.code||e.message))||e)+(e&&e.summary?" "+String(e.summary).slice(0,160):"");
+        if(pdfTransient(e)){pdfErrUntil=Date.now()+60000;later(x,60000);break;} // rete o Dropbox occupato: tutta la fila più tardi
+        // errore di questo foglio: gli altri vanno avanti; questo si riprova con calma, poi si lascia perdere
+        const n=(x.n||0)+1,q=pdfAutoQ(),it=q.find(y=>y.id===x.id&&y.at===x.at);
+        if(n>=6){drop(x);ACC.tlog("errore","Foglio di servizio n. "+(b.foglio||"")+": PDF in Dropbox non aggiornato dopo 6 tentativi (riprova con «Salva PDF»)",det);continue;}
+        if(n===1)ACC.tlog("avviso","Foglio di servizio n. "+(b.foglio||"")+": PDF in Dropbox non aggiornato, riprovo più tardi",det);
+        if(it){it.n=n;it.nt=Date.now()+Math.min(30*60000,60000*Math.pow(2,n));pdfAutoSave(q);}
+        later(x,60000*Math.pow(2,n));
+      }
+    }
+  }finally{pdfAutoBusy=false;pdfPill();}
+  clearTimeout(pdfAutoT);if(pdfAutoQ().length)pdfAutoT=setTimeout(pdfAutoRun,Math.max(1500,next||1500));
+}
+window.addEventListener("online",()=>setTimeout(pdfAutoRun,2500));
+window.addEventListener("offline",()=>setTimeout(pdfPill,300));
+// modifiche arrivate da un altro dispositivo su un foglio che questo dispositivo ha scritto da poco (due modifiche quasi
+// insieme: il PDF giusto è quello con tutte e due): si riscrive. Solo i PDF scritti negli ultimi 15 minuti.
+let pdfRecheckT=0;
+function pdfRecheck(){
+  clearTimeout(pdfRecheckT);
+  pdfRecheckT=setTimeout(()=>{
+    if(S.readOnly||S.outdated||!ACC.session())return;
+    const m=pdfDoneMap(),lim=Date.now()-15*60000,q=pdfAutoQ(),want=b=>b&&String(b.client||"").trim()&&okFoglio(b)&&!STORE.isPending(b.id)&&!q.some(x=>x.id===b.id)&&pdfKey(b)!==pdfDoneKey(m,b.id);
+    for(const id of Object.keys(m)){
+      const t=String(m[id]).split("|")[1];if(!t||parseInt(t,36)<lim)continue;
+      const b=bookingsAll().find(y=>y.id===id);if(want(b))pdfAutoAdd(id);
+    }
+    // scelta recente del capo (bus e autisti): anche i dispositivi dell'ufficio riscrivono il PDF, con i dati completi del cliente
+    if(!isInvio()&&S.clients&&S.clients.length)for(const b of bookingsAll())if(b.capo&&Date.parse(b.capo.at)>lim&&!pdfNoClients(b)&&want(b))pdfAutoAdd(b.id);
+  },2500);
+}
+// --- creazione iniziale: i PDF di tutti i fogli già in agenda (una volta sola, su un dispositivo dell'ufficio) ---
+// config/fogli-pdf.json dice chi la sta facendo e se è finita; se quel dispositivo si ferma, dopo 10 minuti la
+// riprende un altro. Si salta un foglio già scritto dopo l'inizio del lavoro (anche da un altro dispositivo).
+let pdfAllBusy=false,pdfAllInfo=null,pdfAllNext=0;
+async function pdfAllStart(){
+  if(pdfAllBusy||Date.now()<pdfAllNext||isInvio()||S.readOnly||S.outdated||!navigator.onLine||!ACC.session()||!DBX.isLinked())return;
+  const R=STORE.reg("fogli");if(R&&R.state==="done")return;
+  const me=ACC.device.id;let J=null;
+  try{J=await STORE.updateReg("fogli",J=>{
+    if(J.state==="done")return null;
+    const age=J.beat?Date.now()-Date.parse(J.beat):NaN,fresh=age<10*60000&&age>-10*60000; // orologio di quel dispositivo molto avanti: non conta
+    if(J.state==="run"&&J.dev&&J.dev!==me&&fresh)return null;
+    const now=new Date().toISOString();J.state="run";J.dev=me;J.by=meName();J.beat=now;J.startAt=J.startAt||now;return J;
+  });}catch(_){return;}
+  if(!J||J.state!=="run"||J.dev!==me)return;
+  pdfAllBusy=true;
+  try{if(!(await STORE.pull()))throw {code:"pull"};await new Promise(r=>setTimeout(r,500));}catch(_){pdfAllBusy=false;pdfAllNext=Date.now()+10*60000;return;} // prima l'agenda completa
+  pdfAllInfo={n:0,tot:0};pdfPill();
+  let finished=false,lost=false;
+  const stop=why=>{pdfAllNext=Date.now()+10*60000;if(why)ACC.tlog("avviso","Creazione dei PDF di tutti i fogli interrotta: riprende più tardi",why);};
+  try{
+    // ora d'inizio secondo Dropbox (non l'orologio del dispositivo): i PDF scritti dopo non si rifanno
+    if(!J.srvAt){
+      const m=await DBX.metadata(STORE.BASE+"/config/"+STORE.REGF.fogli).catch(()=>null),srv=m&&m.server_modified;
+      if(srv)J=await STORE.updateReg("fogli",x=>{if(x.dev!==me||x.state!=="run")return null;if(!x.srvAt)x.srvAt=srv;return x;});
+      if(!J||J.dev!==me||J.state!=="run")return;
+    }
+    const files=await STORE.sheetFiles(STORE.sheetsRoot()),byPath=new Map(files.map(f=>[f.lower,f])),t0=(Date.parse(J.srvAt)||Date.parse(J.startAt))-120000,today=todayISO();
+    const ok=b=>String(b.client||"").trim()&&okFoglio(b)&&validDate(b.start);
+    const all=bookingsAll().filter(b=>ok(b)&&!STORE.isPending(b.id));
+    if(all.some(pdfNoClients))return stop("elenco clienti non ancora caricato su questo dispositivo"); // si riprova tra 10 minuti
+    for(const b of bookingsAll())if(STORE.isPending(b.id)&&String(b.client||"").trim())pdfAutoAdd(b.id); // ancora da mandare in Dropbox: il PDF dopo
+    const list=all.filter(b=>endOf(b)>=today).sort((a,b)=>a.start.localeCompare(b.start)).concat(all.filter(b=>endOf(b)<today).sort((a,b)=>b.start.localeCompare(a.start)));
+    pdfAllInfo={n:0,tot:list.length};pdfPill();let beat=Date.now(),fails=0;
+    for(const b0 of list){
+      if(!ACC.session()||!navigator.onLine||S.readOnly||S.outdated)return stop(); // riprende alla prossima apertura
+      // la prenotazione com'è adesso (può essere cambiata, spostata o eliminata da quando è partito il lavoro)
+      const b=bookingsAll().find(y=>y.id===b0.id);
+      const skip=!b||!ok(b)||STORE.isPending(b.id)||String(b.foglio)!==String(b0.foglio)||b.start!==b0.start||pdfAutoQ().some(x=>x.id===b.id)||pdfDoneKey(pdfDoneMap(),b.id)===pdfKey(b);
+      const folder=STORE.sheetFolder(b0.start),fl=folder.toLowerCase(),f=skip?null:byPath.get(fl+"/"+pdfName(b).toLowerCase());
+      if(!skip&&!(f&&f.mod&&Date.parse(f.mod)>=t0)){
+        try{await pdfWrite(b,files.filter(x=>x.lower.startsWith(fl+"/")));fails=0;}
+        catch(e){
+          if(e&&(e.code==="outdated"||e.code==="readonly"))return stop();
+          pdfAutoAdd(b.id); // questo foglio lo riprova la fila normale
+          if(++fails>=5)return stop(String((e&&(e.code||e.message))||e));
+          await new Promise(r=>setTimeout(r,3000));
+        }
+        await new Promise(r=>setTimeout(r,200));
+      }
+      pdfAllInfo.n++;pdfPill();
+      if(Date.now()-beat>60000){beat=Date.now();
+        try{const J2=await STORE.updateReg("fogli",J=>{if(J.dev!==me||J.state!=="run")return null;J.beat=new Date().toISOString();J.n=pdfAllInfo.n;J.tot=pdfAllInfo.tot;return J;});
+          if(!J2||J2.dev!==me||J2.state!=="run"){lost=true;return;}}catch(_){} // l'ha presa (o finita) un altro dispositivo
+      }
+    }
+    const J3=await STORE.updateReg("fogli",J=>{if(J.state==="done"||(J.dev&&J.dev!==me))return null;J.state="done";J.doneAt=new Date().toISOString();J.dev=me;J.n=pdfAllInfo.n;J.tot=pdfAllInfo.tot;return J;});
+    finished=true;
+    if(J3&&J3.dev===me&&J3.state==="done")ACC.log("foglio","Creati in Dropbox i PDF di tutti i fogli di servizio in agenda ("+pdfAllInfo.tot+")");
+  }catch(e){stop(String((e&&(e.code||e.message))||e));}
+  finally{pdfAllBusy=false;if(finished||lost)pdfAllInfo=null;pdfPill();}
+}
+setInterval(()=>{if(!pdfAllBusy&&!$("app").hidden)pdfAllStart();},5*60000);
+// a che punto sono i PDF (in alto, accanto a «Sincronizzato»)
+function pdfPill(){
+  const el=$("pdfStatus");if(!el)return;
+  const q=pdfAutoQ().length;
+  if(pdfAllBusy&&pdfAllInfo&&pdfAllInfo.tot){el.textContent="Fogli in Dropbox: "+pdfAllInfo.n.toLocaleString("it-IT")+" di "+pdfAllInfo.tot.toLocaleString("it-IT");el.title="L'agenda sta creando in Dropbox i PDF di tutti i fogli di servizio già inseriti (una volta sola). Puoi continuare a lavorare.";el.hidden=false;return;}
+  if(q&&(!navigator.onLine||Date.now()-Math.min(...pdfAutoQ().map(x=>x.at||Date.now()))>20000)){el.textContent=(q===1?"1 foglio":q+" fogli")+" da salvare in Dropbox";el.title=navigator.onLine?"I PDF dei fogli cambiati stanno per essere salvati in Dropbox":"Senza internet: i PDF dei fogli cambiati si salvano in Dropbox appena torna la connessione";el.hidden=false;return;}
+  el.hidden=true;
+}
 
 // ---------- flotta ----------
 function openFleet(){
@@ -2034,22 +2221,23 @@ function durShort(b,date){
   return "";
 }
 // valori delle caselle. k: s testo, i numero intero, d data, e euro, a euro contabile
-function tplValues(b,measure){
+function tplValues(b,measure,opt){
+  const SHO_=opt||SHO; // 2.9: intestazione e targa scelte da chi chiama (copia automatica in Dropbox); di solito quelle della finestra
   const P=tplPlan(b,measure),o={};
   const v=vehicle(b.vehicle)||{},cl=shClient(b),plate=(v.plate||"").trim(),type=normType(b.type);
   const nr=v.num!=null&&String(v.num).trim()!==""?v.num:(S.regole.numeri||{})[plate],numero=nr==null?"":(/^\d+$/.test(String(nr).trim())?Number(nr):String(nr).trim());
   const nd=diff(b.start,endOf(b))+1,pr=numOrE(b.price),pk=numOrE(b.park),ml=numOrE(b.meals);
   const name=cl?cl[1]:(b.client||""),tel=cl&&cl[4]?String(cl[4]):"",alias=cl&&cl[2]?String(cl[2]):"";
-  const busName=v.name||xcatOf(v),plateShown=SHO.noPlate?"":plate;
+  const busName=v.name||xcatOf(v),plateShown=SHO_.noPlate?"":plate;
   const pax=String(b.pax==null?"":b.pax).trim(),kind=v.kind==="van"?"Van":v.kind==="auto"?"Auto":"Bus";
   const drv=realDriver(b.driver),fg=b.provisional?String(b.foglio||"")+" PROVV.":/^\d+$/.test(String(b.foglio||""))?Number(b.foglio):(b.foglio||"");
   const any=pr!==""||pk!==""||ml!=="",hm=durHours(b);
   const put=(col,row,val)=>{o[col+row]=val;};
   put("H",4,{v:fg,k:b.provisional?"s":"i"});
   put("B",6,{v:/^\d+$/.test(pax)?Number(pax):pax,k:/^\d+$/.test(pax)?"i":"s"});put("C",6,{v:kind});put("D",6,{v:busName});
-  put("F",6,{v:SHO.noPlate?"":numero,k:"s"});put("H",6,{v:plateShown});
+  put("F",6,{v:SHO_.noPlate?"":numero,k:"s"});put("H",6,{v:plateShown});
   put("B",7,{v:b.start,k:"d"});put("D",7,{v:endOf(b),k:"d"});put("F",7,{v:durText(b)});put("H",7,{v:drv});
-  put("B",8,{v:SHO.alias&&alias?alias:name});put("H",8,{v:tel});
+  put("B",8,{v:SHO_.alias&&alias?alias:name});put("H",8,{v:tel});
   // referenti, guide e hotel: una sola casella larga (B:F del modello) con le voci in fila, poi il telefono
   const one=(...a)=>a.map(x=>String(x==null?"":x).trim()).filter(Boolean).join(" - ");
   P.refs.slice(0,P.nR).forEach((x,i)=>{const r=P.rRef+i;put("B",r,{v:one(x.role,x.name,x.note)});put("H",r,{v:x.tel||""});});
@@ -2082,8 +2270,8 @@ function tplText(x){
 }
 // Disegno del modello (unità: pixel del foglio Excel a 100%). Usato da anteprima, PDF e stampa.
 // part: "driver" solo la copia per l'autista, "full" anche la parte contabile, "office" solo la parte contabile.
-function tplLayout(b,part,measure){
-  const {vals,P}=tplValues(b,measure),rows=P.rows;let cut=P.over;
+function tplLayout(b,part,measure,opt){
+  const {vals,P}=tplValues(b,measure,opt),rows=P.rows;let cut=P.over;
   const first=part==="office"?P.rOff:1,last=part==="driver"?P.last:rows.length;
   const X=[0];TPL_COLS.forEach(w=>X.push(X[X.length-1]+Math.round(w*9+5)));
   const fills=[],lines=[],texts=[];let y=0;
@@ -2162,10 +2350,10 @@ function tplLayout(b,part,measure){
 // pagina 2 (2.8): non più per il programma (il foglio si allunga); resta solo se referenti, guide, hotel o note sono
 // tantissimi (oltre 12) o troppo lunghi per la loro casella: lì c'è tutto per esteso.
 function needPage2(b,L){return (!L||L.part!=="office")&&!!(L&&L.cut);}
-function page2Head(b){
-  const v=vehicle(b.vehicle)||{},cl=shClient(b),alias=cl&&cl[2]?String(cl[2]):"";
+function page2Head(b,opt){
+  const O=opt||SHO,v=vehicle(b.vehicle)||{},cl=shClient(b),alias=cl&&cl[2]?String(cl[2]):""; // 2.9: le scelte della copia (Dropbox: mai targa)
   return {title:"Foglio di servizio n. "+(b.foglio||"")+(b.provisional?" (provvisorio)":"")+" – programma completo",
-    sub:[SHO.alias&&alias?alias:(cl?cl[1]:(b.client||"")),itDate(b.start)+(endOf(b)!==b.start?" – "+itDate(endOf(b)):""),[v.name,SHO.noPlate?"":(v.plate||"").trim()].filter(Boolean).join(" "),realDriver(b.driver)?"Autista "+realDriver(b.driver):""].filter(Boolean).join(" · ")};
+    sub:[O.alias&&alias?alias:(cl?cl[1]:(b.client||"")),itDate(b.start)+(endOf(b)!==b.start?" – "+itDate(endOf(b)):""),[v.name,O.noPlate?"":(v.plate||"").trim()].filter(Boolean).join(" "),realDriver(b.driver)?"Autista "+realDriver(b.driver):""].filter(Boolean).join(" · ")};
 }
 function tplPage2HTML(b,part){
   if(!needPage2(b,tplLayout(b,part||"driver",measureCanvas)))return "";
@@ -2282,14 +2470,14 @@ function wrapText(t,font,size,maxW,conv){
   }
   return out;
 }
-async function tplPDF(b,part){
+async function tplPDF(b,part,opt){
   const PL=await loadPdfLib(),{PDFDocument,StandardFonts,rgb}=PL;
   const pdf=await PDFDocument.create();
   pdf.setTitle("Foglio di servizio "+(b.foglio||"")+(b.provisional?" (provvisorio)":""));pdf.setAuthor("La Terra s.r.l.");
   let reg,bold,HK=1,conv=t=>String(t==null?"":t);
   try{const F=await loadPdfFonts();reg=customFont(pdf,PL,F.regular,"AGENDA+AgendaSans-Regular");bold=customFont(pdf,PL,F.bold,"AGENDB+AgendaSans-Bold");}
   catch(e){console.warn("Font del PDF non disponibile, uso Helvetica:",e);reg=await pdf.embedFont(StandardFonts.Helvetica);bold=await pdf.embedFont(StandardFonts.HelveticaBold);HK=0.88;conv=pdfTxt;} // Helvetica è più larga di Calibri
-  const L=tplLayout(b,part,(t,size,bd)=>(bd?bold:reg).widthOfTextAtSize(conv(t),size*HK));
+  const L=tplLayout(b,part,(t,size,bd)=>(bd?bold:reg).widthOfTextAtSize(conv(t),size*HK),opt);
   const PW=595.28,PH=841.89,M=28.35,k=Math.min((PW-2*M)/L.W,(PH-2*M)/L.H);
   const page=pdf.addPage([PW,PH]),X=x=>M+x*k,Y=y=>PH-M-y*k;
   const hex=h=>rgb(parseInt(h.slice(1,3),16)/255,parseInt(h.slice(3,5),16)/255,parseInt(h.slice(5,7),16)/255);
@@ -2307,7 +2495,7 @@ async function tplPDF(b,part){
       }
       y-=gapAfter||0;
     };
-    const h=page2Head(b);
+    const h=page2Head(b,opt);
     put(h.title,bold,14,4);put(h.sub,reg,10.5,12);
     for(const l of tplProgramAll(b,true))put(l,reg,11.5,5);
   }
@@ -2402,13 +2590,14 @@ async function sheetSave(kind){
   const part=sheetPart(),btns=[$("sheetPdf"),$("sheetPrint")];btns.forEach(x=>x.disabled=true);
   $("sheetMsg").textContent="Preparo il file…";
   try{
-    const blob=await tplPDF(sheetBooking,part),prov=sheetBooking.provisional?"_PROVVISORIO":"";
-    // 2.7: la copia nella cartella «Fogli di servizio» in Dropbox è sempre completa (foglio per l'autista + copia
-    // ufficio), qualunque cosa sia scelta in «Stampa»: il PDF scaricato resta quello scelto. All'app degli autisti
-    // va sempre e solo il foglio per l'autista (autisti.js, «Invia all'autista»): questa copia non c'entra.
-    const full=part==="full"?blob:await tplPDF(sheetBooking,"full");
-    const where=await saveXlsx(blob,sheetFileName(sheetBooking)+PART_SUFFIX[part]+prov+".pdf",{blob:full,name:sheetFileName(sheetBooking)+PART_SUFFIX.full+prov+".pdf"});
-    sheetsOut[sheetBooking.id]=String(sheetBooking.foglio);
+    const b=sheetBooking,blob=await tplPDF(b,part),prov=b.provisional?"_PROVVISORIO":"";
+    // 2.9: il PDF scaricato è quello scelto nella finestra; in Dropbox va (subito) la copia che l'agenda tiene
+    // aggiornata da sola: sempre completa (foglio per l'autista + copia ufficio), senza targa e ID mezzo. All'app
+    // degli autisti va sempre e solo il foglio per l'autista (autisti.js, «Invia all'autista»): questa copia non c'entra.
+    dlFile(blob,sheetFileName(b)+PART_SUFFIX[part]+prov+".pdf");
+    sheetsOut[b.id]=String(b.foglio);
+    $("sheetMsg").textContent="PDF pronto. Salvo la copia in Dropbox…";
+    const where=await sheetDropboxNow(b);
     $("sheetMsg").textContent="PDF pronto. "+where;
   }catch(err){
     const c=err&&err.code;
@@ -2420,13 +2609,19 @@ $("sheetPdf").onclick=()=>{sheetSave("pdf");if(sheetBooking)ACC.log("foglio","PD
 // Stampa: il foglio come nell'anteprima (A4); se il programma non ci sta, anche la pagina 2 come nel PDF
 // 2.8 «Salva e stampa»: mentre si stampa, la copia completa del foglio (con la copia ufficio, come per «Salva PDF»)
 // va in Dropbox, nella cartella del giorno (Fogli di servizio › anno › mese › giorno). Il messaggio dice com'è andata.
-function sheetCopyToDropbox(b){
-  if(isInvio()||S.readOnly)return Promise.resolve("");
-  if(!navigator.onLine)return Promise.resolve("Sei offline: in Dropbox non è stata salvata nessuna copia.");
-  const prov=b.provisional?"_PROVVISORIO":"";
-  return tplPDF(b,"full").then(blob=>STORE.saveSheetFile(sheetFileName(b)+PART_SUFFIX.full+prov+".pdf",blob,b.start))
-    .then(()=>"Copia completa (con la copia ufficio) salvata in Dropbox › "+STORE.sheetFolder(b.start).replace(STORE.BASE+"/","").split("/").join(" › ")+".")
-    .catch(e=>{ACC.tlog("errore","Salva e stampa: copia in Dropbox non salvata",String((e&&(e.code||e.message))||e));return "Non sono riuscito a salvare la copia in Dropbox.";});
+// 2.9: la copia in Dropbox è quella che l'agenda tiene aggiornata da sola (sempre completa, senza targa e ID mezzo):
+// qui si riscrive subito. Le scelte della finestra (parte, targa, alias) valgono solo per la stampa e il file scaricato.
+function sheetCopyToDropbox(b){return sheetDropboxNow(b);}
+function sheetDropboxNow(b0){
+  if(isInvio()||S.readOnly||!b0)return Promise.resolve("");
+  const b=bookingsAll().find(x=>x.id===b0.id);
+  if(!b)return Promise.resolve("");
+  if(!String(b.client||"").trim())return Promise.resolve("Senza cliente la copia in Dropbox non si salva.");
+  if(!okFoglio(b)||!validDate(b.start))return Promise.resolve("");
+  if(!navigator.onLine){pdfAutoAdd(b.id);return Promise.resolve("Sei offline: la copia in Dropbox si salva da sola appena torna la connessione.");}
+  if(STORE.isPending(b.id)){pdfAutoAdd(b.id);return Promise.resolve("Il n. foglio è ancora provvisorio: la copia in Dropbox si salva da sola appena la prenotazione arriva in Dropbox.");}
+  return pdfWrite(b).then(folder=>"Copia completa (senza targa e ID mezzo) salvata in Dropbox › "+folder.replace(STORE.BASE+"/","").split("/").join(" › ")+".")
+    .catch(e=>{pdfAutoAdd(b.id);ACC.tlog("errore","Foglio di servizio: copia in Dropbox non salvata",String((e&&(e.code||e.message))||e));return "Non sono riuscito a salvare la copia in Dropbox: riprovo da solo.";});
 }
 async function printSheet(){
   if(!sheetBooking)return;
@@ -2469,6 +2664,7 @@ $("gVer").textContent="Versione "+APP_VERSION+" · "+APP_DATE;$("appVer").textCo
 function subscribe(){subMonth=mkey(S.sel);}
 function refreshFromStore(){
   S.days=STORE.view();S.allDays=null;
+  try{pdfRecheck();if(!$("ovBuste").hidden)renderBuste();}catch(_){} // 2.9
   const fl=STORE.fleet;if(Array.isArray(fl)&&fl.length){S.fleet=sortFleet(fl);S.fleetStored=true;}
   const L=STORE.lists;
   if(L){
@@ -2501,6 +2697,8 @@ function renderNet(st){
   else{cls="on";txt="Sincronizzato";}
   if(st.storage==="full"&&!renderNet._warned){renderNet._warned=1;notify("Il browser non riesce più a salvare la copia dell'agenda su questo dispositivo (spazio pieno): le prenotazioni restano in Dropbox, ma senza rete l'agenda potrebbe non aprirsi. Libera spazio sul dispositivo.",true);}
   el.className="net "+cls;el.textContent=txt;el.hidden=false;el.title=st.error?((st.error||"")+" "+(st.errorDetail||"")).trim():"";
+  if(!pend&&navigator.onLine&&!pdfAutoBusy&&Date.now()>pdfErrUntil&&pdfAutoQ().some(x=>!x.nt||x.nt<=Date.now())){clearTimeout(pdfAutoT);pdfAutoT=setTimeout(pdfAutoRun,800);} // 2.9: modifiche arrivate in Dropbox → i PDF
+  if(!pend&&navigator.onLine&&!pdfDelBusy&&pdfDelQ().some(x=>x.id)){clearTimeout(pdfDelT);pdfDelT=setTimeout(pdfDelRun,1000);}
   {const e2=$("sdNet");e2.className=el.className;e2.textContent=txt;e2.hidden=false;}
   // stato del fatturato
   const f=st.fat,fs=$("fatStatus");if(!fs)return;
@@ -2561,7 +2759,9 @@ function onNotice(n){
     // avviso fisso solo se un foglio di servizio con il numero vecchio è già uscito (salvato o inviato)
     const out=sheetsOut[n.id]===n.from;
     notify("Il n. foglio di "+who+" del "+itD(n.date)+" è cambiato da "+n.from+" a "+n.to+" (un altro operatore aveva appena usato lo stesso numero)."+(out?" Hai già salvato o inviato il foglio di servizio con il numero vecchio: rimandalo.":""),out);
-    refreshSheetBooking();}
+    refreshSheetBooking();
+    // 2.9: il PDF col numero vecchio va tolto (se quel numero non è di un'altra prenotazione) e si scrive quello nuovo
+    try{pdfDelAdd({id:n.id,foglio:n.from,start:n.date,client:n.client},"renum");pdfAutoAdd(n.id);}catch(_){}}
   else if(n.kind==="extraMerged")toast("Autisti extra del "+itD(n.date)+": uniti al testo scritto da un altro dispositivo.");
   else if(n.kind==="badfile")notify("Il file del giorno "+itD(n.date)+" in Dropbox era rovinato: ho tenuto l'ultima versione buona (una copia del file rovinato è in config › file-rovinati).",true);
   else if(n.kind==="badcfg")notify("Il file "+(n.path||"di configurazione")+" in Dropbox non è valido (forse è stato modificato a mano): continuo con l'ultima versione buona. Per sistemarlo: su dropbox.com apri il file › Cronologia delle versioni e ripristina una versione precedente.",true);
@@ -2585,7 +2785,11 @@ function writeDayOps(date,patch,extra){
   const ops=[];extra=extra||{};
   if(patch.bookings)for(const k in patch.bookings)ops.push(patch.bookings[k]===null?Object.assign({t:"del",id:k},extra.move&&typeof extra.move==="string"?{move:extra.move}:{},extra.client!=null?{client:extra.client}:{},extra.know?{know:extra.know}:{}):Object.assign({t:"put",id:k,b:patch.bookings[k],assign:!!patch.assign},extra));
   if("extra" in patch)ops.push({t:"extra",v:patch.extra,base:patch.base==null?null:patch.base});
+  // 2.9: prenotazione spostata a un'altra data (nuovo n. foglio): i PDF del vecchio n. foglio vanno cancellati
+  const moved=[];
+  for(const op of ops)if(op.t==="del"&&op.move){const prev=((S.days[date]||{}).bookings||{})[op.id];if(prev&&prev.foglio)moved.push({id:op.id,foglio:prev.foglio,start:prev.start||date,client:prev.client||""});}
   STORE.mutateDay(date,ops);
+  try{for(const m of moved)pdfDelAdd(m,"move");for(const op of ops)if(op.t==="put"&&!(op.only&&Array.isArray(op.patch)&&op.patch.length===1&&op.patch[0]==="sent"))pdfAutoAdd(op.id);}catch(_){}
 }
 $("billSync").onclick=async()=>{billMsg("Aggiorno…");await STORE.pull();await STORE.flush();await STORE.syncFatturato();const f=STORE.fat;billMsg(f&&f.ok?"Fatturato aggiornato.":"Non riesco ad aggiornare il fatturato adesso: riprovo da solo più tardi.",f&&f.ok?"ok":"err");};
 
@@ -2730,6 +2934,8 @@ function enterApp(){
   if(isMaster()&&!Object.keys(STORE.fatFiles()).length&&navigator.onLine&&!sessionStorage.getItem("fat-later")){showGate("fatturato",{});return;}
   unlocked();
   setTimeout(pdfDelRun,4000); // PDF di servizi eliminati rimasti da cancellare (2.8)
+  setTimeout(pdfAutoRun,5000); // PDF dei fogli cambiati rimasti da salvare (2.9)
+  setTimeout(pdfAllStart,9000); // PDF di tutti i fogli già in agenda: una volta sola (2.9)
 }
 
 // ---------- menu ----------
@@ -3631,7 +3837,7 @@ $("invList").onclick=()=>openInvList();
 const invSel=new Set();
 function invSelBookings(){const all=bookingsAll().concat(S.allDays?billSourceAll():[]);return [...invSel].map(k=>all.find(b=>invKey(b)===k)).filter(Boolean);}
 function renderInvBar(){
-  const on=canInv();$("billInv").hidden=!on;if(!on)return;
+  const on=canInv();$("billInv").hidden=false;$("billInv").classList.toggle("no-inv",!on);if(!on)return; // 2.9: «Buste» c'è anche senza le fatture
   const sel=invSelBookings(),n=sel.length,tot=sel.reduce((a,b)=>a+(Number(b.price)||0)+(Number(b.park)||0)+(Number(b.meals)||0)+exSum(b),0);
   $("invSel").disabled=!n;$("invSel").textContent=n?"Bozza fattura unica dei "+n+" servizi selezionati (€ "+eur2(tot)+")":"Bozza fattura di più servizi";
   $("invSelClear").hidden=!n;
@@ -3639,6 +3845,90 @@ function renderInvBar(){
 }
 $("invSel").onclick=()=>{const l=invSelBookings();if(l.length)openInvoice(l);};
 $("invSelClear").onclick=()=>{invSel.clear();renderBill();};
+
+// ---------- 2.9: archivio delle buste per l'autista (Fatturato › Buste) ----------
+// Tutti i servizi con «Busta per l'autista» = SÌ del periodo scelto in «Servizi» (mese selezionato o tutti): n. busta,
+// anticipo, spese in contanti e con la carta aziendale scritte dall'autista nell'app, rimanenza (o quanto rimborsare
+// all'autista), km e se la busta è stata consegnata. Le spese arrivano dalla cartella «Autisti La Terra» (le legge
+// già l'agenda: qui non si scarica niente). Clic sulla riga: la scheda «Spese autista» con gli scontrini.
+let bsFilter="all";
+const bsK=b=>b.id+"|"+b.start;
+async function bustaList(){
+  let src;
+  if($("billRange").value==="all"){await rowsForRange();src=S.allDays&&S.allDays!==S.days?billSourceAll():bookingsAll();}
+  else{const k=mkey(S.sel);src=bookingsAll().filter(b=>mkey(b.start)===k);}
+  const seen=new Set(),out=[];
+  for(const b of src){if(!hasBusta(b)||!b.foglio||seen.has(bsK(b)))continue;seen.add(bsK(b));out.push(bustaRow(b));}
+  return out.sort((a,z)=>z.b.start.localeCompare(a.b.start)||String(z.b.foglio).localeCompare(String(a.b.foglio)));
+}
+function bustaRow(b){
+  const st=b.sent&&b.sent.at?AUT.status(b):null,sp=st&&st.sp||null,ant=num(b.advance),c2=n=>Math.round(n*100)/100;
+  const r={b,st,sp,ant,contanti:sp?sp.contanti:null,carta:sp?sp.carta:null,n:sp?sp.n:0,
+    rim:sp&&ant!==""?c2(ant-sp.contanti):null,km:sp&&sp.km1!=null&&sp.km2!=null&&sp.km2>=sp.km1?sp.km2-sp.km1:null,
+    drv:((b.sent&&b.sent.to)||[]).join(" e ")||driversText(b)||""};
+  const late=endOf(b)<todayISO();
+  if(!st){r.k="nos";r.g="dac";r.t="Foglio non inviato";r.sub=late?"servizio già fatto":"";}
+  else if(st.k==="ritirato"){r.k="rit";r.g="rit";r.t="Foglio ritirato";r.sub=fmtTime(st.at);}
+  else if(st.k==="consegnata"){r.k="cons";r.g="cons";r.t="Consegnata";r.sub=fmtTime(st.when)+(st.who?" · "+st.who:"");}
+  else{r.k=late?"late":"dac";r.g="dac";r.t="Da consegnare";r.sub=st.re?"riaperta dall'ufficio "+fmtTime(st.re):late?"servizio finito":"in viaggio o da partire";}
+  return r;
+}
+let bsRows=[];
+async function openBuste(){
+  $("ovBuste").hidden=false;$("bsQ").value="";bsFilter="all";
+  $("bsBody").innerHTML='<p class="empty">Preparo l\'elenco…</p>';
+  await renderBuste();try{$("bsQ").focus();}catch(_){}
+}
+async function renderBuste(){
+  if($("ovBuste").hidden)return;
+  const all=$("billRange").value==="all",k=mkey(S.sel);
+  try{bsRows=await bustaList();}catch(_){$("bsBody").innerHTML='<p class="empty">Non riesco a leggere le prenotazioni. Riprova.</p>';return;}
+  $("bsTitle").textContent="Buste per l'autista · "+(all?"tutti i servizi":MN[+k.slice(5,7)-1]+" "+k.slice(0,4));
+  $("bsSub").innerHTML="Servizi con «Busta per l'autista» = SÌ "+(all?"di tutto l'archivio":"del mese selezionato")+" (come «Servizi» nella pagina Fatturato). Contanti = spese pagate con l'anticipo (si tolgono dalla busta); Carta = spese con la carta aziendale. Spese, km e consegna sono quelle scritte dall'autista nell'app"+
+    (AUT.linked()?(AUT.lastSync?", lette "+esc(fmtTime(new Date(AUT.lastSync).toISOString()))+".":"."):": <b>la cartella «Autisti La Terra» non è collegata, quindi spese e consegne non si vedono</b>.")+" Clic sulla riga per vedere le spese con gli scontrini.";
+  const cnt={all:bsRows.length,dac:0,cons:0},ant={all:0,dac:0,cons:0};
+  for(const r of bsRows){if(cnt[r.g]!=null)cnt[r.g]++;const a=r.ant===""?0:r.ant;ant.all+=a;if(ant[r.g]!=null)ant[r.g]+=a;}
+  if(bsFilter!=="all"&&!cnt[bsFilter])bsFilter="all";
+  $("bsFilter").innerHTML=[["all","Tutte"],["dac","Da consegnare"],["cons","Consegnate"]].map(([f,l])=>'<button type="button" class="bf bf-'+f+'" data-bsf="'+f+'" aria-pressed="'+(bsFilter===f)+'"'+(cnt[f]||f==="all"?"":" disabled")+'><b>'+l+'</b><span>'+cnt[f]+(cnt[f]===1?" busta":" buste")+' · anticipi € '+money(ant[f])+'</span></button>').join("");
+  const q=norm($("bsQ").value||"").trim();
+  const show=bsRows.filter(r=>(bsFilter==="all"||r.g===bsFilter)&&(!q||norm([r.b.client,r.drv,r.b.envno,r.b.foglio].join(" ")).includes(q)));
+  $("bsCount").textContent=bsRows.length+(bsRows.length===1?" busta":" buste");
+  if(!show.length){$("bsBody").innerHTML='<p class="empty">'+(bsRows.length?"Nessuna busta con questo filtro.":"Nessun servizio con la busta per l'autista "+(all?"in agenda":"in questo mese")+".")+'</p>';return;}
+  const e2=v=>v==null||v===""?"—":money(v),sum=f=>show.reduce((a,r)=>a+(r[f]==null||r[f]===""?0:r[f]),0);
+  const rimTd=v=>v==null?'<td class="num r">—</td>':v<0?'<td class="num r neg" title="Le spese in contanti superano l\'anticipo">da rimborsare '+money(-v)+'</td>':'<td class="num r">'+money(v)+'</td>';
+  const sr=sum("rim");
+  $("bsBody").innerHTML='<table class="bt bs-lt"><thead><tr><th>N. busta</th><th>N. foglio</th><th>Date</th><th>Cliente</th><th>Autista</th><th class="r">€ Anticipo</th><th class="r" title="Spese pagate in contanti con l\'anticipo della busta">€ Contanti</th><th class="r" title="Spese pagate con la carta aziendale: non si tolgono dall\'anticipo">€ Carta</th><th class="r">€ Rimanenza</th><th class="r">Km</th><th>Stato</th><th></th></tr></thead><tbody>'+
+    show.map(r=>{const b=r.b;return '<tr data-bs="'+esc(bsK(b))+'" tabindex="0"><td class="num"><b>'+esc(b.envno||"—")+'</b></td><td class="num">'+esc(b.foglio)+'</td>'+
+      '<td class="num">'+esc(itDate(b.start))+(endOf(b)!==b.start?'<span class="sub">al '+esc(itDate(endOf(b)))+'</span>':"")+'</td>'+
+      '<td class="cli">'+esc(b.client||"—")+'</td><td>'+esc(r.drv||"—")+'</td>'+
+      '<td class="num r">'+e2(r.ant)+'</td><td class="num r">'+e2(r.contanti)+(r.sp?'<span class="sub">'+r.n+(r.n===1?" spesa in tutto":" spese in tutto")+'</span>':"")+'</td><td class="num r">'+e2(r.carta)+'</td>'+rimTd(r.rim)+
+      '<td class="num r">'+(r.km==null?"—":r.km.toLocaleString("it-IT"))+'</td>'+
+      '<td><span class="bs-st k-'+r.k+'">'+esc(r.t)+'</span>'+(r.sub?'<span class="sub">'+esc(r.sub)+'</span>':"")+'</td>'+
+      '<td class="acts">'+(r.st?'<button type="button" class="mini" data-bssp="1">Spese autista</button>':"")+'<button type="button" class="mini" data-bsmod="1">Modello spese</button></td></tr>';}).join("")+
+    '</tbody><tfoot><tr><td colspan="5">'+show.length+(show.length===1?" busta":" buste")+'</td><td class="num r">'+money(sum("ant"))+'</td><td class="num r">'+money(sum("contanti"))+'</td><td class="num r">'+money(sum("carta"))+'</td><td class="num r'+(sr<0?" neg":"")+'">'+money(sr)+'</td><td class="num r">'+sum("km").toLocaleString("it-IT")+'</td><td colspan="2"></td></tr></tfoot></table>';
+}
+function bsPick(e){const tr=e.target.closest("[data-bs]");return tr?(bsRows.find(r=>bsK(r.b)===tr.dataset.bs)||null):null;}
+$("bsBody").addEventListener("click",e=>{
+  const r=bsPick(e);if(!r)return;
+  if(e.target.closest("[data-bsmod]")){openBusta(r.b);return;}
+  if(r.st)openSpese(r.b);else toast("Il foglio non è ancora stato inviato all'autista: le spese arrivano dall'app dopo l'invio.");
+});
+$("bsBody").addEventListener("keydown",e=>{if(e.key!=="Enter")return;const r=bsPick(e);if(r&&r.st)openSpese(r.b);});
+$("bsFilter").addEventListener("click",e=>{const b=e.target.closest("[data-bsf]");if(!b||b.disabled)return;bsFilter=b.dataset.bsf;renderBuste();});
+$("bsQ").addEventListener("input",()=>{clearTimeout(renderBuste._t);renderBuste._t=setTimeout(renderBuste,150);});
+$("bsOpen").onclick=openBuste;
+$("bsClose").onclick=()=>{$("ovBuste").hidden=true;};backdropClose($("ovBuste"),()=>{$("ovBuste").hidden=true;});
+// «Scarica Excel»: le righe che si vedono (filtro e ricerca), in un file .csv che Excel apre con le colonne giuste
+$("bsCsv").onclick=()=>{
+  const q=norm($("bsQ").value||"").trim(),rows=bsRows.filter(r=>(bsFilter==="all"||r.g===bsFilter)&&(!q||norm([r.b.client,r.drv,r.b.envno,r.b.foglio].join(" ")).includes(q)));
+  if(!rows.length){toast("Nessuna busta da scaricare.");return;}
+  const t=v=>'"'+noFormula(String(v==null?"":v)).replace(/"/g,'""')+'"',n=v=>v==null||v===""?"":Number(v).toFixed(2).replace(".",",");
+  const out=[["N. busta","N. foglio","Dal","Al","Cliente","Autista","Anticipo","Spese in contanti","Carta aziendale","Rimanenza (negativa = da rimborsare all'autista)","Km","N. spese","Stato","Consegnata il"].map(t).join(";")].concat(rows.map(r=>[
+    t(r.b.envno||""),t(r.b.foglio),t(itDate(r.b.start)),t(itDate(endOf(r.b))),t(r.b.client||""),t(r.drv),n(r.ant),n(r.contanti),n(r.carta),n(r.rim),r.km==null?"":String(r.km),r.sp?String(r.n):"",t(r.t),t(r.k==="cons"&&r.st&&r.st.when?new Date(r.st.when).toLocaleString("it-IT",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"")].join(";")));
+  const k=mkey(S.sel),name="buste_"+($("billRange").value==="all"?"tutte":MN[+k.slice(5,7)-1]+"_"+k.slice(0,4))+".csv";
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["﻿"+out.join("\r\n")],{type:"text/csv;charset=utf-8"}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
+  ACC.log("fattura","Scaricato l'elenco delle buste per l'autista ("+rows.length+(rows.length===1?" busta":" buste")+")");
+};
 
 // ---------- Memoria di quello che si scrive (2.6) ----------
 // Mentre si scrive in itinerario, evento, programma, note per l'autista, note dei referenti e nelle righe della
@@ -4003,14 +4293,10 @@ async function migrateFleet2026(){
 }
 
 // ---------- file dei fogli di servizio: in Dropbox e sul dispositivo ----------
-// arch: la copia per la cartella in Dropbox, se è diversa dal file scaricato ({blob, name})
-async function saveXlsx(blob,filename,arch){
-  let where="";
-  try{if(navigator.onLine){const sd=(sheetBooking&&sheetBooking.start)||todayISO();await STORE.saveSheetFile(arch?arch.name:filename,arch?arch.blob:blob,sd);where=(arch?"Copia completa (con la copia ufficio) salvata in Dropbox › ":"Copia salvata in Dropbox › ")+STORE.sheetFolder(sd).replace(STORE.BASE+"/","").split("/").join(" › ")+".";}else where="Sei offline: il file è solo su questo dispositivo, in Dropbox non è stata salvata nessuna copia.";}
-  catch(_){where="Non sono riuscito a salvarlo in Dropbox.";}
+// 2.9: il file scaricato sul dispositivo (la copia in Dropbox la gestisce sheetDropboxNow / pdfWrite)
+function dlFile(blob,filename){
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
-  return where;
 }
 let canShareFile=false;
 async function shareSheet(){
@@ -4041,6 +4327,7 @@ AUT.configure({onChange:(ch)=>{
   if(!$("app").hidden&&S.view==="day")renderDay();
   if(!$("app").hidden&&S.view==="pasti")renderPasti(); // crocette dei pasti (2.7)
   if(!$("app").hidden&&S.view==="bill")renderBill();
+  if(!$("ovBuste").hidden)renderBuste(); // 2.9: archivio delle buste aperto
   if(!$("ovBooking").hidden&&editing)renderFormMeals(editing);
   if(!$("invio").hidden)renderInvio();
   if(!$("ovSheet").hidden)renderSheetSent();
