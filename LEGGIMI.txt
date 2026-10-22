@@ -1,18 +1,1166 @@
-AGENDA FLOTTA LA TERRA – COME METTERLA IN FUNZIONE
-===================================================
+AGENDA FLOTTA LA TERRA – VERSIONE 3.0 (22/10/2026)
+=================================================
+La versione in uso si vede nell'app: in alto accanto a "Sincronizzato",
+nella schermata di accesso e nel Menu. Deve corrispondere a quella di questo file.
+
+COME AGGIORNARE ALLA 3.0 (5 minuti, da qualunque versione dalla 2.7 in poi)
+--------------------------------------------------------------------------
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina tutto il
+   contenuto di questa cartella (i file e le cartelle vendor e icons). Niente config.js.
+   Nessun file nuovo: sono gli stessi file di prima (cambiano tutti: la versione è la 3.0).
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v3.0".
+   Se compare "Aggiornamento in corso (…)" è normale per qualche minuto; se resta, su GitHub
+   manca il file scritto tra parentesi.
+3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda. Una pagina rimasta aperta con la
+   versione di prima avvisa da sola e non salva niente finché non la riapri.
+4. Niente da fare sui dati e niente da fare sull'app degli autisti.
+5. Se arrivi dalla 2.8 (senza la 2.9): leggi anche "NOVITÀ DELLA 2.9" qui sotto (alla prima
+   apertura l'agenda crea in Dropbox i PDF di tutti i fogli di servizio, una volta sola).
+
+NOVITÀ DELLA 3.0
+----------------
+1. LE MIE IMPOSTAZIONI (Menu › "Le mie impostazioni")
+- Ognuno sceglie le sue impostazioni; valgono solo per lui, su tutti i suoi dispositivi
+  (stanno nel suo account in Dropbox, config/utenti.json).
+- Uscita automatica: dopo 15 minuti, 30 minuti, 1 ora, 2 ore, 4 ore, "Mai" oppure "Come deciso
+  dal Master". Il Master, nel Pannello Master › Impostazioni › "Uscita automatica: tempo
+  massimo", fissa il massimo: nessuno può scegliere un tempo più lungo (con "Mai" non c'è
+  limite e ognuno sceglie liberamente).
+- Punto esclamativo "!" rosso: per quali servizi (Entrambi = come prima; Mancanze passate =
+  fino a oggi; Mancanze future = da oggi in avanti; Spento) e cosa controllare: prezzo del
+  noleggio, ora di partenza, codice cliente (questi tre di serie), autista, numero di
+  passeggeri, itinerario, referente e suo telefono, ora di rientro (non per i transfer),
+  anticipo e n. busta (servizi con la busta), foglio non inviato all'autista.
+  I servizi di oggi contano sia nelle passate sia nelle future. Il "!" sul giorno nella barra
+  dei giorni segue le stesse scelte.
+- "Cambia la mia password" resta nel Menu, come prima. Il Super Master può rimettere la
+  password di tutti (Pannello Master › Utenti › Modifica); il Master quella degli utenti normali.
+
+2. MODULO DELLA PRENOTAZIONE: RIGA DEI PREZZI
+- "€ Parcheggi" più larga: la tendina del parcheggio si legge per intero. Niente più spazio
+  vuoto a destra di parcheggi ed extra (la × per togliere compare solo con più righe).
+
+3. FATTURATO: PERIODO, ORDINE PER DATA, RICERCA PER CLIENTE
+- "Servizi" (in alto a destra): del giorno selezionato, della settimana, del mese selezionato
+  (come prima) o tutti. Il giorno si sceglie cliccando nella barra dei giorni in alto: si resta
+  nel Fatturato. "Giorno" e "settimana" mostrano anche i servizi di più giorni in corso; "mese"
+  i servizi che cominciano nel mese (come il file fatturato). La scelta resta su quel dispositivo.
+- Servizi in ordine di data e ora di partenza, con una riga grigia per ogni giorno ("GIOVEDÌ
+  8 OTTOBRE 2026 · 3 servizi · € 2.300,00").
+- "Cerca cliente": scrivi nome, codice o alias del cliente e vedi tutti i suoi servizi, di
+  qualunque mese: puoi spuntarli per una fattura unica. Cancellando la ricerca torna il periodo.
+- "Buste" e "Copia righe" seguono il periodo scelto.
+
+4. FATTURE EMESSE: RESTANO SALVATE E SI POSSONO CORREGGERE
+- Le bozze restano sempre salvate in Dropbox, anche dopo "Crea file XML" (non si cancellano da
+  sole). Con il file XML la fattura è "emessa": si apre in sola lettura, con la scritta verde
+  "Fattura emessa: file XML creato il … da …". Niente "Salva", niente "Crea file XML" ed
+  "Elimina bozza" non c'è più per le fatture emesse.
+- Se l'ente la rifiuta (o va corretta): "Modifica fattura emessa" → scrivi il motivo (es.
+  "rifiutata dall'ente: manca il CIG") → "Sblocca e modifica". La fattura diventa gialla "In
+  correzione": correggi, salva e rifai il file XML. Nel Fatturato, finché non rifai il file,
+  il servizio risulta "In correzione · rifare il file XML".
+- Rifacendo il file: stesso nome del file, stesso numero e stessa data della fattura (se non li
+  cambi tu), nuovo progressivo d'invio. Il file di prima NON si cancella: va nella cartella
+  "sostituite" della stessa cartella (Fatture XML › anno › mese › giorno › sostituite), così la
+  contabilità non lo importa due volte. Nella fattura resta lo storico dei file creati prima
+  (data, chi, motivo); nel Fatturato risulta "Emessa · corretta".
+- Elenco "Bozze fattura": pulsanti "Tutte", "Da emettere", "Emesse"; la ricerca trova anche il
+  nome del file XML.
+- "Stampa anteprima": in alto non c'è più la scritta "BOZZA – non è la fattura…" (il titolo
+  della pagina è "Fattura n. … cliente"). Se il numero è vuoto, nella casella del numero resta
+  "BOZZA" finché non lo scrivi.
+- Attenzione (da verificare con il commercialista): quando un ente pubblico rifiuta la fattura,
+  secondo molti esperti la si può riemettere con lo stesso numero e la stessa data senza nota
+  di credito, ma il principio di diritto n. 17/2020 dell'Agenzia delle Entrate è stato letto
+  anche in senso diverso. Se il commercialista preferisce la nota di credito, si fa come prima
+  (nuova bozza con tipo "Nota di credito").
+
+STORICO – AGGIORNAMENTO ALLA 2.9
+================================
+CON IL PACCHETTO COMPLETO (agenda-flotta-laterra_v2.9_completo.zip)
+--------------------------------------------------------------------
+Va bene da qualunque versione (2.7, 2.7.1, 2.8). Su GitHub, nel repository agenda-flotta:
+"Add file" → "Upload files" → trascina tutto il contenuto della cartella (i file e le cartelle
+vendor e icons), niente config.js → "Commit changes". Poi segui i punti 2–5 qui sotto.
+Nel pacchetto completo gli altri file portano ancora il numero "2.8": è giusto così (la 2.9
+cambia solo app.js, store.js e index.html).
+
+COME AGGIORNARE ALLA 2.9 DALLA 2.8 (2 minuti, solo 4 file)
+---------------------------------------------------------
+Serve la 2.8 già su GitHub (in alto nell'agenda "v2.8"). Se sei ancora alla 2.7 o alla
+2.7.1, prima carica lo zip della 2.8, poi questi 4 file.
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   4 file: app.js, store.js, index.html, LEGGIMI.txt. Niente config.js. Gli altri file
+   (dropbox.js, accessi.js, autisti.js, fatturato.js, fatture.js, sw.js, vendor, icons)
+   restano quelli della 2.8 e non vanno toccati.
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v2.9".
+   Se compare "Aggiornamento in corso (…)" è normale per qualche minuto; se resta, su GitHub
+   manca il file scritto tra parentesi.
+3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda. Una pagina rimasta aperta con la
+   2.8 avvisa da sola e non salva niente finché non la riapri.
+4. Niente da fare sui dati e niente da fare sull'app degli autisti.
+5. La prima volta che un Mac dell'ufficio apre la 2.9, l'agenda crea in Dropbox i PDF di TUTTI
+   i fogli di servizio già inseriti (anche quelli passati): in alto, accanto a
+   "Sincronizzato", si vede "Fogli in Dropbox: 120 di 850" (per esempio). Si può lavorare
+   normalmente; se chiudi l'agenda, alla riapertura riprende da dove era rimasta. Lo fa un
+   solo dispositivo, una volta sola (in Dropbox: config/fogli-pdf.json).
+
+NOVITÀ DELLA 2.9
+----------------
+I FOGLI DI SERVIZIO SI SALVANO DA SOLI IN DROPBOX
+- Appena salvi una prenotazione con il cliente, il suo foglio di servizio va in Dropbox, in
+  Fogli di servizio › anno › mese › giorno del servizio. A ogni modifica della prenotazione
+  il file viene riscritto: in Dropbox c'è sempre l'ultima versione. Non serve più premere
+  "Salva PDF" per averlo in Dropbox.
+- È un solo file per prenotazione: n.foglio_cliente_x_destinazione_completo.pdf (foglio per
+  l'autista + copia ufficio), sempre SENZA targa e ID mezzo, con il nome vero del cliente
+  (l'alias serve solo per l'autista).
+- Nome cambiato (cliente o destinazione): il file col nome vecchio si cancella da solo.
+  Si cancellano anche le copie dello stesso foglio salvate a mano prima della 2.9 ("solo
+  autista" e "_contabile"). Il modello spese della busta (…_busta.pdf) resta com'è.
+- Prenotazione spostata a un'altra data (nuovo n. foglio): i PDF del vecchio n. foglio nella
+  cartella del giorno vecchio si cancellano da soli (appena lo spostamento arriva in Dropbox);
+  il foglio nuovo va nella cartella del giorno nuovo. Se lo spostamento non viene accettato
+  (nel frattempo il capo ha deciso bus e autisti) il PDF resta dov'era.
+- Due dispositivi che cambiano la stessa prenotazione quasi insieme: il PDF finale ha tutte e
+  due le modifiche.
+- Prenotazione eliminata: i suoi PDF si cancellano (come nella 2.8).
+- Lo fa il dispositivo che ha fatto la modifica, anche il telefono del capo dopo "Salva senza
+  inviare" o "Invia all'autista" (bus e autisti nuovi).
+- Senza internet: le modifiche restano in fila su quel dispositivo e in alto compare
+  "1 foglio da salvare in Dropbox" (o "3 fogli…"); i PDF si scrivono appena torna la
+  connessione.
+- Prenotazione appena inserita (n. foglio ancora provvisorio): il PDF si scrive appena la
+  prenotazione arriva in Dropbox (di solito pochi secondi).
+- I file cancellati finiscono nei "File eliminati" di Dropbox, da dove si possono recuperare
+  per un certo periodo.
+- "Salva PDF" e "Salva e stampa" nella finestra del foglio: il file scaricato e la stampa sono
+  come li scegli nella finestra (anche con targa e ID mezzo, se togli la spunta); la copia in
+  Dropbox resta quella automatica (completa, senza targa) e viene riscritta subito. Il
+  messaggio dice dove.
+
+ARCHIVIO DELLE BUSTE (pagina Fatturato › "Buste")
+- Nella pagina Fatturato, accanto a "Bozze fattura", c'è il pulsante "Buste": l'elenco di tutte
+  le buste per l'autista (servizi con "Busta per l'autista" = SÌ) del periodo scelto in
+  "Servizi" in alto a destra (mese selezionato oppure tutti).
+- Per ogni busta: n. busta, n. foglio, date, cliente, autista, anticipo, spese in contanti,
+  spese con la carta aziendale, rimanenza (in rosso "da rimborsare" se l'autista ha speso più
+  dell'anticipo), km e stato: "Foglio non inviato", "Da consegnare" (in rosso se il servizio è
+  già finito), "Consegnata" con data e ora. In fondo i totali.
+- Filtri "Tutte", "Da consegnare", "Consegnate" e casella di ricerca (cliente, autista, n. busta,
+  n. foglio). Clic sulla riga: la scheda "Spese dell'autista" con gli scontrini. "Modello spese":
+  il modello della busta da stampare.
+- "Scarica Excel": scarica le righe che vedi in un file .csv che si apre con Excel (registrato nel
+  Registro attività).
+- Spese, km e consegna sono quelle che l'autista scrive nell'app (serve la cartella "Autisti La
+  Terra" collegata). L'elenco si aggiorna da solo quando l'autista scrive o consegna la busta.
+- Lo vedono tutti gli utenti che entrano nella pagina Fatturato, anche senza il permesso delle
+  bozze di fattura (per esempio la contabilità).
+
+COME AGGIORNARE ALLA 2.8 (5 minuti, dalla 2.7 o dalla 2.7.1)
+-----------------------------------------------------------
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina tutto il
+   contenuto di questa cartella (i file e le cartelle vendor e icons). Niente config.js.
+   Nessun file nuovo: sono gli stessi file di prima (cambiano app.js, index.html, store.js,
+   fatturato.js, fatture.js, autisti.js, accessi.js, dropbox.js, sw.js).
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v2.8".
+   Se compare "Aggiornamento in corso (…)" è normale per qualche minuto; se resta, su GitHub
+   manca il file scritto tra parentesi.
+3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda. Una pagina rimasta aperta con la
+   versione di prima se ne accorge da sola: avvisa "chiudila e riaprila" e non salva niente
+   finché non viene aggiornata.
+4. Niente da fare sui dati e niente da fare sull'app degli autisti. I file nuovi in Dropbox
+   (config/anagrafica-autisti.json e config/riposi-autisti.json) li crea l'agenda la prima
+   volta che cambi l'anagrafica autisti o segni un riposo.
+5. File fatturato: gli extra vanno nelle colonne "€ varie 1/2/3" e "tipo varie 1/2/3" con la
+   causale scelta nell'agenda (es. "rimborso traghetto"). Nel foglio "regole" la colonna
+   TIPO VARIE ha nomi un po' diversi (acqua, km extra, alloggio autista…): se vuoi che Excel
+   non segnali le causali nuove, aggiungile anche lì oppure usa gli stessi nomi nella
+   tendina dell'agenda (Archivio › Tendina causale spese).
+
+NOVITÀ DELLA 2.8 (per la 2.9 cambia il punto 2: la copia in Dropbox ora si salva da sola)
+----------------
+1. EXTRA DEL SERVIZIO (modulo della prenotazione)
+- Sulla riga di "€ Noleggio", "€ Parcheggi" e "€ Pasti" (ora più strette) c'è "€ Extra": scegli
+  la causale spese dalla tendina e scrivi l'importo. Con "+ altro extra" fino a 3 voci.
+- Le causali si cambiano in Archivio › "Tendina causale spese". Di serie: bottigliette
+  d'acqua, alloggio dell'autista, kilometri extra, notturno extra, rimborso traghetto,
+  radioline e auricolari, anticipo spese, altro.
+- Gli extra vanno nel file fatturato (colonne "€ varie" e "tipo varie" 1, 2 e 3; il totale
+  della riga li comprende), nella pagina Fatturato (colonna "€ Extra") e nella bozza fattura:
+  una riga per causale (es. "RIMBORSO TRAGHETTO") con l'IVA del noleggio. Controlla l'IVA
+  nella bozza: per i rimborsi di spese anticipate in nome e per conto del cliente può valere
+  l'esclusione dell'art. 15 del DPR 633/1972 (da verificare con il commercialista).
+- Le "varie" scritte a mano nel file per i servizi senza extra restano come sono. Per i servizi
+  con almeno un extra nell'agenda le colonne delle varie le scrive l'agenda: se su quella riga
+  avevi scritto delle varie a mano, mettile come extra nel modulo.
+
+2. SALVA E STAMPA
+- Nella finestra del foglio di servizio "Stampa" è diventato "Salva e stampa": stampa il
+  foglio e intanto salva in Dropbox la copia completa (con la copia ufficio) nella cartella
+  del giorno, come "Salva PDF". Senza internet stampa lo stesso e lo dice.
+- Lo stesso nel modello spese della busta (copia "…_busta.pdf"). Il capo ha "Stampa".
+
+2b. TARGA E ID MEZZO NASCOSTI DI SERIE
+- Nella finestra del foglio di servizio "Nascondi Targa e ID Mezzo" è già spuntata: anteprima,
+  stampa, PDF, copia in Dropbox e foglio inviato all'autista sono senza targa e senza ID mezzo.
+  Per farli vedere togli la spunta prima di stampare o inviare.
+- Un foglio già inviato, riaprendolo, riparte da com'era all'invio. Anche il capo, al primo
+  invio, parte con targa e ID nascosti.
+
+3. BARRA FERMA IN ALTO (vista Giorno e vista Settimana)
+- Scorrendo restano fermi i pulsanti, la riga dei giorni del mese e la barra grigia con data e
+  numeri. Nella vista Settimana resta ferma anche la riga con i giorni (lunedì… domenica):
+  scorrono solo i mezzi. Sul computer e sul tablet; sul telefono no (coprirebbe lo schermo).
+
+4. ANAGRAFICA AUTISTI (Archivio)
+- Archivio › "Anagrafica autisti": aggiungi un autista con "+ Nuovo" (cognome e nome per
+  esteso, uguale al nome usato nell'app degli autisti), scegli il colore (verde o rosso,
+  come nella tendina del modulo), toglilo con ×. Vale per le tendine del modulo, la pagina
+  Autisti, il capo e i telefoni. I servizi già inseriti tengono il nome com'era.
+
+5. PRENOTAZIONE ELIMINATA → PDF CANCELLATI IN DROPBOX
+- Eliminando una prenotazione si cancellano i suoi PDF nella cartella del giorno (Fogli di
+  servizio › anno › mese › giorno): foglio di servizio, copia completa e modello della busta.
+  Si riconoscono dal n. foglio all'inizio del nome. In Dropbox finiscono tra i "File
+  eliminati", da dove si possono ancora recuperare per un certo periodo. Senza internet la
+  cancellazione aspetta e parte appena torna la connessione.
+
+6. PUNTI ESCLAMATIVI ROSSI
+- Un "!" rosso sul servizio (vista Giorno e Settimana) quando manca il prezzo del noleggio,
+  l'ora di partenza o il codice cliente (cliente scritto a mano, non in anagrafica).
+  Passando sopra col mouse dice cosa manca. Un "!" rosso anche sul giorno nella barra dei
+  giorni del mese, se quel giorno c'è almeno un servizio da completare.
+
+7. CASELLA DELLO STATO SU OGNI RIGA (vista Giorno)
+- Ogni servizio ha la casella, su fondo bianco: "In attesa" (giallo scuro) se il foglio non è
+  ancora stato inviato all'autista; "Inviato", "Aperto" e "Busta consegnata" (verde scuro);
+  "Ritirato" (rosso); "Da reinviare" (giallo scuro) se la prenotazione è cambiata dopo l'invio.
+  Clic sulla casella: si apre il foglio di servizio.
+
+8. EXTRA BUS (bus di altre aziende)
+- In fondo alla vista Giorno: "+ Extra bus" → azienda, posti, targa (se la sai). Vale solo per quel giorno:
+  compare una riga "EXTRA" dove, con "+ Aggiungi", inserisci il servizio come per i nostri bus
+  (nel modulo il mezzo è l'extra bus). Se il servizio dura più giorni, l'extra bus compare
+  anche negli altri giorni del servizio. Senza servizi si toglie con ×.
+- Non conta tra i 26 mezzi né tra i mezzi impegnati; gli autisti dell'altra azienda non
+  contano tra i nostri. Niente casella "In attesa" (il foglio non va alla nostra app).
+- Nel foglio di servizio: posti, "EXTRA" al posto del numero e la targa. Nel file fatturato:
+  la targa e, nelle note, "EXTRA BUS" con l'azienda.
+
+9. FOGLIO DI SERVIZIO CON IL PROGRAMMA DINAMICO
+- Il programma ha almeno le 7 righe del modello; se servono (tour di più giorni, righe lunghe
+  che vanno a capo) se ne aggiungono altre. Niente più "segue a pagina 2" né programma sul
+  retro: stampa e PDF restano su una pagina A4, rimpicciolendo quanto serve.
+
+10. GIORNI DI RIPOSO DEGLI AUTISTI
+- Pagina Autisti › "Giorno di riposo": autista, dal… al… (stesso giorno se è uno solo), nota.
+  Sopra la tabella c'è l'elenco dei riposi del mese (× per toglierli); nella tabella quei
+  giorni sono rossi.
+- Vista Giorno: nella barra grigia, a sinistra dei numeri, "RIPOSO" e i nomi in rosso.
+- Vista Settimana: sotto la data, accanto ai mezzi impegnati, un numerino rosso con quanti
+  autisti sono a riposo (passando sopra col mouse, i nomi).
+- Nel modulo: se metti in un servizio un autista che quei giorni è a riposo, compare l'avviso;
+  nella tendina degli autisti accanto al nome c'è "riposo …". Anche il capo lo vede quando
+  sceglie gli autisti. Il capo vede i riposi ma non li segna.
+
+11. MODELLO SPESE DELLA BUSTA (era la 2.7.2, mai pubblicata da sola)
+- Nei servizi con "Busta per l'autista" = SÌ c'è il pulsante "Modello spese busta":
+  · nel modulo della prenotazione, in basso accanto a "Chiudi" (servizio già salvato; se hai
+    cambiato qualcosa e non hai salvato, prima chiede di salvare);
+  · nella finestra del foglio di servizio, accanto a "Torna alla prenotazione" (anche per il capo).
+- Si apre il modello "00_neutro" (stesso impaginato del Word, A4 orizzontale, carattere
+  Carlito = Calibri) già compilato con i dati della prenotazione: cliente e suo telefono,
+  referente e telefono, destinazione (l'itinerario senza la partenza e il ritorno), periodo
+  dal/al, bus (posti) e targa, 1° e 2° autista, acconto in contanti (= anticipo della busta).
+- In alto a destra sul foglio: n. della busta e n. del foglio di servizio.
+- Carta di credito: resta vuota. Le tabelle delle spese (pasti, hotel, parcheggi, carburante,
+  spese extra, spese sostenute, rimanenza) restano vuote: le compila l'autista a penna.
+- Nella finestra puoi correggere i dati e scrivere una nota (al massimo 2 righe sul foglio):
+  le correzioni valgono solo per il modello, la prenotazione non cambia. "Rimetti i dati della
+  prenotazione" annulla le correzioni. L'anteprima si aggiorna mentre scrivi.
+- "Salva e stampa": una pagina A4 orizzontale, da mettere nella busta, e la copia in Dropbox.
+- "Salva PDF": scarica il file (n.foglio_cliente_x_destinazione_busta.pdf) e ne salva una
+  copia in Dropbox insieme ai fogli di servizio (Fogli di servizio › anno › mese › giorno).
+  Il capo scarica e stampa, ma la copia in Dropbox la salva l'ufficio. Senza internet il PDF
+  resta solo sul dispositivo (il messaggio lo dice).
+- La stampa e il PDF finiscono nel Registro attività (tipo "Foglio").
+
+COME AGGIORNARE ALLA 2.7.1 DALLA 2.7 (2 minuti, solo 3 file)
+-----------------------------------------------------------
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   3 file: app.js, autisti.js, LEGGIMI.txt. Niente config.js. Gli altri file restano quelli
+   della 2.7 e non vanno toccati.
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v2.7.1".
+   Se compare "Aggiornamento in corso (autisti.js)" è normale per qualche minuto; se resta,
+   manca autisti.js su GitHub.
+3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda. Una pagina rimasta aperta con la 2.7
+   avvisa da sola e non salva niente finché non la riapri.
+4. Niente da fare sui dati e niente da fare sull'app degli autisti.
+
+NOVITÀ DELLA 2.7.1
+------------------
+- "Aperto dall'autista", spese e "Busta consegnata" arrivano subito: l'agenda resta in ascolto
+  della cartella "Autisti La Terra" e, appena un telefono scrive, la rilegge (prima ogni 2
+  minuti). La rilettura ogni 2 minuti resta come riserva, per esempio se la rete cade.
+- La finestra "Spese autista", se è aperta, si aggiorna da sola quando l'autista aggiunge o
+  corregge una spesa, scrive i km o consegna la busta ("Aggiornato dal telefono …"). Non serve
+  più chiuderla e riaprirla.
+- I file delle notifiche dell'app degli autisti (/telefoni/push/ e /telefoni/notifiche/) e le
+  crocette dei pasti stanno nella stessa cartella: l'agenda li riconosce e non li considera errori.
+
+COME AGGIORNARE ALLA 2.7 DALLA 2.6 (5 minuti; poi i 3 file della 2.7.1)
+---------------------------------------------
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina tutto il
+   contenuto di questa cartella (i file e le cartelle vendor e icons). Niente config.js.
+   Nessun file nuovo: sono gli stessi file della 2.6.
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v2.7".
+3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda. Una pagina rimasta aperta con la
+   2.6 se ne accorge da sola: avvisa "chiudila e riaprila" e non salva niente finché non
+   viene aggiornata (è la "versione minima" arrivata con la 2.6).
+4. Niente da fare sui dati e niente da fare sull'app degli autisti: le crocette dei pasti
+   l'app le manda già; l'Agenda adesso le legge.
+5. Dalla 2.5: prima fai quello che c'è scritto in "DALLA 2.5: COSA C'ERA DA FARE PER LA 2.6".
+
+NOVITÀ DELLA 2.7
+----------------
+PAGINA AUTISTI: LE CROCETTE DEI PASTI
+- In alto, accanto a "Fatturato", c'è il pulsante "Autisti": la tabella delle crocette del
+  mese scelto in alto (frecce ‹ ›). Per ogni autista due righe, "Offerto" e "Libero", e una
+  colonna per ogni giorno: X = un pasto, XX = due pasti (come le mettono gli autisti nell'app,
+  al massimo 2 al giorno).
+- Casella colorata = quel giorno l'autista ha un servizio in agenda. "–" = l'autista ha
+  risposto "nessun pasto". X blu sottolineata = corretta dall'ufficio.
+- Colonna "Mese": i pasti offerti e liberi del mese. Colonna "Giorni servizio": i giorni con
+  un servizio in agenda. In fondo il totale di tutti gli autisti della tabella.
+- "Solo autisti con servizi o crocette" (di serie): toglila per vedere tutti gli autisti.
+- Clic su una casella: si vedono i servizi di quel giorno, quello che ha segnato l'autista
+  ed eventuali correzioni.
+- Correggere: nella stessa finestra scegli quanti pasti offerti e liberi (al massimo 2 in
+  tutto) e premi "Salva la correzione". La correzione prende il posto di quello che ha segnato
+  l'autista solo nell'Agenda: sul telefono dell'autista non cambia niente. Resta il nome di
+  chi l'ha fatta e l'ora. "Togli la correzione" torna a quello dell'autista. Le correzioni
+  sono in Dropbox, config/pasti-correzioni.json, e nel Registro attività (tipo "Pasti
+  autisti").
+- Le crocette arrivano quando il telefono dell'autista è collegato a internet; l'Agenda le
+  rilegge da sola ogni 2 minuti e con "Aggiorna". Serve la cartella "Autisti La Terra"
+  collegata (2.5).
+I PASTI SU OGNI SERVIZIO
+- Fatturato: sotto "€ Pasti", in verde, "crocette 1 offerto · 2 liberi" (tutti i giorni del
+  servizio, tutti i suoi autisti). In fondo il totale. Fermando il mouse si vede il dettaglio
+  giorno per giorno.
+- Modulo della prenotazione: sotto "€ Pasti", "Crocette autista: …" e "dettaglio".
+- Vista Giorno: accanto allo stato del foglio, il riquadro "Pasti" con i pasti di quel giorno.
+- Bozza fattura: accanto a "Rifai le righe dai servizi", "Crocette dei pasti degli autisti: …".
+  È solo il numero: la riga dei pasti in fattura e l'importo restano quelli di "€ Pasti".
+- Se un autista nello stesso giorno ha due servizi (per esempio due transfer), i suoi pasti
+  di quel giorno compaiono su tutti e due con "⚠": decidi tu a quale addebitarli.
+FOGLI DI SERVIZIO IN DROPBOX: SEMPRE CON LA COPIA UFFICIO
+- Con "PDF" nella finestra del foglio di servizio, la copia che resta in Dropbox (Fogli di
+  servizio › anno › mese › giorno) è sempre completa: foglio per l'autista e copia ufficio
+  (parte contabile, con i prezzi). Il nome finisce con "_completo", per esempio
+  26100801_scuola_verga_x_siracusa_completo.pdf.
+- Il PDF che scarichi o stampi resta quello scelto in "Stampa" (di serie "Solo foglio per
+  l'autista"). Attenzione: la copia in Dropbox ha i prezzi, quindi non va mandata all'autista
+  o al cliente.
+- All'app degli autisti ("Invia all'autista") va sempre e solo il foglio per l'autista, come
+  prima: niente prezzi.
+USCITA AUTOMATICA: ADESSO VALE ANCHE RIAPRENDO L'AGENDA
+- L'uscita automatica si sceglie in Pannello Master › Impostazioni (Mai, 15 minuti … 4 ore) e
+  vale per tutti i dispositivi.
+- Prima, se l'agenda veniva chiusa (Chrome chiuso, oppure il telefono che toglie l'app dalla
+  memoria) e riaperta dopo ore, si era ancora dentro senza password: il conteggio ripartiva da
+  zero. Adesso ogni dispositivo ricorda l'ora dell'ultima attività (clic, tasto, scorrimento,
+  tocco): riaprendo l'agenda dopo più del tempo scelto, chiede di nuovo la password.
+- Il controllo si fa anche appena l'agenda torna in primo piano (sul telefono, mentre l'app è in
+  secondo piano, i controlli si fermano) e ogni 10 secondi con la pagina aperta.
+- Con un modulo aperto e modificato ma non salvato non si esce, per non perdere le modifiche:
+  il conteggio riparte quando il modulo viene chiuso.
+PROFILO DEL CAPO ("solo anteprima e invio")
+- In alto c'è "Crocette pasti": la stessa tabella, con le frecce per cambiare mese. Può aprire
+  il dettaglio di una casella ma non può correggere. "← Fogli di servizio" per tornare.
+DA SAPERE
+- L'autista è riconosciuto dal nome: quello del telefono (scelto quando si crea il QR) deve
+  essere lo stesso dell'elenco autisti dell'agenda. Un autista che non è nell'elenco ma manda
+  crocette compare lo stesso, con il nome scritto dal telefono.
+- Le crocette di un giorno sono dell'autista, non del servizio: per questo con due servizi
+  nello stesso giorno compaiono su tutti e due.
+
+NOVITÀ DELLA 2.6
+----------------
+BOZZA FATTURA
+- Tipo di documento: solo "Fattura" e "Nota di credito". Una bozza fatta prima di un altro
+  tipo resta com'è (nella tendina c'è scritto "non più usato").
+- Causale: quello che scrivi nella casella "Causale" diventa la descrizione della riga del
+  noleggio, al posto del testo automatico "NOLEGGIO …". Nel file XML il testo c'è una volta
+  sola, come nelle vostre fatture. Se la cancelli torna il testo automatico; se correggi la
+  descrizione della riga, la causale la segue. Con più righe di noleggio vale per la prima.
+  Nelle bozze fatte prima della 2.6 con una causale diversa dalla descrizione, la causale
+  resta una voce a parte finché non la cancelli e la riscrivi (sotto la casella c'è scritto).
+- Le caselle della descrizione e della causale si allungano con il testo: niente parole
+  nascoste. Nell'anteprima l'ordine d'acquisto (e la causale delle bozze vecchie) restano
+  dentro la colonna Descrizione.
+FILE XML DELLE FATTURE
+- Il file si chiama come il foglio di servizio, per esempio
+  26100801_baia_samuele_x_noto_siracusa.xml. Fattura di più servizi: il primo foglio e
+  "_e_altri_2" (quanti sono gli altri). Nota di credito: "NC_" davanti. Un'altra fattura
+  dello stesso servizio: "_2", "_3"…
+- Cartella: Fatture XML › anno › mese › giorno del servizio (come i fogli di servizio).
+- Rifacendo il file per la stessa bozza, quello nuovo prende il posto del precedente; i file
+  delle altre bozze non vengono mai sovrascritti né eliminati.
+- DA VERIFICARE CON LO STUDIO: il Sistema di Interscambio (SdI) dell'Agenzia delle Entrate
+  accetta solo file con un nome come IT00826460883_00001.xml (partita IVA e progressivo:
+  specifiche tecniche della fattura elettronica). Va bene così se lo studio importa il file
+  nel suo programma, che poi lo invia con un nome suo (è il caso di adesso, visto che il
+  numero lo assegna lo studio). Se lo studio caricasse il file così com'è sul SdI, prima
+  andrebbe rinominato.
+PAGINA FATTURATO
+- Colonna "Fattura" su ogni servizio: "Da fatturare" (in rosso; la riga è evidenziata se il
+  servizio è confermato e già cominciato), "Bozza" (c'è una bozza), "Emessa" (è stato creato
+  il file XML per la contabilità, con la data), "Nota di credito".
+- In alto i filtri "Tutti", "Da fatturare", "Con bozza", "Emesse", ognuno con il numero dei
+  servizi e il totale.
+- Colonne più compatte: mezzo e targa insieme, partenza e rientro insieme, i due autisti
+  insieme.
+- Colonna "Fattura" e filtri li vede chi ha il permesso delle bozze di fattura.
+MEMORIA DI QUELLO CHE SI SCRIVE
+- In itinerario, evento, programma (riga per riga), note per l'autista, note dei referenti,
+  causale e descrizioni della bozza fattura, mentre scrivi compaiono i testi già scritti in
+  altre prenotazioni e bozze (i più usati per primi). Freccia giù e Invio, oppure un clic,
+  per sceglierne uno; Esc per chiudere.
+- La "×" accanto a un suggerimento lo toglie per tutti (le prenotazioni dove è scritto non
+  cambiano). I suggerimenti tolti sono in Dropbox, config/suggerimenti-tolti.json.
+PARCHEGGI
+- Archivio › "Anagrafica parcheggi": nome, città, indirizzo, "In fattura" (come compare nella
+  riga di rimborso: es. A SIRACUSA, ALL'APT. DI CATANIA; se è vuoto si usa "A" + città) e
+  "IVA della ricevuta" (l'aliquota della riga di rimborso: 22%, 10%, fuori campo…).
+- Nella prenotazione, accanto alla cifra di "€ Parcheggi", c'è la tendina del parcheggio.
+  "+ altro parcheggio" ne aggiunge un altro: "€ Parcheggi" diventa la somma (è quella che va
+  nel file fatturato, come prima).
+- "＋ Nuovo parcheggio…" in fondo alla tendina lo aggiunge all'anagrafica senza uscire dalla
+  prenotazione (serve il permesso delle anagrafiche).
+- Nella bozza fattura c'è una riga "RIMBORSO SPESE ANTICIPATE PER PARCHEGGI A …" per ogni
+  parcheggio, con l'IVA della sua ricevuta. La causale "Rimborso parcheggi" della
+  Contabilità può contenere {PARCHEGGIO}: se non c'è, il parcheggio si aggiunge in fondo.
+  La parte di "€ Parcheggi" senza un parcheggio scelto va in una riga come prima.
+BUSTA ANCHE PER GITE, NOTTURNI E TRANSFER
+- Nel modulo, per gite, notturni e transfer, c'è la spunta "Busta per l'autista": compaiono
+  anticipo spese e n. busta (proposto da solo, con la stessa numerazione dei tour).
+- Vale come nei tour: anticipo e busta nel file fatturato, anticipo in "Acconto La Terra"
+  sul foglio di servizio, busta e spese nell'app degli autisti. Togliendo la spunta, nel file
+  fatturato anticipo e busta di quel servizio si svuotano.
+VERSIONE MINIMA
+- La prima volta che si apre la 2.6, l'agenda scrive in Dropbox (config/versione-minima.json)
+  che la versione in uso è la 2.6. Dalla prossima versione, una pagina rimasta aperta con la
+  2.6 se ne accorgerà: avviserà "chiudila e riaprila" e non salverà niente finché non viene
+  aggiornata. I dispositivi alla 2.5 non conoscono questo controllo: vanno aggiornati a mano.
+
+DALLA 2.5: COSA C'ERA DA FARE PER LA 2.6
+----------------------------------------
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina tutto il
+   contenuto di questa cartella (i file e le cartelle vendor e icons). Niente config.js.
+   Nessun file nuovo: sono gli stessi file della 2.5.
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v2.6".
+3. Fai aggiornare SUBITO anche gli altri Mac e i telefoni (basta chiudere e riaprire
+   l'agenda): un dispositivo rimasto alla 2.5, salvando una prenotazione, cancellerebbe i
+   parcheggi scelti e la busta di gite, notturni e transfer.
+   La versione di ogni dispositivo si vede in Pannello Master › Dispositivi.
+   Dalla 2.6 in poi questo pericolo non c'è più: vedi "VERSIONE MINIMA" più sotto.
+4. Niente da fare sui dati: prenotazioni, clienti, bozze e file fatturato restano come sono.
+5. Da verificare con lo studio: il nome dei file XML (vedi "FILE XML DELLE FATTURE").
+
+DALLA 2.4: COSA C'ERA DA FARE PER LA 2.5
+----------------------------------------
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina tutto il
+   contenuto di questa cartella (i file e le cartelle vendor e icons). Niente config.js.
+   ATTENZIONE: ci sono DUE FILE NUOVI: autisti.js (insieme agli altri file) e qrcode.js
+   (dentro la cartella vendor). Se autisti.js manca, l'agenda resta ferma su
+   "Aggiornamento in corso (autisti.js)".
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto la
+   versione nuova.
+3. Fai aggiornare SUBITO anche gli altri Mac e i telefoni (basta chiudere e riaprire
+   l'agenda): un dispositivo rimasto alla 2.4 non conosce i profili nuovi e, salvando una
+   prenotazione, cancellerebbe il segno "inviato all'autista" e la scelta del capo.
+   La versione di ogni dispositivo si vede in Pannello Master › Dispositivi.
+4. Segui il foglio a parte "ISTRUZIONI RISERVATE 2.5" che hai ricevuto insieme a questa
+   versione: spiega come attivare l'account riservato dell'amministratore. Quel foglio NON
+   va caricato su GitHub e non va dato a nessuno.
+   Finché quell'account non è attivo, nessuno può creare o modificare un account Master.
+5. Da qui in poi i Master gestiscono solo gli utenti normali (vedi più sotto).
+6. Per inviare i fogli agli autisti serve la cartella "Autisti La Terra": si collega
+   dall'account riservato (le istruzioni passo passo sono nel foglio riservato e nel
+   pannello). Finché non è collegata l'agenda funziona come prima: il tasto "Invia
+   all'autista" c'è, ma spiega che la cartella non è ancora collegata.
+7. Niente da fare sui dati: prenotazioni, clienti, bozze e file fatturato restano come sono.
+
+FOGLI AGLI AUTISTI, ACCOUNT E PROFILO "SOLO ANTEPRIMA E INVIO" (dalla 2.5)
+-------------------------------------------------------------------------
+INVIO ALL'AUTISTA
+- Nella finestra del foglio di servizio c'è "Invia all'autista": manda al telefono
+  dell'autista (o dei due autisti) il PDF del foglio e i dati del servizio. Parte SEMPRE
+  e SOLO il foglio per l'autista, anche se a video hai scelto "Con la parte contabile".
+- Prezzi e parte contabile non vengono mai inviati. Nei dati ci sono solo: n. foglio,
+  tipo di servizio, date e orari, cliente (o alias, come scelto in "Intestazione"),
+  itinerario, evento, passeggeri, mezzo e targa (se non è nascosta), autisti e, per i
+  servizi con busta, numero della busta e anticipo in contanti consegnato all'autista.
+- Numero foglio e numero busta restano quelli che l'agenda assegna già.
+- Serve un autista vero (non "Autista Generico") e la connessione a internet. Se la
+  prenotazione è in sospeso, la conferma lo ricorda.
+- L'ufficio (Master e utenti) può inviare finché il capo non ha deciso bus e autisti di
+  quel servizio (vedi "LA SCELTA DEL CAPO"): dopo, invia solo lui.
+- "Ritira dall'autista" toglie il foglio dal telefono (le spese già scritte restano).
+  Se elimini una prenotazione già inviata, il foglio viene ritirato da solo.
+- "Condividi PDF…" (prima si chiamava "Invia…") è il vecchio invio del PDF dal telefono
+  con WhatsApp o Mail: c'è ancora, ha solo cambiato nome per non confondersi.
+STATO SULLA PRENOTAZIONE
+- Nella vista Giorno, accanto alla prenotazione: "Inviato", "Aperto" (l'autista ha aperto
+  il foglio), "Busta consegnata", oppure "Da reinviare" se dopo l'invio è cambiato
+  qualcosa che sta sul foglio (orari, programma, hotel, autista, mezzo…). Un cambio di
+  prezzo non fa scattare "Da reinviare". Un clic sul riquadro apre il foglio, con i tre
+  passaggi e le date.
+- Lo stato si aggiorna da solo ogni due minuti e con Menu › "Aggiorna adesso".
+SPESE DELL'AUTISTA (solo servizi con busta: tour e, dalla 2.6, gite, notturni e transfer con la spunta)
+- "Spese dell'autista" (nel foglio, nel modulo della prenotazione e nella vista
+  Fatturato): anticipo, spese in contanti, rimanenza in busta (o importo da rimborsare
+  all'autista), spese con carta aziendale, righe con data, luogo e foto dello scontrino,
+  km alla partenza e al rientro, note dell'autista.
+- Quando l'autista consegna la busta dall'app, la scheda si chiude; "Riapri la busta" la
+  rende di nuovo modificabile dal telefono.
+- Le spese le scrive l'app degli autisti: finché quell'app non è collegata alla cartella,
+  questa scheda resta vuota.
+ACCOUNT: COSA CAMBIA PER I MASTER
+- I Master da questa versione creano, modificano ed eliminano solo gli utenti normali:
+  non possono più toccare un altro Master (né eliminarlo, né disattivarlo, né cambiargli
+  password o ruolo), né disconnettere o bloccare il dispositivo dove lavora un altro
+  Master. Per il resto il Pannello Master è quello di prima.
+- Gli account Master, il profilo "solo anteprima e invio", la cartella degli autisti e i
+  telefoni si gestiscono dall'account riservato dell'amministratore (foglio "ISTRUZIONI
+  RISERVATE 2.5").
+PROFILO "SOLO ANTEPRIMA E INVIO" (IL CAPO)
+- Si crea dall'account riservato (ruolo "Solo anteprima e invio"). Chi entra con questo profilo
+  vede una schermata sola: i servizi del giorno (con le frecce per cambiare giorno), su
+  ognuno "Anteprima" e "Invia all'autista". Niente prezzi, niente menu, niente stampa né
+  PDF. Della prenotazione non può modificare niente, tranne bus e autisti (qui sotto).
+LA SCELTA DEL CAPO: BUS E AUTISTI SI DECIDONO ALL'INVIO
+- Quando il capo preme "Invia all'autista" si apre "Bus e autisti": il bus, l'autista e
+  (solo se serve) il secondo autista. Sono già proposti quelli scritti dall'ufficio; se
+  l'ufficio aveva messo un "Autista Generico", l'autista va scelto.
+- Negli elenchi, accanto a bus e autisti che negli stessi giorni hanno già un altro
+  servizio, c'è scritto "già impegnato"; sotto compaiono gli avvisi (con chi è impegnato,
+  passeggeri oltre la capienza, prenotazione in sospeso, nessun telefono collegato per
+  quell'autista). Sono avvisi: il capo può inviare lo stesso.
+- "Invia all'autista" salva la scelta e manda il foglio. "Salva senza inviare" salva solo
+  la scelta (il foglio si potrà inviare dopo).
+- La scelta del capo vale in tutta l'agenda: la prenotazione passa sul bus scelto, con gli
+  autisti scelti, nelle viste Giorno, Settimana e Mese, nel foglio di servizio e nel file
+  fatturato. Nella vista Giorno, accanto agli autisti, compare la scritta "capo".
+- Dopo la scelta del capo l'ufficio NON può più cambiare bus e autisti di quel servizio
+  (nel modulo le tre caselle sono bloccate, con la spiegazione) e non può più inviare né
+  ritirare il foglio: lo fa solo il capo. Tutto il resto (orari, itinerario, note, prezzi,
+  data) l'ufficio lo modifica come sempre.
+- Se l'ufficio cambia qualcosa che sta sul foglio dopo l'invio, sulla prenotazione compare
+  "Da reinviare": lo vede anche il capo, che apre il servizio e invia di nuovo.
+- Il capo può cambiare idea quando vuole: riapre "Invia all'autista", cambia bus o
+  autisti e invia di nuovo. Il foglio sparisce dal telefono del primo autista e arriva al
+  nuovo. Con "Ritira il foglio" lo toglie dal telefono senza mandarlo a nessuno.
+- Se l'ufficio sposta di giorno una prenotazione da un dispositivo che non ha ancora
+  ricevuto la scelta del capo (o l'invio del foglio), lo spostamento NON viene fatto e
+  compare un avviso: basta riaprire la prenotazione e spostarla di nuovo.
+- Un Master non può disconnettere né bloccare il dispositivo dove lavora il capo.
+- Ogni scelta del capo resta scritta nel registro, con il suo nome e cosa c'era prima.
+- In caso di emergenza (capo non raggiungibile) bus e autisti di un servizio già deciso
+  li può cambiare solo l'account riservato dell'amministratore.
+TELEFONI DEGLI AUTISTI (pannello dell'account riservato, scheda Autisti)
+- La cartella "Autisti La Terra" è una seconda app Dropbox, con una cartella tutta sua
+  (in Dropbox: App › Autisti La Terra). I telefoni degli autisti vedono solo quella:
+  prenotazioni, prezzi e fatturato stanno nella cartella dell'agenda, che da lì non si
+  raggiunge.
+- "Collega un telefono": si sceglie l'autista, si apre Dropbox per un momento e compare
+  un codice QR (e un link) da far aprire al telefono. L'autista non riceve mai la
+  password di Dropbox. Ogni telefono ha un collegamento suo.
+- "Blocca" scollega da Dropbox quel telefono soltanto (telefono perso, autista che non
+  lavora più). Gli altri restano collegati.
+- Al collegamento l'agenda controlla che l'app Dropbox degli autisti sia di tipo "App
+  folder" e che la sua cartella sia vuota: se quell'app vede altri file dell'azienda, il
+  collegamento viene rifiutato.
+- Chi ha il codice QR o il link di un telefono entra nella cartella degli autisti: va
+  usato per un telefono solo. Nell'app ogni autista vede solo i suoi fogli, ma i telefoni
+  collegati sono tutti collegati alla stessa cartella degli autisti.
+LIMITI DA CONOSCERE
+- Le notifiche sul telefono non le manda l'agenda: se ne occupa l'app degli autisti.
+- Le regole su account e profili sono quelle dell'app, come per il resto: chi conosce la
+  password dell'account Dropbox dell'azienda può vedere e modificare i file.
+- Sul dispositivo del profilo "solo anteprima e invio" l'agenda è comunque sincronizzata
+  (serve per l'elenco): i prezzi non compaiono sullo schermo, ma quel dispositivo resta un
+  dispositivo dell'ufficio, da affidare a una persona di fiducia.
+
+DALLA 2.3.1 O PRIMA: COSA C'ERA DA FARE PER LA 2.4
+--------------------------------------------------
+(Chi parte da queste versioni carica direttamente la 2.5, segue i passi qui sopra e poi questi.)
+1. C'è anche il file fatture.js (nuovo dalla 2.4): va caricato insieme agli altri.
+2. In alto deve comparire "v2.5".
+   Se compare "Aggiornamento in corso" è normale: l'app riparte da sola appena i file sono
+   tutti arrivati.
+3. Archivio › Contabilità (la vede il Master): controlla i dati societari, che partono da
+   quelli stampati sul foglio di servizio, e scrivi IBAN, banca, ABI e CAB. NON sono già
+   scritti nel programma perché il sito è pubblico: si inseriscono una volta e restano nel
+   vostro Dropbox. Poi "Salva".
+4. Pannello Master › Impostazioni: due permessi nuovi. "Bozze di fattura" (di serie gli
+   utenti possono prepararle) e "Sezione Contabilità" (di serie solo il Master).
+5. Niente da fare sui dati: prenotazioni, clienti e file fatturato restano come sono.
+   Le bozze di fattura NON scrivono niente nel file fatturato.
+6. Gli altri Mac e i telefoni si aggiornano alla prima apertura (se vedi ancora la versione
+   vecchia, chiudi l'app e riaprila).
+7. Se non l'hai ancora fatto: elimina da GitHub la cartella "modelli" (clicca sulla cartella
+   → in alto a destra "…" → "Delete directory" → "Commit changes"). Vedi "Modelli Excel e
+   dati" qui sotto.
+
+BOZZE DI FATTURA E CONTABILITÀ (dalla 2.4)
+------------------------------------------
+- Vista Fatturato: su ogni riga, accanto a "Foglio di servizio", c'è "Bozza Fattura". Per una
+  fattura unica di più servizi dello stesso cliente spunta le caselle a sinistra e premi
+  "Bozza fattura unica dei N servizi selezionati". "Bozze fattura (N)" apre l'elenco.
+- La bozza si apre già compilata: cliente dall'anagrafica (denominazione, partita IVA,
+  codice fiscale, indirizzo, codice destinatario, PEC), righe con le vostre diciture
+  ("NOLEGGIO PULLMAN DA 28 POSTI IL … PER …", "RIMBORSO SPESE ANTICIPATE PER PARCHEGGI"…),
+  pagamento con IBAN e scadenza. Tutto si può correggere; a destra c'è l'anteprima,
+  impaginata come la fattura che riceve il cliente. Le correzioni restano nella bozza: non
+  cambiano né l'anagrafica clienti né la prenotazione.
+- Prezzi: quelli dell'agenda sono IVA compresa, la bozza ricava l'imponibile per scorporo
+  (600,00 → 545,45 + 54,55) e il totale resta sempre la somma dei prezzi concordati.
+- IVA: si sceglie su ogni riga. Il noleggio parte al 10%; per i parcheggi l'aliquota NON è
+  proposta (nelle vostre fatture è 22%, 10% o fuori campo N2.2 secondo la ricevuta): finché
+  non la scegli il file non si può creare.
+- Più servizi: "una riga riepilogativa" (come le fatture del mese: "… EFFETTUATE NEL MESE DI
+  … COME DA PROSPETTO A VOI INVIATO E CONFERMATO") oppure "una riga per servizio".
+  "Rifai le righe dai servizi" le ricalcola dai dati in agenda come sono adesso.
+- Scuole ed enti pubblici: scrivendo il codice ufficio di 6 caratteri la bozza passa da sola
+  al formato per la pubblica amministrazione, con scissione dei pagamenti (da pagare solo
+  l'imponibile), scadenza a 30 giorni e i campi Ordine n. / del / CIG / CUP.
+- Sconto (% sulla fattura, non sui rimborsi; oppure "+ Sconto in euro"), arrotondamento
+  (importo scritto a mano oppure "porta il totale a euro intero / 50 cent / 10 cent") e bollo
+  virtuale si impostano nella bozza; i valori di partenza sono in Contabilità.
+- Numero: lo assegna la contabilità. Se lo lasci vuoto nel file viene scritto "BOZZA" e il
+  n. foglio; se lo conosci puoi scriverlo (es. 463/00).
+- "Salva bozza" la conserva in Dropbox (cartella bozze-fatture) per tutti i dispositivi.
+  "Crea file XML" salva la bozza, scarica il file sul dispositivo e ne mette una copia in
+  Dropbox › Applicazioni › Agenda La Terra › Agenda Flotta La Terra › Fatture XML › anno ›
+  mese: è il file da mandare all'ufficio contabilità. Rifacendolo per la stessa bozza il
+  file ha lo stesso nome e prende il posto del precedente. Serve internet per salvare.
+- Il file è nel formato della fattura elettronica (FatturaPA 1.2: FPR12 per i privati, FPA12
+  per gli enti pubblici). L'agenda NON lo invia all'Agenzia delle Entrate: è una bozza per
+  la contabilità, che la controlla, mette il numero e la emette. Prima di usarlo sul serio
+  fate una prova d'importazione nel programma dello studio.
+- Sezione Contabilità (Archivio › Contabilità): dati societari (denominazione, partita IVA,
+  codice fiscale, regime, codice univoco, PEC, indirizzo, IBAN e banca, REA), aliquote IVA
+  (anche a 0% con la "natura" e il riferimento normativo), causali (i testi delle righe, con
+  i segnaposto {MEZZO} {DATA} {PERIODO} {MESE} {ITINERARIO}…), pagamento (modalità, giorni
+  di scadenza), sconto proposto, arrotondamento del totale, importo del bollo.
+- Se due persone tengono aperta la stessa bozza, chi salva per secondo viene avvisato e non
+  cancella il lavoro dell'altro. In Contabilità restano le modifiche di tutti e due.
+
+DALLA 2.1 ALLA 2.2 (per chi è ancora alla 2.1: carica la 2.4 e leggi anche questo)
+- Le prenotazioni già inserite restano confermate o in opzione come erano ("opzione" ora si
+  chiama "in sospeso"); quelle nuove nascono "In sospeso".
+- Elimina da GitHub la cartella "modelli" (punto 7 qui sopra).
+
+Modelli Excel e dati (da leggere una volta)
+- Eliminando la cartella (punto 7) i file non si possono più scaricare dal sito. Restano
+  però nella cronologia del repository (le versioni vecchie dei file, visibili a chi le va a
+  cercare su GitHub). Per toglierli anche da lì il modo semplice è eliminare il repository
+  e ricrearlo con lo stesso nome: PRIMA copia il contenuto di config.js (c'è la App key),
+  poi segui PASSO 1 e PASSO 3 di questo file. L'indirizzo dell'agenda resta lo stesso e i
+  dispositivi non vanno ricollegati. Se vuoi farlo, chiedi a chi ti segue l'app.
+- I modelli nuovi (02/10 e 06/10/2026) non contengono dati; in ogni caso non vengono più
+  pubblicati. Tienili solo sul tuo computer.
+
+DALLA 1.9 ALLA 2.0 (per chi è ancora alla 1.9: carica la 2.4 e leggi anche questo)
+- Al primo accesso l'app crea da sola, in Dropbox, le anagrafiche referenti,
+   guide e hotel con quelli già scritti nelle prenotazioni (gli hotel delle versioni prima,
+   scritti come "Nome – indirizzo, città", vengono divisi in nome, indirizzo e città).
+   Le trovi in "Archivio": controllale e completale (regione, città, telefono).
+- Gli altri Mac e i telefoni si aggiornano alla prima apertura (se vedi ancora la versione
+   vecchia, chiudi l'app e riaprila). Aggiornali tutti lo stesso giorno e, finché un
+   dispositivo ha ancora la 1.9, non usarlo per modificare le prenotazioni: la 1.9 non
+   conosce i dati nuovi (ruolo e note dei referenti, città e indirizzo di guide e hotel,
+   note con la causale) e salvando li perderebbe. La versione di ogni dispositivo si vede
+   in Pannello Master › Dispositivi.
+
+DALLA 1.8 ALLA 1.9 (per chi è ancora alla 1.8: carica la 2.4 e leggi anche questo)
+- Flotta: al primo accesso con la 1.9 o successive l'app scrive da sola i dati nuovi della
+  flotta (targhe, posti, categoria Excel, ID mezzo) e lo segnala con un avviso; lo trovi
+  anche nel registro. Ogni mezzo va al mezzo dell'agenda con la stessa targa, così le
+  prenotazioni già inserite restano sul pullman giusto. Il vecchio "Bus 79 posti" (senza
+  targa) diventa GM701RZ (81 posti): se c'erano prenotazioni su quella riga, controllale.
+  Due correzioni rispetto alla tabella: GP342L è stata scritta GP342PL (come nel foglio
+  "regole"; le targhe hanno 7 caratteri) e la SW DX285ME ha categoria "_3_posti", perché nel
+  fatturato la colonna Mezzo accetta solo le categorie del foglio "regole" (lì non c'è
+  "_4_posti"). Se servono diverse, si cambiano da Archivio › Anagrafica flotta.
+
+COME AGGIORNARE ALLA 1.8 (10 minuti, da 1.6, 1.7 o 1.7.1)
+----------------------------------------------------------
+(Chi parte da queste versioni carica direttamente la 2.5 e segue questi passi.)
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina tutto
+   il contenuto di questa cartella: i file (c'è un file nuovo: accessi.js) e le cartelle
+   vendor e icons. Se nel repository c'è una cartella "modelli", eliminala (vedi sopra).
+   Il file config.js NON è incluso apposta: su GitHub resta il vostro, con la chiave Dropbox.
+   (Non caricare un config.js senza chiave: dopo qualche ora i dispositivi perderebbero l'accesso.)
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda sul TUO Mac e ricarica (Cmd+Shift+R):
+   in alto deve comparire "v2.5".
+3. SUBITO compare "Crea l'account Master": scrivi il codice di accesso usato finora, il tuo
+   nome e cognome e una password (almeno 8 caratteri). Chi apre l'agenda per primo crea il
+   Master: per questo conviene farlo tu, appena caricati i file.
+4. Menu › Pannello Master › Utenti › "+ Nuovo utente": uno per ogni persona dell'ufficio.
+   La password viene proposta dall'app (puoi cambiarla): comunicala alla persona.
+   Se vuoi, in Dispositivi dai un nome ai dispositivi (es. "Mac ufficio", "iPhone Marco").
+5. Gli altri dispositivi si aggiornano da soli alla prima apertura: compare "Chi sei?", si
+   sceglie il proprio nome e si scrive la propria password. Le prenotazioni già sul
+   dispositivo e le modifiche fatte offline e non ancora inviate vengono conservate.
+6. Facoltativo: ricerca degli hotel su Google. Pannello Master › Impostazioni: lì ci sono
+   le istruzioni per ottenere la chiave Google (serve una volta sola).
+Solo per un'installazione nuova serve anche config.js: vedi "Passo 3" più sotto.
+
+UTENTI, MASTER E REGISTRO (dalla 1.8)
+-------------------------------------
+- Ognuno entra con il proprio nome e la propria password (anche senza internet, se il
+  dispositivo è già stato usato). "Esci" nel Menu torna alla schermata "Chi sei?".
+- Master (possono essere più di uno): Pannello Master nel Menu, con
+  · Utenti: aggiungi, modifica, cambia password, disattiva o elimina gli utenti normali.
+    Dalla 2.5 gli account Master e il profilo "solo anteprima e invio" si gestiscono solo
+    dall'account riservato. Deve restare sempre almeno un Master attivo.
+  · Dispositivi: chi è collegato, da quale dispositivo e quando. "Disconnetti" fa uscire
+    la persona da quel dispositivo; "Blocca" lo scollega del tutto da Dropbox (per un
+    telefono perso o un dispositivo che non deve più entrare).
+  · Registro: accessi, password sbagliate, prenotazioni create/modificate/eliminate (con i
+    valori prima → dopo), clienti, fogli stampati, impostazioni. Filtri e "Scarica CSV".
+    Lo vede solo il Master. I file sono in Dropbox, cartella "Agenda Flotta La Terra - registro".
+  · Log tecnico (dalla 2.0): i messaggi tecnici di tutti i dispositivi (Dropbox che non
+    risponde, problemi col file fatturato, errori del programma), con chi e da quale
+    dispositivo. Filtri per periodo e tipo, ricerca e "Scarica il log (.txt)": se qualcosa
+    non funziona, scaricalo e mandalo a chi ti segue l'app. In Dropbox è nella cartella del
+    registro, sottocartella "log-tecnico".
+  · Impostazioni: cosa possono fare gli utenti (anagrafica clienti, flotta, anagrafiche
+    referenti/guide/hotel e tendine), uscita automatica dopo un tempo senza attività,
+    chiave Google per gli hotel, file fatturato.
+- Utenti: lavorano sull'agenda; di serie possono anche modificare clienti, flotta e
+  anagrafiche (il Master può togliere questi permessi). Non vedono Pannello Master, registro, file
+  fatturato né "Scollega".
+- La protezione è quella dell'app: chi conosce la password dell'account Dropbox
+  dell'azienda può vedere tutti i file (registro compreso). Tieni quella password per te.
+
+STORICO DELLE VERSIONI
+- 3.0 (22/10/2026) · Le mie impostazioni (uscita automatica personale con il massimo del
+                     Master; punto esclamativo per utente: passate/future/entrambi/spento e
+                     controlli a scelta); riga dei prezzi del modulo sistemata; Fatturato per
+                     giorno, settimana, mese o tutti, in ordine di data con una riga per
+                     giorno, e ricerca per cliente in tutti i servizi; fatture emesse
+                     bloccate, correggibili con il motivo (file di prima in «sostituite»).
+- 2.9 (20/10/2026) · Fogli di servizio salvati da soli in Dropbox (sempre l'ultima versione,
+                     PDF vecchi cancellati da soli); Fatturato › Buste.
+- 2.8 (17/10/2026) · Extra del servizio con la causale spese (fatturato e bozza fattura);
+                     Salva e stampa; targa e ID mezzo nascosti di serie sul foglio; barra ferma in alto (Giorno e Settimana); anagrafica
+                     autisti nell'Archivio; PDF cancellati in Dropbox con la prenotazione;
+                     punti esclamativi rossi per prezzo, ora o codice cliente mancanti;
+                     casella dello stato su ogni servizio ("In attesa"); extra bus di altre
+                     aziende per un giorno; programma del foglio dinamico (niente pagina 2);
+                     giorni di riposo degli autisti; modello spese della busta (ex 2.7.2).
+- 2.7.1 (09/10/2026) · Spese, "Aperto dall'autista" e "Busta consegnata" arrivano subito
+                     (l'agenda resta in ascolto della cartella degli autisti); la finestra
+                     delle spese si aggiorna da sola. Aggiornamento di soli 3 file.
+- 2.7 (08/10/2026) · PAGINA AUTISTI: le crocette dei pasti del mese (pasto offerto e pasto
+                     libero) che gli autisti mettono nell'app, con i giorni di servizio e
+                     i totali; correzioni dell'ufficio con il nome di chi le fa.
+                   · PASTI SU OGNI SERVIZIO: Fatturato, modulo, vista Giorno, bozza fattura.
+                   · Il capo vede le crocette (senza correggerle).
+                   · FOGLI DI SERVIZIO: la copia salvata in Dropbox è sempre completa,
+                     con la copia ufficio ("_completo").
+                   · USCITA AUTOMATICA anche riaprendo l'agenda dopo il tempo scelto (prima il
+                     conteggio ripartiva da zero) e appena l'agenda torna in primo piano.
+- 2.6 (08/10/2026) · BOZZA FATTURA: tipo solo Fattura o Nota di credito; la causale diventa
+                     la descrizione della riga del noleggio (nel file XML una volta sola);
+                     caselle che si allungano con il testo.
+                   · FILE XML con il nome del foglio di servizio, in Fatture XML › anno ›
+                     mese › giorno.
+                   · PAGINA FATTURATO: colonna "Fattura" (da fatturare, bozza, emessa) e
+                     filtri per stato con totali; colonne più compatte.
+                   · MEMORIA dei testi già scritti (suggerimenti mentre si scrive).
+                   · PARCHEGGI: anagrafica parcheggi, tendina e più parcheggi nella
+                     prenotazione, righe di rimborso in fattura con l'IVA della ricevuta.
+                   · BUSTA anche per gite, notturni e transfer ("Busta per l'autista").
+                   · VERSIONE MINIMA: le pagine rimaste aperte con una versione vecchia
+                     (dalla 2.6 in poi) smettono di salvare e chiedono di ricaricare.
+                   · Nuovi file in Dropbox: config/anagrafica-parcheggi.json,
+                     config/suggerimenti-tolti.json, config/versione-minima.json.
+- 2.5 (07/10/2026) · INVIA ALL'AUTISTA: dalla finestra del foglio di servizio il PDF (solo
+                     la parte per l'autista) e i dati del servizio vanno al telefono
+                     dell'autista, in una cartella Dropbox separata ("Autisti La Terra").
+                     Prezzi e parte contabile non vengono mai inviati.
+                   · STATO sulla prenotazione: Inviato / Aperto dall'autista / Busta
+                     consegnata, più "Da reinviare" e "Ritirato".
+                   · SPESE DELL'AUTISTA per i tour con busta: importi, foto degli
+                     scontrini, km e note.
+                   · ACCOUNT: i Master gestiscono solo gli utenti normali e non possono più
+                     eliminarsi o bloccarsi a vicenda; account Master e telefoni degli
+                     autisti si gestiscono dall'account riservato dell'amministratore.
+                   · Profilo "SOLO ANTEPRIMA E INVIO" (il capo): una schermata sola con i
+                     servizi del giorno, Anteprima e Invia.
+                   · LA SCELTA DEL CAPO: quando invia, il capo decide bus e autisti. La
+                     scelta vale in tutta l'agenda (viste, foglio, fatturato); dopo,
+                     l'ufficio non può più cambiare bus e autisti di quel servizio né
+                     inviare o ritirare il foglio.
+                   · Telefoni degli autisti collegati con codice QR o link, senza
+                     password di Dropbox; "Blocca" scollega un telefono solo.
+                   · "Invia…" nel foglio si chiama ora "Condividi PDF…".
+                   · File nuovi: autisti.js e vendor/qrcode.js. In Dropbox il file
+                     config/autisti.json e la cartella App › Autisti La Terra.
+- 2.4 (06/10/2026) · BOZZA FATTURA: nella vista Fatturato, accanto a "Foglio di servizio",
+                     il tasto "Bozza Fattura" prepara la fattura del servizio con i dati
+                     dell'agenda e dell'anagrafica clienti; con le caselle a sinistra si fa
+                     una fattura unica di più servizi dello stesso cliente. Finestra con i
+                     dati da correggere e, accanto, l'anteprima impaginata come la fattura
+                     che riceve il cliente. "Salva bozza", "Stampa anteprima" e "Crea file
+                     XML" (formato della fattura elettronica) da mandare alla contabilità.
+                     Prezzi IVA compresa scorporati, IVA diversa riga per riga, enti pubblici
+                     con scissione dei pagamenti e CIG, sconti, arrotondamenti, bollo.
+                   · SEZIONE CONTABILITÀ in Archivio: dati societari, aliquote IVA, causali,
+                     pagamento, sconti e arrotondamenti.
+                   · Due permessi nuovi nel Pannello Master › Impostazioni; nel registro la
+                     voce "Fatture" (bozze, file XML, modifiche alla Contabilità).
+                   · File nuovo: fatture.js. In Dropbox le cartelle "bozze-fatture" e
+                     "Fatture XML" e il file config/contabilita.json.
+                   · Dettagli e istruzioni in "BOZZE DI FATTURA E CONTABILITÀ" più sopra.
+                   CORREZIONE
+                   · Sincronizzazione: un file di configurazione scritto male in Dropbox non
+                     ferma più l'aggiornamento degli altri file (viene segnalato e saltato).
+- 2.3.1 (06/10/2026) · FOGLIO DI SERVIZIO, riga Hotel: il nome dell'hotel esce senza le stelle
+                     della categoria ("****", "★★★", "4*", "5*L", "4 stelle superior") e
+                     senza le parole "Hotel" e "Albergo" (la riga si chiama già "Hotel 1").
+                     Esempi: "Hotel Olimpo Le Terrazze ****" → "Olimpo Le Terrazze";
+                     "Caesar Palace Hotel" → "Caesar Palace"; "Grand Hotel Villa Politi" →
+                     "Grand Villa Politi". Non si tocca quando "Hotel" è attaccato a
+                     un'altra parola ("Park-Hotel", "UNAHOTELS") e, se togliendo tutto non
+                     resterebbe niente, il nome resta scritto. Vale anche nell'elenco degli
+                     hotel della pagina 2. Nel modulo, in anagrafica hotel e nelle
+                     prenotazioni il nome resta scritto per intero: cambia solo il foglio.
+- 2.3 (06/10/2026) · FOGLIO DI SERVIZIO sul modello nuovo (excel_test_b del 06/10):
+                     referente, guida e hotel hanno una sola casella larga, scritta da
+                     sinistra, con le voci in fila separate da " - ":
+                     Ref.te = ruolo - nome - note; Guida = città - nome - note;
+                     Hotel = città - nome - indirizzo. Poi, come prima, "Tel." e il numero.
+                     Così l'indirizzo dell'hotel ha tutta la larghezza del foglio: resta
+                     grande finché ci sta, se è molto lungo si stringe e solo se non ci sta
+                     nemmeno così viene accorciato con "…" (per intero è nella pagina 2).
+                   · FOGLIO DINAMICO: le righe non compilate non compaiono. Resta sempre
+                     "Ref.te 1" (anche vuota); "Ref.te 2", "Guida 1", "Guida 2", "Hotel 1",
+                     "Hotel 2" ci sono solo se scritti nella prenotazione. Dal 3° in poi,
+                     come prima, una riga in più sotto la precedente.
+                   · Colonne del modello nuovo: alcune etichette ("Passeggeri", "Autista",
+                     "Telefono", "Parcheggi", "Prezzo i.c.") sono più larghe della loro
+                     casella. Sul foglio restano intere: il valore accanto si sposta un po'
+                     a destra e, solo se insieme non ci stanno (per esempio un autista dal
+                     nome lungo), si stringono etichetta e nome.
+                   · MODULO: nella riga dell'hotel il campo "Indirizzo" è più largo.
+- 2.2 (02/10/2026) · VISTA GIORNO: ogni servizio su una riga a colonne fisse: riquadro dello
+                     stato, ora di inizio, ora di fine, durata (gite e transfer in ore, es.
+                     "9h30"; tour e notturni il giorno del servizio, es. "2/3"), cliente in
+                     grassetto (l'alias, se c'è), itinerario, autista. Il tipo di servizio si
+                     riconosce dal colore. N. foglio, passeggeri, importi e autisti sono nel
+                     riquadro che compare fermando il mouse sulla riga.
+                   · ELENCO MEZZI su una riga in tutte le viste ("81 p. - GM701RZ (50)") e
+                     meno spazio tra i mezzi e i servizi in Giorno, Settimana e Mese.
+                   · "Fatturato" staccato da Giorno / Settimana / Mese.
+                   · CONFERMA: le prenotazioni nuove nascono "In sospeso". Nella vista Giorno
+                     il riquadro a sinistra di ogni servizio è verde con la spunta se è
+                     confermato, giallo con "?" se è in sospeso: un clic sul riquadro conferma
+                     (o rimette in sospeso) senza aprire la prenotazione. Lo stesso segno, in
+                     piccolo, nella Settimana. Nel fatturato i servizi in sospeso hanno
+                     "IN SOSPESO" all'inizio delle note.
+                   · MODULO: si apre su "Gita"; orari a passi di 15 minuti (scrivendo a mano
+                     si possono mettere anche altri minuti); ora di rientro anche per i
+                     Transfer; riquadro "Foglio di servizio per l'autista" più grande; tolti
+                     il campo "Note" in alto (si vede solo nelle prenotazioni vecchie che lo
+                     hanno compilato) e il pulsante "+ Autista Generico 2".
+                   · ALIAS: nell'anagrafica clienti la colonna "Referente" diventa "Alias"
+                     (colonna "Alias Sara" del foglio clienti). Giorno e Settimana mostrano
+                     l'alias quando c'è. Nel foglio di servizio la tendina "Intestazione"
+                     sceglie Cliente o Alias; la parte contabile e il fatturato hanno sempre
+                     e solo la ragione sociale.
+                   · FOGLIO DI SERVIZIO sul modello nuovo (automatico_2026_neutro del 02/10):
+                     Referente = ruolo, nome, note, telefono; Guida = città, nome, note,
+                     telefono; Hotel = città, nome, indirizzo, telefono. Il 3°, 4°… referente
+                     (guida, hotel) va nella riga subito sotto il precedente, non più nella
+                     pagina 2. Note: una riga per ogni nota (causale e testo); senza note
+                     resta solo "Note 1" vuota. Durata in ore per gite e transfer ("9 ore
+                     30'"), in giorni per tour e notturni. Tendina "Stampa": Solo foglio per
+                     l'autista / Con la parte contabile / Solo parte contabile. Non c'è più
+                     la "versione Hotel": il modello è uno solo.
+                   CORREZIONI (trovate nel controllo prima della consegna)
+                   · I modelli Excel non si pubblicano più sul sito: quelli vecchi contenevano
+                     una copia dei dati del fatturato (vedi "COME AGGIORNARE", punto 7).
+                   · Gita o transfer che passa la mezzanotte (es. 23:30 → 00:45): durata in
+                     ore sia nella vista sia sul foglio.
+                   · Hotel scritti con le versioni vecchie ("Nome – indirizzo, città" tutto
+                     nel nome): sul foglio vengono divisi nelle colonne giuste.
+                   · Se una nota o un telefono non entra nella casella del foglio, il testo
+                     intero va nella pagina 2 (prima succedeva solo per hotel e programma).
+                   · Importi negativi o scritti male e orari lasciati a metà non si salvano
+                     più: il modulo indica il campo da correggere.
+                   · "Invia…" dal telefono: il nome del file e il registro dicono se il
+                     foglio è con la parte contabile.
+                   · Vista Giorno con la tastiera: quando la schermata si aggiorna da sola
+                     il servizio selezionato resta selezionato.
+- 2.1 (02/10/2026) · SICUREZZA (prova d'attacco sulla 2.0: 12 problemi, tutti corretti)
+                     Chi può scrivere nella cartella Dropbox dell'app (un dispositivo collegato,
+                     anche di un utente normale) poteva, scrivendo a mano certi file:
+                     V1 far eseguire codice a tutti con un ID mezzo scritto apposta nella flotta;
+                     V2 lasciare l'agenda senza nessun Master (due Master che si tolgono il
+                        ruolo a vicenda nello stesso momento);
+                     V3 bloccare l'avvio su tutti i dispositivi con un mezzo "vuoto" nella flotta;
+                     V4 bloccare «Entra» con una password dal numero di passaggi enorme;
+                     V5 far diventare formule di Excel i testi di «Copia righe» (e del CSV del
+                        registro) che cominciano con = + - @;
+                     V6 far salvare il PDF fuori dalla cartella dei fogli con un n. foglio "../";
+                     V7 mostrare l'agenda dentro la pagina di un altro sito (clic guidati);
+                     V8 mancava la regola del browser (CSP) che vieta codice estraneo; JSZip
+                        arrivava da un sito esterno;
+                     V9 bloccare l'app con un file fatturato "bomba" o farlo riscrivere peggio
+                        se arrivato a metà;
+                     V10 rompere «Chi sei?» con un elenco utenti scritto male;
+                     V11 far comparire «Collega Dropbox» a chi è già collegato con un indirizzo
+                        di accesso sbagliato;
+                     V12 rompere una tabella dell'Archivio con una riga "vuota".
+                     Ora: ogni file letto da Dropbox (flotta, utenti, impostazioni, giornate,
+                     anagrafiche, registro) viene controllato e si tiene solo quello che ha la
+                     forma giusta; se un file è rovinato resta l'ultima versione buona e un
+                     avviso dice come ripristinarlo (dropbox.com › il file › Cronologia delle
+                     versioni). L'elenco utenti vale solo se è tutto in ordine e ha almeno un
+                     Master: altrimenti non viene né usato né riscritto ("Elenco utenti non
+                     valido"). Deve sempre restare almeno un Master (controllo fatto sul file,
+                     non solo sullo schermo). Il file fatturato si legge fino a un limite e non
+                     si riscrive se è incompleto ("non l'ho toccato" nella vista Fatturato).
+                     La pagina esegue solo i propri file e non si apre dentro altri siti.
+                   · CORREZIONI DAL LOG DEL 01/10
+                     - Subito dopo l'aggiornamento alla 2.0 i pulsanti non rispondevano
+                       (errore "app.js:1095"): il sito aveva dato il programma nuovo con la
+                       pagina ancora vecchia. Ora l'app controlla che tutti i file siano della
+                       stessa versione: se no mostra "Aggiornamento in corso" e riprova da sola.
+                     - Ricerca hotel: "Google ha rifiutato la ricerca". Se nella chiave è
+                       autorizzato l'indirizzo completo dell'agenda (…/agenda-flotta/*) invece
+                       del solo sito, ora l'app se ne accorge e funziona lo stesso. Negli altri
+                       casi il messaggio dice il motivo esatto (sito non autorizzato, Places API
+                       (New) non attiva nel progetto, chiave non abilitata a quella API) e la
+                       risposta di Google resta nel log tecnico.
+                     - Vista Fatturato: se le righe restano "da scrivere" perché il file non
+                       si può aggiornare, ora accanto c'è scritto il perché.
+                   Limiti che restano (non sono errori): ruoli e registro sono protetti
+                   dall'app, non da Dropbox: chi ha la password dell'account Dropbox, o sa usare
+                   gli strumenti del browser su un dispositivo collegato, può leggere e cambiare
+                   i file. Collegate solo dispositivi di persone di fiducia e bloccate dal
+                   Pannello Master quelli persi.
+- 2.0 (01/10/2026) · ARCHIVIO: i pulsanti "Flotta" e "Clienti" diventano un unico pulsante
+                     "Archivio" con: anagrafica clienti, flotta, referenti (cliente, città,
+                     nome, telefono), guide (nome, regione, città, telefono), hotel (regione,
+                     città, nome, indirizzo, telefono), tendina note (parcheggi, autista,
+                     3 ore, extra 1, extra 2) e tendina ruolo (contabile, ufficio, operativo,
+                     sul bus). Le anagrafiche sono condivise da tutti i dispositivi; si
+                     modificano direttamente nella tabella. I referenti, le guide e gli hotel
+                     scritti nelle prenotazioni si aggiungono da soli.
+                   · Modulo della prenotazione: riga Referente 1 (nome in grassetto, ruolo,
+                     telefono, note) con la tendina dell'anagrafica referenti (prima quelli
+                     del cliente scelto) e "+ Aggiungi referente" subito sotto; righe Guida
+                     (nome, città, telefono, note) e Hotel (nome, città, indirizzo, telefono)
+                     con le loro anagrafiche (hotel anche da Google Maps) e i pulsanti "+"
+                     subito sotto. Tolto il campo "Accompagnatore".
+                   · Foglio di servizio: "Referente 1°" è il referente 1 della prenotazione
+                     (prima era il referente scritto nell'anagrafica clienti), "Referente 2°"
+                     il secondo; gli altri vanno nella pagina 2.
+                   · Saldo da ricevere, € Saldo e note per l'autista fuori dal riquadro
+                     "Foglio di servizio per l'autista". Le note sono righe "Note 1, Note 2…"
+                     con Causale (tendina note) e testo, più "+ Aggiungi note". Sul foglio di
+                     servizio parcheggi → Note 1° park, autista → Note 2°, 3 ore → Note 3°,
+                     extra 1, extra 2 e le altre causali → Note 4° extra.
+                   · Foglio di servizio: casella "Bus" con il nome della flotta (es. "81
+                     posti" invece di "_81_posti"); opzioni "Nascondi Targa e ID Mezzo" e
+                     "Con la parte contabile". PDF salvati in Dropbox in cartelle
+                     Fogli di servizio / anno / mese / giorno (es. 2026 / 10 - Ottobre / 01).
+                   · Vista Settimana: nella fascia grigia solo la settimana (28 settembre –
+                     4 ottobre). Vista Mese: fascia grigia con mese e anno in arancione.
+                   · Schermata di accesso rinnovata.
+                   CORREZIONI
+                   · Notturno con rientro dopo mezzanotte (es. partenza 01/10 ore 17:00,
+                     rientro ore 01:00): la data di rientro passa da sola al giorno dopo,
+                     con l'indicazione "giorno dopo".
+                   · Modifica di una prenotazione già salvata: prima di salvare l'app chiede
+                     conferma mostrando cosa cambia (prima → dopo).
+                   · Foglio di servizio sul Mac: alcune scritte venivano tagliate con "…"
+                     (es. "Nu…", "Note 4° ext…") perché il Mac non ha il font Calibri e
+                     per un errore di arrotondamento; ora anteprima e stampa usano lo stesso
+                     font del PDF e le scritte restano intere.
+                   · Anagrafiche: scrivendo veloce in una riga nuova non si creano più
+                     doppioni; se due persone modificano la stessa riga restano le modifiche
+                     di entrambe.
+                   · Scegliendo il cliente, il suo telefono non finisce più nel telefono del
+                     referente (sul foglio compariva due volte).
+                   · Log tecnico nel Pannello Master (vedi sopra).
+- 1.9 (30/09/2026) · Home: mese/anno e pulsanti sulla stessa riga, senza legenda. Conteggi
+                     G/A/S/M (M = mezzi, prima P pullman).
+                   · Fascia grigia del giorno: giorno e data sulla stessa riga e della stessa
+                     grandezza; la domenica in rosso (senza etichetta); "5 mezzi" al posto di
+                     "5/26 mezzi impegnati"; autisti, servizi e mezzi separati dai numeri di
+                     gite, tour, notturni e transfer.
+                   · Vista Giorno: niente fasce "Bus" e "Auto e van"; ogni mezzo su una riga
+                     (81 posti - GM701RZ (50)); l'anteprima del servizio arriva fino a
+                     "Aggiungi" con le informazioni principali su una riga (col mouse sopra
+                     si legge tutto).
+                   · Flotta: dati aggiornati al 30/09/2026 e nuova colonna "ID mezzo", che va
+                     anche nella casella "Numero" del foglio di servizio.
+                   · Foglio di servizio: pulsante "‹ Torna alla prenotazione" per modificarla.
+- 1.8 (30/09/2026) · Utenti con nome e password al posto del codice unico; account Master
+                     (anche più di uno) con Pannello Master: utenti, dispositivi collegati
+                     (Disconnetti, Blocca), registro nascosto di accessi e modifiche,
+                     impostazioni e permessi degli utenti. Uscita automatica facoltativa.
+                   · Foglio di servizio "versione Hotel": se la prenotazione ha almeno un
+                     hotel si usa il modello neutro_versione_hotel (etichetta "Versione Hotel"
+                     nell'anteprima). Ogni hotel ha la sua riga, una sotto l'altra (1° Hotel,
+                     2° Hotel…), con indirizzo e telefono; con tanti hotel il foglio resta
+                     su una pagina A4. Senza hotel resta il modello di sempre.
+                   · Hotel: scrivendo il nome compare la tendina con gli hotel già usati e
+                     quelli di Google Maps (con la chiave Google): scegliendone uno si
+                     compilano nome, indirizzo e telefono.
+                   · Anagrafica clienti: "Modifica dati" nella scheda del cliente. Si scrivono
+                     nel fatturato solo i dati cambiati; il codice Multi non si cambia. Se lo
+                     stesso dato è stato cambiato anche nel file Excel, resta quello del file
+                     e compare un avviso.
+                   · Il Master vede nella prenotazione chi l'ha creata e chi l'ha modificata.
+- 1.7.1 (30/09/2026) Unisce le due versioni 1.7: le novità chieste e le correzioni dello
+                   stress test. Chi aveva installato una delle due 1.7 passa a questa.
+                   NOVITÀ
+                   · Tour: nelle viste Giorno, Settimana e Mese ogni giorno mostra il suo
+                     programma (cosa fa il mezzo quel giorno) invece del percorso generico.
+                   · Tour con "Busta SI": il N. busta si compila da solo con il numero
+                     successivo dell'anno (si può cambiare).
+                   · Nuovo cliente: Codice Multi (proposto il primo libero, modificabile,
+                     niente doppioni) e Codice univoco (SDI). Se nel foglio "clienti" manca
+                     la colonna del codice univoco, l'app la aggiunge in fondo alla tabella.
+                     Codice Multi e SDI compaiono nella copia ufficio del foglio di servizio.
+                   · Foglio di servizio: pulsante "Stampa" (A4, come il PDF; per i tour
+                     lunghi stampa anche la pagina 2 col programma completo) al posto di
+                     "Salva Excel".
+                   · Modulo del servizio riorganizzato: Mezzo e Passeggeri affiancati,
+                     date e ore in una riga, "Anteprima itinerario", Referente nome |
+                     Referente telefono | Stato in una riga, "Note".
+                   · Autisti: tendina con i 21 autisti per esteso, nell'ordine stabilito,
+                     in verde scuro / rosso scuro (più Autista Generico 1 e 2). Nel
+                     conteggio A i nomi vecchi abbreviati (es. "Campo G.") valgono come
+                     il nome per esteso.
+                   CORREZIONI (stress test: 26 problemi più 7 trovati durante le prove)
+                   · un errore momentaneo di Dropbox non fa più perdere le prenotazioni fatte dagli
+                     altri dispositivi; l'app riprova da sola e scarica 4 giornate alla volta
+                     (primo avvio circa 4 volte più veloce);
+                   · un dispositivo nuovo non propone più di creare un codice di accesso nuovo se non
+                     riesce a leggere quello esistente: il codice aziendale non si sovrascrive mai;
+                   · il fatturato non si rovina più con caratteri invisibili copiati da Word/WhatsApp,
+                     con testi lunghissimi o con le formule "trascinate" di Excel;
+                   · date controllate: l'anno deve essere tra 2000 e 2099 (niente 0026 o 20266);
+                   · servizio annullato: se l'ufficio aveva già scritto qualcosa sulla riga (fattura,
+                     spese) la riga resta con la nota "ANNULLATO" o "SPOSTATO" e non viene mai data a un
+                     altro servizio; se era vuota si svuota del tutto (niente "1 giorno" su righe vuote);
+                   · righe ritornate nel fatturato (per esempio salvando in Excel una copia vecchia):
+                     l'app le riconosce e le toglie di nuovo;
+                   · più persone sulla stessa prenotazione: le modifiche si uniscono invece di
+                     cancellarsi; una prenotazione eliminata non torna in vita; niente doppioni quando
+                     uno sposta e l'altro modifica; gli "Autisti extra" scritti da due persone si uniscono;
+                   · n. foglio: finché la prenotazione non è arrivata in Dropbox il foglio di servizio
+                     è segnato PROVVISORIO; "Salva e apri foglio" aspetta qualche secondo la conferma;
+                     se il numero cambia compare un avviso;
+                   · Flotta: ogni riga è legata al suo mezzo, le modifiche di altri non si perdono;
+                   · modulo prenotazione: se chiudi (Esc, Chiudi, clic sullo sfondo) con dati non salvati
+                     chiede conferma; selezionare un testo trascinando non chiude più il modulo;
+                   · avviso se lo stesso autista è già su un altro servizio negli stessi giorni;
+                   · archivio sul dispositivo in IndexedDB: nessun limite pratico, l'agenda si apre
+                     offline anche con anni di dati; viste Mese/Settimana molto più veloci;
+                   · foglio di servizio PDF: font con tutte le lettere europee, greche e cirilliche
+                     (Łukasz, Szczęsna, Göktaş…); se il programma non entra nelle 7 righe c'è la pagina 2
+                     con il programma completo;
+                   · una richiesta a Dropbox rimasta appesa (Wi-Fi debole) non blocca più la
+                     sincronizzazione; una modifica inviata due volte per un problema di rete non viene
+                     applicata due volte;
+                   · "Continua in questa finestra" e "Ricollega Dropbox" non perdono più le modifiche
+                     non ancora inviate; clienti nuovi non scritti si possono riprovare, annullare o,
+                     se il Codice Multi era già stato preso da un altro, correggere;
+                   · la schermata del codice copre anche l'anagrafica clienti; ricerca clienti corretta
+                     con apostrofi e &; in alto "fatturato: N in attesa" quando ci sono righe da scrivere.
+- 1.6 (30/09/2026) · Conteggi G/A/S/P sotto i giorni del mese (autisti, servizi,
+                     pullman impegnati), con la colonna G/A/S/P fissa; clic su G per
+                     nasconderli o mostrarli. Il puntino arancione = autisti da assegnare.
+                   · Autista Generico 1 (già messo in ogni nuova prenotazione) e
+                     Autista Generico 2 (tasto sotto il 2° autista): contano nel
+                     conteggio A ma nel fatturato la casella autista resta vuota.
+                   · Solo 4 categorie: Gita (giallo), Tour (verde), Notturno (blu scuro,
+                     con Evento e Accompagnatore), Transfer (arancione). Le prenotazioni
+                     già salvate passano da sole alla categoria nuova.
+                   · Data di rientro in tutte le categorie: il servizio compare e viene
+                     contato in ogni giorno, e va nella colonna Fine del fatturato.
+                   · Barra del giorno e giorno selezionato in grigio, uguale per tutti
+                     i mesi.
+                   · Foglio di servizio col vostro modello "automatico_2026_neutro.xlsx"
+                     (cartella modelli), che non viene modificato: l'app compila solo le
+                     caselle. PDF e anteprima con lo stesso impaginato, su una pagina A4.
+                     Finestra di anteprima molto più grande. Nuovo campo "€ Saldo".
+                   · Pulsante "Clienti": tutta l'anagrafica con ricerca e scheda completa.
+                     "+ Nuovo cliente" scrive il cliente in fondo al foglio "clienti" del
+                     fatturato con il codice successivo (anche dalla prenotazione, quando
+                     il cliente non si trova). Doppioni bloccati per P.IVA / C.F. / nome.
+- 1.5 (29/09/2026) Schermo intero sul computer: l'agenda usa tutta la larghezza del
+                   monitor, senza spazio vuoto ai lati. Vista Giorno con i servizi
+                   dello stesso mezzo affiancati; Settimana, Mese e Fatturato da
+                   bordo a bordo; testi un po' più grandi sui monitor molto larghi.
+                   Su portatili piccoli e telefono l'aspetto non cambia.
+                   Nuova icona dell'app con il logo La Terra (Dock del Mac,
+                   schermata Home del telefono, scheda di Chrome).
+- 1.4 (29/09/2026) Correzioni dopo il beta test:
+                   · un n. foglio già scritto a mano nel fatturato non viene mai
+                     sovrascritto: l'app usa il numero libero successivo;
+                   · un file fatturato per anno: ogni servizio va nel file del suo
+                     anno (prima il file nuovo riceveva anche i servizi vecchi);
+                   · una sola finestra attiva per dispositivo (prima due finestre
+                     aperte potevano perdere o duplicare le modifiche offline);
+                   · una prenotazione non cambia più numero dopo un errore di rete;
+                   · salvataggio che restava bloccato su "Sincronizzazione…";
+                   · se Dropbox è occupato riprova dopo 3, 10 e 30 secondi;
+                   · gli aggiornamenti pubblicati su GitHub arrivano subito;
+                   · cambiando targa o categoria di un mezzo si aggiornano anche
+                     le righe già presenti nel fatturato;
+                   · PDF dei tour lunghi: intestazione anche sulle pagine seguenti;
+                   · stato in alto più chiaro (permessi mancanti, Dropbox occupato).
+- 1.3 (29/09/2026) Se Dropbox rifiuta l'accesso, l'app mostra il motivo esatto
+                   (per esempio permessi mancanti) con i pulsanti Riprova e
+                   Ricollega Dropbox. Numero di versione visibile nell'app.
+- 1.2 (29/09/2026) Istruzioni per GitHub Pages. Accesso a Dropbox corretto anche
+                   aprendo l'indirizzo che finisce con /index.html.
+- 1.1 (29/09/2026) Dropbox con accesso solo alla cartella dell'app ("App folder").
+- 1.0 (29/09/2026) Prima versione collegata a Dropbox.
+
+
+COME METTERLA IN FUNZIONE
+=========================
 
 Come funziona
 -------------
 - L'app usa SOLO la sua cartella di Dropbox: Dropbox › Applicazioni › Agenda La Terra
   (in inglese: Apps › Agenda La Terra). Non può vedere né modificare nessun altro file
-  del vostro Dropbox. Lì dentro salva prenotazioni, flotta, codice di accesso e fogli
-  di servizio, e lì mettete il file fatturato che l'app deve aggiornare.
+  del vostro Dropbox. Lì dentro salva prenotazioni, flotta, utenti (solo le impronte
+  cifrate delle password), registro e fogli di servizio, e lì mettete il file fatturato
+  che l'app deve aggiornare.
 - Ogni prenotazione salvata viene scritta da sola nel file "fatturato 2026.xlsx",
   una riga per n. foglio. Se modifichi o elimini la prenotazione, la riga si aggiorna
-  o si svuota. Ogni 5 minuti l'app controlla che nel fatturato ci siano tutti i servizi
+  o si svuota (se l'ufficio ci aveva già scritto la fattura o le spese, resta con la nota ANNULLATO). Ogni 5 minuti l'app controlla che nel fatturato ci siano tutti i servizi
   e rimette quelli mancanti.
 - Clienti, autisti e targhe vengono letti dal fatturato (fogli "clienti" e "regole"):
-  se aggiungi un cliente nell'Excel, dopo pochi minuti lo trovi nell'app.
+  se aggiungi un cliente nell'Excel, dopo pochi minuti lo trovi nell'app. I clienti nuovi
+  si possono aggiungere anche dall'app (Archivio › Anagrafica clienti › + Nuovo cliente): vengono
+  scritti nel foglio "clienti" del file fatturato dell'anno in corso.
 - Mac e telefoni si aggiornano tra loro in pochi secondi. Senza internet si continua
   a lavorare: le modifiche partono appena torna la connessione.
 
@@ -27,7 +1175,7 @@ Usate un repository NUOVO, separato da quello dell'app presenze, così non la to
    - Nome: agenda-flotta
    - Visibilità: "Public" (con GitHub gratuito le Pages funzionano solo con repository
      pubblici; nel codice non ci sono password né dati: i dati restano nel vostro Dropbox
-     e per entrare servono l'accesso Dropbox e il codice).
+     e per entrare servono l'accesso Dropbox e nome e password).
    - Spunta "Add a README file" → "Create repository".
 3. Nel repository: "Add file" → "Upload files" → trascina TUTTO il CONTENUTO della cartella
    (index.html, app.js, le cartelle icons e vendor, ecc.; non la cartella stessa)
@@ -58,6 +1206,12 @@ PASSO 2 – Crea l'app Dropbox (gratuito)
 PASSO 3 – Inserisci la chiave
 -----------------------------
 1. Su GitHub, nel repository agenda-flotta, apri il file config.js → icona matita (Edit).
+   Se config.js non c'è (installazione nuova dalla 1.7): "Add file" → "Create new file",
+   nome config.js, e incolla queste righe:
+      window.AGENDA_CONFIG = {
+        dropboxAppKey: "",
+        folder: "/Agenda Flotta La Terra"
+      };
 2. Incolla la App key tra le virgolette:
       dropboxAppKey: "la-tua-app-key",
 3. "Commit changes". Dopo 1–2 minuti l'app aggiornata è online.
@@ -70,14 +1224,15 @@ PASSO 4 – Primo avvio (sul primo Mac)
 3. Ora in Dropbox compare la cartella Applicazioni › Agenda La Terra. Copiaci dentro il
    file fatturato (per le prove, una COPIA del fatturato), poi nell'app premi "Cerca"
    e sceglilo.
-4. Crea il codice di accesso (almeno 6 caratteri): varrà su tutti i dispositivi.
+4. Crea l'account Master (il tuo nome e una password di almeno 8 caratteri), poi scegli
+   il file fatturato. Dal Menu › Pannello Master › Utenti crea gli utenti dell'ufficio.
 5. Installa l'app: icona "Installa" a destra nella barra dell'indirizzo di Chrome.
    Da quel momento la trovi tra le applicazioni del Mac.
 
 
 PASSO 5 – Gli altri Mac e i telefoni
 ------------------------------------
-- Mac: apri l'indirizzo in Chrome → "Collega Dropbox" → inserisci il codice → Installa.
+- Mac: apri l'indirizzo in Chrome → "Collega Dropbox" → "Chi sei?": nome e password → Installa.
 - Android: apri l'indirizzo in Chrome → menu ⋮ → "Installa app".
 - iPhone: apri l'indirizzo in Safari → Condividi → "Aggiungi alla schermata Home",
   poi apri l'app dalla schermata Home e fai lì "Collega Dropbox".
@@ -93,12 +1248,80 @@ Uso quotidiano
 - In alto: "Sincronizzato" = tutto salvato in Dropbox. "Offline · 2 modifiche da inviare"
   = partiranno appena torna internet.
 - Vista "Fatturato": mostra quando il file è stato aggiornato l'ultima volta.
-- Foglio di servizio: dal modulo "Salva e apri foglio di servizio". "Salva PDF" mette una
+- Foglio di servizio: dal modulo "Salva e apri foglio di servizio". Se sei offline il n. foglio è
+  PROVVISORIO (scritto sul foglio e nel nome del file): appena torna la connessione diventa definitivo. "Salva PDF" mette una
   copia in Dropbox → Applicazioni → Agenda La Terra → Agenda Flotta La Terra →
-  Fogli di servizio → anno, e la scarica sul
+  Fogli di servizio → anno → mese → giorno del servizio, e la scarica sul
   dispositivo. Dal telefono c'è anche "Invia…" per mandarlo su WhatsApp all'autista.
-- Menu: Blocca, Aggiorna adesso, Cambia file fatturato (a inizio anno), Cambia codice,
-  Scollega questo dispositivo (se un telefono viene perso o cambia utente).
+  Il PDF e la stampa usano l'impaginato del vostro modello automatico_2026_neutro
+  (è dentro il programma: il file Excel non serve sul sito). In alto nell'anteprima:
+  "Intestazione" (Cliente o Alias; la scelta resta su quel dispositivo), "Nascondi Targa e
+  ID Mezzo" e "Stampa" (solo foglio per l'autista, con la parte contabile, solo parte
+  contabile). Nella parte contabile c'è sempre la ragione sociale, mai l'alias.
+- Stato delle prenotazioni: nuova = "In sospeso". Vista Giorno: riquadro verde con la spunta
+  = confermata, giallo con "?" = in sospeso; un clic sul riquadro cambia lo stato (serve
+  poter modificare l'agenda). Lo stato si cambia anche dal modulo (campo "Stato").
+- Orari: con le frecce o con il selettore di Chrome vanno di 15 minuti in 15; scrivendo i
+  numeri a mano si può mettere qualsiasi minuto (es. 07:40).
+- Conteggi G/A/S/M: A = autisti (un autista con nome conta una volta al giorno, ogni
+  generico o servizio senza autista conta uno), S = servizi, M = mezzi impegnati
+  (auto e van compresi).
+- Flotta: nome, posti, categoria Excel, targa e ID mezzo (l'ID compare nella vista Giorno,
+  "81 p. - GM701RZ (50)", e come "Numero" nel foglio di servizio).
+- Archivio (pulsante in alto): anagrafica clienti, flotta, referenti, guide, hotel e le
+  due tendine (note e ruolo). Nelle anagrafiche e nelle tendine scrivi direttamente nella
+  tabella: ogni casella si salva appena passi alla successiva ("Salvato."); "+ Nuovo"
+  aggiunge una riga, × la elimina. Serve internet. "‹ Archivio" torna all'elenco.
+- Clienti: Archivio › Anagrafica clienti. "+ Nuovo cliente" chiede anche il Codice Multi
+  (colonna Codice del foglio clienti) e il Codice univoco (SDI). Se aggiungete altre
+  colonne alla tabella clienti (per esempio "PEC"), compaiono da sole nel modulo.
+- Autisti: nel fatturato l'app scrive il nome per esteso (es. "Campo Gianfranco").
+  Conviene aggiornare con i nomi per esteso anche l'elenco AUTISTA del foglio "regole",
+  così la tendina di Excel corrisponde.
+- Foglio di servizio: "Stampa" stampa il foglio come nell'anteprima (su iPhone si apre
+  il PDF: Condividi › Stampa). "‹ Torna alla prenotazione" riapre la prenotazione.
+- Sul foglio di servizio referenti, guide e hotel compaiono solo se scritti (resta sempre
+  la riga "Ref.te 1"); ognuno ha una casella larga: "ruolo - nome - note" per il referente,
+  "città - nome - note" per la guida, "città - nome - indirizzo" per l'hotel. Il nome
+  dell'hotel esce senza stelle e senza le parole "Hotel" / "Albergo" (dalla 2.3.1).
+- Referente, Guida, Hotel: nel modulo scrivi il nome (o, per il referente, clicca sulla
+  casella: compaiono i referenti del cliente) e scegli dalla tendina: si compilano gli
+  altri campi. Gli hotel arrivano dall'anagrafica e, con la chiave Google, da Google Maps.
+  Chi non c'è si scrive a mano e viene aggiunto da solo all'anagrafica.
+- Note per l'autista: sotto il riquadro del foglio di servizio, "Note 1" con Causale e
+  testo; "+ Aggiungi note" per le altre. Le causali si cambiano da Archivio › Tendina note.
+  Sul foglio ogni nota ha la sua riga; se un testo è troppo lungo per la riga viene
+  accorciato con "…" e si trova per intero nella pagina 2.
+- Alias: Archivio › Anagrafica clienti, colonna "Alias" (nel foglio clienti del fatturato è
+  la colonna "Alias Sara"). Se un cliente ha l'alias, nelle viste Giorno e Settimana si
+  vede quello al posto della ragione sociale.
+- Modifiche: salvando una prenotazione già esistente l'app chiede "Confermi le modifiche?"
+  con l'elenco di cosa cambia. "Annulla" torna al modulo senza salvare.
+- Notturno: se l'ora di rientro è prima di quella di partenza (es. 17:00 → 01:00) la data
+  di rientro diventa il giorno dopo (si può sempre cambiare a mano).
+- Clienti: nella scheda del cliente "Modifica dati" per correggere o completare i dati.
+- Chiave Google (ricerca hotel): in Google Cloud › Credenziali › la chiave, in "Restrizioni
+  dei siti web" va scritto il sito dell'agenda con /* alla fine (l'indirizzo esatto da
+  copiare è nelle istruzioni di Pannello Master › Impostazioni); in "Restrizioni delle API"
+  deve esserci Places API (New), che va anche attivata in API e servizi › Libreria.
+  "Prova" nelle Impostazioni dice subito se manca qualcosa e cosa.
+- Categoria Notturno: aggiungete "notturno" all'elenco TIPO SERVIZIO del foglio
+  "regole" del fatturato (l'app lo ricorda nella vista Fatturato finché manca).
+- Menu: Esci, Aggiorna adesso, Cambia la mia password; per il Master anche Pannello
+  Master, Collega file fatturato e Scollega questo dispositivo.
+- Telefono o Mac PERSO o rubato: il Master, da Pannello Master › Dispositivi, preme "Blocca"
+  su quel dispositivo (appena si collega a internet viene scollegato da Dropbox e cancella la
+  sua copia dell'agenda) e cambia la password di chi lo usava. Per sicurezza in più: da un altro
+  computer su dropbox.com → Impostazioni → App collegate si può scollegare "Agenda La Terra";
+  poi si ricollegano gli altri dispositivi (Collega Dropbox).
+- Fatturato per anno: a inizio anno metti nella cartella dell'app il nuovo file
+  (per esempio "fatturato 2027.xlsx") e collegalo dal Menu › Collega file fatturato.
+  Ogni servizio viene scritto nel file del suo anno: le modifiche ai servizi di dicembre
+  continuano ad andare nel file dell'anno prima. Il nome del file deve contenere l'anno.
+- Una sola finestra: se apri l'agenda in una seconda finestra o scheda dello stesso
+  dispositivo compare "Agenda già aperta". Puoi continuare lì: l'altra si ferma.
+- Numeri scritti a mano: se in ufficio inserite a mano una riga nel fatturato, l'app
+  non la tocca mai e per i nuovi servizi usa il primo numero libero di quel giorno.
 
 Consigli importanti
 -------------------
@@ -108,4 +1331,5 @@ Consigli importanti
   sovrascrivere le righe nuove: entro 5 minuti l'app le rimette da sola. Dropbox conserva
   comunque tutte le versioni precedenti del file.
 - Sicurezza: attiva la verifica in due passaggi sull'account Dropbox
-  (Dropbox → Impostazioni → Sicurezza). I dati non passano da altri server.
+  (Dropbox → Impostazioni → Sicurezza). I dati non passano da altri server (la ricerca
+  hotel invia a Google solo il nome che scrivi).

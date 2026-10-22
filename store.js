@@ -428,6 +428,20 @@
   }
   // utenti: solo quelli completi (nome, impronta della password della forma giusta, numero di passaggi ragionevole)
   const ITER_MIN = 10000, ITER_MAX = 2000000;
+  // 3.0: impostazioni personali dell'utente. lock: minuti dell'uscita automatica (0 = mai; senza = come il Master);
+  // miss: punto esclamativo { mode: off | past | future | both, checks: [controlli scelti] }
+  const LOCK_OK = [0, 15, 30, 60, 120, 240], MISS_MODES = ["off", "past", "future", "both"], MISS_KEYS = ["price", "time", "code", "driver", "pax", "route", "ref", "time2", "busta", "sent"];
+  function cleanPrefs(p) {
+    if (!isObj(p)) return null;
+    const o = {};
+    if (p.lock != null && LOCK_OK.includes(Number(p.lock))) o.lock = Number(p.lock);
+    if (isObj(p.miss)) {
+      const m = { mode: MISS_MODES.includes(p.miss.mode) ? p.miss.mode : "both" };
+      m.checks = Array.isArray(p.miss.checks) ? [...new Set(p.miss.checks.filter((k) => MISS_KEYS.includes(k)))] : ["price", "time", "code"];
+      o.miss = m;
+    }
+    return Object.keys(o).length ? o : null;
+  }
   function cleanUsers(j) {
     if (!isObj(j) || !isObj(j.users)) return null;
     // Se anche un solo utente non ha la forma giusta l'elenco intero non vale (resta l'ultimo buono e non
@@ -444,6 +458,7 @@
       const lvl = u.lvl === "super" || u.lvl === "invio" ? u.lvl : "";
       users[id] = Object.assign({}, u, { name, role: lvl || (u.role === "master" ? "master" : "utente"), active: u.active !== false, iter: it, pwAt: when(u.pwAt), created: when(u.created), createdBy: txt(u.createdBy, 80) });
       if (lvl) users[id].lvl = lvl; else delete users[id].lvl;
+      if ("prefs" in u) { const pf = cleanPrefs(u.prefs); if (pf) users[id].prefs = pf; else delete users[id].prefs; }
       // codice di recupero del Super Master: solo se ha la forma di un'impronta
       if ("rec" in u) { const r = u.rec; if (isObj(r) && /^[0-9a-f]{16,128}$/i.test(txt(r.salt, 200)) && /^[0-9a-f]{64}$/i.test(txt(r.hash, 200)) && Number.isInteger(Number(r.iter)) && Number(r.iter) >= ITER_MIN && Number(r.iter) <= ITER_MAX) users[id].rec = { salt: r.salt, hash: r.hash, iter: Number(r.iter) }; else delete users[id].rec; }
     }
@@ -480,6 +495,8 @@
   // Restituisce "" se la modifica è permessa, altrimenti il motivo.
   const SECRET = ["salt", "iter", "hash", "pwAt"];
   function onlySecret(b, a) { const x = Object.assign({}, b), y = Object.assign({}, a); for (const k of SECRET) { delete x[k]; delete y[k]; } return same(x, y); }
+  // 3.0: sul proprio account ognuno cambia anche le sue impostazioni personali (prefs)
+  function onlyOwn(b, a) { const x = Object.assign({}, b), y = Object.assign({}, a); for (const k of SECRET.concat(["prefs"])) { delete x[k]; delete y[k]; } return same(x, y); }
   function usersGuard(before, after, actor) {
     actor = actor || {};
     const B = (before && before.users) || {}, A = (after && after.users) || {};
@@ -492,7 +509,7 @@
       if (actor.boot === "super") { if (!b && a && a.role === "super" && !Object.values(B).some((u) => u.role === "super")) continue; return "forbidden"; }
       if (actor.recover) { if (id === actor.recover && b && a && b.role === "super" && a.role === "super" && onlySecret(b, a)) continue; return "forbidden"; }
       if (role === "super") continue;
-      if (id === actor.uid && b && a && onlySecret(b, a)) continue;
+      if (id === actor.uid && b && a && onlyOwn(b, a)) continue;
       if (role === "master" && !prot(b) && !prot(a)) continue;
       return "forbidden";
     }
@@ -1259,12 +1276,25 @@
   }
   // taken: percorsi (minuscoli) dei file delle altre bozze: non si sovrascrivono e non si eliminano.
   // Restituisce { path, oldLeft }: oldLeft = il file di prima della stessa bozza non si è potuto eliminare.
-  async function saveInvoiceXml(name, text, again, date, taken) {
+  async function saveInvoiceXml(name, text, again, date, taken, keepOld) {
     noRO();
     name = safeFileName(name); if (!/\.xml$/i.test(name)) name += ".xml";
     const folder = xmlFolder(String(date || "")), path = folder + "/" + name, tk = taken instanceof Set ? taken : new Set();
     if (tk.has(path.toLowerCase())) throw { code: "conflict" }; // è il file di un'altra fattura
     const mine = inXml(again) && !tk.has(again.toLowerCase()) ? again : "";
+    // 3.0: fattura già emessa e corretta: il file di prima non si cancella, va nella sottocartella «sostituite» della
+    // sua cartella (la contabilità non lo importa due volte, ma resta per controllo). Se non si riesce a spostarlo, niente file nuovo.
+    if (keepOld && mine) {
+      const dir = mine.replace(/\/[^/]*$/, ""), sost = dir + "/sostituite";
+      await DBX.createFolder(sost).catch(() => {});
+      let moved = "";
+      try { moved = await DBX.move(mine, sost + "/" + mine.split("/").pop()); }
+      catch (e) { if (!(e && e.code === "conflict" && /not_found/.test(e.summary || ""))) throw { code: "move", detail: e }; }
+      let p = "";
+      for (const part of folder.split("/").filter(Boolean)) { p += "/" + part; await DBX.createFolder(p).catch(() => {}); }
+      await DBX.upload(path, enc.encode(text), "add");
+      return { path, oldLeft: false, moved };
+    }
     if (mine && mine.toLowerCase() === path.toLowerCase()) { await DBX.upload(mine, enc.encode(text), "overwrite"); return { path: mine, oldLeft: false }; }
     let p = "";
     for (const part of folder.split("/").filter(Boolean)) { p += "/" + part; await DBX.createFolder(p).catch(() => {}); }
@@ -1299,8 +1329,7 @@
     if (idb) await new Promise((res) => { try { const t = idb.transaction(["days", "meta"], "readwrite"); t.objectStore("days").clear(); t.objectStore("meta").clear(); t.oncomplete = t.onerror = t.onabort = () => res(); } catch (_) { res(); } });
   }
 
-  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "2.8";
-  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "2.9"; // 2.9: fogli di servizio salvati da soli in Dropbox
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "3.0";
   window.STORE = {
     BASE, P,
     configure(h) { Object.assign(hooks, h); },

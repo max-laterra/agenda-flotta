@@ -200,11 +200,13 @@
   }
   async function account() { return rpc("users/get_current_account", null); }
   async function metadata(path) { return rpc("files/get_metadata", { path }); }
+  // 3.0: sposta un file (con un nome nuovo se nella cartella d'arrivo c'è già); restituisce il percorso finale
+  async function move(from, to) { const r = await rpc("files/move_v2", { from_path: from, to_path: to, autorename: true, allow_ownership_transfer: false }); return (r && r.metadata && (r.metadata.path_display || r.metadata.path_lower)) || to; }
 
   return {
     isLinked: () => !!(tok && tok.refresh),
     hasKey: () => !!KEY(),
-    startLogin, finishLogin, isMine, takeCode, download, upload, listFolder, longpoll, createFolder, remove, search, account, metadata,
+    startLogin, finishLogin, isMine, takeCode, download, upload, listFolder, longpoll, createFolder, remove, search, account, metadata, move,
     unlink() { save(null); },
     // token usato adesso (per le prove e per capire se il collegamento è cambiato)
     refreshToken: () => (tok && tok.refresh) || "",
@@ -216,7 +218,7 @@
   };
   }
 
-  (window.AGENDA_FILES = window.AGENDA_FILES || {}).dropbox = "2.8";
+  (window.AGENDA_FILES = window.AGENDA_FILES || {}).dropbox = "3.0";
   const main = make({
     key: () => C.dropboxAppKey,
     read() { try { return JSON.parse(localStorage.getItem(TK) || "null"); } catch (_) { return null; } },

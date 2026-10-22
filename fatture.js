@@ -141,6 +141,10 @@
     const pa = isObj(j.pa) ? j.pa : {};
     o.pa = { ordNum: str(pa.ordNum, 20).trim(), ordData: okDate(pa.ordData) ? pa.ordData : "", cig: up(str(pa.cig, 15)).trim(), cup: up(str(pa.cup, 15)).trim(), split: !!pa.split };
     o.note = str(j.note, 1000);
+    // 3.0: fattura già emessa riaperta per correggerla (motivo) e storico dei file XML creati prima
+    if (isObj(j.reopen) && str(j.reopen.at, 40)) o.reopen = { at: str(j.reopen.at, 40), by: str(j.reopen.by, 80), why: str(j.reopen.why, 300) };
+    const hist = (Array.isArray(j.xmlHist) ? j.xmlHist : []).filter(isObj).slice(-50).map((h) => ({ name: str(h.name, 160), path: str(h.path, 300), at: str(h.at, 40), by: str(h.by, 80), why: str(h.why, 300), prog: str(h.prog, 10) })).filter((h) => h.at || h.name);
+    if (hist.length) o.xmlHist = hist;
     return o;
   }
 
@@ -423,7 +427,7 @@
     return { xml: x, name: A.paese + latin(A.piva, 28).replace(/[^A-Za-z0-9]/g, "") + "_" + prog + ".xml", prog, formato: fmt, calc: k };
   }
 
-  const API = { VERSION: "2.8", REGIMI, NATURE, TIPI_DOC, TIPI_SCELTA, causaleRow, causaleApart, parkLines, extraLines, MOD_PAG, COND_PAG, USI, ARROT, VERSI, defaults, cleanContab, cleanDraft, cleanCliente, newDraft, linesFor, lineFromService, fill, mezzo, periodo, mesi, calc, validate, xml, latin, isPA, okDate, addDays, itLong, itShort, newId, r2, amt, numOr, progressivo, nextProg, progOf, numeroDoc };
+  const API = { VERSION: "3.0", REGIMI, NATURE, TIPI_DOC, TIPI_SCELTA, causaleRow, causaleApart, parkLines, extraLines, MOD_PAG, COND_PAG, USI, ARROT, VERSI, defaults, cleanContab, cleanDraft, cleanCliente, newDraft, linesFor, lineFromService, fill, mezzo, periodo, mesi, calc, validate, xml, latin, isPA, okDate, addDays, itLong, itShort, newId, r2, amt, numOr, progressivo, nextProg, progOf, numeroDoc };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
-  if (root) { root.FATTURE = API; if (root.document) (root.AGENDA_FILES = root.AGENDA_FILES || {}).fatture = "2.8"; }
+  if (root) { root.FATTURE = API; if (root.document) (root.AGENDA_FILES = root.AGENDA_FILES || {}).fatture = "3.0"; }
 })(typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null);

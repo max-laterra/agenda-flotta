@@ -371,7 +371,7 @@
   }
   const newPhoneId = () => { const r = crypto.getRandomValues(new Uint8Array(8)); let s = "t"; for (const x of r) s += (x % 36).toString(36); return s; };
 
-  (root.AGENDA_FILES = root.AGENDA_FILES || {}).autisti = "2.8";
+  (root.AGENDA_FILES = root.AGENDA_FILES || {}).autisti = "3.0";
   const API = Object.assign({}, PURE, {
     configure(h) { Object.assign(hooks, h); },
     linked, startLink, redirectMine, purpose, takeRedirect, revoke, prepare,

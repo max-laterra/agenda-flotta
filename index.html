@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="2.8" data-p="2.9">
+<html lang="it" data-v="3.0">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -301,10 +301,13 @@ table.wk{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px;t
 .memsug-i button:hover{color:var(--warn);background:var(--warn-bg)}
 .memsug-i:hover,.memsug-i[aria-selected="true"]{background:var(--accent-soft)}
 /* parcheggi (2.6): tendina del parcheggio e cifra, una riga per parcheggio */
-.money3.pkgrid{grid-template-columns:minmax(0,.75fr) minmax(0,1.55fr) minmax(0,.75fr) minmax(0,1.75fr)}
+.money3.pkgrid{grid-template-columns:minmax(0,.7fr) minmax(0,1.95fr) minmax(0,.7fr) minmax(0,1.65fr)}
 /* 2.8: «€ Extra» con la causale spese (tendina dell'Archivio) sulla stessa riga di noleggio, parcheggi e pasti */
 .fextra .linkbtn{margin-top:4px;align-self:flex-start}
-.pkgrid .pk-row{grid-template-columns:minmax(0,1fr) 86px 30px}
+.pkgrid .pk-row{grid-template-columns:minmax(0,1fr) 84px 30px}
+/* 3.0: con una sola riga niente colonna della × (era lo spazio vuoto a destra): tendina e cifra prendono tutto */
+.pkgrid .pk-row:has(.pk-del[hidden]){grid-template-columns:minmax(0,1fr) 84px}
+.pkgrid .pk-row .pk-del[hidden]{display:none!important}
 @media (max-width:760px){.money3.pkgrid{grid-template-columns:1fr 1fr}.money3.pkgrid .fpark,.money3.pkgrid .fextra{grid-column:1/-1}}
 @media (max-width:520px){.money3.pkgrid{grid-template-columns:1fr}}
 .pk-rows{display:flex;flex-direction:column;gap:6px}
@@ -418,6 +421,13 @@ table.bt{border-collapse:collapse;width:100%;min-width:1180px;font-size:13px}
 /* fatturato (2.6): stato della fattura, filtri per stato, righe da fatturare evidenziate */
 .bill-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:stretch;border-top:1px dashed var(--line);padding-top:12px}
 .bill-filter[hidden]{display:none}
+/* 3.0: periodo, ricerca per cliente e righe raggruppate per giorno */
+.bill-tools{display:flex;gap:10px 14px;align-items:flex-end;flex-wrap:wrap;justify-content:flex-end}
+.bill-q input{min-width:260px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--bg);font-weight:500;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink)}
+.bt tr.bday td{background:var(--surface-2);border-top:2px solid var(--line);padding:7px 10px;font-size:13.5px;position:static}
+.bt tr.bday td b{font-family:var(--cond);font-size:15px;letter-spacing:.03em;text-transform:uppercase;margin-right:10px}
+.bt tr.bday td span{color:var(--ink-2);font-variant-numeric:tabular-nums}
+@media (max-width:640px){.bill-q input{min-width:0;width:100%}.bill-tools{justify-content:flex-start}}
 .bf{display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 14px;min-width:150px;text-align:left}
 .bf b{font-size:14px}.bf span{font-size:12.5px;color:var(--ink-2);font-variant-numeric:tabular-nums}
 .bf[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--accent-soft)}
@@ -644,6 +654,17 @@ img{max-width:100%}
 .code-in:focus{border-color:var(--accent);outline:none}
 .btn.big{padding:12px;font-size:16px}
 .menu-list{display:flex;flex-direction:column;gap:8px}
+/* 3.0: le mie impostazioni */
+.pr-miss{border:1px solid var(--line);border-radius:10px;padding:10px 14px 12px;margin:4px 0 0;display:flex;flex-direction:column;gap:8px}
+.pr-miss legend{font-weight:700;font-size:14px;padding:0 6px}
+.pr-mode{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pr-mode label,.pr-checks label{display:flex;align-items:flex-start;gap:8px;border:1px solid var(--line);border-radius:9px;padding:7px 10px;cursor:pointer;font-size:13.5px;background:var(--surface)}
+.pr-mode label span b{display:block;font-size:14px}.pr-mode label span{color:var(--ink-2)}
+.pr-mode input,.pr-checks input{margin-top:3px;accent-color:var(--accent)}
+.pr-mode label:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.pr-checks{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pr-checks.off{opacity:.45;pointer-events:none}
+@media (max-width:560px){.pr-mode,.pr-checks{grid-template-columns:1fr}}
 .menu-list button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:11px 14px}
 .menu-list button:hover{border-color:var(--ink-3)}
 .menu-list b{font-size:15px}
@@ -875,7 +896,16 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 .inv-issues li.err{color:var(--warn);font-weight:600}.inv-issues li.warn{color:var(--ink-2)}.inv-issues .ok{margin:0;color:var(--ok);font-weight:600}
 .inv-badge{display:inline-block;border-radius:5px;padding:1px 7px;font-size:12px;font-weight:700;background:#FFF4D6;color:#7A4E00;white-space:nowrap}
 .inv-badge.xml{background:#DCF3E4;color:#135C33}
-.inv-list{max-height:62vh}.inv-list .empty{padding:26px;text-align:center;color:var(--ink-3);margin:0}
+.inv-list{max-height:62vh}
+/* 3.0: fattura emessa bloccata, in correzione, storico dei file */
+.inv-lock{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;border:1px solid #9CC9A8;background:#EAF6EC;color:#174F2A;border-radius:10px;padding:9px 12px;font-size:13.5px}
+.inv-lock.open{border-color:#E8C36A;background:#FFF6DC;color:#6B4A00}
+.inv-lock .il-t{flex:1 1 420px}.inv-lock .il-f{font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+.inv-lock .il-a{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.inv-lock .il-why{display:flex;align-items:center;gap:8px;font-weight:600}.inv-lock .il-why input{min-width:300px;border:1px solid var(--line);border-radius:8px;padding:6px 9px;font:inherit;font-weight:400;background:#fff;color:#111}
+.inv-hist{flex:1 1 100%;font-size:12.5px}.inv-hist summary{cursor:pointer;font-weight:600}.inv-hist ul{margin:4px 0 0;padding-left:18px}
+.inv-form.locked{opacity:.78}
+.il-filter{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 8px}.inv-list .empty{padding:26px;text-align:center;color:var(--ink-3);margin:0}
 /* il foglio dell'anteprima: sempre nero su bianco, come la fattura */
 .inv-paper{background:#fff;color:#111;border:1px solid #c9d0ce;box-shadow:0 2px 10px rgba(0,0,0,.12);padding:14px 14px 18px;font:11px/1.35 Arial,Helvetica,sans-serif;min-width:520px}
 .fe h5{margin:0 0 3px;font-size:11px}
@@ -1311,9 +1341,14 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
           <h2 id="billTitle">Fatturato</h2>
           <p>Ogni prenotazione salvata finisce da sola nel tuo file fatturato in Dropbox, con il n. foglio assegnato sulla data del servizio. Se la modifichi o la elimini, la riga si aggiorna o si svuota.</p>
         </div>
-        <label class="bill-range">Servizi
-          <select id="billRange"><option value="month">del mese selezionato</option><option value="all">tutti</option></select>
-        </label>
+        <div class="bill-tools">
+          <label class="bill-range">Servizi
+            <select id="billRange"><option value="day">del giorno selezionato</option><option value="week">della settimana</option><option value="month" selected>del mese selezionato</option><option value="all">tutti</option></select>
+          </label>
+          <label class="bill-range bill-q">Cerca cliente
+            <input id="billQ" type="search" placeholder="Nome, codice o alias" title="Cerca in tutti i servizi, di qualunque mese" autocomplete="off">
+          </label>
+        </div>
       </div>
       <div class="bill-status" id="fatStatus"></div>
       <div class="bill-status warn" id="tipiWarn" hidden></div>
@@ -1642,6 +1677,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       <button type="button" id="mMaster" class="mst-only"><b>Pannello Master</b><span>Utenti, dispositivi collegati, registro delle modifiche e impostazioni</span></button>
       <button type="button" id="mLock"><b>Esci</b><span>Torna alla schermata di accesso, per esempio per cambiare utente</span></button>
       <button type="button" id="mSync"><b>Aggiorna adesso</b><span>Scarica le modifiche degli altri dispositivi e aggiorna il fatturato</span></button>
+      <button type="button" data-pane="mPrefs"><b>Le mie impostazioni</b><span>Uscita automatica e punto esclamativo «!» delle cose da completare</span></button>
       <button type="button" data-pane="mPw"><b>Cambia la mia password</b><span>Serve la password attuale</span></button>
       <button type="button" id="mFat" class="mst-only"><b>Collega file fatturato</b><span>A inizio anno collega il file del nuovo anno: ogni servizio va nel file del suo anno</span></button>
       <button type="button" class="danger mst-only" data-pane="mUnlink"><b>Scollega questo dispositivo</b><span>Da usare se il Mac o il telefono non deve più avere accesso</span></button>
@@ -1652,6 +1688,19 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       <div class="f"><label for="pwNew2">Ripeti la nuova password</label><input id="pwNew2" type="password" autocomplete="new-password"></div>
       <p class="menu-note">Sugli altri dispositivi dove sei collegato ti verrà chiesta la nuova password.</p>
     </form>
+    <form class="menu-list" id="mPrefs" hidden autocomplete="off">
+      <div class="f"><label for="prLock">Uscita automatica</label><select id="prLock"></select><p class="menu-note" id="prLockNote"></p></div>
+      <fieldset class="pr-miss" id="prMissBox"><legend>Punto esclamativo «!» rosso</legend>
+        <p class="menu-note">Compare sui servizi a cui manca qualcosa (e sul giorno nella barra dei giorni). Scegli per quali servizi e cosa deve controllare: vale solo per te, su tutti i tuoi dispositivi.</p>
+        <div class="pr-mode" id="prMode" role="radiogroup" aria-label="Per quali servizi">
+          <label><input type="radio" name="prMode" value="both"> <span><b>Entrambi</b> passati e futuri</span></label>
+          <label><input type="radio" name="prMode" value="past"> <span><b>Mancanze passate</b> fino a oggi</span></label>
+          <label><input type="radio" name="prMode" value="future"> <span><b>Mancanze future</b> da oggi in avanti</span></label>
+          <label><input type="radio" name="prMode" value="off"> <span><b>Spento</b> nessun «!»</span></label>
+        </div>
+        <div class="pr-checks" id="prChecks"></div>
+      </fieldset>
+    </form>
     <div class="menu-list" id="mUnlink" hidden>
       <p class="menu-note">Su questo dispositivo verranno cancellati l'accesso a Dropbox e la copia delle prenotazioni. I dati restano in Dropbox e sugli altri dispositivi. Le modifiche non ancora inviate andranno perse.</p>
       <p class="menu-note warnnote" id="unlinkPend" hidden></p>
@@ -1660,6 +1709,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
     <div class="mfoot" id="menuFoot">
       <button type="button" class="btn back" data-pane="mMain">Indietro</button>
       <span class="spacer"></span>
+      <button type="submit" form="mPrefs" class="btn primary" id="prGo">Salva</button>
       <button type="submit" form="mPw" class="btn primary" id="pwGo">Cambia password</button>
       <button type="button" class="btn danger" id="unlinkGo">Scollega</button>
       <button type="button" class="btn" id="mClose">Chiudi</button>
@@ -1689,7 +1739,8 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
 <div class="overlay" id="ovInvList" hidden>
   <div class="modal reg-modal" role="dialog" aria-labelledby="invListTitle">
     <div class="reg-top"><h3 id="invListTitle">Bozze fattura</h3><span class="reg-count" id="invListCount"></span><span class="spacer"></span><button type="button" class="btn primary" id="invListNew" hidden>+ Nuova bozza per questi servizi</button><button type="button" class="btn" id="invListAll" hidden>Tutte le bozze</button><button type="button" class="btn" id="invListClose">Chiudi</button></div>
-    <input id="invQ" type="search" class="cli-q" placeholder="Cerca per cliente, n. foglio, numero…" autocomplete="off" aria-label="Cerca tra le bozze">
+    <div class="il-filter" id="invLF"></div>
+    <input id="invQ" type="search" class="cli-q" placeholder="Cerca per cliente, n. foglio, numero, nome del file XML…" autocomplete="off" aria-label="Cerca tra le bozze">
     <div class="grid-wrap inv-list" id="invListBody"></div>
   </div>
 </div>
@@ -1706,6 +1757,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
   <div class="modal inv-modal" role="dialog" aria-labelledby="invTitle">
     <div class="reg-top"><h3 id="invTitle">Bozza fattura</h3><span class="reg-count" id="invState"></span><span class="spacer"></span>
       <div class="seg inv-tabs" id="invTabs"><button type="button" data-it="dati" aria-pressed="true">Dati</button><button type="button" data-it="ante" aria-pressed="false">Anteprima</button></div></div>
+    <div class="inv-lock" id="invLock" hidden></div>
     <div class="inv-grid" id="invGrid" data-tab="dati">
       <form class="inv-form" id="invForm" novalidate autocomplete="off"></form>
       <div class="inv-prev"><p class="inv-prev-h">Anteprima – come la vedrà il cliente nella fattura dell'Agenzia delle Entrate</p><div class="inv-paper" id="invPaper"></div></div>
@@ -1817,8 +1869,8 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
         <label class="perm"><input type="checkbox" id="permCont"> <span><b>Contabilità</b> – modificare dati societari, aliquote IVA, causali, pagamento, sconti e arrotondamenti (Archivio › Contabilità)</span></label>
       </div>
       <div class="set-card">
-        <h4>Uscita automatica</h4>
-        <p class="mst-sub">Se nessuno usa l'agenda per questo tempo, il dispositivo torna alla schermata di accesso. Vale anche se nel frattempo l'agenda è stata chiusa e riaperta (o il telefono l'ha tolta dalla memoria). Utile sui computer condivisi.</p>
+        <h4>Uscita automatica: tempo massimo</h4>
+        <p class="mst-sub">Se nessuno usa l'agenda per questo tempo, il dispositivo torna alla schermata di accesso. Vale anche se nel frattempo l'agenda è stata chiusa e riaperta (o il telefono l'ha tolta dalla memoria). Ognuno può scegliere un tempo più breve in Menu › Le mie impostazioni; con «Mai» non c'è limite e ognuno sceglie liberamente.</p>
         <div class="set-row"><select id="setLock"><option value="0">Mai</option><option value="15">Dopo 15 minuti</option><option value="30">Dopo 30 minuti</option><option value="60">Dopo 1 ora</option><option value="120">Dopo 2 ore</option><option value="240">Dopo 4 ore</option></select></div>
       </div>
       <div class="set-card">
