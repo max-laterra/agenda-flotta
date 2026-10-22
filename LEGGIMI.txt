@@ -1,9 +1,29 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 3.0 (22/10/2026)
-=================================================
+AGENDA FLOTTA LA TERRA – VERSIONE 3.0.1 (22/10/2026)
+===================================================
 La versione in uso si vede nell'app: in alto accanto a "Sincronizzato",
 nella schermata di accesso e nel Menu. Deve corrispondere a quella di questo file.
 
-COME AGGIORNARE ALLA 3.0 (5 minuti, da qualunque versione dalla 2.7 in poi)
+COME AGGIORNARE ALLA 3.0.1 DALLA 3.0 (2 minuti, solo 3 file)
+-----------------------------------------------------------
+Serve la 3.0 già su GitHub (in alto nell'agenda "v3.0"). Se non l'hai ancora caricata, carica
+prima lo zip completo della 3.0 (oppure il pacchetto completo della 3.0.1, se ce l'hai).
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   3 file: app.js, index.html, LEGGIMI.txt. Niente config.js. Gli altri file restano quelli
+   della 3.0 e non vanno toccati.
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v3.0.1".
+   Se compare "Aggiornamento in corso (…)" è normale per qualche minuto; se resta, su GitHub
+   manca il file scritto tra parentesi.
+3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda.
+
+NOVITÀ DELLA 3.0.1
+------------------
+- Modulo della prenotazione › "Foglio di servizio per l'autista" › "Programma": il riquadro è
+  alto circa 13 righe (prima 3) e, se scrivi di più, si allunga da solo verso il basso, senza
+  barra di scorrimento. Carattere un po' più grande. Nei tour di più giorni ogni giorno ha un
+  riquadro di almeno 4 righe che si allunga allo stesso modo. Il foglio stampato non cambia.
+
+COME AGGIORNARE ALLA 3.0 (5 minuti, da qualunque versione dalla 2.7 in poi; vale anche per il
+pacchetto completo della 3.0.1)
 --------------------------------------------------------------------------
 1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina tutto il
    contenuto di questa cartella (i file e le cartelle vendor e icons). Niente config.js.
@@ -750,6 +770,8 @@ UTENTI, MASTER E REGISTRO (dalla 1.8)
   dell'azienda può vedere tutti i file (registro compreso). Tieni quella password per te.
 
 STORICO DELLE VERSIONI
+- 3.0.1 (22/10/2026) · Riquadro "Programma" del foglio di servizio più alto e che si allunga con
+                     il testo. Aggiornamento di soli 3 file.
 - 3.0 (22/10/2026) · Le mie impostazioni (uscita automatica personale con il massimo del
                      Master; punto esclamativo per utente: passate/future/entrambi/spento e
                      controlli a scelta); riga dei prezzi del modulo sistemata; Fatturato per

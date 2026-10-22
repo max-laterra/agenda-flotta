@@ -1,13 +1,14 @@
 
 (function(){
 "use strict";
-const APP_VERSION="3.0",APP_DATE="22/10/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="3.0.1",APP_DATE="22/10/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
 // 2.9: aggiornamento parziale sopra la 2.8: cambiano app.js, store.js e index.html (gli altri restano della 2.8).
 // 3.0: aggiornamento intero, tutti i file della famiglia "3.0".
-const APP_FAMILY="3.0",APP_PATCH={};
+// 3.0.1: aggiornamento parziale (app.js, index.html): riquadro del programma del foglio di servizio più alto.
+const APP_FAMILY="3.0",APP_PATCH={index:"3.0.1"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -519,7 +520,7 @@ function openForm(opts){
   formOrig=readForm(); // per sapere se l'utente ha cambiato qualcosa e quali campi
   // parcheggi scelti che superano «€ Parcheggi» (cifra abbassata da un dispositivo non aggiornato): il cambio si vede
   if(editing&&pkMismatch!=null)formOrig.park=pkMismatch;
-  $("ovBooking").hidden=false;setTimeout(()=>$("f-client").focus(),30);
+  $("ovBooking").hidden=false;setTimeout(()=>$("f-client").focus(),30);growAll($("progWrap"));
 }
 let formOrig=null,saving=false,editConfirmed=false;
 const FORM_SKIP=["updatedAt","foglio","bustaOff","exOwn","xbus"];
@@ -1058,7 +1059,9 @@ function renderProgram(){
     $("progHint").textContent="Un riquadro per ogni giorno del tour.";
   }
   progReady=true;
+  growAll($("progWrap")); // 3.0: il riquadro si allunga con il testo (niente barra di scorrimento)
 }
+$("progWrap").addEventListener("input",e=>autoGrow(e.target));
 // la data di rientro segue la partenza finché non la cambi tu
 let formStart="";
 $("f-start").addEventListener("change",()=>{fillVehOpts($("f-vehicle").value,$("f-start").value);const st=$("f-start").value,en=$("f-end").value;if(st&&(!en||en<st||en===formStart||(endAuto&&en===addDays(formStart,1))))$("f-end").value=st;syncEndNextDay();$("f-end").min=st||"";formStart=st;checkWarns();if(isMulti(curType()))renderProgram();});
