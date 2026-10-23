@@ -1,7 +1,65 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 3.0.1 (22/10/2026)
+AGENDA FLOTTA LA TERRA – VERSIONE 3.0.2 (23/10/2026)
 ===================================================
 La versione in uso si vede nell'app: in alto accanto a "Sincronizzato",
 nella schermata di accesso e nel Menu. Deve corrispondere a quella di questo file.
+
+COME AGGIORNARE ALLA 3.0.2 DALLA 3.0 O DALLA 3.0.1 (2 minuti, solo 5 file)
+-------------------------------------------------------------------------
+Serve la 3.0 (o la 3.0.1) già su GitHub: in alto nell'agenda "v3.0" o "v3.0.1". Se hai una
+versione più vecchia, carica prima lo zip completo della 3.0 (oppure il pacchetto completo
+della 3.0.2, se ce l'hai).
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   5 file: app.js, index.html, store.js, autisti.js, LEGGIMI.txt. Niente config.js. Gli altri
+   file restano quelli della 3.0 e non vanno toccati.
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v3.0.2".
+   Se compare "Aggiornamento in corso (…)" è normale per qualche minuto; se resta, su GitHub
+   manca il file scritto tra parentesi.
+3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda. Una pagina rimasta aperta con la
+   versione di prima avvisa da sola e non salva niente finché non la riapri.
+4. Niente da fare sull'app degli autisti: il foglio arriva sempre come PDF, con gli allegati
+   in coda.
+
+NOVITÀ DELLA 3.0.2: ALLEGATI PER L'AUTISTA
+------------------------------------------
+- Modulo della prenotazione › "Foglio di servizio per l'autista", sotto il Programma:
+  pulsante "📎 Allega file" (oppure trascina i file sul riquadro). Si possono allegare PDF e
+  foto JPG o PNG, al massimo 8 per prenotazione (PDF fino a 10 MB e 40 pagine; in tutto 25 MB).
+- Il file va subito in Dropbox, nella cartella "Allegati" dell'agenda (Agenda Flotta La Terra ›
+  Allegati › anno): per allegare serve la connessione a internet. Le foto vengono ridotte
+  (lato lungo 2400 punti) e salvate in JPG; un PNG diventa JPG.
+- Word ed Excel non si allegano: l'agenda spiega di salvarli prima come PDF (File › Salva con
+  nome › formato PDF). Anche i PDF protetti da password o dal blocco delle modifiche vengono
+  rifiutati (non si possono unire al foglio): aprili e scegli Stampa › Salva come PDF.
+- Clic sul nome dell'allegato: si apre in una nuova scheda. "×" lo toglie: se l'avevi appena
+  caricato sparisce subito anche da Dropbox; se era già salvato, viene tolto quando salvi la
+  prenotazione. Chiudendo la prenotazione senza salvare, i file appena caricati si cancellano.
+  Eliminando la prenotazione si cancellano anche i suoi allegati.
+- "Salva e stampa" (o "Stampa") stampa un unico documento: prima il foglio, poi gli allegati
+  (le foto su una pagina A4, orizzontale se la foto è orizzontale, con una piccola scritta
+  "Allegato 1 di 3 al foglio di servizio n. …"). Con Chrome ed Edge si apre subito la
+  finestra di stampa; con Safari, iPhone e iPad il documento si apre in una nuova scheda e si
+  stampa da lì (se il browser blocca la scheda, compare il pulsante "Apri il PDF da stampare").
+  Con "Stampa: Solo parte contabile" gli allegati non si stampano.
+- "Invia all'autista" (anche dal capo): nel PDF che arriva nell'app dell'autista gli allegati
+  sono in coda al foglio. Prima dell'invio la domanda elenca gli allegati. Se dopo l'invio
+  aggiungi o togli un allegato, il foglio diventa "Da reinviare". Prezzi e parte contabile non
+  partono mai: attenzione a non allegare documenti con i prezzi.
+- "Salva PDF", "Condividi PDF…" e la copia automatica in Dropbox (Fogli di servizio) restano
+  solo il foglio, come prima.
+- Finestra del foglio di servizio: riga "📎 3 allegati" con i nomi (clic per aprirli).
+  Elenco del giorno: segno 📎 accanto al cliente, con il numero di allegati. Profilo del capo:
+  "📎 3 allegati" sulla scheda del servizio.
+- Registro attività: aggiunte e tolte compaiono tra le modifiche della prenotazione
+  ("Allegati per l'autista").
+
+NOVITÀ DELLA 3.0.2: «MAX» AL POSTO DI «CAPO»
+--------------------------------------------
+- Vista Giorno: nel quadratino accanto all'autista, sui servizi con bus e autisti decisi dal
+  profilo «solo anteprima e invio», c'è scritto "MAX" invece di "CAPO".
+- Anche le scritte dell'agenda dicono MAX: "Bus e autisti decisi da MAX (nome) oggi alle …",
+  "Per cambiarli serve MAX…", "li ha decisi MAX: il foglio lo invia (o lo ritira) solo lui",
+  i messaggi "nel frattempo MAX ha deciso bus e autisti…" e, nel registro attività,
+  "MAX ha deciso bus e autisti di …". Funziona tutto come prima.
 
 COME AGGIORNARE ALLA 3.0.1 DALLA 3.0 (2 minuti, solo 3 file)
 -----------------------------------------------------------
@@ -22,8 +80,8 @@ NOVITÀ DELLA 3.0.1
   barra di scorrimento. Carattere un po' più grande. Nei tour di più giorni ogni giorno ha un
   riquadro di almeno 4 righe che si allunga allo stesso modo. Il foglio stampato non cambia.
 
-COME AGGIORNARE ALLA 3.0 (5 minuti, da qualunque versione dalla 2.7 in poi; vale anche per il
-pacchetto completo della 3.0.1)
+COME AGGIORNARE ALLA 3.0 (5 minuti, da qualunque versione dalla 2.7 in poi; vale anche per i
+pacchetti completi della 3.0.1 e della 3.0.2)
 --------------------------------------------------------------------------
 1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina tutto il
    contenuto di questa cartella (i file e le cartelle vendor e icons). Niente config.js.
@@ -770,6 +828,10 @@ UTENTI, MASTER E REGISTRO (dalla 1.8)
   dell'azienda può vedere tutti i file (registro compreso). Tieni quella password per te.
 
 STORICO DELLE VERSIONI
+- 3.0.2 (23/10/2026) · Allegati per l'autista nella prenotazione (PDF e foto): si stampano dopo
+                     il foglio e partono per l'autista in coda al PDF del foglio; cartella
+                     "Allegati" in Dropbox. "MAX" al posto di "capo" nel quadratino e nelle
+                     scritte. Aggiornamento di soli 5 file.
 - 3.0.1 (22/10/2026) · Riquadro "Programma" del foglio di servizio più alto e che si allunga con
                      il testo. Aggiornamento di soli 3 file.
 - 3.0 (22/10/2026) · Le mie impostazioni (uscita automatica personale con il massimo del

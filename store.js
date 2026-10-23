@@ -15,7 +15,8 @@
   "use strict";
   const C = window.AGENDA_CONFIG || {};
   const BASE = (C.folder || "/Agenda Flotta La Terra").replace(/\/+$/, "");
-  const P = { days: BASE + "/giorni", cfg: BASE + "/config", sheets: BASE + "/Fogli di servizio", drafts: BASE + "/bozze-fatture", xml: BASE + "/Fatture XML" };
+  const P = { days: BASE + "/giorni", cfg: BASE + "/config", sheets: BASE + "/Fogli di servizio", drafts: BASE + "/bozze-fatture", xml: BASE + "/Fatture XML", att: BASE + "/Allegati" };
+  const ATT_MAX = 8, ATT_REL = /^20\d\d\/[a-z0-9]{8,24}_[^\/\\]{1,140}$/; // 3.0.2: allegati delle prenotazioni
   const CK = "agenda-cache-v1", QK = "agenda-queue-v1";
   const enc = new TextEncoder(), dec = new TextDecoder();
   const clone = (x) => (x === undefined ? undefined : JSON.parse(JSON.stringify(x)));
@@ -186,6 +187,9 @@
           b = merged;
           if (strict && stale) notes.push({ kind: "merged", id: op.id, client: b.client, date: doc.date, fields: op.patch.slice(), clash });
         }
+        // 3.0.2: allegati: sulla versione più recente si tolgono quelli tolti da questo modulo e si aggiungono quelli
+        // caricati da questo modulo (così non si perde un allegato aggiunto o tolto intanto da un altro dispositivo)
+        if (op.edit && prev && isObj(op.attx)) b.att = mergeAtt(prev.att, op.b && op.b.att, op.attx);
         // Il segno «inviato all'autista» (2.5) si cambia solo con l'invio o il ritiro del foglio: una modifica
         // fatta dal modulo (che quel campo non lo conosce, o lo ha letto prima di un invio) non lo cancella.
         if (op.edit && prev && prev.sent && !(Array.isArray(op.patch) && op.patch.includes("sent"))) b.sent = clone(prev.sent);
@@ -560,7 +564,31 @@
     if ("extras" in b) b.extras = Array.isArray(b.extras) ? b.extras.filter(isObj).slice(0, 3).map((e) => { const a = typeof e.amt === "number" ? e.amt : typeof e.amt === "string" && e.amt.trim() !== "" ? Number(e.amt) : NaN; return { c: txt(e.c, 60), amt: isFinite(a) ? Math.round(a * 100) / 100 : "" }; }) : [];
     if ("exOwn" in b) b.exOwn = b.exOwn === true;
     if ("xbus" in b) { if (isObj(b.xbus) && typeof b.xbus.id === "string") b.xbus = cleanXbus(b.xbus); else delete b.xbus; }
+    if ("att" in b) b.att = cleanAtt(b.att); // 3.0.2: allegati per l'autista
     return b;
+  }
+  // 3.0.2 — allegati della prenotazione (PDF e foto): i file stanno in Dropbox, cartella «Allegati» dell'agenda
+  // (Allegati/<anno>/<id>_<nome>); nella prenotazione c'è solo l'elenco. Si stampano e partono per l'autista dopo il foglio.
+  const attRelOk = (r) => typeof r === "string" && ATT_REL.test(r) && r.indexOf("..") < 0;
+  function mergeAtt(theirs, mine, x) {
+    const del = new Set((Array.isArray(x.del) ? x.del : []).filter((p) => typeof p === "string")), add = new Set((Array.isArray(x.add) ? x.add : []).filter((p) => typeof p === "string"));
+    const out = (Array.isArray(theirs) ? theirs : []).filter((a) => isObj(a) && !del.has(a.path)).map(clone), have = new Set(out.map((a) => a.id));
+    for (const a of Array.isArray(mine) ? mine : []) if (isObj(a) && add.has(a.id) && !have.has(a.id)) { out.push(clone(a)); have.add(a.id); }
+    return cleanAtt(out);
+  }
+  function cleanAtt(l) {
+    if (!Array.isArray(l)) return [];
+    const out = [], seen = new Set();
+    for (const a of l) {
+      if (!isObj(a) || out.length >= ATT_MAX) continue;
+      const id = txt(a.id, 24), path = txt(a.path, 200);
+      if (!/^[a-z0-9]{8,24}$/.test(id) || seen.has(id) || !attRelOk(path)) continue;
+      seen.add(id);
+      const size = typeof a.size === "number" && isFinite(a.size) && a.size >= 0 ? Math.round(a.size) : 0;
+      const pages = typeof a.pages === "number" && isFinite(a.pages) && a.pages >= 0 ? Math.min(999, Math.round(a.pages)) : 0;
+      out.push({ id, name: txt(a.name, 140).replace(/[\u0000-\u001f]/g, "") || "allegato", type: a.type === "pdf" ? "pdf" : "jpg", size, pages, path, at: typeof a.at === "string" && /^\d{4}-\d{2}-\d{2}T[\d:.]{5,12}Z?$/.test(a.at) ? a.at : "", by: txt(a.by, 80) });
+    }
+    return out;
   }
   function cleanDoc(doc, date) {
     if (!isObj(doc)) return null;
@@ -1090,6 +1118,36 @@
     return DBX.remove(path);
   }
 
+  // ---------- allegati delle prenotazioni (3.0.2) ----------
+  // nome del file: senza caratteri che Dropbox non accetta, al massimo 100 caratteri (l'estensione resta)
+  function attFileName(n, ext) {
+    let b = String(n || "").replace(/[\u0000-\u001f\/\\:*?"<>|]+/g, "_").replace(/\.{2,}/g, "_").replace(/\s+/g, " ").trim().replace(/^[\s._]+/, "");
+    b = Array.from(b.replace(/\.[A-Za-z0-9]{1,5}$/, "")).slice(0, 96).join("").replace(/[.\s_]+$/, "").trim() || "allegato";
+    return b + "." + ext;
+  }
+  // carica il file (mai sopra un altro: "add"); restituisce il percorso dentro «Allegati» (anno/id_nome)
+  async function saveAttachment(year, id, name, data, ext) {
+    noRO();
+    year = /^20\d\d$/.test(String(year)) ? String(year) : String(new Date().getFullYear());
+    if (!/^[a-z0-9]{8,24}$/.test(String(id || ""))) throw { code: "path" };
+    const rel = year + "/" + id + "_" + attFileName(name, ext === "pdf" ? "pdf" : "jpg");
+    if (!attRelOk(rel)) throw { code: "path" };
+    await ensureFolder(P.att + "/" + year);
+    await DBX.upload(P.att + "/" + rel, data, "add");
+    return rel;
+  }
+  // scarica un allegato: null se in Dropbox non c'è più
+  async function readAttachment(rel) {
+    if (!attRelOk(rel)) throw { code: "path" };
+    const f = await DBX.download(P.att + "/" + rel);
+    return f ? new Uint8Array(f.buf) : null;
+  }
+  async function removeAttachment(rel) {
+    noRO();
+    if (!attRelOk(rel)) throw { code: "path" };
+    return DBX.remove(P.att + "/" + rel);
+  }
+
   // ---------- versione minima (2.6) ----------
   // config/versione-minima.json = { min: "2.6" }: il primo dispositivo che apre una versione nuova la scrive; le
   // pagine rimaste aperte con una versione più vecchia (dalla 2.6 in poi) se ne accorgono e smettono di scrivere.
@@ -1330,8 +1388,10 @@
   }
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "3.0";
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "3.0.2"; // 3.0.2: allegati delle prenotazioni
   window.STORE = {
     BASE, P,
+    saveAttachment, readAttachment, removeAttachment, cleanAtt, ATT_MAX,
     configure(h) { Object.assign(hooks, h); },
     ready,
     enable() { enabled = true; writesBlocked = false; },

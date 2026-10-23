@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="it" data-v="3.0" data-p="3.0.1">
+<html lang="it" data-v="3.0" data-p="3.0.2">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
      Niente codice scritto dentro la pagina: anche se un dato arrivasse con del codice dentro, il browser non lo esegue. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com https://notify.dropboxapi.com https://places.googleapis.com; frame-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com https://notify.dropboxapi.com https://places.googleapis.com; frame-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Agenda Flotta La Terra</title>
 <meta name="theme-color" content="#521A22">
@@ -335,6 +335,27 @@ table.wk{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px;t
 /* 3.0: programma del foglio di servizio più alto (prima vinceva «.f textarea» di 64px) e cresce con il testo */
 #sheetBox #progWrap textarea{min-height:300px;font-size:15px;line-height:1.55;resize:vertical;padding:10px 12px}
 #sheetBox #progWrap .prog-day textarea{min-height:100px}
+/* 3.0.2: allegati per l'autista */
+.att-box{border-top:1px dashed var(--line);padding-top:12px}
+.att-box.drag{outline:2px dashed var(--accent);outline-offset:4px;border-radius:10px;background:var(--accent-soft)}
+.att-list{list-style:none;margin:2px 0 6px;padding:0;display:flex;flex-direction:column;gap:6px}
+.att-i{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:7px 8px 7px 10px;min-width:0}
+.att-i.up{opacity:.75}
+.att-ic{flex:none;width:38px;height:28px;border-radius:6px;display:grid;place-items:center;font-size:10.5px;font-weight:800;letter-spacing:.04em;color:#fff;background:#B3261E}
+.att-ic.img{background:#2E7D4F}
+.att-i .att-n{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;font-size:14px}
+.att-i .att-m{flex:none;font-size:12.5px;color:var(--ink-3);white-space:nowrap}
+.att-i .att-del{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:7px;width:32px;height:30px;color:var(--ink-3);font-size:17px;line-height:1}
+.att-i .att-del:hover{color:var(--warn);border-color:currentColor}
+.att-act{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.att-drop{font-size:12.5px;color:var(--ink-3)}
+.att-msg{margin:0;font-size:13px;color:var(--ink-2)}.att-msg.err{color:var(--warn)}
+.att-msg:empty{display:none}
+@media (max-width:640px){.att-i .att-m{display:none}.att-drop{display:none}}
+.bk .att-k{font-weight:400;font-size:12px;margin-left:4px}
+.sh-att{border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13.5px;background:var(--bg);display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}
+.sh-att .sh-att-t{color:var(--ink-3)}
+.sh-att .linkbtn{font-size:13.5px}
 .prog-day{display:flex;flex-direction:column;gap:4px}
 .prog-day b{font-size:13px;color:var(--tour)}
 #progWrap{display:flex;flex-direction:column;gap:10px}
@@ -1449,6 +1470,17 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
         <summary>Foglio di servizio per l'autista</summary>
         <div class="sheetbox-in">
           <div class="f"><span class="lbl" id="l-prog">Programma</span><p class="hint" id="progHint">Una riga per ogni tappa, con orario e luogo. Le righe vengono numerate da sole.</p><div id="progWrap"></div></div>
+          <div class="f att-box" id="attBox">
+            <span class="lbl" id="l-att">Allegati per l'autista</span>
+            <p class="hint">PDF e foto (JPG, PNG), al massimo 8. Si stampano dopo il foglio di servizio e partono per l'autista insieme al foglio. I file Word ed Excel vanno prima salvati come PDF.</p>
+            <ul class="att-list" id="attList" aria-labelledby="l-att" hidden></ul>
+            <div class="att-act">
+              <button type="button" class="btn att-add" id="attAdd"><span aria-hidden="true">📎</span> Allega file</button>
+              <input type="file" id="attFile" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple hidden>
+              <span class="att-drop" id="attDropHint">oppure trascina qui i file</span>
+            </div>
+            <p class="att-msg" id="attMsg" role="status"></p>
+          </div>
         </div>
       </details>
       <div class="f full" id="w-notes" hidden><label for="f-notes">Note (scritte con le versioni precedenti)</label><textarea id="f-notes"></textarea></div>
@@ -1488,8 +1520,9 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       </div>
     </div>
     <p class="sheet-prov" id="sheetProv" hidden>N. foglio <b>provvisorio</b>: la prenotazione non è ancora arrivata in Dropbox, quindi il numero potrebbe cambiare. Il foglio lo riporta (PROVV.); appena torna la connessione il numero viene confermato e il foglio si aggiorna.</p>
-    <p class="sheet-hint">Impaginato del modello <b>automatico_2026_neutro</b>. «Salva e stampa» stampa il foglio così come lo vedi (una pagina A4). La copia in Dropbox (Fogli di servizio) si aggiorna da sola a ogni modifica della prenotazione: è sempre completa, con la copia ufficio, e senza targa e ID mezzo; le scelte di questa finestra valgono solo per la stampa e per il PDF scaricato.</p>
+    <p class="sheet-hint">Impaginato del modello <b>automatico_2026_neutro</b>. «Salva e stampa» stampa il foglio così come lo vedi (una pagina A4). La copia in Dropbox (Fogli di servizio) si aggiorna da sola a ogni modifica della prenotazione: è sempre completa, con la copia ufficio, e senza targa e ID mezzo; le scelte di questa finestra valgono solo per la stampa e per il PDF scaricato. Gli allegati della prenotazione si stampano dopo il foglio e partono per l'autista insieme al foglio; «Salva PDF» e la copia in Dropbox restano solo il foglio.</p>
     <div class="sheet-scroll"><div id="sheetView"></div></div>
+    <div class="sh-att" id="sheetAtt" hidden></div>
     <div class="sent-bar" id="sheetSent" hidden></div>
     <div class="sheet-msg" id="sheetMsg" role="status"></div>
     <div class="mfoot">

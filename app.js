@@ -1,14 +1,15 @@
 
 (function(){
 "use strict";
-const APP_VERSION="3.0.1",APP_DATE="22/10/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="3.0.2",APP_DATE="23/10/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
 // 2.9: aggiornamento parziale sopra la 2.8: cambiano app.js, store.js e index.html (gli altri restano della 2.8).
 // 3.0: aggiornamento intero, tutti i file della famiglia "3.0".
 // 3.0.1: aggiornamento parziale (app.js, index.html): riquadro del programma del foglio di servizio più alto.
-const APP_FAMILY="3.0",APP_PATCH={index:"3.0.1"};
+// 3.0.2: aggiornamento parziale (app.js, index.html, store.js, autisti.js): allegati per l'autista nella prenotazione.
+const APP_FAMILY="3.0",APP_PATCH={index:"3.0.2",store:"3.0.2",autisti:"3.0.2"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -380,9 +381,9 @@ function bookingHTML(b,date){
     '<span class="c-t1">'+esc(t1||(multi&&i>1?"":"—"))+'</span>'+
     '<span class="c-t2">'+esc(t2)+'</span>'+
     '<span class="c-du">'+esc(durShort(b,date))+'</span>'+
-    '<span class="c-cl">'+missBadge(b,date)+(over?'<span class="over" title="Passeggeri oltre la capienza">!</span> ':'')+esc(name)+'</span>'+
+    '<span class="c-cl">'+missBadge(b,date)+(over?'<span class="over" title="Passeggeri oltre la capienza">!</span> ':'')+esc(name)+(attOf(b).length?'<span class="att-k" title="'+attOf(b).length+(attOf(b).length===1?" allegato":" allegati")+' per l\'autista">📎'+(attOf(b).length>1?attOf(b).length:"")+'</span>':'')+'</span>'+
     '<span class="c-rt'+(dayProgram(b,date)?" pg":"")+'">'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+esc(whatToday(b,date)||"")+'</span>'+
-    '<span class="c-dr">'+(b.capo?'<i class="capo-m" title="'+esc(capoTitle(b))+'">capo</i>':'')+drv+'</span>'+
+    '<span class="c-dr">'+(b.capo?'<i class="capo-m" title="'+esc(capoTitle(b))+'">MAX</i>':'')+drv+'</span>'+
     '</button>'+sentChip(b)+mealChip(b,date)+'</div>';
 }
 
@@ -507,15 +508,16 @@ function openForm(opts){
   ["refs","hotels","guides"].forEach(k=>renderRep(k,b[k]||[]));renderRep("dnotes",dnotesOf(b));fillPlaceLists();
   endAuto=false;$("fEditAsk").hidden=true;editConfirmed=false;openSheetAfterSave=false;
   progCache=Array.isArray(b.program)?b.program.slice():[];renderProgram();
+  attFormOpen(b); // 3.0.2: allegati per l'autista
   formCashWas=!!(editing&&cashOn(b)&&((b.advance!==""&&b.advance!=null)||b.envelope||b.envno));
   $("fDelete").hidden=!editing;$("fConfirm").hidden=true;$("fCloseAsk").hidden=true;
   $("fSpese").hidden=!(editing&&speseFor(b));
   $("fBusta").hidden=!(editing&&hasBusta(b)); // 2.8: modello spese della busta da stampare
-  [...$("fBooking").elements].forEach(el=>{if(el.id!=="fCancel"&&el.id!=="fBusta")el.disabled=S.readOnly;});
+  [...$("fBooking").elements].forEach(el=>{if(el.id!=="fCancel"&&el.id!=="fBusta"&&!el.hasAttribute("data-attopen"))el.disabled=S.readOnly;}); // gli allegati si aprono anche in sola lettura
   // bus e autisti decisi dal capo: l'ufficio non li cambia più (il Super Master sì)
   {const dec=!!(editing&&b.capo),lock=dec&&!isSuper();
     if(lock){["f-vehicle","f-driver","f-driver2"].forEach(id=>{$(id).disabled=true;});document.querySelectorAll('#fBooking [data-gen],#fBooking [data-drvopen]').forEach(x=>{x.disabled=true;});}
-    $("fCapo").hidden=!dec;if(dec)$("fCapo").textContent=capoTitle(b)+(lock?": da qui non si cambiano più. Per cambiarli serve il capo, che invia di nuovo il foglio.":": tu puoi ancora cambiarli.");}
+    $("fCapo").hidden=!dec;if(dec)$("fCapo").textContent=capoTitle(b)+(lock?": da qui non si cambiano più. Per cambiarli serve MAX, che invia di nuovo il foglio.":": tu puoi ancora cambiarli.");}
   formLoading=true;syncType();formLoading=false;checkWarns();
   formOrig=readForm(); // per sapere se l'utente ha cambiato qualcosa e quali campi
   // parcheggi scelti che superano «€ Parcheggi» (cifra abbassata da un dispositivo non aggiornato): il cambio si vede
@@ -523,10 +525,15 @@ function openForm(opts){
   $("ovBooking").hidden=false;setTimeout(()=>$("f-client").focus(),30);growAll($("progWrap"));
 }
 let formOrig=null,saving=false,editConfirmed=false;
+// 3.0.2 — allegati per l'autista (il resto è più giù, dopo la stampa del foglio): limiti, stato del modulo aperto
+// (elenco, file caricati in questa apertura da cancellare se non si salva, file tolti) e byte già scaricati
+const ATT_MAX=8,ATT_PDF_MB=10,ATT_IMG_MB=30,ATT_TOT_MB=25,ATT_PAGES=40,ATT_PX=2400;
+let formAtt=[],formAttNew=new Set(),formAttGone=[],formAttSess=0;
+const attCache=new Map();
 const FORM_SKIP=["updatedAt","foglio","bustaOff","exOwn","xbus"];
 // campi cambiati dall'utente rispetto a quando il modulo è stato aperto
 function formChanges(){if(!formOrig)return [];const now=readForm();return Object.keys(now).filter(k=>!FORM_SKIP.includes(k)&&JSON.stringify(now[k])!==JSON.stringify(formOrig[k]));}
-function formDirty(){return !$("ovBooking").hidden&&!S.readOnly&&formChanges().length>0;}
+function formDirty(){return !$("ovBooking").hidden&&!S.readOnly&&(formChanges().length>0||attUploading());}
 // chiusura del modulo: se ci sono modifiche non salvate chiede conferma
 function tryCloseForm(){if(formDirty()){$("fCloseAsk").hidden=false;$("fCloseNo").focus();return false;}closeForm();return true;}
 // elenco autisti: i due generici in cima, poi quelli del foglio "regole"
@@ -721,7 +728,7 @@ function readForm(){
     contactRole:$("f-contactrole").value,contactNote:T("f-contactnote"),
     saldo:$("f-saldo").value,saldoAmt:eur("f-saldoamt"),
     refs:readRep("refs"),hotels:readRep("hotels"),guides:readRep("guides"),program:readProgram(),dnotes:readRep("dnotes"),
-    updatedAt:new Date().toISOString()};
+    att:attFormList(),updatedAt:new Date().toISOString()};
 }
 // per i dispositivi con versioni precedenti: le 4 note del foglio anche nei campi di prima
 function withOldNotes(b){return Object.assign(b,noteCells(b));}
@@ -780,7 +787,7 @@ function checkWarns(){
   $("fWarns").innerHTML=w.map(x=>"<div>"+esc(x)+"</div>").join("");
   return w;
 }
-function closeForm(){$("ovBooking").hidden=true;$("cSug").hidden=true;editing=null;}
+function closeForm(){$("ovBooking").hidden=true;$("cSug").hidden=true;editing=null;attFormClose();}
 function yymmdd(d){return d.slice(2,4)+d.slice(5,7)+d.slice(8,10);}
 async function nextSeq(date){
   let d=S.days[date];
@@ -1370,6 +1377,7 @@ $("fBooking").addEventListener("submit",async e=>{
     if(el.type==="time"&&!v.badInput)continue;
     $("fEditAsk").hidden=true;editConfirmed=false;openSheetAfterSave=false;el.reportValidity();return;
   }
+  if(attUploading()){$("fEditAsk").hidden=true;editConfirmed=false;openSheetAfterSave=false;toast("Aspetta: sto ancora caricando un allegato in Dropbox.");return;}
   const b=readForm();
   if(!b.start){openSheetAfterSave=false;toast("Inserisci la data.");return;}
   if(!validDate(b.start)||!validDate(b.end)){openSheetAfterSave=false;checkWarns();toast("Controlla la data: l'anno deve essere tra 2000 e 2099.");return;}
@@ -1397,6 +1405,7 @@ $("fBooking").addEventListener("submit",async e=>{
   const old=editing&&editing.start,moved=!!(old&&old!==b.start);
   // per le modifiche: versione di partenza e campi cambiati, così non si cancellano le modifiche fatte da altri nel frattempo
   const meta=editing?{edit:true,base:editing.base,patch:withOldNoteKeys(formChanges())}:{};
+  if(editing){const ax=attFormDelta();if(ax)meta.attx=ax;} // 3.0.2: allegati aggiunti e tolti qui (si uniscono a quelli di altri)
   if(bossEdit)meta.boss=true;
   const who=meName();
   if(editing){b.by=editing.by;b.byAt=editing.byAt;b.updBy=who;if(meta.patch.length)meta.patch.push("updBy");}
@@ -1410,6 +1419,7 @@ $("fBooking").addEventListener("submit",async e=>{
     b.foglio=foglio;
     if(moved)writeDayOps(old,{bookings:{[id]:null}},{move:b.start,know:knowOf(bookingsAll().find(x=>x.id===id))});
     writeDayOps(b.start,Object.assign({bookings:{[id]:b}},seqPatch),Object.assign({},meta,moved?{move:true}:{}));
+    attFormSaved(id); // 3.0.2: gli allegati caricati restano; quelli tolti si cancellano da Dropbox quando la modifica è arrivata
     if(!editing)ACC.log("prenotazione","Nuova prenotazione "+bookingLabel(b),{id});
     else if(logCh.length)ACC.log("prenotazione","Modificata la prenotazione "+bookingLabel(b),{id,ch:logCh});
     regAutoAdd(b);
@@ -1430,7 +1440,7 @@ $("fDeleteYes").onclick=async()=>{
   if(!editing)return;
   try{const gone=bookingsAll().find(x=>x.id===editing.id),wasPending=false; // 2.9: la fila delle cancellazioni aspetta Dropbox e non tocca numeri ancora in uso
     const del=Object.assign({},formOrig||{},{foglio:editing.foglio,start:editing.start});writeDayOps(editing.start,{bookings:{[editing.id]:null}},{client:cleanText($("f-client").value),know:knowOf(gone)});ACC.log("prenotazione","Eliminata la prenotazione "+bookingLabel(del),{id:editing.id});closeForm();renderAll();toast("Prenotazione eliminata");
-    withdrawAfterDelete(gone);if(!wasPending)pdfDelAdd(gone);}catch(err){handleErr(err);}
+    withdrawAfterDelete(gone);if(!wasPending)pdfDelAdd(gone);if(gone)attDropLater(gone.id,attOf(gone).map(a=>a.path));}catch(err){handleErr(err);}
 };
 // 2.8: PDF dei servizi eliminati da cancellare in Dropbox (Fogli di servizio). Senza internet restano in fila su
 // questo dispositivo e si cancellano appena torna la connessione.
@@ -2617,6 +2627,7 @@ function renderSheet(){
   sel.value=SHO.alias&&alias?"alias":"cliente";
   const part=sheetPart();
   $("sheetView").innerHTML=tplSVG(b,part)+tplPage2HTML(b,part);
+  renderSheetAtt(); // 3.0.2
   renderSheetSent();
 }
 // dopo "Salva e apri foglio di servizio": si aspetta (al massimo 10 secondi) la conferma del numero
@@ -2696,6 +2707,8 @@ async function printSheet(){
   ACC.log("foglio",(isInvio()?"Stampa":"Salva e stampa")+" del foglio di servizio n. "+(b.foglio||"")+" «"+(b.client||"")+"»"+PART_LOG[full],{id:b.id});
   const saving=sheetCopyToDropbox(b),done=()=>saving.then(t=>{if(sheetBooking&&sheetBooking.id===b.id)$("sheetMsg").textContent=t?"Stampa aperta. "+t:"";});
   $("sheetMsg").textContent=isInvio()||S.readOnly?"":"Preparo la stampa e salvo la copia in Dropbox…";
+  // 3.0.2: con gli allegati si stampa un PDF unico (foglio + allegati); la copia in Dropbox resta solo il foglio
+  if(full!=="office"&&attOf(b).length){await printWithAtts(b,full,saving);return;}
   if(ios){ // su iPhone/iPad si stampa dal PDF (Condividi › Stampa)
     try{const blob=await tplPDF(b,full);const u=URL.createObjectURL(blob);window.open(u,"_blank");setTimeout(()=>URL.revokeObjectURL(u),60000);}catch(_){toast("Non riesco a preparare la stampa.");}
     done();return;
@@ -2720,6 +2733,262 @@ async function printSheet(){
   done();
 }
 $("sheetPrint").onclick=printSheet;
+
+// =====================================================================================
+// 3.0.2 — Allegati per l'autista (PDF e foto JPG/PNG) nella prenotazione
+// =====================================================================================
+// Si allegano dal modulo (riquadro «Foglio di servizio per l'autista»). Il file va subito in Dropbox, nella cartella
+// «Allegati» dell'agenda (Allegati › anno); nella prenotazione resta solo l'elenco (b.att). Gli allegati si stampano
+// dopo il foglio («Salva e stampa» / «Stampa») e partono per l'autista in coda al PDF del foglio (l'app degli autisti
+// mostra il PDF: lì non cambia niente). «Salva PDF», «Condividi» e la copia automatica in «Fogli di servizio» restano
+// solo il foglio. Le foto si rimpiccioliscono (lato lungo 2400 px) e diventano JPG; i PDF protetti non si accettano
+// (non si possono unire al foglio).
+// (costanti e stato degli allegati: vicino al modulo della prenotazione, più su)
+function attOf(b){return Array.isArray(b&&b.att)?b.att.filter(a=>a&&a.path):[];}
+function attSize(n){return n>=1048576?(Math.round(n/104857.6)/10).toLocaleString("it-IT")+" MB":Math.max(1,Math.round(n/1024))+" KB";}
+function attMeta(a){return (a.type==="pdf"?"PDF"+(a.pages?" · "+a.pages+(a.pages===1?" pagina":" pagine"):""):"Foto")+" · "+attSize(a.size||0);}
+function attId(){let t="";const c=crypto.getRandomValues(new Uint8Array(12));for(const x of c)t+="abcdefghijklmnopqrstuvwxyz0123456789"[x%36];return t;}
+function attUploading(){return formAtt.some(a=>a.up);}
+// byte degli allegati già scaricati o appena caricati: stampa e invio non li riscaricano (al massimo 80 MB)
+function attCachePut(path,bytes){
+  attCache.delete(path);attCache.set(path,bytes);
+  let tot=0;for(const v of attCache.values())tot+=v.length;
+  for(const k of [...attCache.keys()]){if(tot<=80*1048576)break;tot-=attCache.get(k).length;attCache.delete(k);}
+}
+async function attBytes(a){
+  const hit=attCache.get(a.path);if(hit)return hit;
+  const bytes=await STORE.readAttachment(a.path);
+  if(!bytes)throw {code:"attmissing",name:a.name};
+  attCachePut(a.path,bytes);return bytes;
+}
+function attFormOpen(b){
+  formAttSess++;formAtt=attOf(b).map(a=>Object.assign({},a));formAttNew=new Set();formAttGone=[];
+  attSay("");renderAtt();
+}
+// per readForm: solo i file già in Dropbox
+function attFormList(){return formAtt.filter(a=>!a.up&&a.path).map(a=>({id:a.id,name:a.name,type:a.type,size:a.size||0,pages:a.pages||0,path:a.path,at:a.at||"",by:a.by||""}));}
+// allegati aggiunti (id) e tolti (percorsi) in questa apertura del modulo: null se nessuno
+function attFormDelta(){
+  const add=formAtt.filter(a=>!a.up&&formAttNew.has(a.id)).map(a=>a.id),del=formAttGone.slice();
+  return add.length||del.length?{add,del}:null;
+}
+// prenotazione salvata: i file caricati restano; quelli tolti si cancellano quando la modifica è arrivata in Dropbox
+function attFormSaved(id){const gone=formAttGone.slice();formAttNew=new Set();formAttGone=[];attDropLater(id,gone);}
+// modulo chiuso senza salvare: i file caricati in questa apertura non servono più
+function attFormClose(){
+  formAttSess++;
+  for(const a of formAtt)if(formAttNew.has(a.id)&&a.path){STORE.removeAttachment(a.path).catch(()=>{});attCache.delete(a.path);}
+  formAtt=[];formAttNew=new Set();formAttGone=[];
+}
+// cancella da Dropbox i file che nessuna prenotazione usa più (dopo che la modifica o l'eliminazione è arrivata)
+function attDropLater(id,paths){
+  paths=(paths||[]).filter(Boolean);if(!paths.length||S.readOnly||isInvio())return;
+  STORE.whenSent(id,120000).then(async ok=>{
+    if(!ok)return; // senza connessione il file resta in «Allegati»: non dà fastidio
+    // si rilegge Dropbox: un altro dispositivo potrebbe aver spostato la prenotazione (con l'allegato) a un altro giorno
+    let pulled=false;try{pulled=await STORE.pull();}catch(_){}
+    if(!pulled||STORE.isPending(id))return;
+    const used=new Set();for(const x of bookingsAll())for(const a of attOf(x))used.add(a.path);
+    for(const p of paths)if(!used.has(p)){STORE.removeAttachment(p).catch(()=>{});attCache.delete(p);}
+  });
+}
+function attSay(t,err){const m=$("attMsg");m.textContent=t||"";m.classList.toggle("err",!!err);}
+function renderAtt(){
+  const ro=S.readOnly,l=$("attList");
+  l.innerHTML=formAtt.map(a=>'<li class="att-i'+(a.up?" up":"")+'" data-att="'+esc(a.id)+'"><span class="att-ic '+(a.type==="pdf"?"pdf":"img")+'" aria-hidden="true">'+(a.type==="pdf"?"PDF":"FOTO")+'</span>'+
+    (a.up?'<span class="att-n">'+esc(a.name)+'</span><span class="att-m">carico in Dropbox…</span>'
+      :'<button type="button" class="att-n linkbtn" data-attopen="'+esc(a.id)+'" title="Apri «'+esc(a.name)+'»">'+esc(a.name)+'</button><span class="att-m">'+esc(attMeta(a))+'</span>')+
+    (ro||a.up?'':'<button type="button" class="att-del" data-attdel="'+esc(a.id)+'" aria-label="Togli l\'allegato '+esc(a.name)+'" title="Togli">×</button>')+'</li>').join("");
+  l.hidden=!formAtt.length;
+  $("attAdd").hidden=ro||formAtt.length>=ATT_MAX;$("attDropHint").hidden=ro||formAtt.length>=ATT_MAX;
+}
+function attKind(f){
+  const ext=(/\.([a-z0-9]{1,5})$/i.exec(f.name||"")||[])[1]||"",e=ext.toLowerCase(),t=String(f.type||"").toLowerCase();
+  if(t==="application/pdf"||e==="pdf")return "pdf";
+  if(/^image\/(jpeg|pjpeg|png)$/.test(t)||/^(jpe?g|png)$/.test(e))return "jpg";
+  return "";
+}
+function attBadType(f){
+  const n="«"+(f.name||"file")+"»",e=((/\.([a-z0-9]{1,8})$/i.exec(f.name||"")||[])[1]||"").toLowerCase();
+  if(/^(docx?|odt|rtf|pages)$/.test(e))return n+" è un documento Word: aprilo, salvalo come PDF (File › Salva con nome › formato PDF) e allega il PDF.";
+  if(/^(xlsx?|xlsm|ods|numbers|csv)$/.test(e))return n+" è un foglio Excel: aprilo, salvalo come PDF (File › Salva con nome › formato PDF) e allega il PDF.";
+  if(/^(heic|heif)$/.test(e))return n+" è una foto HEIC (iPhone): esportala in JPG, oppure allegala dal telefono scegliendola dalla galleria (diventa JPG da sola).";
+  return n+": si possono allegare solo PDF e foto JPG o PNG.";
+}
+async function attPrepPdf(f){
+  const n="«"+f.name+"»";
+  if(f.size>ATT_PDF_MB*1048576)throw {msg:n+" è troppo grande ("+attSize(f.size)+"): un PDF può essere al massimo di "+ATT_PDF_MB+" MB."};
+  const bytes=new Uint8Array(await f.arrayBuffer());
+  const head=new TextDecoder("latin1").decode(bytes.subarray(0,1024));
+  if(head.indexOf("%PDF-")<0)throw {msg:n+" non è un PDF valido."};
+  const PL=await loadPdfLib();let doc;
+  try{doc=await PL.PDFDocument.load(bytes,{updateMetadata:false});}
+  catch(e){throw {msg:/encrypt/i.test(String(e&&e.message))?n+" è protetto (password o blocco delle modifiche) e non si può unire al foglio: aprilo, scegli Stampa › Salva come PDF e allega il PDF nuovo.":n+" non si riesce a leggere: aprilo e salvalo di nuovo come PDF (Stampa › Salva come PDF), poi allegalo."};}
+  const pages=doc.getPageCount();
+  if(!pages)throw {msg:n+" non ha pagine."};
+  if(pages>ATT_PAGES)throw {msg:n+" ha "+pages+" pagine: un allegato può averne al massimo "+ATT_PAGES+"."};
+  try{const t=await PL.PDFDocument.create();await t.copyPages(doc,doc.getPageIndices());}
+  catch(_){throw {msg:n+" non si riesce a unire al foglio: aprilo e salvalo di nuovo come PDF (Stampa › Salva come PDF), poi allegalo."};}
+  return {bytes,pages,name:String(f.name).replace(/\.[^.]*$/,"")+".pdf"};
+}
+function attLoadImg(f){
+  return new Promise((res,rej)=>{const u=URL.createObjectURL(f),im=new Image();im.onload=()=>{URL.revokeObjectURL(u);res(im);};im.onerror=()=>{URL.revokeObjectURL(u);rej(new Error("img"));};im.src=u;});
+}
+async function attPrepImg(f){
+  const n="«"+f.name+"»";
+  if(f.size>ATT_IMG_MB*1048576)throw {msg:n+" è troppo grande ("+attSize(f.size)+"): una foto può essere al massimo di "+ATT_IMG_MB+" MB."};
+  let src;try{src=await createImageBitmap(f);}catch(_){try{src=await attLoadImg(f);}catch(_){throw {msg:n+" non è una foto leggibile (JPG o PNG)."};}}
+  const w0=src.width||src.naturalWidth,h0=src.height||src.naturalHeight;
+  if(!w0||!h0)throw {msg:n+" non è una foto leggibile (JPG o PNG)."};
+  const k=Math.min(1,ATT_PX/Math.max(w0,h0)),w=Math.max(1,Math.round(w0*k)),h=Math.max(1,Math.round(h0*k));
+  const cv=document.createElement("canvas");cv.width=w;cv.height=h;
+  const cx=cv.getContext("2d");cx.fillStyle="#fff";cx.fillRect(0,0,w,h);cx.drawImage(src,0,0,w,h);try{src.close&&src.close();}catch(_){}
+  const blob=await new Promise(r=>cv.toBlob(r,"image/jpeg",0.88));
+  if(!blob)throw {msg:n+": non riesco a preparare la foto."};
+  return {bytes:new Uint8Array(await blob.arrayBuffer()),pages:1,name:String(f.name).replace(/\.[^.]*$/,"")+".jpg"};
+}
+function attUpErr(e,name){
+  const c=e&&e.code;
+  return c==="readonly"||c==="outdated"?"Con questo profilo (o con questa versione dell'agenda) non si possono allegare file.":
+    c==="path"?"«"+name+"»: il nome del file non va bene. Rinominalo (solo lettere e numeri) e riprova.":
+    c==="network"||c==="busy"||!navigator.onLine?"«"+name+"» non è stato caricato: Dropbox non risponde. Controlla la connessione e riprova.":
+    "«"+name+"» non è stato caricato in Dropbox: riprova.";
+}
+async function attAddFiles(files){
+  if(S.readOnly||$("ovBooking").hidden||!files.length)return;
+  if(!navigator.onLine){attSay("Per allegare un file serve la connessione a internet: il file va subito in Dropbox.",true);return;}
+  const sess=formAttSess,errs=[];attSay("");
+  for(const f of files){
+    if(sess!==formAttSess)return;
+    if(formAtt.length>=ATT_MAX){errs.push("Al massimo "+ATT_MAX+" allegati per prenotazione: «"+f.name+"» e gli altri non sono stati aggiunti.");break;}
+    const kind=attKind(f);
+    if(!kind){errs.push(attBadType(f));continue;}
+    const tmp={id:attId(),name:f.name,type:kind,up:true};formAtt.push(tmp);renderAtt();
+    try{
+      const r=kind==="pdf"?await attPrepPdf(f):await attPrepImg(f);
+      const tot=formAtt.filter(a=>!a.up).reduce((t,a)=>t+(a.size||0),0)+r.bytes.length;
+      if(tot>ATT_TOT_MB*1048576)throw {msg:"Gli allegati di una prenotazione possono arrivare in tutto a "+ATT_TOT_MB+" MB: «"+f.name+"» non è stato aggiunto."};
+      if(sess!==formAttSess)return;
+      const year=String($("f-start").value||todayISO()).slice(0,4);
+      const path=await STORE.saveAttachment(year,tmp.id,r.name,r.bytes,kind);
+      if(sess!==formAttSess){STORE.removeAttachment(path).catch(()=>{});return;} // modulo chiuso intanto: il file non serve
+      attCachePut(path,r.bytes);
+      Object.assign(tmp,{name:r.name,size:r.bytes.length,pages:r.pages||0,path,at:new Date().toISOString(),by:meName()});delete tmp.up;
+      formAttNew.add(tmp.id);
+    }catch(e){
+      if(sess!==formAttSess)return;
+      formAtt=formAtt.filter(a=>a!==tmp);errs.push(e&&e.msg?e.msg:attUpErr(e,f.name));
+      if(!(e&&e.msg))ACC.tlog("errore","Allegato non caricato in Dropbox",String((e&&(e.code||e.summary||e.message))||e));
+    }
+    renderAtt();
+  }
+  if(sess!==formAttSess)return;
+  attSay(errs.join(" "),errs.length>0);
+  if(!$("fEditAsk").hidden){$("fEditAsk").hidden=true;openSheetAfterSave=false;} // l'elenco delle modifiche si rifà al prossimo «Salva»
+}
+$("attAdd").onclick=()=>{if(S.readOnly)return;$("attFile").value="";$("attFile").click();};
+$("attFile").addEventListener("change",e=>{e.stopPropagation();const fs=[...$("attFile").files];$("attFile").value="";attAddFiles(fs);});
+$("attFile").addEventListener("input",e=>e.stopPropagation());
+// trascinare i file sul riquadro
+{const box=$("attBox");let dn=0;
+  const files=e=>e.dataTransfer&&[...e.dataTransfer.types||[]].includes("Files");
+  box.addEventListener("dragenter",e=>{if(!files(e)||S.readOnly)return;e.preventDefault();dn++;box.classList.add("drag");});
+  box.addEventListener("dragover",e=>{if(!files(e)||S.readOnly)return;e.preventDefault();e.dataTransfer.dropEffect="copy";});
+  box.addEventListener("dragleave",()=>{dn=Math.max(0,dn-1);if(!dn)box.classList.remove("drag");});
+  box.addEventListener("drop",e=>{if(!files(e))return;e.preventDefault();e.stopPropagation();dn=0;box.classList.remove("drag");if(!S.readOnly)attAddFiles([...e.dataTransfer.files]);});
+  // file lasciati fuori dal riquadro: il browser non deve aprirli (si perderebbe la prenotazione aperta)
+  for(const ev of ["dragover","drop"])$("ovBooking").addEventListener(ev,e=>{if(files(e)&&!box.contains(e.target)){e.preventDefault();e.dataTransfer.dropEffect="none";}});}
+$("attList").addEventListener("click",e=>{
+  const d=e.target.closest("[data-attdel]");
+  if(d){
+    if(S.readOnly)return;const a=formAtt.find(x=>x.id===d.dataset.attdel);if(!a||a.up)return;
+    formAtt=formAtt.filter(x=>x!==a);
+    if(formAttNew.has(a.id)){formAttNew.delete(a.id);STORE.removeAttachment(a.path).catch(()=>{});attCache.delete(a.path);attSay("«"+a.name+"» tolto.");}
+    else{formAttGone.push(a.path);attSay("«"+a.name+"» verrà tolto quando salvi la prenotazione.");}
+    renderAtt();if(!$("fEditAsk").hidden){$("fEditAsk").hidden=true;openSheetAfterSave=false;}
+    return;
+  }
+  const o=e.target.closest("[data-attopen]");
+  if(o){const a=formAtt.find(x=>x.id===o.dataset.attopen);if(a)attOpen(a,t=>attSay(t,true));}
+});
+// apre un allegato in una nuova scheda (la scheda si apre subito, poi arriva il file)
+async function attOpen(a,say){
+  say=say||toast;
+  const type=a.type==="pdf"?"application/pdf":"image/jpeg",url=bytes=>{const u=URL.createObjectURL(new Blob([bytes],{type}));setTimeout(()=>URL.revokeObjectURL(u),600000);return u;};
+  const hit=attCache.get(a.path);
+  if(hit){const w=window.open(url(hit),"_blank");if(!w)dlFile(new Blob([hit],{type}),a.name);return;}
+  if(!navigator.onLine){say("Per aprire l'allegato serve la connessione a internet.");return;}
+  let w=null;try{w=window.open("","_blank");if(w)w.document.write('<!doctype html><meta charset="utf-8"><title>'+esc(a.name)+'</title><p style="font:16px system-ui,sans-serif;padding:24px">Apro «'+esc(a.name)+'»…</p>');}catch(_){}
+  try{const bytes=await attBytes(a);if(w&&!w.closed)w.location.href=url(bytes);else dlFile(new Blob([bytes],{type}),a.name);}
+  catch(e){try{w&&w.close();}catch(_){}say(e&&e.code==="attmissing"?"«"+a.name+"» non c'è più in Dropbox (cartella Allegati).":"Non riesco ad aprire «"+a.name+"»: controlla la connessione e riprova.");}
+}
+// foglio + allegati in un solo PDF (stampa e invio all'autista). say: messaggi di avanzamento
+async function attMerge(blob,b,say){
+  const atts=attOf(b);if(!atts.length)return blob;
+  const PL=await loadPdfLib(),{PDFDocument,StandardFonts,rgb}=PL;
+  const pdf=await PDFDocument.load(await blob.arrayBuffer());
+  let font=null;
+  for(let i=0;i<atts.length;i++){
+    const a=atts[i];if(say)say("Preparo gli allegati ("+(i+1)+" di "+atts.length+")…");
+    const bytes=await attBytes(a);
+    try{
+      if(a.type==="pdf"){
+        const src=await PDFDocument.load(bytes,{updateMetadata:false});
+        for(const pg of await pdf.copyPages(src,src.getPageIndices()))pdf.addPage(pg);
+      }else{
+        const img=await pdf.embedJpg(bytes),land=img.width>img.height,PW=land?841.89:595.28,PH=land?595.28:841.89,M=28.35,TOP=20;
+        const page=pdf.addPage([PW,PH]);
+        if(!font)font=await pdf.embedFont(StandardFonts.Helvetica);
+        const cap=pdfTxt("Allegato "+(i+1)+" di "+atts.length+" al foglio di servizio n. "+(b.foglio||"")+" – "+a.name);
+        page.drawText(cap.length>130?cap.slice(0,127)+"...":cap,{x:M,y:PH-M-8,size:8,font,color:rgb(.35,.35,.35)});
+        const bw=PW-2*M,bh=PH-2*M-TOP,k=Math.min(bw/img.width,bh/img.height),w=img.width*k,h=img.height*k;
+        page.drawImage(img,{x:M+(bw-w)/2,y:M+(bh-h)/2,width:w,height:h});
+      }
+    }catch(e){throw {code:"attbad",name:a.name};}
+  }
+  return new Blob([await pdf.save()],{type:"application/pdf"});
+}
+const attErrText=(e,what)=>{const c=e&&e.code;return c==="attmissing"?"Non trovo in Dropbox l'allegato «"+e.name+"»: "+what+". Apri la prenotazione, togli l'allegato e allegalo di nuovo.":
+  c==="attbad"?"L'allegato «"+e.name+"» non si riesce a unire al foglio: "+what+". Toglilo e allegalo di nuovo salvato come PDF.":
+  !navigator.onLine||c==="network"||c==="busy"?"Non riesco a scaricare gli allegati da Dropbox: "+what+". Controlla la connessione e riprova.":"Non riesco a preparare il foglio con gli allegati: "+what+".";};
+// riga «Allegati» nella finestra del foglio
+function renderSheetAtt(){
+  const b=sheetBooking,box=$("sheetAtt"),l=b?attOf(b):[];
+  if(!l.length){box.hidden=true;box.innerHTML="";return;}
+  const off=sheetPart()==="office",iv=isInvio();
+  box.innerHTML='<b>📎 '+l.length+(l.length===1?" allegato":" allegati")+'</b><span class="sh-att-t">'+(iv?"partono per l'autista insieme al foglio:":off?"con «Solo parte contabile» non si stampano:":"si stampano dopo il foglio e partono per l'autista insieme al foglio:")+'</span>'+
+    l.map(a=>'<button type="button" class="linkbtn" data-shatt="'+esc(a.id)+'" title="'+esc(attMeta(a))+'">'+esc(a.name)+'</button>').join('<span aria-hidden="true">·</span>');
+  box.hidden=false;
+}
+$("sheetAtt").addEventListener("click",e=>{const x=e.target.closest("[data-shatt]");if(!x||!sheetBooking)return;const a=attOf(sheetBooking).find(y=>y.id===x.dataset.shatt);if(a)attOpen(a,t=>{$("sheetMsg").textContent=t;});});
+// stampa del foglio con gli allegati: un PDF unico. Chrome ed Edge aprono subito la finestra di stampa; gli altri
+// browser (Safari, Firefox, iPhone/iPad) aprono il PDF in una nuova scheda, da cui si stampa.
+async function printWithAtts(b,part,saving){
+  const ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+  const chromium=!ios&&!!window.chrome&&/(Chrome|Chromium|Edg)\//.test(navigator.userAgent)&&!/Firefox\/|Android/i.test(navigator.userAgent); // su Android il PDF non si vede in una cornice
+  const mine=()=>sheetBooking&&sheetBooking.id===b.id&&!$("ovSheet").hidden,say=t=>{if(mine())$("sheetMsg").textContent=t;};
+  const n=attOf(b).length,nTxt=n===1?"l'allegato":"i "+n+" allegati";
+  const tail=t=>saving.then(x=>x?t+" "+x:t);
+  let blob;const btns=[$("sheetPrint"),$("sheetPdf")];btns.forEach(x=>x.disabled=true);
+  try{say("Preparo la stampa del foglio con "+nTxt+"…");blob=await sheetPdfFull(b,part,say);}
+  catch(e){console.error(e);ACC.tlog("errore","Stampa del foglio con gli allegati non riuscita",String((e&&(e.code||e.message))||e));tail(attErrText(e,"la stampa non è partita")).then(say);return;}
+  finally{btns.forEach(x=>x.disabled=false);}
+  const u=URL.createObjectURL(blob);setTimeout(()=>URL.revokeObjectURL(u),600000);
+  const inTab=()=>{
+    const w=window.open(u,"_blank");
+    if(w){tail("Il foglio con "+nTxt+" si è aperto in una nuova scheda: stampalo da lì.").then(say);return;}
+    tail("Il foglio con "+nTxt+" è pronto.").then(t=>{if(mine())$("sheetMsg").innerHTML=esc(t)+' <a class="btn" id="sheetPrintPdf" href="'+u+'" target="_blank" rel="noopener">Apri il PDF da stampare</a>';});
+  };
+  if(!chromium){inTab();return;}
+  let fr=$("printFrame");if(fr)fr.remove();
+  fr=document.createElement("iframe");fr.id="printFrame";fr.setAttribute("aria-hidden","true");fr.style.cssText="position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none";
+  document.body.appendChild(fr);
+  const ok=await new Promise(r=>{const t=setTimeout(()=>r(false),8000);fr.onload=()=>{clearTimeout(t);r(true);};fr.src=u;});
+  try{if(!ok)throw 0;await new Promise(r=>setTimeout(r,300));fr.contentWindow.focus();fr.contentWindow.print();tail("Stampa aperta (foglio e "+nTxt+").").then(say);}
+  catch(_){inTab();}
+}
+// PDF del foglio con gli allegati in coda (non con «Solo parte contabile»)
+async function sheetPdfFull(b,part,say){const blob=await tplPDF(b,part);return part==="office"?blob:attMerge(blob,b,say);}
 
 // ---------- versione ----------
 // (APP_VERSION e APP_DATE sono in testa al file)
@@ -2812,8 +3081,8 @@ function notify(msg,sticky){
 }
 function itD(d){return d?(+d.slice(8,10))+"/"+d.slice(5,7)+"/"+d.slice(0,4):"";}
 function onNotice(n){
-  if(n.kind==="moveKept"){notify("La prenotazione «"+(n.client||"")+"» del "+itD(n.date)+" NON è stata spostata: nel frattempo il capo ha deciso bus e autisti, oppure il foglio è stato inviato all'autista. Riaprila e, se serve, spostala di nuovo.",true);return;}
-  if(n.kind==="sentKept"){notify("Il foglio di «"+(n.client||"")+"» del "+itD(n.date)+": nel frattempo il capo ha deciso bus e autisti. Il foglio va inviato da lui.",true);return;}
+  if(n.kind==="moveKept"){notify("La prenotazione «"+(n.client||"")+"» del "+itD(n.date)+" NON è stata spostata: nel frattempo MAX ha deciso bus e autisti, oppure il foglio è stato inviato all'autista. Riaprila e, se serve, spostala di nuovo.",true);return;}
+  if(n.kind==="sentKept"){notify("Il foglio di «"+(n.client||"")+"» del "+itD(n.date)+": nel frattempo MAX ha deciso bus e autisti. Il foglio va inviato da lui.",true);return;}
   if(n.kind==="delSent"){if(n.b)withdrawAfterDelete(n.b);return;}
   ACC.tlog(n.kind==="badfile"||n.kind==="badcfg"?"errore":"avviso","Avviso sincronizzazione: "+n.kind+(n.date?" "+n.date:"")+(n.client?" «"+n.client+"»":""),n.from?n.from+" → "+n.to:(n.path||""));
   const who=n.client?"«"+n.client+"»":"una prenotazione";
@@ -2896,6 +3165,7 @@ function showGate(mode,o){
   else gateSuper(mode,o);
 }
 function closeOverlays(){
+  try{attFormClose();}catch(_){} // 3.0.2: prenotazione chiusa senza salvare (uscita): i file appena caricati non servono
   ["ovBooking","ovFleet","ovMenu","ovSheet","ovClients","ovClientNew","ovMaster","ovArch","ovReg","ovInv","ovInvList","ovCont","ovSpese","ovQr","ovCapo","ovPasto"].forEach(id=>{const x=$(id);if(x)x.hidden=true;});PO=null;try{closeCapo();}catch(_){}try{$("recOut").textContent="";$("recShown").hidden=true;}catch(_){}INV=null;CT=null;ctOrig=null;ctDirty=false;invPending=null;invSel.clear();
   if(typeof spClosePhoto==="function")spClosePhoto();
   try{closeBusta();}catch(_){}
@@ -3201,7 +3471,7 @@ document.addEventListener("visibilitychange",()=>{if(document.visibilityState===
 window.addEventListener("pageshow",checkIdle);window.addEventListener("focus",checkIdle);window.addEventListener("pagehide",()=>saveAct(true));
 
 // ---------- registro: cosa è cambiato in una prenotazione ----------
-const FIELD_LBL={type:"Categoria",vehicle:"Mezzo",start:"Data partenza",end:"Data rientro",time:"Ora partenza",time2:"Ora rientro",client:"Cliente",clientCode:"Codice cliente",route:"Itinerario",event:"Evento",escort:"Accompagnatore",pax:"Passeggeri",price:"Prezzo",park:"Parcheggi",parks:"Parcheggi scelti",meals:"Pasti",extras:"Extra",advance:"Acconto",envelope:"Busta",envno:"N. busta",driver:"1° autista",driver2:"2° autista",contact:"Telefono referente 1",contactName:"Referente 1",contactRole:"Ruolo referente 1",contactNote:"Note referente 1",dnotes:"Note per l'autista",status:"Stato",notes:"Note",saldo:"Saldo da ricevere",saldoAmt:"€ Saldo",npark:"Note 1° park",ndriver:"Note 2° autista",n3h:"Note 3° 3 ore",nextra:"Note 4° extra",refs:"Altri referenti",hotels:"Hotel",guides:"Guide",program:"Programma"};
+const FIELD_LBL={type:"Categoria",vehicle:"Mezzo",start:"Data partenza",end:"Data rientro",time:"Ora partenza",time2:"Ora rientro",client:"Cliente",clientCode:"Codice cliente",route:"Itinerario",event:"Evento",escort:"Accompagnatore",pax:"Passeggeri",price:"Prezzo",park:"Parcheggi",parks:"Parcheggi scelti",meals:"Pasti",extras:"Extra",advance:"Acconto",envelope:"Busta",envno:"N. busta",driver:"1° autista",driver2:"2° autista",contact:"Telefono referente 1",contactName:"Referente 1",contactRole:"Ruolo referente 1",contactNote:"Note referente 1",dnotes:"Note per l'autista",status:"Stato",notes:"Note",saldo:"Saldo da ricevere",saldoAmt:"€ Saldo",npark:"Note 1° park",ndriver:"Note 2° autista",n3h:"Note 3° 3 ore",nextra:"Note 4° extra",refs:"Altri referenti",hotels:"Hotel",guides:"Guide",program:"Programma",att:"Allegati per l'autista"};
 function logVal(k,v){
   if(v===""||v==null||(Array.isArray(v)&&!v.filter(Boolean).length))return "—";
   if(k==="vehicle"){const vv=vehicle(v);return vv?vehLabel(vv):String(v);}
@@ -3214,6 +3484,7 @@ function logVal(k,v){
   if(k==="parks")return v.map(x=>(x.nome||"senza parcheggio")+(x.amt!==""&&x.amt!=null?" € "+money(x.amt):"")).join("; ").slice(0,200);
   if(k==="extras")return cleanExtras(v).map(x=>(x.c||"senza causale")+(x.amt!==""?" € "+money(x.amt):"")).join("; ").slice(0,200);
   if(k==="program")return v.filter(Boolean).map(x=>String(x).replace(/\n/g," / ")).join(" | ").slice(0,160);
+  if(k==="att")return v.map(x=>x&&x.name||"allegato").join("; ").slice(0,200);
   const t=String(v).replace(/\s+/g," ");return t.length>120?t.slice(0,117)+"…":t;
 }
 function bookingLabel(b){const v=vehicle(b.vehicle)||{};return "«"+(b.client||"senza cliente")+"» "+(TYPES[normType(b.type)]||"")+" del "+itD(b.start)+(endOf(b)!==b.start?"–"+itD(endOf(b)):"")+" · "+(v.name||"")+(b.foglio?" · n. "+b.foglio:"");}
@@ -4197,7 +4468,7 @@ const REG_NOTE={referenti:"Si scelgono nel modulo della prenotazione (riga Refer
   parcheggi:"Si scelgono nel modulo della prenotazione, accanto a «€ Parcheggi» (anche più di uno). «In fattura» è come il parcheggio compare nella riga di rimborso della bozza fattura (es. A SIRACUSA, ALL'APT. DI CATANIA): se è vuoto si usa la città. «IVA della ricevuta» è l'aliquota di quella riga.",
   note:"Voci della casella «Causale» delle note per l'autista. Parcheggi, autista e 3 ore vanno nelle righe 1°, 2° e 3° del foglio di servizio; le altre nella 4° (extra).",
   ruolo:"Voci della casella «Ruolo» del referente.",
-  autisti:"Gli autisti delle caselle «1° autista» e «2° autista» del modulo, della pagina Autisti e del profilo del capo. Scrivi cognome e nome per esteso (es. Rossi Mario), uguale al nome usato nell'app degli autisti. Togliendo un autista (×) sparisce dagli elenchi, ma i servizi già inseriti tengono il suo nome; cambiare il nome vale per i servizi nuovi. «Autista generico» resta sempre.",
+  autisti:"Gli autisti delle caselle «1° autista» e «2° autista» del modulo, della pagina Autisti e del profilo di MAX. Scrivi cognome e nome per esteso (es. Rossi Mario), uguale al nome usato nell'app degli autisti. Togliendo un autista (×) sparisce dagli elenchi, ma i servizi già inseriti tengono il suo nome; cambiare il nome vale per i servizi nuovi. «Autista generico» resta sempre.",
   spese:"Voci della casella «€ Extra» del modulo della prenotazione (accanto a «€ Pasti»). L'extra va nel file fatturato (colonne «€ varie / tipo varie») e nella bozza fattura, con la causale scritta qui."};
 const isTend=k=>k==="note"||k==="ruolo"||k==="spese";
 const regFile=k=>isTend(k)?"tendine":k;
@@ -4545,7 +4816,7 @@ function renderSheetSent(){
   const lock=capoLock(b);
   if(b.capo)bar.insertAdjacentHTML("beforeend",'<span class="capo">'+esc(capoTitle(b))+(lock?": il foglio lo invia (e lo ritira) solo lui.":".")+'</span>');
   $("sheetSend").textContent=iv?(live?"Cambia bus o autisti e invia di nuovo":"Scegli bus e autisti e invia"):live?"Invia di nuovo":"Invia all'autista";
-  $("sheetSend").disabled=lock;$("sheetSend").title=lock?"Bus e autisti decisi dal capo: il foglio lo invia lui":"";
+  $("sheetSend").disabled=lock;$("sheetSend").title=lock?"Bus e autisti decisi da MAX: il foglio lo invia lui":"";
   $("sheetWithdraw").hidden=!live||lock;
   $("sheetSpese").hidden=!(live&&speseFor(b));
   $("sheetBusta").hidden=!hasBusta(b);
@@ -4556,13 +4827,13 @@ async function sendToDriver(b0,o,say){
   say=say||toast;
   if(sending)return false;
   if(S.outdated){say("Questa pagina ha una versione vecchia dell'agenda: chiudila e riaprila prima di inviare.");return false;}
-  const b=bookingsAll().find(x=>x.id===b0.id);
+  let b=bookingsAll().find(x=>x.id===b0.id);
   if(!b){say("La prenotazione non c'è più (eliminata o spostata).");return false;}
   if(capoLock(b)){say(CAPO_NO);return false;}
   if(!AUT.linked()){say(autMissing());return false;}
   if(!navigator.onLine){say("Per inviare il foglio serve la connessione a internet.");return false;}
   if(STORE.isPending(b.id)){say("La prenotazione non è ancora arrivata in Dropbox (n. foglio provvisorio): riprova tra qualche secondo.");return false;}
-  const so=sendOpts(b,o);
+  let so=sendOpts(b,o);
   if(!so.autisti.length){say("Manca l'autista: prima di inviare il foglio va assegnato un autista alla prenotazione.");return false;}
   if(o.alias&&!so.alias){say("Per questo foglio è stata scelta l'intestazione con l'alias, ma l'alias del cliente non si trova"+(S.clients&&S.clients.length?"":" (l'elenco clienti non è ancora stato letto)")+": il foglio NON è partito. Apri l'anteprima e controlla «Intestazione».");return false;}
   const ph=(STORE.aut&&STORE.aut.phones)||{},noPhone=so.autisti.filter(n=>!Object.values(ph).some(f=>!f.blocked&&norm(f.driver)===norm(n)));
@@ -4570,18 +4841,22 @@ async function sendToDriver(b0,o,say){
   if(!o.noConfirm&&!confirm("Inviare il foglio di servizio n. "+(b.foglio||"")+" («"+so.cliente+"», "+itD(b.start)+") a "+so.autisti.join(" e ")+"?\n\nParte solo il foglio per l'autista: prezzi e parte contabile non vengono inviati."+
     (pending(b)?"\n\nATTENZIONE: questa prenotazione è ancora IN SOSPESO.":"")+
     (noPhone.length?"\n\nNessun telefono collegato per "+noPhone.join(" e ")+": il foglio resta in attesa finché il telefono non viene collegato.":"")+
+    (attOf(b).length?"\n\nInsieme al foglio "+(attOf(b).length===1?"parte l'allegato":"partono i "+attOf(b).length+" allegati")+" ("+attOf(b).map(a=>a.name).join(", ")+").":"")+
     (again?"\n\nIl foglio era già stato inviato: l'autista vedrà la versione nuova.":"")))return false;
   // intanto (mentre la domanda era aperta, o su un altro dispositivo) il capo può aver deciso bus e autisti:
   // si rilegge Dropbox e, in quel caso, non si invia
   say("Controllo la prenotazione…");try{await STORE.pull();}catch(_){}
   {const now=bookingsAll().find(x=>x.id===b.id);if(!now){say("La prenotazione non c'è più (eliminata o spostata).");return false;}
-    if(capoLock(now)||now.vehicle!==b.vehicle||(now.driver||"")!==(b.driver||"")||(now.driver2||"")!==(b.driver2||"")){say(capoLock(now)?CAPO_NO:"Bus o autisti sono appena cambiati: controlla l'anteprima e invia di nuovo.");return false;}}
+    if(capoLock(now)||now.vehicle!==b.vehicle||(now.driver||"")!==(b.driver||"")||(now.driver2||"")!==(b.driver2||"")){say(capoLock(now)?CAPO_NO:"Bus o autisti sono appena cambiati: controlla l'anteprima e invia di nuovo.");return false;}
+    b=now;so=sendOpts(b,o);} // 3.0.2: si invia la prenotazione appena riletta (allegati compresi)
   sending=true;say("Invio il foglio all'autista…");
   try{
     // il PDF è quello dell'anteprima, sempre e solo nella parte per l'autista
     const keep={alias:SHO.alias,noPlate:SHO.noPlate};let blob;
     try{SHO.alias=so.alias;SHO.noPlate=so.noPlate;try{await ensureSheetFont();}catch(_){}blob=await tplPDF(Object.assign({},b,{provisional:false}),"driver");}
     finally{SHO.alias=keep.alias;SHO.noPlate=keep.noPlate;}
+    // 3.0.2: gli allegati partono in coda al PDF del foglio (l'app degli autisti mostra il PDF)
+    if(attOf(b).length){try{blob=await attMerge(blob,b,say);}catch(e){say(attErrText(e,"il foglio NON è stato inviato"));ACC.tlog("errore","Invio del foglio all'autista: allegati non uniti",String((e&&(e.code||e.message))||e));return false;}say("Invio il foglio all'autista…");}
     const sent=await AUT.send(b,blob,so);
     if(!markSent(b,sent)){say("Il foglio è partito, ma intanto la prenotazione è stata spostata o eliminata: controlla l'elenco e, se serve, invia di nuovo.");return false;}
     ACC.log("foglio","Inviato all'autista ("+sent.to.join(", ")+") il foglio di servizio n. "+(b.foglio||"")+" «"+(b.client||"")+"»"+(sent.n>1?" – invio n. "+sent.n:""),{id:b.id});
@@ -4908,7 +5183,7 @@ function renderInvio(){
     return '<div class="sd-card '+esc(b.type)+'">'+
       '<div class="sd-main"><div class="sd-l1"><span class="sd-time">'+esc(i===1?(b.time||"—"):"—")+'</span><span class="sd-cli">'+esc(dispClient(b))+'</span><span class="sd-tp">'+esc((TYPES[b.type]||"Servizio")+(tot>1?" · giorno "+i+" di "+tot:"")+(pending(b)?" · in sospeso":""))+'</span></div>'+
       '<div class="sd-rt">'+esc([hasEvent(b.type)&&b.event?b.event:"",whatToday(b,sdDay)||b.route||""].filter(Boolean).join(" – "))+'</div>'+
-      '<div class="sd-meta">Autista: <b>'+(driversHTML(b)||'<span class="gen">da assegnare</span>')+'</b> · Mezzo: <b>'+esc(vehLabel(v)||v.name||"—")+'</b> · Foglio n. <b>'+esc(b.foglio||"—")+'</b>'+(hasBusta(b)?' · Busta n. <b>'+esc(b.envno||"—")+'</b>':'')+'</div>'+
+      '<div class="sd-meta">Autista: <b>'+(driversHTML(b)||'<span class="gen">da assegnare</span>')+'</b> · Mezzo: <b>'+esc(vehLabel(v)||v.name||"—")+'</b> · Foglio n. <b>'+esc(b.foglio||"—")+'</b>'+(hasBusta(b)?' · Busta n. <b>'+esc(b.envno||"—")+'</b>':'')+(attOf(b).length?' · <span class="sd-att">📎 '+attOf(b).length+(attOf(b).length===1?" allegato":" allegati")+'</span>':'')+'</div>'+
       '<div class="sd-capo'+(b.capo?" on":"")+'">'+esc(b.capo?capoTitle(b):"Bus e autisti scritti dall'ufficio: li decidi tu quando invii")+'</div>'+
       '<div class="sd-st">'+stTxt+'</div></div>'+
       '<div class="sd-act"><button type="button" class="btn" data-sdprev="'+esc(b.id)+'">Anteprima</button><button type="button" class="btn send" data-sdsend="'+esc(b.id)+'">'+(live?"Invia di nuovo":"Invia all'autista")+'</button>'+(live?'<button type="button" class="btn quiet" data-sdoff="'+esc(b.id)+'">Ritira il foglio</button>':'')+'</div></div>';
@@ -5223,9 +5498,9 @@ $("poUndo").onclick=()=>savePasto(true);
 // Chi ha il profilo «solo anteprima e invio» (il capo) quando invia un foglio sceglie il bus e gli autisti:
 // la scelta viene scritta sulla prenotazione e vale in tutta l'Agenda (viste, foglio, fatturato). Da quel
 // momento l'ufficio non può più cambiare bus e autisti di quel servizio né inviare o ritirare il foglio.
-const CAPO_NO="Bus e autisti di questo servizio li ha decisi il capo: il foglio lo invia (o lo ritira) solo lui.";
+const CAPO_NO="Bus e autisti di questo servizio li ha decisi MAX: il foglio lo invia (o lo ritira) solo lui.";
 function capoLock(b){return !!(b&&b.capo)&&!isInvio()&&!isSuper();}
-function capoTitle(b){const c=(b&&b.capo)||{};return "Bus e autisti decisi dal capo"+(c.by?" ("+c.by+")":"")+(c.at?" "+fmtTime(c.at):"");}
+function capoTitle(b){const c=(b&&b.capo)||{};return "Bus e autisti decisi da MAX"+(c.by?" ("+c.by+")":"")+(c.at?" "+fmtTime(c.at):"");}
 let cpB=null,cpOpts=null,cpBusy=false;
 const cpSay=t=>{$("cpMsg").textContent=t;};
 // gli altri servizi negli stessi giorni (per segnalare bus e autisti già impegnati)
@@ -5297,7 +5572,7 @@ async function capoApply(send){
       try{writeDayOps(b.start,{bookings:{[b.id]:nb}},{edit:true,only:true,boss:true,base:b.updatedAt||null,patch:["vehicle","driver","driver2","capo","updBy"]});}
       catch(err){cpSay(err&&err.code==="readonly"?"Con questo profilo non si può fare.":"Non sono riuscito a salvare la scelta: riprova.");return;}
       const ch=[["Mezzo",logVal("vehicle",b.vehicle),logVal("vehicle",veh)],["1° Autista",b.driver||"—",d1],["2° Autista",b.driver2||"—",d2||"—"]].filter(c=>c[1]!==c[2]);
-      ACC.log("prenotazione","Il capo ha deciso bus e autisti di "+bookingLabel(nb),{id:b.id,ch});
+      ACC.log("prenotazione","MAX ha deciso bus e autisti di "+bookingLabel(nb),{id:b.id,ch});
       if(!$("invio").hidden)renderInvio();if(!$("app").hidden)renderAll();
       if(!$("ovSheet").hidden&&sheetBooking&&sheetBooking.id===b.id){refreshSheetBooking();renderSheet();}
     }
