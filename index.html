@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="3.0" data-p="3.0.2">
+<html lang="it" data-v="3.0" data-p="3.0.3">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -356,6 +356,27 @@ table.wk{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px;t
 .sh-att{border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13.5px;background:var(--bg);display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}
 .sh-att .sh-att-t{color:var(--ink-3)}
 .sh-att .linkbtn{font-size:13.5px}
+/* 3.0.3: tour, mezzo e autisti giorno per giorno */
+.dvbox{border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:var(--bg)}
+.dv-top{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap}
+.dvbox .lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.dv-sum{font-size:13px;color:var(--ink-3)}
+.dv-sum b{color:var(--sync);font-weight:700}
+.dv-top .linkbtn{margin-left:auto}
+.dv-rows{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.dv-h,.dv-row{display:grid;grid-template-columns:150px minmax(0,1.35fr) minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center}
+.dv-h{font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);padding:0 2px}
+.dv-row{border:1px solid var(--line);border-radius:9px;padding:6px 8px;background:var(--surface)}
+.dv-row.on{border-color:color-mix(in srgb,var(--sync) 55%,var(--line));background:color-mix(in srgb,var(--accent-soft) 55%,var(--surface))}
+.dv-day{font-size:13.5px;white-space:nowrap}
+.dv-day b{font-weight:700}
+.dv-row select{width:100%;min-width:0;font-size:13.5px}
+.dv-row select.chg{font-weight:700;color:var(--sync)}
+@media (max-width:760px){.dv-h{display:none}.dv-row{grid-template-columns:1fr 1fr}.dv-day{grid-column:1/-1}}
+.dv-m{font-style:normal;display:inline-block;margin-right:6px;padding:1px 5px;border-radius:5px;border:1px dashed color-mix(in srgb,var(--sync) 60%,var(--line));color:var(--sync);font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;vertical-align:1px}
+#cpDays{margin:4px 0 10px}
+#cpDays .dv-h,#cpDays .dv-row{grid-template-columns:78px minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr);gap:6px}
+#cpDays .dv-sep{display:none}#cpDays .dv-dt{display:block;font-size:12px;color:var(--ink-3)}#cpDays .dv-row{padding:5px 6px}
 .prog-day{display:flex;flex-direction:column;gap:4px}
 .prog-day b{font-size:13px;color:var(--tour)}
 #progWrap{display:flex;flex-direction:column;gap:10px}
@@ -969,6 +990,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 .snt{background:var(--st-bg)}
 .snt.k-inviato,.snt.k-aperto,.snt.k-consegnata{color:var(--st-ok);border-color:color-mix(in srgb,var(--st-ok) 40%,var(--line));background:var(--st-bg)}
 .snt.k-ritirato{color:var(--st-no);border-color:color-mix(in srgb,var(--st-no) 35%,var(--line));background:var(--st-bg)}
+.snt.k-nofg{color:var(--ink-3);border-style:dashed;background:transparent;cursor:default;font-weight:600}.snt.k-nofg:hover{filter:none}
 .snt.k-attesa,.snt.stale{color:var(--st-wait);border-color:color-mix(in srgb,var(--st-wait) 40%,var(--line));background:var(--st-bg)}
 .sent-bar{border:1px solid var(--line);border-radius:10px;padding:9px 12px;display:flex;gap:6px 18px;flex-wrap:wrap;align-items:center;font-size:13.5px;background:var(--bg)}
 .sent-bar .stp{display:flex;align-items:center;gap:7px;color:var(--ink-3)}
@@ -979,6 +1001,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 .sent-bar .none{color:var(--ink-2)}
 .btn.send{background:var(--ok);border-color:var(--ok);color:#fff}
 .btn.send:disabled{opacity:.55}
+#fSheet:disabled{opacity:.45;cursor:not-allowed}
 /* profilo «solo anteprima e invio»: una schermata sola */
 #invio{min-height:100vh;background:var(--bg)}
 .sd-wrap{max-width:980px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px}
@@ -1447,6 +1470,10 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       </div>
       <div class="f c2 drvf"><label for="f-driver">1° Autista</label><div class="drvbox"><input id="f-driver" autocomplete="off" placeholder="Scegli dall'elenco" role="combobox" aria-expanded="false" aria-controls="dl-f-driver"><button type="button" class="drvopen" data-drvopen="f-driver" tabindex="-1" aria-label="Apri elenco autisti">▾</button><div class="drvlist" id="dl-f-driver" role="listbox" hidden></div></div><div class="drvq" id="q-driver" hidden><button type="button" data-gen="f-driver">Autista Generico 1</button></div></div>
       <div class="f c2 drvf"><label for="f-driver2">2° Autista</label><div class="drvbox"><input id="f-driver2" autocomplete="off" placeholder="Solo se serve" role="combobox" aria-expanded="false" aria-controls="dl-f-driver2"><button type="button" class="drvopen" data-drvopen="f-driver2" tabindex="-1" aria-label="Apri elenco autisti">▾</button><div class="drvlist" id="dl-f-driver2" role="listbox" hidden></div></div></div>
+      <div class="f full dvbox" id="w-dayv" hidden>
+        <div class="dv-top"><span class="lbl" id="l-dayv">Mezzo e autisti giorno per giorno</span><span class="dv-sum" id="dvSum"></span><button type="button" class="linkbtn" id="dvToggle" aria-expanded="false" aria-controls="dvRows">Cambia il mezzo o l'autista in alcuni giorni</button></div>
+        <div class="dv-rows" id="dvRows" role="group" aria-labelledby="l-dayv" hidden></div>
+      </div>
       <input type="hidden" id="f-escort">
       <div class="f full pblock" id="pb-refs">
         <div class="prow p-ref" id="ref1row">
@@ -1493,6 +1520,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
         <button type="button" class="linkbtn" data-addrep="dnotes">+ Aggiungi note</button>
       </div>
     </div>
+    <div class="warns" id="fFgNote" hidden></div>
     <div class="warns" id="fWarns"></div>
     <div class="mfoot">
       <button type="button" class="btn danger" id="fDelete" hidden>Elimina</button>
@@ -1654,6 +1682,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       <div class="f"><label for="cpDrv">Autista</label><select id="cpDrv"></select></div>
       <div class="f"><label for="cpDrv2">Secondo autista <small>(solo se serve)</small></label><select id="cpDrv2"></select></div>
     </div>
+    <div id="cpDaysBox" hidden><p class="mst-sub"><b>Giorno per giorno</b> – lascia «Come il tour» nei giorni in cui non cambia niente.</p><div class="dv-rows" id="cpDays"></div></div>
     <div class="warns" id="cpWarn" hidden></div>
     <p class="mst-sub" id="cpWas"></p>
     <p class="mst-sub">La tua scelta vale in tutta l'Agenda: dopo, l'ufficio non può più cambiare bus e autisti di questo servizio.</p>

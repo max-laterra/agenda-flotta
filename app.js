@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="3.0.2",APP_DATE="23/10/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="3.0.3",APP_DATE="27/10/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
@@ -9,7 +9,9 @@ const APP_VERSION="3.0.2",APP_DATE="23/10/2026";window.AGENDA_VERSION=APP_VERSIO
 // 3.0: aggiornamento intero, tutti i file della famiglia "3.0".
 // 3.0.1: aggiornamento parziale (app.js, index.html): riquadro del programma del foglio di servizio più alto.
 // 3.0.2: aggiornamento parziale (app.js, index.html, store.js, autisti.js): allegati per l'autista nella prenotazione.
-const APP_FAMILY="3.0",APP_PATCH={index:"3.0.2",store:"3.0.2",autisti:"3.0.2"};
+// 3.0.3: aggiornamento parziale (stessi 4 file): pulizia notturna delle prenotazioni in sospeso; tour con mezzo e
+//        autisti giorno per giorno.
+const APP_FAMILY="3.0",APP_PATCH={index:"3.0.3",store:"3.0.3",autisti:"3.0.3"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -198,6 +200,28 @@ function bookingsAll(){
   return out;
 }
 function endOf(b){return (b.end&&b.end>=b.start&&diff(b.start,b.end)<=31)?b.end:b.start;}
+// 3.0.3 — tour con mezzo (e autisti) diversi in alcuni giorni: b.dayv[i] = {v, d1, d2, xb} per il giorno i (0 = partenza);
+// testo vuoto = come il tour. Le viste lavorano giorno per giorno (dayList): quel giorno il tour sta sulla riga del suo
+// mezzo, con i suoi autisti. Prenotazione, foglio, fatturato e invio restano quelli del tour (mezzo principale).
+function dayvOf(b){return b&&isMulti(b.type)&&Array.isArray(b.dayv)?b.dayv:[];}
+function dayOv(b,ds){const l=dayvOf(b);if(!l.length||!validDate(ds))return null;const i=diff(b.start,ds);const o=i>=0&&i<l.length?l[i]:null;return o&&(o.v||o.d1||o.d2)?o:null;}
+function dayView(b,ds){
+  const o=dayOv(b,ds);if(!o)return b;
+  const x={vehicle:o.v||b.vehicle,driver:o.d1||b.driver||"",driver2:o.d2||b.driver2||"",dvMain:{vehicle:b.vehicle,driver:b.driver||"",driver2:b.driver2||""},_orig:b};
+  if(o.v&&isXbus(o.v))x.xbus=o.xb||null;
+  return Object.assign({},b,x);
+}
+// spiegazione del cambio in un giorno del tour (vista Giorno, Settimana, capo): "" se quel giorno è come il tour
+function dvNote(b){
+  const m=b&&b.dvMain;if(!m)return "";const l=[];
+  if(b.vehicle!==m.vehicle)l.push("mezzo "+vehLabel(vehicle(b.vehicle)||{})+" (nel tour: "+vehLabel(vehicle(m.vehicle)||{})+")");
+  const a=[b.driver,b.driver2].map(realDriver).filter(Boolean).join(" + "),c=[m.driver,m.driver2].map(realDriver).filter(Boolean).join(" + ");
+  if(a!==c)l.push("autista "+(a||"da assegnare")+(c?" (nel tour: "+c+")":""));
+  return l.length?"Cambio in questo giorno: "+l.join(", "):"";
+}
+// tutti gli autisti del servizio (anche quelli dei singoli giorni del tour)
+function allDriversOf(b){const l=[b.driver,b.driver2];for(const o of dayvOf(b))if(o)l.push(o.d1,o.d2);return [...new Set(l.map(realDriver).filter(Boolean).map(driverCanon))];}
+const hasDayv=b=>dayvOf(b).some(o=>o&&(o.v||o.d1||o.d2));
 // Tour: cosa fa il mezzo in quel giorno, preso dal programma giorno per giorno
 function dayProgram(b,ds){
   if(!isMulti(b.type)||!Array.isArray(b.program))return "";
@@ -215,7 +239,7 @@ const spans=b=>endOf(b)>b.start;
 function byDay(){
   const all=bookingsAll();if(_idx&&_idx.all===all)return _idx.map;
   const map={};
-  for(const b of all){if(!validDate(b.start))continue;const e=endOf(b);let d=b.start,n=0;while(d<=e&&n<32){(map[d]||(map[d]=[])).push(b);d=addDays(d,1);n++;}}
+  for(const b of all){if(!validDate(b.start))continue;const e=endOf(b);let d=b.start,n=0;while(d<=e&&n<32){(map[d]||(map[d]=[])).push(dayView(b,d));d=addDays(d,1);n++;}} // 3.0.3: mezzo e autisti del giorno
   _idx={all,map};return map;
 }
 const dayList=ds=>byDay()[ds]||[];
@@ -232,6 +256,7 @@ function xbIndex(){
   const m=new Map();
   for(const ds in S.days){const l=(S.days[ds]||{}).xbus;if(Array.isArray(l))for(const x of l)if(x&&x.id&&!m.has("xb:"+x.id))m.set("xb:"+x.id,x);}
   for(const b of all)if(isXbus(b.vehicle)&&b.xbus&&typeof b.xbus==="object")m.set(b.vehicle,Object.assign({},b.xbus,{id:b.vehicle.slice(3)}));
+  for(const b of all)for(const o of dayvOf(b))if(o&&isXbus(o.v)&&o.xb&&!m.has(o.v))m.set(o.v,Object.assign({},o.xb,{id:o.v.slice(3)})); // 3.0.3
   _xbFor=all;_xbIdx=m;return m;
 }
 function xbVehOf(x,vid){const n=x&&+x.posti?+x.posti:null;return {id:vid,name:n?n+" posti":"Extra bus",seats:n,plate:(x&&x.targa)||"",num:"EXTRA",kind:"bus",xbus:true,az:(x&&x.az)||""};}
@@ -252,7 +277,7 @@ function renderWeek(){
   const mon=weekStart(S.sel),sun=addDays(mon,6),all=bookingsAll(),t=todayISO();
   const days=[];for(let i=0;i<7;i++)days.push(addDays(mon,i));
   const inWeek=all.filter(b=>b.start<=sun&&endOf(b)>=mon);
-  const busyAny=new Set(inWeek.filter(b=>!isXbus(b.vehicle)).map(b=>b.vehicle)).size;
+  const busyAny=new Set(days.flatMap(ds=>dayList(ds)).filter(b=>!isXbus(b.vehicle)).map(b=>b.vehicle)).size;
   const cnt=tp=>inWeek.filter(b=>b.type===tp).length;
   const a=parse(mon),z=parse(sun);
   const range=a.getUTCMonth()===z.getUTCMonth()?a.getUTCDate()+"–"+z.getUTCDate()+" "+MN[z.getUTCMonth()]+" "+z.getUTCFullYear():a.getUTCDate()+" "+MN[a.getUTCMonth()].slice(0,3)+" – "+z.getUTCDate()+" "+MN[z.getUTCMonth()].slice(0,3)+" "+z.getUTCFullYear();
@@ -276,7 +301,7 @@ function renderWeek(){
       for(const b of list){
         let tp=TYPES[b.type]||"",tm=b.time||"";
         if(spans(b)){const tot=diff(b.start,endOf(b))+1,i=diff(b.start,ds)+1;tp+=" "+i+"/"+tot;if(i>1)tm=i===tot&&b.time2?b.time2:"";}
-        inner+='<button class="wb '+esc(b.type)+(pending(b)?" opzione":"")+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc((pending(b)?"IN SOSPESO · ":"Confermata · ")+(b.foglio?"n. "+b.foglio+" · ":"")+(b.client||"")+(b.event?" – "+b.event:"")+(whatToday(b,ds)?" – "+whatToday(b,ds):"")+(b.driver?" · Autista: "+b.driver:"")+(b.escort?" · Accompagnatore: "+b.escort:""))+'">'+
+        inner+='<button class="wb '+esc(b.type)+(pending(b)?" opzione":"")+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc((pending(b)?"IN SOSPESO · ":"Confermata · ")+(b.foglio?"n. "+b.foglio+" · ":"")+(b.client||"")+(b.event?" – "+b.event:"")+(whatToday(b,ds)?" – "+whatToday(b,ds):"")+(b.driver?" · Autista: "+b.driver:"")+(b.escort?" · Accompagnatore: "+b.escort:"")+(dvNote(b)?" · "+dvNote(b):""))+'">'+
           '<span class="l1">'+missBadge(b,ds)+(tm?'<span class="tm">'+esc(tm)+'</span>':"")+'<span class="tp">'+tp+'</span><span class="stm '+(pending(b)?"q":"ok")+'" aria-hidden="true">'+(pending(b)?"?":"✓")+'</span></span>'+
           '<span class="cl">'+esc(dispClient(b))+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(whatToday(b,ds)?'<span class="rt'+(dayProgram(b,ds)?" pg":"")+'">'+esc(whatToday(b,ds))+'</span>':"")+'</button>';
       }
@@ -373,6 +398,7 @@ function bookingHTML(b,date){
   const dtx=[b.driver,b.driver2].map(x=>String(x||"").trim()).filter(Boolean).join(" + ");if(dtx)det.unshift("Autista: "+dtx);
   const what=[hasEvent(b.type)&&b.event?b.event:"",whatToday(b,date)||""].filter(Boolean),name=dispClient(b),drv=driversHTML(b);
   if(b.capo)det.push(capoTitle(b));
+  const dvT=dvNote(b);if(dvT)det.push(dvT); // 3.0.3
   const tip=[(pending(b)?"IN SOSPESO":"Confermata")+" · "+tp,(b.client||"")+(name!==(b.client||"Senza cliente")?" ("+name+")":""),what.join(" – ")].filter(Boolean).join(" · ")+(det.length?"\n"+det.join(" · "):"");
   const over=v&&v.seats&&/^\d+$/.test(String(b.pax||""))&&+b.pax>v.seats;
   return '<div class="bkw '+esc(b.type)+(pending(b)?" opzione":"")+'">'+
@@ -383,7 +409,7 @@ function bookingHTML(b,date){
     '<span class="c-du">'+esc(durShort(b,date))+'</span>'+
     '<span class="c-cl">'+missBadge(b,date)+(over?'<span class="over" title="Passeggeri oltre la capienza">!</span> ':'')+esc(name)+(attOf(b).length?'<span class="att-k" title="'+attOf(b).length+(attOf(b).length===1?" allegato":" allegati")+' per l\'autista">📎'+(attOf(b).length>1?attOf(b).length:"")+'</span>':'')+'</span>'+
     '<span class="c-rt'+(dayProgram(b,date)?" pg":"")+'">'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+esc(whatToday(b,date)||"")+'</span>'+
-    '<span class="c-dr">'+(b.capo?'<i class="capo-m" title="'+esc(capoTitle(b))+'">MAX</i>':'')+drv+'</span>'+
+    '<span class="c-dr">'+(b.capo?'<i class="capo-m" title="'+esc(capoTitle(b))+'">MAX</i>':'')+(dvT?'<i class="dv-m" title="'+esc(dvT)+'">cambio</i>':'')+drv+'</span>'+
     '</button>'+sentChip(b)+mealChip(b,date)+'</div>';
 }
 
@@ -449,9 +475,11 @@ function renderMonth(){
       let inner="",tip=[];
       if(list.length){
         const b=list[0];let cls="cell "+b.type;
-        if(spans(b)){const s=b.start===ds,e=endOf(b)===ds;cls+=s&&e?"":s?" first":e?" last":" mid";}
+        // 3.0.3: nei tour con il mezzo cambiato in alcuni giorni la barra si spezza dove cambia il mezzo
+        const o=b._orig||b,sg=spans(b)?{s:!(ds>o.start&&dayView(o,addDays(ds,-1)).vehicle===v.id),e:!(ds<endOf(o)&&dayView(o,addDays(ds,1)).vehicle===v.id)}:null;
+        if(sg)cls+=sg.s&&sg.e?"":sg.s?" first":sg.e?" last":" mid";
         if(list.every(pending))cls+=" opz";
-        const lab=list.length>1?list.length:(spans(b)?(b.start===ds?MONTH_LAB[b.type]:""):(MONTH_LAB[b.type]||""));
+        const lab=list.length>1?list.length:(sg?(sg.s?MONTH_LAB[b.type]:""):(MONTH_LAB[b.type]||""));
         inner='<div class="'+cls+'">'+lab+'</div>';
         tip=list.map(x=>(pending(x)?"? ":"✓ ")+(TYPES[x.type]||"")+(x.time?" "+x.time:"")+" – "+dispClient(x)+(x.event?" · "+x.event:"")+(whatToday(x,ds)?" ("+whatToday(x,ds)+")":""));
       }
@@ -509,6 +537,7 @@ function openForm(opts){
   endAuto=false;$("fEditAsk").hidden=true;editConfirmed=false;openSheetAfterSave=false;
   progCache=Array.isArray(b.program)?b.program.slice():[];renderProgram();
   attFormOpen(b); // 3.0.2: allegati per l'autista
+  formDayv=Array.isArray(b.dayv)?JSON.parse(JSON.stringify(b.dayv)):[];dvOpen=false;$("dvRows").innerHTML="";$("dvRows").hidden=true; // 3.0.3: giorno per giorno
   formCashWas=!!(editing&&cashOn(b)&&((b.advance!==""&&b.advance!=null)||b.envelope||b.envno));
   $("fDelete").hidden=!editing;$("fConfirm").hidden=true;$("fCloseAsk").hidden=true;
   $("fSpese").hidden=!(editing&&speseFor(b));
@@ -525,6 +554,7 @@ function openForm(opts){
   $("ovBooking").hidden=false;setTimeout(()=>$("f-client").focus(),30);growAll($("progWrap"));
 }
 let formOrig=null,saving=false,editConfirmed=false;
+let formDayv=[],dvOpen=false; // 3.0.3: mezzi e autisti del tour giorno per giorno (modulo aperto)
 // 3.0.2 — allegati per l'autista (il resto è più giù, dopo la stampa del foglio): limiti, stato del modulo aperto
 // (elenco, file caricati in questa apertura da cancellare se non si salva, file tolti) e byte già scaricati
 const ATT_MAX=8,ATT_PDF_MB=10,ATT_IMG_MB=30,ATT_TOT_MB=25,ATT_PAGES=40,ATT_PX=2400;
@@ -556,7 +586,7 @@ function drvRender(id,show){
   box.hidden=false;inp.setAttribute("aria-expanded","true");
 }
 function drvPaint(id){const el=$(id);el.classList.remove("drv-g","drv-r");const c=driverColor(el.value);if(c)el.classList.add("drv-"+c);}
-function drvPick(id,name){$(id).value=name;drvRender(id,false);drvPaint(id);syncDrvQ();checkWarns();}
+function drvPick(id,name){$(id).value=name;drvRender(id,false);drvPaint(id);syncDrvQ();renderDayv();checkWarns();}
 ["f-driver","f-driver2"].forEach(id=>{
   const inp=$(id),box=$("dl-"+id);
   inp.addEventListener("focus",()=>{drvIdx=-1;drvRender(id,true);});
@@ -704,7 +734,7 @@ async function pkNewSave(){
 $("pkNewSave").onclick=pkNewSave;
 $("pkNew").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();if(e.target.tagName==="INPUT")pkNewSave();else if(e.target.tagName==="BUTTON")e.target.click();}else if(e.key==="Escape"){e.preventDefault();e.stopPropagation();$("pkNewCancel").click();}});
 function curType(){const r=document.querySelector('input[name="type"]:checked');return r?r.value:"transfer";}
-function syncType(){const mu=isMulti(curType());if(!mu)$("f-bustaon").checked=$("f-envelope").value==="SI";$("w-bustaon").hidden=mu;$("w-envsel").hidden=!mu;$("w-tourcash").hidden=!(mu||$("f-bustaon").checked);if(progReady)renderProgram();const ev=hasEvent(curType());$("w-event").hidden=!ev;$("w-time2").hidden=false;syncEndNextDay();}
+function syncType(){renderDayv();const mu=isMulti(curType());if(!mu)$("f-bustaon").checked=$("f-envelope").value==="SI";$("w-bustaon").hidden=mu;$("w-envsel").hidden=!mu;$("w-tourcash").hidden=!(mu||$("f-bustaon").checked);if(progReady)renderProgram();const ev=hasEvent(curType());$("w-event").hidden=!ev;$("w-time2").hidden=false;syncEndNextDay();}
 // rientro dopo la mezzanotte (es. notturno 17:00 → 01:00): la data di rientro passa da sola al giorno dopo
 let endAuto=false,formLoading=false;
 function syncEndNextDay(){
@@ -728,7 +758,7 @@ function readForm(){
     contactRole:$("f-contactrole").value,contactNote:T("f-contactnote"),
     saldo:$("f-saldo").value,saldoAmt:eur("f-saldoamt"),
     refs:readRep("refs"),hotels:readRep("hotels"),guides:readRep("guides"),program:readProgram(),dnotes:readRep("dnotes"),
-    att:attFormList(),updatedAt:new Date().toISOString()};
+    att:attFormList(),dayv:readDayv(),updatedAt:new Date().toISOString()};
 }
 // per i dispositivi con versioni precedenti: le 4 note del foglio anche nei campi di prima
 function withOldNotes(b){return Object.assign(b,noteCells(b));}
@@ -764,30 +794,118 @@ function checkWarns(){
   if(b.end&&b.end<b.start)w.push("La data di rientro è prima della partenza.");
   if(b.end&&diff(b.start,b.end)>30)w.push("Un servizio può durare al massimo 31 giorni.");
   if(v&&v.seats&&b.pax!==""&&/^\d+$/.test(String(b.pax))&&+b.pax>v.seats)w.push("Passeggeri ("+b.pax+") oltre la capienza del mezzo ("+v.seats+" posti).");
-  if(validDate(b.start)){
-    const near=overlapping(b.start,b.end);
-    const others=near.filter(x=>x.vehicle===b.vehicle);
-    const long=others.filter(x=>!onlyDeparture(x.type)||!onlyDeparture(b.type));
-    if(long.length)w.push("Mezzo già impegnato: "+long.map(x=>(TYPES[x.type]||"")+" "+(x.client||"")+" ("+when(x)+")").join("; "));
-    else if(others.length)w.push("Sullo stesso mezzo ci sono già "+others.length+" transfer in questa data: verifica gli orari.");
-    // stesso autista (con nome) su un altro servizio negli stessi giorni
-    for(const dn of [b.driver,b.driver2].map(realDriver).filter(Boolean)){
-      const k=drvKey(dn),busy=near.filter(x=>[x.driver,x.driver2].some(y=>realDriver(y)&&drvKey(y)===k));
-      if(!busy.length)continue;
-      const hard=busy.filter(x=>!onlyDeparture(x.type)||!onlyDeparture(b.type));
-      w.push("Autista "+dn+" già impegnato"+(hard.length?"":" (transfer: verifica gli orari)")+": "+busy.map(x=>(TYPES[x.type]||"")+" "+(x.client||"")+" su "+((vehicle(x.vehicle)||{}).name||"altro mezzo")+" ("+when(x)+")").join("; "));
-    }
+  dvSeatsWarn(b).forEach(x=>w.push(x)); // 3.0.3: mezzi dei singoli giorni del tour
+  // 3.0.3: mezzo e autisti controllati giorno per giorno (nei tour con cambi, quelli di ogni giorno)
+  const C=dayConflicts(b,editing?editing.id:"");
+  for(const [vid,m] of C.veh){
+    const others=[...m.values()],long=others.filter(x=>!onlyDeparture(x.type)||!onlyDeparture(b.type)),lbl=vid===b.vehicle?"":" ("+vehLabel(vehicle(vid)||{})+", "+dvDaysOf(b,vid)+")";
+    if(long.length)w.push("Mezzo già impegnato"+lbl+": "+long.map(x=>(TYPES[x.type]||"")+" "+(x.client||"")+" ("+when(x)+")").join("; "));
+    else w.push("Sullo stesso mezzo"+lbl+" ci sono già "+others.length+" transfer in questa data: verifica gli orari.");
   }
-  if(validDate(b.start))for(const dn of [b.driver,b.driver2].map(realDriver).filter(Boolean)){ // riposo chiesto (2.8)
-    const hit=[];for(let d=b.start,i=0;d<=(b.end||b.start)&&i<32;d=addDays(d,1),i++){const r=riposoOf(dn,d);if(r&&!hit.includes(r))hit.push(r);}
-    if(hit.length)w.push("Autista "+driverCanon(dn)+" ha chiesto il riposo: "+hit.map(r=>rpDates(r)+(r.nota?" ("+r.nota+")":"")).join("; ")+".");
+  // stesso autista (con nome) su un altro servizio negli stessi giorni
+  for(const {dn,m} of C.drv.values()){
+    const busy=[...m.values()],hard=busy.filter(x=>!onlyDeparture(x.type)||!onlyDeparture(b.type));
+    w.push("Autista "+dn+" già impegnato"+(hard.length?"":" (transfer: verifica gli orari)")+": "+busy.map(x=>(TYPES[x.type]||"")+" "+(x.client||"")+" su "+((vehicle(x.vehicle)||{}).name||"altro mezzo")+" ("+when(x)+")").join("; "));
   }
+  for(const {dn,l} of C.rp.values())w.push("Autista "+driverCanon(dn)+" ha chiesto il riposo: "+l.map(r=>rpDates(r)+(r.nota?" ("+r.nota+")":"")).join("; ")+"."); // riposo chiesto (2.8)
   for(const e of b.extras||[]){if(e.amt!==""&&!e.c)w.push("Extra di € "+money(e.amt)+" senza causale: scegli la causale spese.");else if(e.c&&e.amt==="")w.push("Extra «"+e.c+"» senza importo.");}
   if(pkMismatch!=null)w.push("I parcheggi scelti (€ "+money(pkTotal()===""?0:pkTotal())+") superano «€ Parcheggi» salvato (€ "+money(pkMismatch===""?0:pkMismatch)+"), forse cambiato da un dispositivo non aggiornato: controlla le cifre prima di salvare.");
   $("fWarns").innerHTML=w.map(x=>"<div>"+esc(x)+"</div>").join("");
+  fgHint();
   return w;
 }
+// 3.0.3: prenotazione senza cliente (e senza n. foglio): niente foglio di servizio finché non c'è il cliente
+function fgHint(){
+  const no=!(editing&&editing.foglio)&&!$("f-client").value.trim(),el=$("fFgNote");
+  el.hidden=!no;el.innerHTML=no?'<div class="soft">Senza cliente non si crea il foglio di servizio: niente n. foglio, niente PDF in Dropbox e niente riga nel fatturato. La prenotazione resta in agenda; il foglio nasce quando inserisci il cliente.</div>':"";
+  if(!saving)$("fSheet").disabled=no;$("fSheet").title=no?"Inserisci il cliente: senza cliente non c'è il foglio di servizio":"";
+}
 function closeForm(){$("ovBooking").hidden=true;$("cSug").hidden=true;editing=null;attFormClose();}
+// 3.0.3: conflitti giorno per giorno: per ogni giorno il mezzo e gli autisti di quel giorno (b anche dal modulo)
+function dayConflicts(b,self){
+  const out={veh:new Map(),drv:new Map(),rp:new Map()};if(!validDate(b.start))return out;
+  const e=validDate(b.end)&&b.end>=b.start&&diff(b.start,b.end)<=31?b.end:b.start;
+  for(let d=b.start,n=0;d<=e&&n<32;d=addDays(d,1),n++){
+    const me=dayView(b,d),oth=dayList(d).filter(x=>!self||x.id!==self);
+    for(const x of oth)if(x.vehicle===me.vehicle){if(!out.veh.has(me.vehicle))out.veh.set(me.vehicle,new Map());out.veh.get(me.vehicle).set(x.id,x);}
+    for(const dn of [me.driver,me.driver2].map(realDriver).filter(Boolean)){
+      const k=drvKey(dn);
+      for(const x of oth)if([x.driver,x.driver2].some(y=>realDriver(y)&&drvKey(y)===k)){if(!out.drv.has(k))out.drv.set(k,{dn,m:new Map()});out.drv.get(k).m.set(x.id,x);}
+      const r=riposoOf(dn,d);if(r){if(!out.rp.has(k))out.rp.set(k,{dn,l:[]});if(!out.rp.get(k).l.includes(r))out.rp.get(k).l.push(r);}
+    }
+  }
+  return out;
+}
+// giorni del tour in cui si usa quel mezzo ("2° e 3° giorno")
+function dvDaysOf(b,vid){const l=dayvOf(b).map((o,i)=>o&&o.v===vid?(i+1)+"°":"").filter(Boolean);return l.length?(l.length>1?l.slice(0,-1).join(", ")+" e "+l[l.length-1]:l[0])+" giorno":"";}
+// ---------- 3.0.3: tour, mezzo e autisti giorno per giorno (modulo della prenotazione e finestra di MAX) ----------
+// righe dei giorni. c: {start, end, main:{v,d1,d2}, list (dayv), self (id della prenotazione), dis (sola lettura)}
+function dvRowsHTML(c){
+  const nd=Math.min(31,diff(c.start,c.end)+1),names0=[GEN1,GEN2].concat(drivers().map(d=>d[0]));
+  let h='<div class="dv-h" aria-hidden="true"><span>Giorno</span><span>Mezzo</span><span>1° autista</span><span>2° autista</span></div>';
+  for(let i=0;i<nd;i++){
+    const ds=addDays(c.start,i),o=(c.list&&c.list[i])||{},oth=dayList(ds).filter(x=>x.id!==c.self);
+    const busyV=new Set(oth.map(x=>x.vehicle)),busyD=new Set();
+    oth.forEach(x=>[x.driver,x.driver2].map(realDriver).filter(Boolean).forEach(d=>busyD.add(drvKey(d))));
+    const vb=id=>busyV.has(id)?" · impegnato":"",mv=vehicle(c.main.v);
+    let vo='<option value="">'+esc("Come il tour"+(mv?" – "+vehLabel(mv):"")+vb(c.main.v))+'</option>'+
+      S.fleet.map(v=>'<option value="'+esc(v.id)+'"'+(o.v===v.id?" selected":"")+'>'+esc(vehLabel(v)+(o.v===v.id?"":vb(v.id)))+'</option>').join("");
+    const xbs=dayXbus(ds).filter(x=>x.vid!==c.main.v);
+    if(o.v&&isXbus(o.v)&&!xbs.some(x=>x.vid===o.v))xbs.push({vid:o.v,def:o.xb||xbIndex().get(o.v)||{}});
+    if(xbs.length)vo+='<optgroup label="Extra bus di quel giorno">'+xbs.map(x=>'<option value="'+esc(x.vid)+'"'+(o.v===x.vid?" selected":"")+'>'+esc(vehLabel(xbVehOf(x.def,x.vid))+(o.v===x.vid?"":vb(x.vid)))+'</option>').join("")+'</optgroup>';
+    const dOpt=(main,cur,none)=>{const l=names0.slice();if(cur&&!l.includes(cur))l.push(cur);
+      return '<option value="">'+esc("Come il tour – "+(realDriver(main)?driverCanon(main):none))+'</option>'+
+        l.map(n=>'<option value="'+esc(n)+'"'+(cur===n?" selected":"")+'>'+esc(n+(isGen(n)?"":(busyD.has(drvKey(n))&&cur!==n?" · impegnato":"")+(riposoOf(n,ds)?" · riposo":"")))+'</option>').join("");};
+    const on=!!(o.v||o.d1||o.d2),dis=c.dis?" disabled":"";
+    h+='<div class="dv-row'+(on?" on":"")+'" data-dvi="'+i+'" data-ds="'+ds+'"><span class="dv-day"><b>'+(i+1)+'° giorno</b><span class="dv-sep"> · </span><span class="dv-dt">'+WD[wday(ds)]+' '+esc(short(ds))+'</span></span>'+
+      '<select data-dvk="v" aria-label="Mezzo del '+(i+1)+'° giorno"'+dis+(o.v?' class="chg"':'')+'>'+vo+'</select>'+
+      '<select data-dvk="d1" aria-label="1° autista del '+(i+1)+'° giorno"'+dis+(o.d1?' class="chg"':'')+'>'+dOpt(c.main.d1,o.d1,"da assegnare")+'</select>'+
+      '<select data-dvk="d2" aria-label="2° autista del '+(i+1)+'° giorno"'+dis+(o.d2?' class="chg"':'')+'>'+dOpt(c.main.d2,o.d2,"nessuno")+'</select></div>';
+  }
+  return h;
+}
+// valore di una riga (null = come il tour); l'extra bus porta con sé i suoi dati
+function dvRowVal(r){
+  const g=k=>r.querySelector('[data-dvk="'+k+'"]').value,v=g("v"),d1=g("d1"),d2=g("d2");
+  if(!v&&!d1&&!d2)return null;
+  const o={v,d1,d2};
+  if(isXbus(v)){const x=dayXbus(r.dataset.ds).find(y=>y.vid===v),def=(x&&x.def)||xbIndex().get(v)||{};o.xb={az:String(def.az||"").trim(),posti:String(def.posti||"").replace(/\D/g,""),targa:String(def.targa||"").trim().toUpperCase()};}
+  return o;
+}
+// le righe mostrate prendono il posto dei giorni corrispondenti; i giorni oltre restano (tour accorciato e poi allungato)
+function dvMerge(list,box){
+  const out=(Array.isArray(list)?list:[]).slice();
+  for(const r of box.querySelectorAll(".dv-row")){const i=+r.dataset.dvi;while(out.length<i)out.push(null);out[i]=dvRowVal(r);}
+  return out;
+}
+function dvTrim(l,n){const out=(l||[]).slice(0,n).map(o=>o&&(o.v||o.d1||o.d2)?(o.xb?{v:o.v||"",d1:o.d1||"",d2:o.d2||"",xb:o.xb}:{v:o.v||"",d1:o.d1||"",d2:o.d2||""}):null);while(out.length&&!out[out.length-1])out.pop();return out;}
+function dvSummary(l){const idx=(l||[]).map((o,i)=>o&&(o.v||o.d1||o.d2)?(i+1)+"°":"").filter(Boolean);return idx.length?'Cambi: <b>'+esc((idx.length>1?idx.slice(0,-1).join(", ")+" e "+idx[idx.length-1]:idx[0])+" giorno")+'</b>':"Tutti i giorni come il tour";}
+// modulo della prenotazione
+function formDvRange(){const st=$("f-start").value,en=$("f-end").value||st;return isMulti(curType())&&validDate(st)&&validDate(en)&&en>st&&diff(st,en)<=30?{st,en,n:diff(st,en)+1}:null;}
+function readDayv(){const r=formDvRange();return r?dvTrim(formDayv,r.n):[];}
+function renderDayv(){
+  const r=formDvRange(),box=$("w-dayv");
+  if(!$("dvRows").hidden&&$("dvRows").children.length)formDayv=dvMerge(formDayv,$("dvRows"));
+  box.hidden=!r;if(!r){$("dvRows").innerHTML="";return;}
+  const lock=S.readOnly||$("f-vehicle").disabled,cur=dvTrim(formDayv,r.n),on=dvOpen||cur.length>0;
+  $("dvRows").innerHTML=on?dvRowsHTML({start:r.st,end:r.en,main:{v:$("f-vehicle").value,d1:cleanText($("f-driver").value),d2:cleanText($("f-driver2").value)},list:formDayv,self:editing?editing.id:"",dis:lock}):"";
+  $("dvRows").hidden=!on;$("dvToggle").hidden=on||lock;$("dvToggle").setAttribute("aria-expanded",String(on));
+  $("dvSum").innerHTML=dvSummary(cur);
+}
+$("dvToggle").onclick=()=>{dvOpen=true;renderDayv();const s=$("dvRows").querySelector("select");if(s)s.focus();};
+$("dvRows").addEventListener("change",e=>{
+  const r=e.target.closest(".dv-row");if(!r)return;
+  formDayv=dvMerge(formDayv,$("dvRows"));
+  r.classList.toggle("on",!!dvRowVal(r));r.querySelectorAll("select").forEach(x=>x.classList.toggle("chg",!!x.value));
+  const g=formDvRange();$("dvSum").innerHTML=dvSummary(g?dvTrim(formDayv,g.n):[]);
+});
+["f-start","f-end","f-vehicle","f-driver","f-driver2"].forEach(id=>$(id).addEventListener("change",()=>{if(!$("ovBooking").hidden)renderDayv();}));
+// passeggeri oltre la capienza dei mezzi scelti per i singoli giorni del tour
+function dvSeatsWarn(b){
+  const out=[],pax=String(b.pax||"");if(!/^\d+$/.test(pax))return out;
+  for(const vid of new Set(dayvOf(b).map(o=>o&&o.v).filter(Boolean))){if(vid===b.vehicle)continue;const v=vehicle(vid);if(v&&v.seats&&+pax>v.seats)out.push("Passeggeri ("+pax+") oltre la capienza del mezzo del "+dvDaysOf(b,vid)+" ("+v.seats+" posti).");}
+  return out;
+}
 function yymmdd(d){return d.slice(2,4)+d.slice(5,7)+d.slice(8,10);}
 async function nextSeq(date){
   let d=S.days[date];
@@ -1104,6 +1222,7 @@ function renderClientInfo(){
   const el=$("cInfo"),v=$("f-client").value.trim();
   if(formClient&&formClient.name===v){const c=S.clients.find(x=>String(x[0])===String(formClient.code));el.className="cinfo ok";el.textContent="Codice "+formClient.code+(c&&c[2]?" · "+c[2]:"")+(c&&c[3]?" · "+c[3]:"")+(c&&c[4]?" · tel. "+c[4]:"");}
   else{el.className="cinfo";el.textContent=v?"Non in elenco: in fatturato il nome andrà nella colonna Cliente, senza codice.":"";}
+  fgHint(); // 3.0.3
 }
 $("f-client").addEventListener("input",()=>{sugIdx=-1;renderSug();renderClientInfo();});
 $("f-client").addEventListener("focus",renderSug);
@@ -1387,7 +1506,7 @@ $("fBooking").addEventListener("submit",async e=>{
     const ch=formChanges().filter(k=>FIELD_LBL[k]);
     if(!ch.length){
       const want=openSheetAfterSave,cur=bookingsAll().find(x=>x.id===editing.id);openSheetAfterSave=false;
-      closeForm();if(want&&cur)openSheetConfirmed(cur);else toast("Nessuna modifica da salvare.");
+      closeForm();if(want&&cur&&hasSheet(cur))openSheetConfirmed(cur);else toast(want&&cur?NOFG:"Nessuna modifica da salvare.");
       return;
     }
     $("fEditList").innerHTML=ch.map(k=>'<li><b>'+esc(FIELD_LBL[k])+'</b>: '+esc(logVal(k,formOrig[k]))+' → '+esc(logVal(k,b[k]))+'</li>').join("");
@@ -1400,7 +1519,7 @@ $("fBooking").addEventListener("submit",async e=>{
   let bossEdit=false;
   if(editing){const cur=bookingsAll().find(x=>x.id===editing.id);if(cur&&cur.sent)b.sent=cur.sent;
     // scelta del capo: il segno resta; bus e autisti restano i suoi (li cambia solo il Super Master)
-    if(cur&&cur.capo){b.capo=cur.capo;if(isSuper())bossEdit=true;else{b.vehicle=cur.vehicle;b.driver=cur.driver||"";b.driver2=cur.driver2||"";}}}
+    if(cur&&cur.capo){b.capo=cur.capo;if(isSuper())bossEdit=true;else{b.vehicle=cur.vehicle;b.driver=cur.driver||"";b.driver2=cur.driver2||"";b.dayv=Array.isArray(cur.dayv)?cur.dayv:[];}}}
   const id=editing?editing.id:("b"+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
   const old=editing&&editing.start,moved=!!(old&&old!==b.start);
   // per le modifiche: versione di partenza e campi cambiati, così non si cancellano le modifiche fatte da altri nel frattempo
@@ -1414,8 +1533,9 @@ $("fBooking").addEventListener("submit",async e=>{
   saving=true;$("fSave").disabled=true;$("fSheet").disabled=true;
   try{
     // n. foglio: AAMMGG + progressivo del giorno del servizio; resta fisso finché il servizio non cambia giorno
+    // 3.0.3: senza cliente niente n. foglio (il foglio nasce con il cliente); un numero già assegnato resta
     let foglio=editing?editing.foglio:"",seqPatch={};
-    if(!foglio||moved){const n=await nextSeq(b.start);foglio=yymmdd(b.start)+pad(n);seqPatch={assign:true};}
+    if((!foglio&&String(b.client||"").trim())||(foglio&&moved)){const n=await nextSeq(b.start);foglio=yymmdd(b.start)+pad(n);seqPatch={assign:true};}
     b.foglio=foglio;
     if(moved)writeDayOps(old,{bookings:{[id]:null}},{move:b.start,know:knowOf(bookingsAll().find(x=>x.id===id))});
     writeDayOps(b.start,Object.assign({bookings:{[id]:b}},seqPatch),Object.assign({},meta,moved?{move:true}:{}));
@@ -1425,9 +1545,9 @@ $("fBooking").addEventListener("submit",async e=>{
     regAutoAdd(b);
     const wantSheet=openSheetAfterSave;
     closeForm();try{document.activeElement&&document.activeElement.blur&&document.activeElement.blur();}catch(_){}
-    S.sel=b.start;if(mkey(b.start)!==subMonth)subscribe();renderAll();toast("Prenotazione salvata");
-    if(wantSheet)openSheetConfirmed(Object.assign({},b,{id:id}));
-  }catch(err){handleErr(err);}finally{saving=false;$("fSave").disabled=false;$("fSheet").disabled=false;openSheetAfterSave=false;}
+    S.sel=b.start;if(mkey(b.start)!==subMonth)subscribe();renderAll();toast(wantSheet&&!foglio?"Prenotazione salvata. "+NOFG:"Prenotazione salvata");
+    if(wantSheet&&foglio)openSheetConfirmed(Object.assign({},b,{id:id}));
+  }catch(err){handleErr(err);}finally{saving=false;$("fSave").disabled=false;$("fSheet").disabled=false;openSheetAfterSave=false;if(!$("ovBooking").hidden)fgHint();}
 });
 $("fCancel").onclick=tryCloseForm;
 $("fEditYes").onclick=()=>{editConfirmed=true;$("fEditAsk").hidden=true;$("fBooking").requestSubmit();};
@@ -1509,6 +1629,18 @@ function pdfAutoAdd(id){
   clearTimeout(pdfAutoT);pdfAutoT=setTimeout(pdfAutoRun,2000);pdfPill();
 }
 const okFoglio=b=>/^\d{6,12}$/.test(String(b&&b.foglio||""));
+// 3.0.3: una prenotazione nuova senza cliente non ha il foglio di servizio (niente n. foglio, PDF, riga nel fatturato,
+// invio all'autista): il foglio nasce quando si inserisce il cliente
+function hasSheet(b){b=b&&b._orig||b;return !!(b&&String(b.foglio==null?"":b.foglio).trim());}
+const NOFG="Senza cliente non c'è il foglio di servizio: nasce quando inserisci il cliente nella prenotazione.";
+// foglio quasi vuoto (prima dell'invio si chiede conferma): senza cliente, oppure senza orario e senza programma
+function thinSheet(b){
+  b=b&&b._orig||b;if(!b)return "";
+  const noCli=!String(b.client||"").trim(),noTime=!String(b.time||"").trim(),noProg=!(Array.isArray(b.program)?b.program:[b.program]).some(x=>String(x==null?"":x).trim());
+  if(!noCli&&!(noTime&&noProg))return "";
+  return [noCli?"senza cliente":"",noTime?"senza orario":"",noProg?"senza programma":""].filter(Boolean).join(", ");
+}
+const THIN_Q=t=>"Il foglio è quasi vuoto ("+t+"): inviarlo lo stesso all'autista?";
 // cliente dell'anagrafica ma elenco clienti non ancora su questo dispositivo: il PDF verrebbe senza i dati del cliente
 // (e con un altro nome di file); lo scrive un dispositivo che ce l'ha
 const pdfNoClients=b=>b.clientCode!==""&&b.clientCode!=null&&!(S.clients&&S.clients.length);
@@ -2231,8 +2363,19 @@ function tplPlan(b,measure){
 }
 // programma completo: una riga per tappa (o per giorno nei tour). all (pagina 2): in testa gli hotel e in
 // fondo referenti e guide, tutti per esteso.
-function tplProgramAll(b,all){
-  const lines=[],prog=Array.isArray(b.program)?b.program:[];
+let _tplOpt=null; // 3.0.3: scelte del foglio in corso (targa nascosta o no) per le righe dei giorni
+// cambio di mezzo o autista in un giorno del tour, come compare sul foglio: "(bus 28 posti GT856XE, autista Rossi Mario)"
+function dvSheetTxt(b,i,O){
+  const o=dayvOf(b)[i];if(!o||!(o.v||o.d1||o.d2))return "";
+  const l=[];
+  if(o.v&&o.v!==b.vehicle){const v=vehicle(o.v)||(o.xb?xbVehOf(o.xb,o.v):{}),pl=O&&O.noPlate?"":(v.plate||"").trim();l.push((v.xbus?"extra bus "+(v.az?v.az+" ":""):"bus ")+(v.seats?v.seats+" posti":v.name||"")+(pl?" "+pl:""));}
+  const a=realDriver(o.d1),c=realDriver(o.d2);
+  if(a&&drvKey(a)!==drvKey(b.driver||""))l.push("autista "+driverCanon(a));
+  if(c&&drvKey(c)!==drvKey(b.driver2||""))l.push("2° autista "+driverCanon(c));
+  return l.length?" ("+l.join(", ")+")":"";
+}
+function tplProgramAll(b,all,opt){
+  const lines=[],prog=Array.isArray(b.program)?b.program:[],O=opt||_tplOpt||SHO;
   if(all)hotelsOf(b).forEach((x,i)=>lines.push("Hotel "+(i+1)+": "+hotelTxt(Object.assign({},x,{name:hotelShort(x.name)}))));
   const clean=t=>String(t||"").split("\n").map(x=>x.trim()).filter(Boolean);
   if(hasEvent(b.type)&&(b.event||b.escort))lines.push([b.event?"Evento: "+b.event:"",b.escort?"Accompagnatore: "+b.escort:""].filter(Boolean).join(" – "));
@@ -2240,7 +2383,7 @@ function tplProgramAll(b,all){
     const nd=Math.min(31,diff(b.start,endOf(b))+1);
     for(let i=0;i<nd;i++){
       const d=addDays(b.start,i),txt=clean(prog[i]).join(" · ")||(i===0&&(b.time||b.route)?((b.time?"Ore "+b.time+" ":"")+(b.route||"")).trim():"");
-      lines.push((i+1)+"° giorno "+(+d.slice(8,10))+"/"+d.slice(5,7)+" "+WD[wday(d)]+(txt?": "+txt:""));
+      lines.push((i+1)+"° giorno "+(+d.slice(8,10))+"/"+d.slice(5,7)+" "+WD[wday(d)]+dvSheetTxt(b,i,O)+(txt?": "+txt:""));
     }
   }else{
     let l=clean(prog.join("\n"));
@@ -2298,7 +2441,7 @@ function durShort(b,date){
 // valori delle caselle. k: s testo, i numero intero, d data, e euro, a euro contabile
 function tplValues(b,measure,opt){
   const SHO_=opt||SHO; // 2.9: intestazione e targa scelte da chi chiama (copia automatica in Dropbox); di solito quelle della finestra
-  const P=tplPlan(b,measure),o={};
+  let P;_tplOpt=SHO_;try{P=tplPlan(b,measure);}finally{_tplOpt=null;}const o={};
   const v=vehicle(b.vehicle)||{},cl=shClient(b),plate=(v.plate||"").trim(),type=normType(b.type);
   const nr=v.num!=null&&String(v.num).trim()!==""?v.num:(S.regole.numeri||{})[plate],numero=nr==null?"":(/^\d+$/.test(String(nr).trim())?Number(nr):String(nr).trim());
   const nd=diff(b.start,endOf(b))+1,pr=numOrE(b.price),pk=numOrE(b.park),ml=numOrE(b.meals);
@@ -2572,7 +2715,7 @@ async function tplPDF(b,part,opt){
     };
     const h=page2Head(b,opt);
     put(h.title,bold,14,4);put(h.sub,reg,10.5,12);
-    for(const l of tplProgramAll(b,true))put(l,reg,11.5,5);
+    for(const l of tplProgramAll(b,true,opt))put(l,reg,11.5,5);
   }
   return new Blob([await pdf.save()],{type:"application/pdf"});
 }
@@ -2599,6 +2742,7 @@ const sheetsOut={}; // prenotazione → n. foglio con cui il foglio di servizio 
 function sheetPart(){if(isInvio())return "driver";const v=$("sheetPart").value;return v==="full"||v==="office"?v:"driver";}
 const PART_SUFFIX={driver:"",full:"_completo",office:"_contabile"},PART_LOG={driver:"",full:" (con la parte contabile)",office:" (solo parte contabile)"};
 function openSheet(b){
+  if(!hasSheet(b)){toast(NOFG);return false;} // 3.0.3
   sheetBooking=Object.assign({},b,{provisional:STORE.isPending(b.id)});
   // 2.8: «Nascondi Targa e ID Mezzo» è spuntata di serie: targa e ID si fanno vedere togliendo la spunta
   $("sheetNoPlate").checked=true;SHO.noPlate=true;$("sheetPart").value="driver";
@@ -2632,7 +2776,7 @@ function renderSheet(){
 }
 // dopo "Salva e apri foglio di servizio": si aspetta (al massimo 10 secondi) la conferma del numero
 async function openSheetConfirmed(b){
-  openSheet(b);
+  if(openSheet(b)===false)return;
   if(navigator.onLine&&STORE.isPending(b.id)){
     $("sheetMsg").textContent="Confermo il n. foglio con Dropbox…";
     await STORE.whenSent(b.id,10000);
@@ -2990,6 +3134,51 @@ async function printWithAtts(b,part,saving){
 // PDF del foglio con gli allegati in coda (non con «Solo parte contabile»)
 async function sheetPdfFull(b,part,say){const blob=await tplPDF(b,part);return part==="office"?blob:attMerge(blob,b,say);}
 
+// =====================================================================================
+// 3.0.3 — Pulizia notturna: le prenotazioni rimaste «in sospeso» (?) si eliminano dopo il giorno del servizio
+// =====================================================================================
+// Dopo la mezzanotte, le prenotazioni ancora in sospeso con l'ultimo giorno del servizio passato (per i tour il giorno
+// di rientro) e non toccate da prima della mezzanotte si eliminano come con «Elimina»: riga del fatturato svuotata,
+// foglio ritirato dall'app degli autisti, PDF e allegati cancellati da Dropbox. Lo fa il primo dispositivo dell'ufficio
+// che apre l'agenda dopo la mezzanotte (o quello rimasto aperto). Il profilo di MAX («solo anteprima e invio») no.
+// In Dropbox l'eliminazione vale solo se la prenotazione è ancora in sospeso (STORE: ifOpz): se intanto qualcuno
+// l'ha confermata, resta. Una prenotazione modificata oggi aspetta la mezzanotte successiva.
+let purgeBusy=false,purgeT=0,purgeDay="";
+function purgeCands(){
+  const t=todayISO(),d0=new Date();d0.setHours(0,0,0,0);
+  return bookingsAll().filter(b=>pending(b)&&validDate(b.start)&&endOf(b)<t&&!STORE.isPending(b.id)&&(Date.parse(b.updatedAt||b.byAt||"")||0)<d0.getTime());
+}
+async function purgeRun(){
+  if(purgeBusy||S.readOnly||S.outdated||isInvio()||!navigator.onLine||!ACC.session()||$("app").hidden)return;
+  purgeBusy=true;
+  try{
+    let ok=false;try{ok=await STORE.pull();}catch(_){}
+    if(!ok||S.readOnly||S.outdated)return; // senza la copia aggiornata di Dropbox non si elimina niente
+    purgeDay=todayISO();
+    const l=purgeCands();if(!l.length)return;
+    const done=[];
+    for(const b of l){
+      try{
+        writeDayOps(b.start,{bookings:{[b.id]:null}},{know:knowOf(b),ifOpz:true});
+        ACC.log("prenotazione","Eliminata automaticamente la prenotazione "+bookingLabel(b)+": era ancora in sospeso dopo l'ultimo giorno del servizio",{id:b.id});
+        withdrawAfterDelete(b);pdfDelAdd(b);attDropLater(b.id,attOf(b).map(a=>a.path));
+        done.push(b);
+      }catch(e){ACC.tlog("errore","Pulizia delle prenotazioni in sospeso non riuscita",String((e&&(e.code||e.message))||e));break;}
+    }
+    if(!done.length)return;
+    if(!$("app").hidden)renderAll();
+    const lbl=b=>"«"+(b.client||"senza cliente")+"» del "+itD(b.start)+(b.foglio?" (n. "+b.foglio+")":"");
+    notify((done.length===1?"Eliminata la prenotazione ":"Eliminate "+done.length+" prenotazioni: ")+done.slice(0,8).map(lbl).join(", ")+(done.length>8?" e altre "+(done.length-8):"")+(done.length===1?": era":": erano")+" ancora in sospeso dopo il giorno del servizio.",true);
+  }finally{purgeBusy=false;}
+}
+// alla mezzanotte (più mezzo minuto) di ogni giorno, finché l'agenda resta aperta
+function purgeSchedule(){
+  clearTimeout(purgeT);
+  const n=new Date(),m=new Date(n.getFullYear(),n.getMonth(),n.getDate()+1,0,0,30);
+  purgeT=setTimeout(()=>{purgeRun();purgeSchedule();},Math.max(1000,Math.min(m-n,2147480000)));
+}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&purgeDay&&purgeDay!==todayISO())purgeRun();});
+
 // ---------- versione ----------
 // (APP_VERSION e APP_DATE sono in testa al file)
 $("gVer").textContent="Versione "+APP_VERSION+" · "+APP_DATE;$("appVer").textContent="v"+APP_VERSION;
@@ -3117,7 +3306,7 @@ function toggleConfirm(id,start){
 function knowOf(b){return {c:(b&&b.capo&&b.capo.at)||"",s:b&&b.sent?(b.sent.at||"")+"|"+((b.sent.off&&b.sent.off.at)||""):""};}
 function writeDayOps(date,patch,extra){
   const ops=[];extra=extra||{};
-  if(patch.bookings)for(const k in patch.bookings)ops.push(patch.bookings[k]===null?Object.assign({t:"del",id:k},extra.move&&typeof extra.move==="string"?{move:extra.move}:{},extra.client!=null?{client:extra.client}:{},extra.know?{know:extra.know}:{}):Object.assign({t:"put",id:k,b:patch.bookings[k],assign:!!patch.assign},extra));
+  if(patch.bookings)for(const k in patch.bookings)ops.push(patch.bookings[k]===null?Object.assign({t:"del",id:k},extra.move&&typeof extra.move==="string"?{move:extra.move}:{},extra.client!=null?{client:extra.client}:{},extra.know?{know:extra.know}:{},extra.ifOpz?{ifOpz:true}:{}):Object.assign({t:"put",id:k,b:patch.bookings[k],assign:!!patch.assign},extra));
   if("extra" in patch)ops.push({t:"extra",v:patch.extra,base:patch.base==null?null:patch.base});
   // 2.9: prenotazione spostata a un'altra data (nuovo n. foglio): i PDF del vecchio n. foglio vanno cancellati
   const moved=[];
@@ -3271,6 +3460,7 @@ function enterApp(){
   setTimeout(pdfDelRun,4000); // PDF di servizi eliminati rimasti da cancellare (2.8)
   setTimeout(pdfAutoRun,5000); // PDF dei fogli cambiati rimasti da salvare (2.9)
   setTimeout(pdfAllStart,9000); // PDF di tutti i fogli già in agenda: una volta sola (2.9)
+  setTimeout(purgeRun,12000);purgeSchedule(); // 3.0.3: prenotazioni rimaste in sospeso dopo il giorno del servizio
 }
 
 // ---------- menu ----------
@@ -3471,7 +3661,7 @@ document.addEventListener("visibilitychange",()=>{if(document.visibilityState===
 window.addEventListener("pageshow",checkIdle);window.addEventListener("focus",checkIdle);window.addEventListener("pagehide",()=>saveAct(true));
 
 // ---------- registro: cosa è cambiato in una prenotazione ----------
-const FIELD_LBL={type:"Categoria",vehicle:"Mezzo",start:"Data partenza",end:"Data rientro",time:"Ora partenza",time2:"Ora rientro",client:"Cliente",clientCode:"Codice cliente",route:"Itinerario",event:"Evento",escort:"Accompagnatore",pax:"Passeggeri",price:"Prezzo",park:"Parcheggi",parks:"Parcheggi scelti",meals:"Pasti",extras:"Extra",advance:"Acconto",envelope:"Busta",envno:"N. busta",driver:"1° autista",driver2:"2° autista",contact:"Telefono referente 1",contactName:"Referente 1",contactRole:"Ruolo referente 1",contactNote:"Note referente 1",dnotes:"Note per l'autista",status:"Stato",notes:"Note",saldo:"Saldo da ricevere",saldoAmt:"€ Saldo",npark:"Note 1° park",ndriver:"Note 2° autista",n3h:"Note 3° 3 ore",nextra:"Note 4° extra",refs:"Altri referenti",hotels:"Hotel",guides:"Guide",program:"Programma",att:"Allegati per l'autista"};
+const FIELD_LBL={type:"Categoria",vehicle:"Mezzo",start:"Data partenza",end:"Data rientro",time:"Ora partenza",time2:"Ora rientro",client:"Cliente",clientCode:"Codice cliente",route:"Itinerario",event:"Evento",escort:"Accompagnatore",pax:"Passeggeri",price:"Prezzo",park:"Parcheggi",parks:"Parcheggi scelti",meals:"Pasti",extras:"Extra",advance:"Acconto",envelope:"Busta",envno:"N. busta",driver:"1° autista",driver2:"2° autista",contact:"Telefono referente 1",contactName:"Referente 1",contactRole:"Ruolo referente 1",contactNote:"Note referente 1",dnotes:"Note per l'autista",status:"Stato",notes:"Note",saldo:"Saldo da ricevere",saldoAmt:"€ Saldo",npark:"Note 1° park",ndriver:"Note 2° autista",n3h:"Note 3° 3 ore",nextra:"Note 4° extra",refs:"Altri referenti",hotels:"Hotel",guides:"Guide",program:"Programma",att:"Allegati per l'autista",dayv:"Mezzi e autisti giorno per giorno"};
 function logVal(k,v){
   if(v===""||v==null||(Array.isArray(v)&&!v.filter(Boolean).length))return "—";
   if(k==="vehicle"){const vv=vehicle(v);return vv?vehLabel(vv):String(v);}
@@ -3485,6 +3675,7 @@ function logVal(k,v){
   if(k==="extras")return cleanExtras(v).map(x=>(x.c||"senza causale")+(x.amt!==""?" € "+money(x.amt):"")).join("; ").slice(0,200);
   if(k==="program")return v.filter(Boolean).map(x=>String(x).replace(/\n/g," / ")).join(" | ").slice(0,160);
   if(k==="att")return v.map(x=>x&&x.name||"allegato").join("; ").slice(0,200);
+  if(k==="dayv")return v.map((o,i)=>o&&(o.v||o.d1||o.d2)?(i+1)+"° giorno: "+[o.v?vehLabel(vehicle(o.v)||(o.xb?xbVehOf(o.xb,o.v):{})):"",o.d1,o.d2?"2° "+o.d2:""].filter(Boolean).join(", "):"").filter(Boolean).join("; ").slice(0,240)||"—";
   const t=String(v).replace(/\s+/g," ");return t.length>120?t.slice(0,117)+"…":t;
 }
 function bookingLabel(b){const v=vehicle(b.vehicle)||{};return "«"+(b.client||"senza cliente")+"» "+(TYPES[normType(b.type)]||"")+" del "+itD(b.start)+(endOf(b)!==b.start?"–"+itD(endOf(b)):"")+" · "+(v.name||"")+(b.foglio?" · n. "+b.foglio:"");}
@@ -4772,10 +4963,11 @@ function sendOpts(b,o){
   const v=vehicle(b.vehicle)||{},cl=shClient(b),alias=cl&&cl[2]?String(cl[2]):"",al=!!(o.alias&&alias);
   return {alias:al,noPlate:!!o.noPlate,cliente:al?alias:(cl?String(cl[1]):(b.client||"")),
     mezzo:{nome:v.name||"",posti:v.seats?String(v.seats)+(v.h?" H":""):"",targa:(v.plate||"").trim()},
-    autisti:[...new Set([b.driver,b.driver2].map(realDriver).filter(Boolean).map(driverCanon))],by:meName()};
+    autisti:allDriversOf(b),by:meName()}; // 3.0.3: anche gli autisti dei singoli giorni del tour
 }
 // stato dell'invio: null se il foglio non è mai stato inviato
 function sentInfo(b){
+  b=b&&b._orig||b; // 3.0.3: la vista di un giorno del tour ha mezzo e autisti di quel giorno
   const st=AUT.status(b);if(!st)return null;
   // «da reinviare»: dopo l'invio è cambiato qualcosa che sta sul foglio (con l'alias serve l'anagrafica clienti già letta)
   st.stale=st.k!=="ritirato"&&st.k!=="consegnata"&&endOf(b)>=todayISO()&&!!b.sent.h&&!(b.sent.alias&&!(S.clients&&S.clients.length))&&b.sent.h!==AUT.sheetHash(b,sendOpts(b,b.sent));
@@ -4791,6 +4983,7 @@ function sentTitle(b,st){
   return l.join("\n");
 }
 function sentChip(b){
+  if(!hasSheet(b))return isXbus(b.vehicle)?"":'<span class="snt k-nofg" title="'+esc(NOFG)+'">Senza foglio</span>'; // 3.0.3
   const st=sentInfo(b);
   // 2.8: anche i fogli non ancora inviati hanno la casella («In attesa»); niente casella sugli extra bus (altre aziende)
   if(!st)return isXbus(b.vehicle)?"":'<button type="button" class="snt k-attesa" data-sent="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="Foglio di servizio non ancora inviato all\'autista: clic per aprirlo">In attesa</button>';
@@ -4829,6 +5022,7 @@ async function sendToDriver(b0,o,say){
   if(S.outdated){say("Questa pagina ha una versione vecchia dell'agenda: chiudila e riaprila prima di inviare.");return false;}
   let b=bookingsAll().find(x=>x.id===b0.id);
   if(!b){say("La prenotazione non c'è più (eliminata o spostata).");return false;}
+  if(!hasSheet(b)){say(NOFG);return false;} // 3.0.3
   if(capoLock(b)){say(CAPO_NO);return false;}
   if(!AUT.linked()){say(autMissing());return false;}
   if(!navigator.onLine){say("Per inviare il foglio serve la connessione a internet.");return false;}
@@ -4838,6 +5032,7 @@ async function sendToDriver(b0,o,say){
   if(o.alias&&!so.alias){say("Per questo foglio è stata scelta l'intestazione con l'alias, ma l'alias del cliente non si trova"+(S.clients&&S.clients.length?"":" (l'elenco clienti non è ancora stato letto)")+": il foglio NON è partito. Apri l'anteprima e controlla «Intestazione».");return false;}
   const ph=(STORE.aut&&STORE.aut.phones)||{},noPhone=so.autisti.filter(n=>!Object.values(ph).some(f=>!f.blocked&&norm(f.driver)===norm(n)));
   const again=!!(b.sent&&b.sent.at&&!b.sent.off);
+  {const t=thinSheet(b);if(t&&!o.thinOk&&!confirm(THIN_Q(t)))return false;} // 3.0.3: foglio quasi vuoto
   if(!o.noConfirm&&!confirm("Inviare il foglio di servizio n. "+(b.foglio||"")+" («"+so.cliente+"», "+itD(b.start)+") a "+so.autisti.join(" e ")+"?\n\nParte solo il foglio per l'autista: prezzi e parte contabile non vengono inviati."+
     (pending(b)?"\n\nATTENZIONE: questa prenotazione è ancora IN SOSPESO.":"")+
     (noPhone.length?"\n\nNessun telefono collegato per "+noPhone.join(" e ")+": il foglio resta in attesa finché il telefono non viene collegato.":"")+
@@ -4847,7 +5042,7 @@ async function sendToDriver(b0,o,say){
   // si rilegge Dropbox e, in quel caso, non si invia
   say("Controllo la prenotazione…");try{await STORE.pull();}catch(_){}
   {const now=bookingsAll().find(x=>x.id===b.id);if(!now){say("La prenotazione non c'è più (eliminata o spostata).");return false;}
-    if(capoLock(now)||now.vehicle!==b.vehicle||(now.driver||"")!==(b.driver||"")||(now.driver2||"")!==(b.driver2||"")){say(capoLock(now)?CAPO_NO:"Bus o autisti sono appena cambiati: controlla l'anteprima e invia di nuovo.");return false;}
+    if(capoLock(now)||now.vehicle!==b.vehicle||(now.driver||"")!==(b.driver||"")||(now.driver2||"")!==(b.driver2||"")||JSON.stringify(now.dayv||[])!==JSON.stringify(b.dayv||[])){say(capoLock(now)?CAPO_NO:"Bus o autisti sono appena cambiati: controlla l'anteprima e invia di nuovo.");return false;}
     b=now;so=sendOpts(b,o);} // 3.0.2: si invia la prenotazione appena riletta (allegati compresi)
   sending=true;say("Invio il foglio all'autista…");
   try{
@@ -5178,15 +5373,15 @@ function renderInvio(){
   const list=dayList(sdDay).slice().sort((a,b)=>(a.time||"99").localeCompare(b.time||"99")||String(a.foglio||"").localeCompare(String(b.foglio||"")));
   $("sdList").innerHTML=list.map(b=>{
     const v=vehicle(b.vehicle)||{},tot=diff(b.start,endOf(b))+1,i=diff(b.start,sdDay)+1,st=sentInfo(b),real=[b.driver,b.driver2].map(realDriver).filter(Boolean);
-    const live=!!st&&st.k!=="ritirato";
-    const stTxt=!st?'<span class="pill">Da inviare</span>':'<span class="snt k-'+st.k+(st.stale?" stale":"")+'">'+esc(st.stale?"Da reinviare":SENT_LBL[st.k])+'</span><small>'+esc(st.k==="ritirato"?"ritirato "+fmtTime(st.at):"inviato "+fmtTime(st.at)+(st.by?" da "+st.by:"")+(st.k==="aperto"?" · aperto "+fmtTime(st.when):st.k==="consegnata"?" · busta consegnata "+fmtTime(st.when):""))+'</small>';
+    const live=!!st&&st.k!=="ritirato",nofg=!hasSheet(b); // 3.0.3: senza cliente niente foglio
+    const stTxt=nofg?'<span class="pill">Senza foglio: manca il cliente</span>':!st?'<span class="pill">Da inviare</span>':'<span class="snt k-'+st.k+(st.stale?" stale":"")+'">'+esc(st.stale?"Da reinviare":SENT_LBL[st.k])+'</span><small>'+esc(st.k==="ritirato"?"ritirato "+fmtTime(st.at):"inviato "+fmtTime(st.at)+(st.by?" da "+st.by:"")+(st.k==="aperto"?" · aperto "+fmtTime(st.when):st.k==="consegnata"?" · busta consegnata "+fmtTime(st.when):""))+'</small>';
     return '<div class="sd-card '+esc(b.type)+'">'+
       '<div class="sd-main"><div class="sd-l1"><span class="sd-time">'+esc(i===1?(b.time||"—"):"—")+'</span><span class="sd-cli">'+esc(dispClient(b))+'</span><span class="sd-tp">'+esc((TYPES[b.type]||"Servizio")+(tot>1?" · giorno "+i+" di "+tot:"")+(pending(b)?" · in sospeso":""))+'</span></div>'+
       '<div class="sd-rt">'+esc([hasEvent(b.type)&&b.event?b.event:"",whatToday(b,sdDay)||b.route||""].filter(Boolean).join(" – "))+'</div>'+
       '<div class="sd-meta">Autista: <b>'+(driversHTML(b)||'<span class="gen">da assegnare</span>')+'</b> · Mezzo: <b>'+esc(vehLabel(v)||v.name||"—")+'</b> · Foglio n. <b>'+esc(b.foglio||"—")+'</b>'+(hasBusta(b)?' · Busta n. <b>'+esc(b.envno||"—")+'</b>':'')+(attOf(b).length?' · <span class="sd-att">📎 '+attOf(b).length+(attOf(b).length===1?" allegato":" allegati")+'</span>':'')+'</div>'+
-      '<div class="sd-capo'+(b.capo?" on":"")+'">'+esc(b.capo?capoTitle(b):"Bus e autisti scritti dall'ufficio: li decidi tu quando invii")+'</div>'+
+      (nofg?'':'<div class="sd-capo'+(b.capo?" on":"")+'">'+esc(b.capo?capoTitle(b):"Bus e autisti scritti dall'ufficio: li decidi tu quando invii")+'</div>')+
       '<div class="sd-st">'+stTxt+'</div></div>'+
-      '<div class="sd-act"><button type="button" class="btn" data-sdprev="'+esc(b.id)+'">Anteprima</button><button type="button" class="btn send" data-sdsend="'+esc(b.id)+'">'+(live?"Invia di nuovo":"Invia all'autista")+'</button>'+(live?'<button type="button" class="btn quiet" data-sdoff="'+esc(b.id)+'">Ritira il foglio</button>':'')+'</div></div>';
+      '<div class="sd-act">'+(nofg?'':'<button type="button" class="btn" data-sdprev="'+esc(b.id)+'">Anteprima</button><button type="button" class="btn send" data-sdsend="'+esc(b.id)+'">'+(live?"Invia di nuovo":"Invia all'autista")+'</button>')+(live?'<button type="button" class="btn quiet" data-sdoff="'+esc(b.id)+'">Ritira il foglio</button>':'')+'</div></div>';
   }).join("")||'<div class="sd-empty">Nessun servizio in questo giorno.</div>';
   if(sdPastiOn)renderSdPasti();
 }
@@ -5250,12 +5445,12 @@ const svcName=x=>dispClient(x)+(x.foglio?" (n. "+x.foglio+")":"");
 function serviceMeals(b,only){
   const out={po:0,pl:0,rows:[],shared:false,corr:false};
   if(!b)return out;
-  const names=new Map();
-  for(const n of [b.driver,b.driver2].map(realDriver).filter(Boolean)){const id=drvId(n);if(id&&!names.has(id))names.set(id,driverCanon(n));}
-  if(!names.size)return out;
+  b=b._orig||b; // 3.0.3: autisti giorno per giorno (nei tour possono cambiare)
   const e=endOf(b);
   for(let d=b.start,n=0;d<=e&&n<32;d=addDays(d,1),n++){
     if(only&&d!==only)continue;
+    const dv=dayView(b,d),names=new Map();
+    for(const n of [dv.driver,dv.driver2].map(realDriver).filter(Boolean)){const id=drvId(n);if(id&&!names.has(id))names.set(id,driverCanon(n));}
     for(const [aid,name] of names){
       const m=mealDay(aid,d);if(!m.po&&!m.pl)continue;
       const others=dayList(d).filter(x=>x.id!==b.id&&bookingDrvIds(x).includes(aid));
@@ -5311,7 +5506,7 @@ let pgOnly=true,pgRegAt=0,sdPastiOn=false,sdPastiMonth="";
 function pastiPeople(k){
   const map=new Map(),from=k+"-01",to=k+"-"+pad(dim(k));
   for(const d of drivers()){const id=AUT.slug(d[0]);if(id)map.set(id,{id,name:d[0]});}
-  for(const b of bookingsAll()){if(b.start>to||endOf(b)<from)continue;for(const n of [b.driver,b.driver2].map(realDriver).filter(Boolean)){const id=drvId(n);if(id&&!map.has(id))map.set(id,{id,name:driverCanon(n)});}}
+  for(const b of bookingsAll()){if(b.start>to||endOf(b)<from)continue;for(const n of allDriversOf(b)){const id=drvId(n);if(id&&!map.has(id))map.set(id,{id,name:driverCanon(n)});}}
   for(const w of AUT.pastiWho())if(!map.has(w.id)&&w.months.includes(k))map.set(w.id,{id:w.id,name:w.name||w.id});
   for(const [key,c] of pastiCorr()){const [a,d]=key.split("|");if(mkey(d)===k&&!map.has(a))map.set(a,{id:a,name:c.name||a});}
   return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name,"it"));
@@ -5320,9 +5515,9 @@ function pastiPeople(k){
 function pastiServices(k){
   const out=new Map(),from=k+"-01",to=k+"-"+pad(dim(k));
   for(const b of bookingsAll()){
-    if(b.start>to||endOf(b)<from)continue;const ids=bookingDrvIds(b);if(!ids.length)continue;
+    if(b.start>to||endOf(b)<from)continue;const dv=hasDayv(b),ids0=bookingDrvIds(b);if(!ids0.length&&!dv)continue;
     const e=endOf(b)>to?to:endOf(b);
-    for(let d=b.start<from?from:b.start,n=0;d<=e&&n<32;d=addDays(d,1),n++)for(const id of ids){const key=id+"|"+d;if(!out.has(key))out.set(key,[]);out.get(key).push(b);}
+    for(let d=b.start<from?from:b.start,n=0;d<=e&&n<32;d=addDays(d,1),n++)for(const id of (dv?bookingDrvIds(dayView(b,d)):ids0)){const key=id+"|"+d;if(!out.has(key))out.set(key,[]);out.get(key).push(b);} // 3.0.3: autisti del giorno
   }
   return out;
 }
@@ -5501,7 +5696,7 @@ $("poUndo").onclick=()=>savePasto(true);
 const CAPO_NO="Bus e autisti di questo servizio li ha decisi MAX: il foglio lo invia (o lo ritira) solo lui.";
 function capoLock(b){return !!(b&&b.capo)&&!isInvio()&&!isSuper();}
 function capoTitle(b){const c=(b&&b.capo)||{};return "Bus e autisti decisi da MAX"+(c.by?" ("+c.by+")":"")+(c.at?" "+fmtTime(c.at):"");}
-let cpB=null,cpOpts=null,cpBusy=false;
+let cpB=null,cpOpts=null,cpBusy=false,cpDv=[];
 const cpSay=t=>{$("cpMsg").textContent=t;};
 // gli altri servizi negli stessi giorni (per segnalare bus e autisti già impegnati)
 function cpOthers(b){
@@ -5513,6 +5708,7 @@ const cpName=x=>realDriver(x)?driverCanon(x):"";
 function openCapo(b0,o){
   if(!isInvio()&&!isSuper())return;
   const b=bookingsAll().find(x=>x.id===b0.id);if(!b){toast("La prenotazione non c'è più.");return;}
+  if(!hasSheet(b)){toast(NOFG);return;} // 3.0.3
   cpB=b;cpOpts=o||{};cpBusy=false;
   const oth=cpOthers(b),busyV=new Set(oth.map(x=>x.vehicle)),busyD=new Set();
   oth.forEach(x=>[x.driver,x.driver2].map(realDriver).filter(Boolean).forEach(d=>busyD.add(drvKey(d))));
@@ -5530,28 +5726,38 @@ function openCapo(b0,o){
   $("cpWas").textContent=b.capo?capoTitle(b)+".":"Scritto dall'ufficio: "+(vehLabel(v0)||v0.name||"—")+" · "+(driversText(b)||"autista da assegnare")+".";
   const live=!!(b.sent&&b.sent.at&&!b.sent.off);
   $("cpSend").textContent=live?"Invia di nuovo all'autista":"Invia all'autista";
+  cpDv=Array.isArray(b.dayv)?JSON.parse(JSON.stringify(b.dayv)):[];$("cpDays").innerHTML="";cpDaysRender(); // 3.0.3: tour, giorno per giorno
   cpSay("");cpWarns();cpButtons();$("ovCapo").hidden=false;setTimeout(()=>{try{$("cpVeh").focus();}catch(_){}},30);
 }
-function cpButtons(){["cpSend","cpSave","cpCancel","cpVeh","cpDrv","cpDrv2"].forEach(id=>{$(id).disabled=cpBusy;});}
+function cpButtons(){["cpSend","cpSave","cpCancel","cpVeh","cpDrv","cpDrv2"].forEach(id=>{$(id).disabled=cpBusy;});$("cpDays").querySelectorAll("select").forEach(x=>{x.disabled=cpBusy;});}
+// 3.0.3: nei tour di più giorni MAX sceglie anche mezzo e autisti dei singoli giorni
+const cpMulti=b=>!!b&&isMulti(b.type)&&endOf(b)>b.start;
+function cpDaysRender(){
+  const b=cpB;if(!b)return;
+  if($("cpDays").children.length)cpDv=dvMerge(cpDv,$("cpDays"));
+  $("cpDaysBox").hidden=!cpMulti(b);if(!cpMulti(b)){$("cpDays").innerHTML="";return;}
+  $("cpDays").innerHTML=dvRowsHTML({start:b.start,end:endOf(b),main:{v:$("cpVeh").value,d1:$("cpDrv").value,d2:$("cpDrv2").value},list:cpDv,self:b.id,dis:cpBusy});
+}
+function cpDvRead(){const b=cpB;if(!cpMulti(b))return Array.isArray(b&&b.dayv)?b.dayv:[];if($("cpDays").children.length)cpDv=dvMerge(cpDv,$("cpDays"));return dvTrim(cpDv,diff(b.start,endOf(b))+1);}
+$("cpDays").addEventListener("change",e=>{const r=e.target.closest(".dv-row");if(!r)return;r.classList.toggle("on",!!dvRowVal(r));r.querySelectorAll("select").forEach(x=>x.classList.toggle("chg",!!x.value));cpDv=dvMerge(cpDv,$("cpDays"));cpSay("");cpWarns();});
 function cpWarns(){
   const b=cpB;if(!b)return [];
-  const w=[],veh=$("cpVeh").value,v=vehicle(veh),oth=cpOthers(b),d1=$("cpDrv").value,d2=$("cpDrv2").value;
+  const w=[],veh=$("cpVeh").value,v=vehicle(veh),d1=$("cpDrv").value,d2=$("cpDrv2").value;
   if(d1&&d2&&d1===d2)w.push("Il secondo autista è uguale al primo.");
   if(v&&v.seats&&/^\d+$/.test(String(b.pax||""))&&+b.pax>v.seats)w.push("Passeggeri ("+b.pax+") oltre la capienza del bus ("+v.seats+" posti).");
-  const onV=oth.filter(x=>x.vehicle===veh);
-  if(onV.length)w.push("Questo bus negli stessi giorni ha già: "+onV.map(x=>(TYPES[x.type]||"")+" «"+dispClient(x)+"» ("+when(x)+")").join("; ")+".");
-  for(const dn of [d1,d2].filter(Boolean)){
-    const k=drvKey(dn),busy=oth.filter(x=>[x.driver,x.driver2].some(y=>realDriver(y)&&drvKey(y)===k));
-    if(busy.length)w.push(dn+" negli stessi giorni ha già: "+busy.map(x=>(TYPES[x.type]||"")+" «"+dispClient(x)+"» ("+when(x)+")").join("; ")+".");
-  }
+  // 3.0.3: giorno per giorno (nei tour con cambi, mezzo e autisti di ogni giorno)
+  const nb=Object.assign({},b,{vehicle:veh,driver:d1,driver2:d2,dayv:cpDvRead()}),C=dayConflicts(nb,b.id);
+  dvSeatsWarn(nb).forEach(x=>w.push(x));
+  for(const [vid,m] of C.veh){const l=[...m.values()];w.push((vid===veh?"Questo bus":"Il bus "+vehLabel(vehicle(vid)||{})+" ("+dvDaysOf(nb,vid)+")")+" negli stessi giorni ha già: "+l.map(x=>(TYPES[x.type]||"")+" «"+dispClient(x)+"» ("+when(x)+")").join("; ")+".");}
+  for(const {dn,m} of C.drv.values()){const l=[...m.values()];w.push(driverCanon(dn)+" negli stessi giorni ha già: "+l.map(x=>(TYPES[x.type]||"")+" «"+dispClient(x)+"» ("+when(x)+")").join("; ")+".");}
   if(pending(b))w.push("Questa prenotazione è ancora IN SOSPESO.");
-  const ph=(STORE.aut&&STORE.aut.phones)||{},noPh=[d1,d2].filter(Boolean).filter(n=>!Object.values(ph).some(f=>!f.blocked&&norm(f.driver)===norm(n)));
+  const ph=(STORE.aut&&STORE.aut.phones)||{},noPh=allDriversOf(nb).filter(n=>!Object.values(ph).some(f=>!f.blocked&&norm(f.driver)===norm(n)));
   if(AUT.linked()&&noPh.length)w.push("Nessun telefono collegato per "+noPh.join(" e ")+": il foglio resta in attesa finché il telefono non viene collegato.");
   if(!AUT.linked())w.push("La cartella degli autisti non è ancora collegata: puoi salvare la scelta, ma il foglio non può partire.");
   $("cpWarn").innerHTML=w.map(x=>"<div>"+esc(x)+"</div>").join("");$("cpWarn").hidden=!w.length;
   return w;
 }
-["cpVeh","cpDrv","cpDrv2"].forEach(id=>$(id).addEventListener("change",()=>{cpSay("");cpWarns();}));
+["cpVeh","cpDrv","cpDrv2"].forEach(id=>$(id).addEventListener("change",()=>{cpSay("");cpDaysRender();cpWarns();}));
 function closeCapo(){$("ovCapo").hidden=true;cpB=null;cpOpts=null;cpBusy=false;}
 $("cpCancel").onclick=()=>{if(!cpBusy)closeCapo();};
 backdropClose($("ovCapo"),()=>$("cpCancel").click());
@@ -5560,18 +5766,20 @@ async function capoApply(send){
   if(!isInvio()&&!isSuper()){closeCapo();return;}
   const b=bookingsAll().find(x=>x.id===cpB.id);
   if(!b){closeCapo();toast("La prenotazione non c'è più (eliminata o spostata).");if(!$("invio").hidden)renderInvio();return;}
-  const veh=$("cpVeh").value,d1=$("cpDrv").value,d2=$("cpDrv2").value;
+  const veh=$("cpVeh").value,d1=$("cpDrv").value,d2=$("cpDrv2").value,dv=cpDvRead(),dvS=JSON.stringify(dv);
   if(!vehicle(veh)){cpSay("Scegli il bus.");return;}
   if(!d1){cpSay("Scegli l'autista.");$("cpDrv").focus();return;}
   if(d2&&d2===d1){cpSay("Il secondo autista è uguale al primo: toglilo o scegline un altro.");$("cpDrv2").focus();return;}
+  const thin=send?thinSheet(b):""; // 3.0.3: foglio quasi vuoto: si chiede prima di salvare e inviare
+  if(thin&&!confirm(THIN_Q(thin)))return;
   cpBusy=true;cpButtons();
   try{
-    if(!(b.capo&&b.vehicle===veh&&(b.driver||"")===d1&&(b.driver2||"")===d2)){
+    if(!(b.capo&&b.vehicle===veh&&(b.driver||"")===d1&&(b.driver2||"")===d2&&JSON.stringify(dvTrim(b.dayv||[],32))===dvS)){
       const now=new Date().toISOString(),who=meName();
-      const nb=Object.assign({},b,{vehicle:veh,driver:d1,driver2:d2,capo:{at:now,by:who},updatedAt:now,updBy:who});
-      try{writeDayOps(b.start,{bookings:{[b.id]:nb}},{edit:true,only:true,boss:true,base:b.updatedAt||null,patch:["vehicle","driver","driver2","capo","updBy"]});}
+      const nb=Object.assign({},b,{vehicle:veh,driver:d1,driver2:d2,dayv:dv,capo:{at:now,by:who},updatedAt:now,updBy:who});
+      try{writeDayOps(b.start,{bookings:{[b.id]:nb}},{edit:true,only:true,boss:true,base:b.updatedAt||null,patch:["vehicle","driver","driver2","dayv","capo","updBy"]});}
       catch(err){cpSay(err&&err.code==="readonly"?"Con questo profilo non si può fare.":"Non sono riuscito a salvare la scelta: riprova.");return;}
-      const ch=[["Mezzo",logVal("vehicle",b.vehicle),logVal("vehicle",veh)],["1° Autista",b.driver||"—",d1],["2° Autista",b.driver2||"—",d2||"—"]].filter(c=>c[1]!==c[2]);
+      const ch=[["Mezzo",logVal("vehicle",b.vehicle),logVal("vehicle",veh)],["1° Autista",b.driver||"—",d1],["2° Autista",b.driver2||"—",d2||"—"],["Giorno per giorno",logVal("dayv",b.dayv||[]),logVal("dayv",dv)]].filter(c=>c[1]!==c[2]);
       ACC.log("prenotazione","MAX ha deciso bus e autisti di "+bookingLabel(nb),{id:b.id,ch});
       if(!$("invio").hidden)renderInvio();if(!$("app").hidden)renderAll();
       if(!$("ovSheet").hidden&&sheetBooking&&sheetBooking.id===b.id){refreshSheetBooking();renderSheet();}
@@ -5581,11 +5789,11 @@ async function capoApply(send){
     if(synced){
       // la prenotazione può essere stata spostata o eliminata dall'ufficio mentre la finestra era aperta
       const got=bookingsAll().find(x=>x.id===b.id);
-      if(!got||!got.capo||got.vehicle!==veh||(got.driver||"")!==d1||(got.driver2||"")!==d2){cpSay("Mentre sceglievi, la prenotazione è stata spostata o eliminata dall'ufficio: la scelta NON è stata salvata"+(send?" e il foglio NON è partito":"")+". Premi «Annulla» e controlla l'elenco.");return;}
+      if(!got||!got.capo||got.vehicle!==veh||(got.driver||"")!==d1||(got.driver2||"")!==d2||JSON.stringify(dvTrim(got.dayv||[],32))!==dvS){cpSay("Mentre sceglievi, la prenotazione è stata spostata o eliminata dall'ufficio: la scelta NON è stata salvata"+(send?" e il foglio NON è partito":"")+". Premi «Annulla» e controlla l'elenco.");return;}
     }
     if(!send){closeCapo();toast(synced?"Scelta salvata: bus e autisti aggiornati in tutta l'Agenda.":"Scelta salvata su questo dispositivo: arriverà agli altri appena torna la connessione.");return;}
     if(!synced){cpSay("La scelta è salvata su questo dispositivo, ma "+(navigator.onLine?"Dropbox non ha ancora risposto":"sei offline")+": il foglio NON è partito. Riprova tra poco con «Invia all'autista».");return;}
-    const ok=await sendToDriver(b,Object.assign({},cpOpts||{},{noConfirm:true}),cpSay);
+    const ok=await sendToDriver(b,Object.assign({},cpOpts||{},{noConfirm:true,thinOk:!!thin}),cpSay);
     if(ok){const cur=bookingsAll().find(x=>x.id===b.id),to=(cur&&cur.sent&&cur.sent.to)||[d1,d2].filter(Boolean);closeCapo();toast("Foglio inviato a "+to.join(" e ")+".");
       if(!$("ovSheet").hidden&&sheetBooking&&sheetBooking.id===b.id){refreshSheetBooking();renderSheet();}}
   }finally{cpBusy=false;if(!$("ovCapo").hidden)cpButtons();if(!$("invio").hidden)renderInvio();}

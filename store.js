@@ -48,7 +48,7 @@
   const sentOnly = (ops) => Array.isArray(ops) && ops.length > 0 && ops.every((op) => op && op.t === "put" && op.edit && op.only && Array.isArray(op.patch) && op.patch.length === 1 && op.patch[0] === "sent");
   // Scelta del capo (2.5): chi invia i fogli decide bus e autisti. La modifica porta il segno "boss" e tocca
   // solo questi campi; la possono fare il profilo «solo anteprima e invio» e il Super Master.
-  const BOSS_F = ["vehicle", "driver", "driver2", "capo", "updBy"], LOCK_F = ["vehicle", "driver", "driver2"];
+  const BOSS_F = ["vehicle", "driver", "driver2", "dayv", "capo", "updBy"], LOCK_F = ["vehicle", "driver", "driver2", "dayv"]; // 3.0.3: dayv = mezzi del tour giorno per giorno
   const bossOnly = (op) => !!op && op.t === "put" && op.edit === true && op.only === true && op.boss === true && Array.isArray(op.patch) && op.patch.length > 0 && op.patch.every((k) => BOSS_F.includes(k));
   const status = { online: navigator.onLine, syncing: false, error: null, lastSync: null, storage: null };
   function counts() { return { pending: queue.days.length, fatPending: Object.keys(queue.fat).length + queue.clients.filter((c) => !c.failed).length }; }
@@ -207,7 +207,9 @@
         const pre = yymmdd(doc.date);
         // una modifica non cambia mai il n. foglio: resta quello già assegnato (magari rinumerato nel frattempo)
         if (op.edit && !op.assign && prev && prev.foglio) b.foglio = prev.foglio;
-        if (op.assign || !b.foglio) {
+        // 3.0.3: una prenotazione senza cliente non ha il foglio di servizio (nessun n. foglio, quindi niente riga nel
+        // fatturato né PDF): il numero arriva quando c'è il cliente. Un numero già assegnato resta anche senza cliente.
+        if (op.assign || (!b.foglio && String(b.client || "").trim())) {
           if (!op.renumber && prev && prev.foglio && String(prev.foglio).slice(0, 6) === pre) {
             b.foglio = prev.foglio; // già numerata (per esempio invio ripetuto dopo un errore di rete): non si rinumera
           } else {
@@ -227,7 +229,7 @@
         if (prev && prev.foglio && prev.foglio !== b.foglio && !op.renumber) fat.push({ act: "clear", foglio: prev.foglio, b: Object.assign({ id: op.id }, prev) });
         doc.bookings[op.id] = b;
         // l'invio all'autista non cambia niente nel fatturato: la riga non si riscrive
-        if (!(prev && sentOnly([op]))) fat.push({ act: "upsert", foglio: b.foglio, b: Object.assign({ id: op.id }, b, { start: b.start || doc.date }) });
+        if (b.foglio && !(prev && sentOnly([op]))) fat.push({ act: "upsert", foglio: b.foglio, b: Object.assign({ id: op.id }, b, { start: b.start || doc.date }) });
       } else if (op.t === "del") {
         const prev = doc.bookings[op.id];
         if (!prev) {
@@ -235,6 +237,9 @@
           else if (strict && op.client != null) notes.push({ kind: "delGone", id: op.id, client: op.client, date: doc.date }); // spostata da altri: non eliminata
           continue;
         }
+        // 3.0.3: pulizia notturna delle prenotazioni rimaste in sospeso: si elimina solo se è ancora in sospeso
+        // (nel frattempo qualcuno potrebbe averla confermata)
+        if (op.ifOpz && prev.status !== "opzione") continue;
         // Chi sposta o elimina sapeva della scelta del capo e dell'invio all'autista? (op.know = quello che vedeva.)
         // Se nel frattempo il capo ha deciso o il foglio è stato inviato: lo spostamento non si fa (si perderebbero
         // scelta e segno di invio); l'eliminazione sì, ma il foglio va ritirato dal telefono dell'autista.
@@ -565,7 +570,24 @@
     if ("exOwn" in b) b.exOwn = b.exOwn === true;
     if ("xbus" in b) { if (isObj(b.xbus) && typeof b.xbus.id === "string") b.xbus = cleanXbus(b.xbus); else delete b.xbus; }
     if ("att" in b) b.att = cleanAtt(b.att); // 3.0.2: allegati per l'autista
+    if ("dayv" in b) b.dayv = cleanDayv(b.dayv); // 3.0.3: tour, mezzo e autisti giorno per giorno
     return b;
+  }
+  // 3.0.3 — tour con mezzo (e autisti) diversi in alcuni giorni: dayv[i] = { v, d1, d2, xb } per il giorno i (0 = partenza);
+  // testo vuoto = come il tour; null = giorno senza cambi. xb: dati dell'extra bus (altra azienda) scelto quel giorno.
+  function cleanDayv(l) {
+    if (!Array.isArray(l)) return [];
+    const out = [];
+    for (const e of l.slice(0, 32)) {
+      if (!isObj(e)) { out.push(null); continue; }
+      const v = txt(e.v, 60).replace(/[^\w:-]/g, ""), d1 = txt(e.d1, 80).trim(), d2 = txt(e.d2, 80).trim();
+      if (!v && !d1 && !d2) { out.push(null); continue; }
+      const o = { v, d1, d2 };
+      if (/^xb:/.test(v) && isObj(e.xb)) o.xb = { az: txt(e.xb.az, 80).trim(), posti: txt(e.xb.posti, 6).replace(/\D/g, ""), targa: txt(e.xb.targa, 20).trim().toUpperCase() };
+      out.push(o);
+    }
+    while (out.length && !out[out.length - 1]) out.pop();
+    return out;
   }
   // 3.0.2 — allegati della prenotazione (PDF e foto): i file stanno in Dropbox, cartella «Allegati» dell'agenda
   // (Allegati/<anno>/<id>_<nome>); nella prenotazione c'è solo l'elenco. Si stampano e partono per l'autista dopo il foglio.
@@ -1388,7 +1410,7 @@
   }
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "3.0";
-  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "3.0.2"; // 3.0.2: allegati delle prenotazioni
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "3.0.3"; // 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno
   window.STORE = {
     BASE, P,
     saveAttachment, readAttachment, removeAttachment, cleanAtt, ATT_MAX,

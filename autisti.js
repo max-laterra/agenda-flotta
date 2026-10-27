@@ -70,6 +70,8 @@
     for (const k of ["contactName", "contactRole", "contactNote", "contact", "refs", "guides", "hotels", "dnotes", "program", "escort", "npark", "ndriver", "n3h", "nextra", "saldo", "saldoAmt", "advance"]) if (b[k] != null && b[k] !== "" && !(Array.isArray(b[k]) && !b[k].length)) extra[k] = b[k];
     // 3.0.2: gli allegati partono in coda al PDF del foglio: aggiunto o tolto un allegato, il foglio è «da reinviare»
     if (Array.isArray(b.att) && b.att.length) extra.att = b.att.map((a) => (isObj(a) ? [txt(a.id, 24), txt(a.path, 200), Number(a.size) || 0] : null));
+    // 3.0.3: tour con mezzo o autisti diversi in alcuni giorni (sul foglio, nelle righe dei giorni)
+    if (Array.isArray(b.dayv) && b.dayv.some((e) => isObj(e))) extra.dayv = b.dayv.map((e) => (isObj(e) ? [txt(e.v, 60), txt(e.d1, 80), txt(e.d2, 80)] : null));
     return hash([payload(b, o), extra]);
   }
 
@@ -374,7 +376,7 @@
   const newPhoneId = () => { const r = crypto.getRandomValues(new Uint8Array(8)); let s = "t"; for (const x of r) s += (x % 36).toString(36); return s; };
 
   (root.AGENDA_FILES = root.AGENDA_FILES || {}).autisti = "3.0";
-  (root.AGENDA_PATCH = root.AGENDA_PATCH || {}).autisti = "3.0.2"; // 3.0.2: allegati nell'impronta del foglio («da reinviare»)
+  (root.AGENDA_PATCH = root.AGENDA_PATCH || {}).autisti = "3.0.3"; // 3.0.2: allegati nell'impronta del foglio («da reinviare»); 3.0.3: mezzi del tour giorno per giorno
   const API = Object.assign({}, PURE, {
     configure(h) { Object.assign(hooks, h); },
     linked, startLink, redirectMine, purpose, takeRedirect, revoke, prepare,

@@ -1,9 +1,94 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 3.0.2 (23/10/2026)
+AGENDA FLOTTA LA TERRA – VERSIONE 3.0.3 (27/10/2026)
 ===================================================
 La versione in uso si vede nell'app: in alto accanto a "Sincronizzato",
 nella schermata di accesso e nel Menu. Deve corrispondere a quella di questo file.
 
-COME AGGIORNARE ALLA 3.0.2 DALLA 3.0 O DALLA 3.0.1 (2 minuti, solo 5 file)
+COME AGGIORNARE ALLA 3.0.3 DALLA 3.0, 3.0.1 O 3.0.2 (2 minuti, solo 5 file)
+-------------------------------------------------------------------------------
+Serve la 3.0 (o la 3.0.1, o la 3.0.2) già su GitHub: in alto nell'agenda "v3.0", "v3.0.1" o
+"v3.0.2". Se hai una versione più vecchia, carica prima lo zip completo della 3.0 (oppure il
+pacchetto completo della 3.0.3, se ce l'hai).
+PRIMA DI CARICARE: conferma (oppure elimina tu) le prenotazioni dei giorni passati che sono
+ancora in sospeso (con il «?»). Appena la 3.0.3 si apre, le elimina da sola (vedi sotto).
+Al 27/10/2026 c'è il tour n. 26092301 «Micallef Joe Travel» del 23–26/09/2026.
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   5 file: app.js, index.html, store.js, autisti.js, LEGGIMI.txt. Niente config.js. Gli altri
+   file restano quelli della 3.0 e non vanno toccati.
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v3.0.3".
+   Se compare "Aggiornamento in corso (…)" è normale per qualche minuto; se resta, su GitHub
+   manca il file scritto tra parentesi.
+3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda. Una pagina rimasta aperta con la
+   versione di prima avvisa da sola e non salva niente finché non la riapri.
+4. Niente da fare sull'app degli autisti.
+
+NOVITÀ DELLA 3.0.3: PULIZIA DELLE PRENOTAZIONI RIMASTE IN SOSPESO
+-----------------------------------------------------------------
+- Una prenotazione ancora in sospeso (con il «?») dopo l'ultimo giorno del servizio viene
+  eliminata da sola. Per i tour conta il giorno di rientro: un tour in corso non si tocca.
+- Quando: a mezzanotte (se l'agenda è aperta su un computer dell'ufficio) e ogni volta che si
+  apre l'agenda (dopo una decina di secondi). Esempio: una prenotazione inserita oggi e
+  lasciata in sospeso, con il servizio oggi, sparisce alla mezzanotte.
+- Una prenotazione modificata oggi aspetta la mezzanotte successiva: così non sparisce mentre
+  qualcuno ci sta lavorando.
+- È un'eliminazione completa, come con "Elimina": la riga del fatturato si svuota, il foglio
+  viene ritirato dall'app dell'autista, gli allegati si cancellano.
+- In alto compare l'avviso "Eliminate 2 prenotazioni: «…» del …: erano ancora in sospeso dopo
+  il giorno del servizio." Nel registro attività: "Eliminata automaticamente la prenotazione …".
+- Sicurezza: se nel frattempo qualcuno l'ha confermata da un altro computer, non viene
+  eliminata. Senza connessione, con una pagina della versione vecchia o con il profilo di MAX
+  ("solo anteprima e invio") non si elimina niente.
+- Le prenotazioni confermate, quelle di oggi e quelle future non si toccano mai. Le
+  impostazioni del punto esclamativo restano come prima.
+
+NOVITÀ DELLA 3.0.3: PRENOTAZIONE SENZA CLIENTE = NIENTE FOGLIO DI SERVIZIO
+------------------------------------------------------------------------
+- Una prenotazione nuova salvata senza cliente resta in agenda, sulla riga del mezzo, e la
+  vedono tutti (anche MAX): l'agenda la tiene nel suo file del giorno in Dropbox (cartella
+  "giorni"). Non nasce però il foglio di servizio: nessun n. foglio, nessun PDF in "Fogli di
+  servizio", nessuna riga nel fatturato, nessun invio all'autista.
+- Nel modulo, finché il cliente è vuoto, c'è l'avviso "Senza cliente non si crea il foglio di
+  servizio…" e il pulsante "Salva e apri foglio di servizio" è spento.
+- Vista Giorno: al posto di "In attesa" c'è la casella grigia "Senza foglio". Profilo di MAX:
+  "Senza foglio: manca il cliente", senza "Anteprima" e "Invia all'autista".
+- Quando inserisci il cliente e salvi, nasce il foglio: prende il primo n. foglio libero del
+  giorno (le prenotazioni senza cliente non consumano numeri), il PDF in Dropbox e la riga
+  nel fatturato.
+- Una prenotazione che il foglio ce l'ha già lo tiene anche se le togli il cliente.
+
+NOVITÀ DELLA 3.0.3: DOMANDA PRIMA DI INVIARE UN FOGLIO QUASI VUOTO
+-----------------------------------------------------------------
+- "Invia all'autista" (ufficio e MAX): se il foglio è senza orario e senza programma (o senza
+  cliente) prima compare "Il foglio è quasi vuoto (senza orario, senza programma): inviarlo
+  lo stesso all'autista?". Con "Annulla" non parte niente (MAX non salva neanche bus e
+  autisti); con "OK" si va avanti come sempre.
+
+NOVITÀ DELLA 3.0.3: TOUR CON MEZZO E AUTISTI DIVERSI NEI VARI GIORNI
+--------------------------------------------------------------------
+- Modulo della prenotazione di un tour (più giorni), sotto "2° autista": riquadro "Mezzo e
+  autisti giorno per giorno". Chiuso dice "Tutti i giorni come il tour".
+- Pulsante "Cambia il mezzo o l'autista in alcuni giorni": compare una riga per ogni giorno,
+  con Mezzo, 1° autista e 2° autista. "Come il tour – …" vuol dire come i campi in alto.
+  Scegli qualcosa solo nei giorni che cambiano: la riga si colora e in alto c'è scritto
+  "Cambi: 2° e 3° giorno". Di solito l'autista resta lo stesso: basta cambiare il mezzo.
+- Nelle tendine, "· impegnato" accanto a un mezzo o a un autista che quel giorno ha già un
+  altro servizio, "· riposo" se l'autista è a riposo. Ci sono anche gli extra bus del giorno.
+- Avvisi sotto il modulo: "Mezzo già impegnato (28 posti - …, 2° e 3° giorno): …", autista già
+  impegnato o a riposo, passeggeri oltre la capienza del mezzo di quei giorni.
+- I cambi sono legati al numero del giorno (2° giorno, 3° giorno…): se sposti le date del
+  tour restano sugli stessi giorni del tour; se lo accorci, quelli dei giorni tolti spariscono.
+- Vista Giorno: nei giorni del cambio il tour sta sulla riga del mezzo di quel giorno, con il
+  segno "CAMBIO"; nei dettagli "Cambio in questo giorno: mezzo …". Vista Settimana, Mese e
+  conteggi (autisti, servizi, mezzi) contano il mezzo giusto giorno per giorno.
+- Foglio di servizio: in alto resta il mezzo principale del tour; nel programma, accanto ai
+  giorni con il cambio, c'è "(bus 28 posti, autista …)" (con la targa solo se non è
+  nascosta). Il modello del foglio non cambia. Il foglio parte anche per l'autista che guida
+  solo in alcuni giorni. Prezzi e parte contabile non partono mai.
+- MAX: nella finestra "Bus e autisti" dei tour c'è anche "Giorno per giorno". Vale la regola di
+  sempre: dopo la scelta di MAX l'ufficio non può più cambiare bus e autisti, giorni compresi.
+- Pasti degli autisti: conta l'autista di quel giorno.
+- Registro attività: "Mezzi e autisti giorno per giorno" compare tra le modifiche.
+
+COME SI AGGIORNAVA ALLA 3.0.2 DALLA 3.0 O DALLA 3.0.1 (storico)
 -------------------------------------------------------------------------
 Serve la 3.0 (o la 3.0.1) già su GitHub: in alto nell'agenda "v3.0" o "v3.0.1". Se hai una
 versione più vecchia, carica prima lo zip completo della 3.0 (oppure il pacchetto completo
