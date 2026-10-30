@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="3.0" data-p="3.0.3">
+<html lang="it" data-v="3.0" data-p="3.0.4">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -916,6 +916,8 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 .iv-out .miss{color:var(--warn);font-weight:600}
 .inv-form input[data-t="up"]{text-transform:uppercase}
 .iv-pair{display:flex;gap:4px}.iv-pair .cc{width:46px;flex:none;text-align:center}
+.iv-nazp input{flex:1;min-width:0}.iv-pair .iv-naz{flex:none;width:46px;text-align:center;font-weight:700;border-style:solid;background:var(--bg)}.iv-nazp input.miss{border-color:var(--warn)}.iv-est{color:var(--sync);font-weight:700}
+.iv-note{grid-column:1/-1;margin:2px 0 0;font-size:13px;line-height:1.45;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
 .iv-bar{display:flex;gap:6px 16px;align-items:center;flex-wrap:wrap;font-size:13.5px;color:var(--ink-2)}
 .iv-bar select{border:1px solid var(--line);border-radius:7px;padding:4px 6px;background:var(--bg);margin-left:4px}
 .iv-rows{border:1px solid var(--line);border-radius:8px;overflow:auto}
@@ -1714,6 +1716,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
     <p class="cn-hint" id="cnHint"></p>
     <div class="fgrid" id="cnFields"></div>
     <datalist id="dlCat"></datalist>
+    <datalist id="dlNaz"></datalist>
     <div class="warns" id="cnWarns"></div>
     <div class="mfoot"><button type="button" class="btn" id="cnCancel">Annulla</button><span class="spacer"></span><button type="submit" class="btn primary" id="cnSave">Salva nel fatturato</button></div>
   </form>
@@ -1829,7 +1832,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
     </div>
     <div class="inv-totals" id="invTotals"></div>
     <div class="inv-issues" id="invIssues" role="status"></div>
-    <div class="inv-foot"><button type="button" class="btn danger" id="invDel" hidden>Elimina bozza</button><span class="inv-msg" id="invMsg" role="status"></span><span class="spacer"></span><button type="button" class="btn" id="invClose">Chiudi</button><button type="button" class="btn" id="invPrint">Stampa anteprima</button><button type="button" class="btn" id="invSave">Salva bozza</button><button type="button" class="btn primary" id="invXml">Crea file XML</button></div>
+    <div class="inv-foot"><button type="button" class="btn danger" id="invDel" hidden>Elimina bozza</button><span class="inv-msg" id="invMsg" role="status"></span><span class="spacer"></span><button type="button" class="btn" id="invClose">Chiudi</button><button type="button" class="btn" id="invPrint">Stampa anteprima</button><button type="button" class="btn" id="invPdf" title="Salva l'anteprima della fattura in un file PDF">Scarica anteprima</button><button type="button" class="btn" id="invSave">Salva bozza</button><button type="button" class="btn primary" id="invXml">Crea file XML</button></div>
   </div>
 </div>
 <div class="overlay" id="ovReg" hidden>

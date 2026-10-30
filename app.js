@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="3.0.3",APP_DATE="27/10/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="3.0.4",APP_DATE="30/10/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
@@ -11,7 +11,10 @@ const APP_VERSION="3.0.3",APP_DATE="27/10/2026";window.AGENDA_VERSION=APP_VERSIO
 // 3.0.2: aggiornamento parziale (app.js, index.html, store.js, autisti.js): allegati per l'autista nella prenotazione.
 // 3.0.3: aggiornamento parziale (stessi 4 file): pulizia notturna delle prenotazioni in sospeso; tour con mezzo e
 //        autisti giorno per giorno.
-const APP_FAMILY="3.0",APP_PATCH={index:"3.0.3",store:"3.0.3",autisti:"3.0.3"};
+// 3.0.4: aggiornamento parziale (app.js, index.html, fatture.js, fatturato.js): le prenotazioni senza cliente non vanno
+//        nel registro attività; fatture a clienti esteri, numero della fattura proposto, «Scarica anteprima» (PDF).
+//        store.js e autisti.js restano quelli della 3.0.3.
+const APP_FAMILY="3.0",APP_PATCH={index:"3.0.4",store:"3.0.3",autisti:"3.0.3",fatture:"3.0.4",fatturato:"3.0.4"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -1237,6 +1240,38 @@ $("f-client").addEventListener("keydown",e=>{
 });
 $("cSug").addEventListener("mousedown",e=>{const b=e.target.closest("[data-ci]");if(b){e.preventDefault();pickClient(sugList[+b.dataset.ci]);return;}const a=e.target.closest("[data-addcli]");if(a){e.preventDefault();$("cSug").hidden=true;openClientNew({name:$("f-client").value.trim(),fromBooking:true});}});
 
+// ---------- nazioni (3.0.4): sigle ISO 3166-1 alpha-2, il nome in italiano lo dà il browser ----------
+const NAZ_LIST="AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS XK YE YT ZA ZM ZW".split(" ");
+let _nazDN=null;try{_nazDN=new Intl.DisplayNames(["it"],{type:"region"});}catch(_){_nazDN=null;}
+let _nazEN=null;try{_nazEN=new Intl.DisplayNames(["en"],{type:"region"});}catch(_){_nazEN=null;}
+function nazName(c){c=String(c||"").toUpperCase();if(c==="XK")return "Kosovo";if(!/^[A-Z]{2}$/.test(c))return "";try{const n=_nazDN&&_nazDN.of(c);return n&&n!==c?n:(NAZ_LIST.includes(c)?(NAZ_IT[c]||c):"sigla sconosciuta");}catch(_){return NAZ_IT[c]||"sigla sconosciuta";}}
+// nomi in italiano dei paesi più comuni (se il browser non sa dare i nomi) e altri modi di chiamarli
+const NAZ_IT={IT:"Italia",US:"Stati Uniti",GB:"Regno Unito",DE:"Germania",FR:"Francia",ES:"Spagna",PT:"Portogallo",MT:"Malta",CH:"Svizzera",AT:"Austria",BE:"Belgio",NL:"Paesi Bassi",LU:"Lussemburgo",IE:"Irlanda",GR:"Grecia",SM:"San Marino",VA:"Città del Vaticano",PL:"Polonia",RO:"Romania",HR:"Croazia",SI:"Slovenia",CZ:"Cechia",SK:"Slovacchia",HU:"Ungheria",BG:"Bulgaria",AL:"Albania",DK:"Danimarca",SE:"Svezia",NO:"Norvegia",FI:"Finlandia",RU:"Russia",UA:"Ucraina",TR:"Turchia",TN:"Tunisia",MA:"Marocco",EG:"Egitto",CN:"Cina",JP:"Giappone",CA:"Canada",AU:"Australia",BR:"Brasile",AR:"Argentina",MX:"Messico",IL:"Israele",AE:"Emirati Arabi Uniti",IN:"India"};
+const NAZ_ALIAS={US:"usa|u s a|stati uniti d america|stati uniti america|america|united states of america",GB:"uk|u k|inghilterra|gran bretagna|scozia|galles|irlanda del nord|england|great britain|britain",NL:"olanda|holland",CZ:"repubblica ceca|czech republic",VA:"vaticano|santa sede",AE:"emirati|emirati arabi|uae|eau",KR:"corea",RU:"federazione russa",MK:"macedonia",BA:"bosnia|bosnia erzegovina",SM:"repubblica di san marino",HK:"hong kong",MO:"macao|macau",MM:"birmania",CI:"costa d avorio",DE:"deutschland",CH:"confederazione elvetica|suisse|schweiz",TW:"taiwan",PS:"palestina"};
+const nazKey=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z]+/g," ").trim();
+let _nazIdx=null;
+function nazIdx(){
+  if(_nazIdx)return _nazIdx;
+  const m=new Map(),put=(n,c)=>{const k=nazKey(n);if(k&&!m.has(k))m.set(k,c);};
+  for(const c of NAZ_LIST){put(nazName(c),c);put(NAZ_IT[c],c);try{if(_nazEN)put(_nazEN.of(c),c);}catch(_){}}
+  for(const c in NAZ_ALIAS)for(const a of NAZ_ALIAS[c].split("|"))put(a,c);
+  return _nazIdx=m;
+}
+// 3.0.4: la nazione si può scrivere per nome («Stati Uniti», «usa», «Germania») o con la sigla (US, DE):
+// restituisce la sigla di 2 lettere, "" se non la riconosce
+function nazCode(t){
+  const raw=String(t||"").trim();if(!raw)return "";
+  const up=raw.toUpperCase().replace(/[\s.]/g,"");
+  if(/^[A-Z]{2}$/.test(up)&&NAZ_LIST.includes(up))return up;
+  const pm=/\(([A-Za-z]{2})\)\s*$/.exec(raw);if(pm&&NAZ_LIST.includes(pm[1].toUpperCase()))return pm[1].toUpperCase();
+  const k=nazKey(raw);if(!k)return "";
+  const m=nazIdx();if(m.has(k))return m.get(k);
+  if(k.length>=3){const hit=new Set();for(const [n,c] of m)if(n.startsWith(k))hit.add(c);if(hit.size===1)return [...hit][0];}
+  return "";
+}
+// nel campo si vede il nome; una sigla che non si riconosce resta com'è
+const nazShow=c=>{const n=/^[A-Z]{2}$/.test(String(c||""))?nazName(c):"";return n&&n!=="sigla sconosciuta"?n:String(c||"");};
+(function(){const dl=document.getElementById("dlNaz");if(!dl)return;dl.innerHTML=NAZ_LIST.map(c=>[c,nazName(c)]).sort((a,b)=>a[1].localeCompare(b[1],"it")).map(([c,n])=>'<option value="'+n.replace(/&/g,"&amp;").replace(/"/g,"&quot;")+'" label="'+c+'"></option>').join("");})();
 // ---------- anagrafica clienti ----------
 // Colonne del foglio "clienti" (lette dal file). Se il file non è ancora stato letto, quelle del vostro modello.
 const CLI_COLS_DEFAULT=[["A","Codice"],["B","Ragione sociale ( attivita')"],["C","Alias Sara"],["D","Indirizzo (att.)"],["E","Cap"],["F","Citta' (att.)"],["G","Provincia (att.)"],["H","Partita iva"],["I","Codice fiscale"],["J","Alias"],["K","Partita IVA estera"],["L","Telefono"],["M","Fax"],["N","E-mail"],["O","Referente 1° nome"],["P","Referente 1° tel"]].map(([c,h])=>({c,h}));
@@ -1250,6 +1285,7 @@ function cliKind(h){
   if(/indirizzo/i.test(h))return "addr";
   if(/^cap\b/i.test(h))return "cap";
   if(/citt/i.test(h))return "city";
+  if(/^\s*(nazione|paese)\b/i.test(h))return "naz"; // 3.0.4
   if(/provincia/i.test(h))return "prov";
   if(/estera/i.test(h))return "pivaEst";
   if(/partita\s*iva/i.test(h))return "piva";
@@ -1261,7 +1297,7 @@ function cliKind(h){
   if(/tel|cell|fax/i.test(h))return "tel";
   return "text";
 }
-const CLI_LABEL={name:"Ragione sociale",aliasSara:"Alias Sara",cat:"Alias (categoria)",addr:"Indirizzo",cap:"CAP",city:"Città",prov:"Provincia",piva:"Partita IVA",cf:"Codice fiscale",pivaEst:"Partita IVA estera",mail:"E-mail",sdi:"Codice univoco (SDI)",pec:"PEC",ref:"Referente 1° nome"};
+const CLI_LABEL={name:"Ragione sociale",aliasSara:"Alias Sara",cat:"Alias (categoria)",addr:"Indirizzo",cap:"CAP",city:"Città",prov:"Provincia",piva:"Partita IVA",cf:"Codice fiscale",pivaEst:"Partita IVA estera",naz:"Nazione",mail:"E-mail",sdi:"Codice univoco (SDI)",pec:"PEC",ref:"Referente 1° nome"};
 function cliLabel(col){const k=cliKind(col.h);if(col.c==="A")return "Codice Multi";if(k==="tel")return col.h.replace(/\s*\(.*?\)\s*/g,"").trim();return CLI_LABEL[k]||col.h;}
 const idNorm=t=>String(t==null?"":t).toUpperCase().replace(/[^A-Z0-9]/g,"").replace(/^IT(?=\d{11}$)/,"");
 function cliRow(c){ // valori completi del cliente, allineati alle colonne
@@ -1373,19 +1409,21 @@ function openClientNew(o){
   $("dlCat").innerHTML=cats.map(x=>'<option value="'+esc(x)+'">').join("");
   // campi: Codice Multi, poi le colonne del foglio clienti; se manca la colonna del codice univoco la aggiunge l'app
   const cols=cliCols().filter(x=>x.c!=="A"),fields=[{c:"A",h:"Codice"}];
-  const hasSdi=cols.some(x=>cliKind(x.h)==="sdi");
-  for(const x of cols){fields.push(x);if(!hasSdi&&cliKind(x.h)==="cf")fields.push({c:"_SDI",h:"Codice univoco"});}
+  const hasSdi=cols.some(x=>cliKind(x.h)==="sdi"),hasNaz=cols.some(x=>cliKind(x.h)==="naz");
+  for(const x of cols){fields.push(x);if(!hasSdi&&cliKind(x.h)==="cf")fields.push({c:"_SDI",h:"Codice univoco"});if(!hasNaz&&cliKind(x.h)==="prov")fields.push({c:"_NAZ",h:"Nazione"});}
   if(!hasSdi&&!fields.some(x=>x.c==="_SDI"))fields.push({c:"_SDI",h:"Codice univoco"});
+  if(!hasNaz&&!fields.some(x=>x.c==="_NAZ"))fields.push({c:"_NAZ",h:"Nazione"}); // 3.0.4: la colonna la aggiunge l'app
   $("cnFields").innerHTML=fields.map(x=>{
     const k=x.c==="A"?"code":cliKind(x.h),id="cn-"+x.c,full=k==="name"||k==="addr";
-    const at=k==="code"?' inputmode="numeric" maxlength="7" required':k==="cap"?' inputmode="numeric" maxlength="5"':k==="prov"?' maxlength="2" class="up"':k==="city"||k==="cf"?' class="up"':k==="piva"?' maxlength="20"':k==="mail"||k==="pec"?' type="email"':k==="sdi"?' maxlength="7" class="up"':k==="tel"?' type="tel" inputmode="tel"':k==="cat"?' list="dlCat"':'';
-    const ph=k==="name"?' placeholder="Es. Istituto Comprensivo Vittorini"':k==="aliasSara"?' placeholder="Nome breve usato in agenda"':k==="cat"?' placeholder="Es. scuole pubbliche, agenzie viaggi sicilia…"':k==="cap"?' placeholder="97100"':k==="prov"?' placeholder="RG"':k==="sdi"?' placeholder="7 caratteri, es. M5UXCR1"':'';
-    const sub=k==="code"?(ed?'':'<span class="sub">Proposto il primo libero: cambialo se in Multi il cliente ha un altro codice.</span>'):x.c==="_SDI"?'<span class="sub">Nel foglio clienti non c\'è ancora questa colonna: la aggiunge l\'app in fondo alla tabella.</span>':'';
-    return '<div class="f'+(full?" full":"")+'"><label for="'+id+'">'+esc(x.c==="A"?"Codice Multi":x.c==="_SDI"?"Codice univoco (SDI)":cliLabel(x))+(k==="name"||k==="code"?" *":"")+'</label><input id="'+id+'" data-col="'+x.c+'" data-kind="'+k+'"'+at+ph+' autocomplete="off">'+sub+'</div>';
+    const at=k==="code"?' inputmode="numeric" maxlength="7" required':k==="cap"?' maxlength="10"':k==="prov"?' maxlength="2" class="up"':k==="city"||k==="cf"?' class="up"':k==="piva"?' maxlength="20"':k==="mail"||k==="pec"?' type="email"':k==="sdi"?' maxlength="7" class="up"':k==="naz"?' maxlength="60" list="dlNaz"':k==="tel"?' type="tel" inputmode="tel"':k==="cat"?' list="dlCat"':'';
+    const ph=k==="name"?' placeholder="Es. Istituto Comprensivo Vittorini"':k==="aliasSara"?' placeholder="Nome breve usato in agenda"':k==="cat"?' placeholder="Es. scuole pubbliche, agenzie viaggi sicilia…"':k==="cap"?' placeholder="97100"':k==="prov"?' placeholder="RG"':k==="sdi"?' placeholder="7 caratteri, es. M5UXCR1"':k==="naz"?' placeholder="es. Stati Uniti o US · vuoto = Italia"':'';
+    const sub=k==="code"?(ed?'':'<span class="sub">Proposto il primo libero: cambialo se in Multi il cliente ha un altro codice.</span>'):x.c==="_SDI"||x.c==="_NAZ"?'<span class="sub">Nel foglio clienti non c\'è ancora questa colonna: la aggiunge l\'app in fondo alla tabella.</span>':'';
+    return '<div class="f'+(full?" full":"")+'"><label for="'+id+'">'+esc(x.c==="A"?"Codice Multi":x.c==="_SDI"?"Codice univoco (SDI)":x.c==="_NAZ"?"Nazione":cliLabel(x))+(k==="name"||k==="code"?" *":"")+'</label><input id="'+id+'" data-col="'+x.c+'" data-kind="'+k+'"'+at+ph+' autocomplete="off">'+sub+'</div>';
   }).join("");
   $("cn-A").value=o.prefill?"":nextClientCode();$("cn-A").readOnly=!!ed;
   if(ed){const cs=cliCols(),row=cliRow(ed);$("cn-A").value=ed[0];for(let i=0;i<cs.length;i++){const el=$("cn-"+cs[i].c);if(el&&cs[i].c!=="A")el.value=row[i]||"";}}
   if(o.prefill&&o.prefill.vals)for(const c in o.prefill.vals){const el=$("cn-"+c);const v=o.prefill.vals[c];if(el&&v)el.value=v.t!=null?v.t:v.n;}
+  for(const el of $("cnFields").querySelectorAll('input[data-kind="naz"]'))if(/^[A-Za-z]{2}$/.test(el.value.trim()))el.value=nazShow(el.value.trim().toUpperCase()); // 3.0.4
   cnReplacing=o.prefill?o.prefill.tmp:null;
   const nameCol=cliCols().find(x=>cliKind(x.h)==="name");
   if(nameCol&&o.name)$("cn-"+nameCol.c).value=o.name;
@@ -1398,6 +1436,7 @@ function cnRead(){
   for(const el of $("cnFields").querySelectorAll("input")){
     let v=cleanText(el.value).replace(/\s+/g," ");const k=el.dataset.kind;
     if(!v)continue;
+    if(k==="naz"){out[el.dataset.col]={v:nazCode(v)||v,k,raw:v};continue;} // 3.0.4: nel foglio si scrive la sigla (US); se non la riconosce resta il testo e il controllo lo segnala
     if(k==="city"||k==="prov"||k==="cf"||k==="sdi")v=v.toUpperCase().replace(/\s/g,k==="sdi"?"":" ");
     if(k==="piva")v=v.replace(/\s/g,"").toUpperCase();
     out[el.dataset.col]={v,k};
@@ -1421,10 +1460,16 @@ function cnCheck(){
   const dp=dup("piva",piva)||dup("cf",cf);
   if(dp)block.push('Esiste già un cliente con questa '+(dup("piva",piva)?"partita IVA":"codice fiscale")+': <b>Cod. '+esc(dp[0])+' – '+esc(dp[1])+'</b>.');
   else if(!piva&&!cf&&name){const dn=S.clients.find(c=>other(c)&&norm(c[1]).replace(/[^a-z0-9]+/g," ").trim()===norm(name).replace(/[^a-z0-9]+/g," ").trim());if(dn)block.push('Esiste già un cliente con questo nome: <b>Cod. '+esc(dn[0])+' – '+esc(dn[1])+'</b>. Se è un cliente diverso, inserisci la partita IVA o il codice fiscale.');}
-  if(piva&&!/^\d{11}$/.test(piva))w.push("La partita IVA italiana ha 11 cifre.");
-  if(cf&&!/^([A-Z0-9]{16}|\d{11})$/.test(cf))w.push("Il codice fiscale ha 16 caratteri (o 11 cifre per le società).");
-  const cap=get("cap");if(cap&&!/^\d{5}$/.test(cap))w.push("Il CAP ha 5 cifre.");
-  const pr=get("prov");if(pr&&!/^[A-Z]{2}$/.test(pr))w.push("La provincia va scritta con 2 lettere (es. RG).");
+  // 3.0.4: cliente estero (nazione diversa da IT): niente controlli italiani su partita IVA, codice fiscale, CAP e provincia
+  const naz=get("naz"),it=!naz||naz==="IT";
+  if(naz&&!/^[A-Z]{2}$/.test(naz))block.push("Non riconosco la nazione «"+esc(naz)+"»: sceglila dall'elenco che si apre mentre scrivi (es. Stati Uniti) o scrivi la sigla di 2 lettere (es. US).");
+  else if(naz&&!NAZ_LIST.includes(naz))w.push("Non conosco la nazione «"+naz+"»: controlla la sigla.");
+  if(it){
+    if(piva&&!/^\d{11}$/.test(piva))w.push("La partita IVA italiana ha 11 cifre.");
+    if(cf&&!/^([A-Z0-9]{16}|\d{11})$/.test(cf))w.push("Il codice fiscale ha 16 caratteri (o 11 cifre per le società).");
+    const cap=get("cap");if(cap&&!/^\d{5}$/.test(cap))w.push("Il CAP ha 5 cifre.");
+    const pr=get("prov");if(pr&&!/^[A-Z]{2}$/.test(pr))w.push("La provincia va scritta con 2 lettere (es. RG).");
+  }else if(piva&&!/^\d{11}$/.test(piva))w.push("Cliente estero: la sua partita IVA va nel campo «Partita IVA estera» (es. MT12345678).");
   const ml=get("mail");if(ml&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ml))w.push("L'indirizzo e-mail non sembra valido.");
   const sd=get("sdi");if(sd&&!/^[A-Z0-9]{6,7}$/.test(sd))w.push("Il codice univoco ha 7 caratteri (6 per la pubblica amministrazione).");
   $("cnWarns").innerHTML=block.map(x=>'<div>'+x+'</div>').join("")+w.map(x=>'<div class="soft">'+esc(x)+'</div>').join("");
@@ -1460,7 +1505,7 @@ function saveClientEdit(name){
     const a=(E.start[col]||{}).v||"",v=(now[col]||{}).v||"";if(a===v)continue;
     const i=cs.findIndex(x=>x.c===col),was=i>=0?String(E.row[i]||""):"";
     vals[col]=v===""?null:el.dataset.kind==="cap"&&/^[1-9]\d{4}$/.test(v)?{n:Number(v)}:{t:v};base[col]=was;
-    ch.push([col==="_SDI"?"Codice univoco (SDI)":cliLabel(cs[i]||{c:col,h:col}),was,v||"(vuoto)"]);
+    ch.push([col==="_SDI"?"Codice univoco (SDI)":col==="_NAZ"?"Nazione":cliLabel(cs[i]||{c:col,h:col}),was,v||"(vuoto)"]);
   }
   $("ovClientNew").hidden=true;cnEditing=null;
   if(!ch.length){toast("Nessuna modifica da salvare.");return;}
@@ -1540,8 +1585,9 @@ $("fBooking").addEventListener("submit",async e=>{
     if(moved)writeDayOps(old,{bookings:{[id]:null}},{move:b.start,know:knowOf(bookingsAll().find(x=>x.id===id))});
     writeDayOps(b.start,Object.assign({bookings:{[id]:b}},seqPatch),Object.assign({},meta,moved?{move:true}:{}));
     attFormSaved(id); // 3.0.2: gli allegati caricati restano; quelli tolti si cancellano da Dropbox quando la modifica è arrivata
-    if(!editing)ACC.log("prenotazione","Nuova prenotazione "+bookingLabel(b),{id});
-    else if(logCh.length)ACC.log("prenotazione","Modificata la prenotazione "+bookingLabel(b),{id,ch:logCh});
+    // 3.0.4: le prenotazioni senza cliente non vanno nel registro (finché il cliente manca, prima e dopo il salvataggio)
+    if(!editing){if(!noCli(b))ACC.log("prenotazione","Nuova prenotazione "+bookingLabel(b),{id});}
+    else if(logCh.length&&!(noCli(b)&&noCli(formOrig)))ACC.log("prenotazione","Modificata la prenotazione "+bookingLabel(b),{id,ch:logCh});
     regAutoAdd(b);
     const wantSheet=openSheetAfterSave;
     closeForm();try{document.activeElement&&document.activeElement.blur&&document.activeElement.blur();}catch(_){}
@@ -1559,7 +1605,7 @@ $("fDeleteNo").onclick=()=>{$("fConfirm").hidden=true;$("fDelete").hidden=false;
 $("fDeleteYes").onclick=async()=>{
   if(!editing)return;
   try{const gone=bookingsAll().find(x=>x.id===editing.id),wasPending=false; // 2.9: la fila delle cancellazioni aspetta Dropbox e non tocca numeri ancora in uso
-    const del=Object.assign({},formOrig||{},{foglio:editing.foglio,start:editing.start});writeDayOps(editing.start,{bookings:{[editing.id]:null}},{client:cleanText($("f-client").value),know:knowOf(gone)});ACC.log("prenotazione","Eliminata la prenotazione "+bookingLabel(del),{id:editing.id});closeForm();renderAll();toast("Prenotazione eliminata");
+    const del=Object.assign({},formOrig||{},{foglio:editing.foglio,start:editing.start});writeDayOps(editing.start,{bookings:{[editing.id]:null}},{client:cleanText($("f-client").value),know:knowOf(gone)});if(!noCli(gone||del))ACC.log("prenotazione","Eliminata la prenotazione "+bookingLabel(del),{id:editing.id});closeForm();renderAll();toast("Prenotazione eliminata");
     withdrawAfterDelete(gone);if(!wasPending)pdfDelAdd(gone);if(gone)attDropLater(gone.id,attOf(gone).map(a=>a.path));}catch(err){handleErr(err);}
 };
 // 2.8: PDF dei servizi eliminati da cancellare in Dropbox (Fogli di servizio). Senza internet restano in fila su
@@ -1631,6 +1677,7 @@ function pdfAutoAdd(id){
 const okFoglio=b=>/^\d{6,12}$/.test(String(b&&b.foglio||""));
 // 3.0.3: una prenotazione nuova senza cliente non ha il foglio di servizio (niente n. foglio, PDF, riga nel fatturato,
 // invio all'autista): il foglio nasce quando si inserisce il cliente
+const noCli=b=>!String((b&&b.client)||"").trim(); // 3.0.4: prenotazione senza cliente (non va nel registro)
 function hasSheet(b){b=b&&b._orig||b;return !!(b&&String(b.foglio==null?"":b.foglio).trim());}
 const NOFG="Senza cliente non c'è il foglio di servizio: nasce quando inserisci il cliente nella prenotazione.";
 // foglio quasi vuoto (prima dell'invio si chiede conferma): senza cliente, oppure senza orario e senza programma
@@ -2688,6 +2735,13 @@ function wrapText(t,font,size,maxW,conv){
   }
   return out;
 }
+// 3.0.4: geometria della stampa normale (vedi printSheet: @page margin 10mm, svg width:100%, max-height:275mm,
+// viewBox con 6 unità di bordo bianco): k = punti per unità del disegno, x/y = angolo in alto a sinistra in punti
+const SHEET_M=28.3465,SHEET_MAXH=779.53; // 10 mm e 275 mm in punti
+function sheetGeom(L){
+  const PW=595.28,bw=PW-2*SHEET_M,VW=L.W+12,VH=L.H+12,bh=Math.min(bw*VH/VW,SHEET_MAXH),k=Math.min(bw/VW,bh/VH);
+  return {k,x:SHEET_M+(bw-VW*k)/2+6*k,y:SHEET_M+(bh-VH*k)/2+6*k};
+}
 async function tplPDF(b,part,opt){
   const PL=await loadPdfLib(),{PDFDocument,StandardFonts,rgb}=PL;
   const pdf=await PDFDocument.create();
@@ -2696,8 +2750,12 @@ async function tplPDF(b,part,opt){
   try{const F=await loadPdfFonts();reg=customFont(pdf,PL,F.regular,"AGENDA+AgendaSans-Regular");bold=customFont(pdf,PL,F.bold,"AGENDB+AgendaSans-Bold");}
   catch(e){console.warn("Font del PDF non disponibile, uso Helvetica:",e);reg=await pdf.embedFont(StandardFonts.Helvetica);bold=await pdf.embedFont(StandardFonts.HelveticaBold);HK=0.88;conv=pdfTxt;} // Helvetica è più larga di Calibri
   const L=tplLayout(b,part,(t,size,bd)=>(bd?bold:reg).widthOfTextAtSize(conv(t),size*HK),opt);
-  const PW=595.28,PH=841.89,M=28.35,k=Math.min((PW-2*M)/L.W,(PH-2*M)/L.H);
-  const page=pdf.addPage([PW,PH]),X=x=>M+x*k,Y=y=>PH-M-y*k;
+  // 3.0.4: stessa posizione e stessa grandezza della stampa normale (pagina A4 con margini di 10 mm, disegno largo
+  // quanto la pagina meno i margini e alto al massimo 275 mm, centrato): così il foglio stampato con gli allegati,
+  // il PDF e la stampa normale hanno gli stessi margini
+  const PW=595.28,PH=841.89,G=sheetGeom(L),k=G.k;
+  const page=pdf.addPage([PW,PH]),X=x=>G.x+x*k,Y=y=>PH-G.y-y*k;
+  try{pdf.catalog.getOrCreateViewerPreferences().setPrintScaling(PL.PrintScaling.None);}catch(_){} // stampa a grandezza reale (Chrome, Acrobat)
   const hex=h=>rgb(parseInt(h.slice(1,3),16)/255,parseInt(h.slice(3,5),16)/255,parseInt(h.slice(5,7),16)/255);
   const ink=rgb(.07,.07,.07);
   for(const f of L.fills)page.drawRectangle({x:X(f.x),y:Y(f.y+f.h),width:f.w*k,height:f.h*k,color:hex(f.c)});
@@ -2705,17 +2763,18 @@ async function tplPDF(b,part,opt){
   for(const t of L.texts)page.drawText(conv(t.t),{x:X(t.x),y:Y(t.y),size:t.size*HK*k,font:t.bold?bold:reg,color:ink});
   // pagina 2: programma completo, a capo automatico
   if(needPage2(b,L)){
-    const P2M=42,maxW=PW-2*P2M;let p=pdf.addPage([PW,PH]),y=PH-P2M;
-    const put=(txt,font,size,gapAfter,indent)=>{
-      for(const ln of wrapText(txt,font,size,maxW-(indent||0),conv)){
+    const P2M=SHEET_M,maxW=PW-2*P2M;let p=pdf.addPage([PW,PH]),y=PH-P2M; // 3.0.4: margini e caratteri come nella stampa normale
+    const grey=rgb(.27,.27,.27);
+    const put=(txt,font,size,gapAfter,indent,color)=>{
+      for(const ln of wrapText(txt,font,size*HK,maxW-(indent||0),conv)){
         if(y-size<P2M){p=pdf.addPage([PW,PH]);y=PH-P2M;}
-        p.drawText(conv(ln),{x:P2M+(indent||0),y:y-size,size,font,color:ink});y-=size*1.32;
+        p.drawText(conv(ln),{x:P2M+(indent||0),y:y-size,size:size*HK,font,color:color||ink});y-=size*1.2;
       }
       y-=gapAfter||0;
     };
     const h=page2Head(b,opt);
-    put(h.title,bold,14,4);put(h.sub,reg,10.5,12);
-    for(const l of tplProgramAll(b,true,opt))put(l,reg,11.5,5);
+    put(h.title,bold,15,4);put(h.sub,reg,12,10,0,grey);
+    for(const l of tplProgramAll(b,true,opt))put(l,reg,12,4);
   }
   return new Blob([await pdf.save()],{type:"application/pdf"});
 }
@@ -2753,6 +2812,9 @@ function openSheet(b){
   if(b.sent&&b.sent.at&&!b.sent.off){SHO.alias=!!b.sent.alias;SHO.noPlate=!!b.sent.noPlate;$("sheetNoPlate").checked=SHO.noPlate;}
   // profilo «solo anteprima e invio»: niente stampa, niente PDF, niente ritorno alla prenotazione
   const iv=isInvio();
+  // 3.0.4: MAX invia sempre il foglio con targa e ID mezzo (l'anteprima li fa vedere, la spunta non c'è)
+  if(iv){SHO.noPlate=false;$("sheetNoPlate").checked=false;}
+  $("sheetNoPlate").closest("label").hidden=iv;
   $("sheetBack").hidden=iv;$("sheetPdf").hidden=iv;$("sheetPrint").hidden=iv;$("sheetShare").hidden=iv||!canShareFile;
   $("sheetPrint").textContent=S.readOnly?"Stampa":"Salva e stampa";$("sheetPrint").title=S.readOnly?"":"Stampa il foglio e salva la copia completa in Dropbox (Fogli di servizio)";
   $("sheetPart").closest("label").hidden=iv;document.querySelector("#ovSheet .sheet-hint").hidden=iv;
@@ -3067,10 +3129,14 @@ async function attOpen(a,say){
   catch(e){try{w&&w.close();}catch(_){}say(e&&e.code==="attmissing"?"«"+a.name+"» non c'è più in Dropbox (cartella Allegati).":"Non riesco ad aprire «"+a.name+"»: controlla la connessione e riprova.");}
 }
 // foglio + allegati in un solo PDF (stampa e invio all'autista). say: messaggi di avanzamento
-async function attMerge(blob,b,say){
+// forPrint (3.0.4): per la stampa tutte le pagine degli allegati diventano A4 verticali (quelle orizzontali ruotate),
+// rimpicciolite quanto serve per stare dentro 5 mm dal bordo, e il PDF chiede di stampare a grandezza reale:
+// così Chrome non rimpicciolisce anche il foglio di servizio (che resta uguale alla stampa normale)
+async function attMerge(blob,b,say,forPrint){
   const atts=attOf(b);if(!atts.length)return blob;
   const PL=await loadPdfLib(),{PDFDocument,StandardFonts,rgb}=PL;
   const pdf=await PDFDocument.load(await blob.arrayBuffer());
+  const nSheet=pdf.getPageCount(); // pagine del foglio (1, o di più con il programma completo)
   let font=null;
   for(let i=0;i<atts.length;i++){
     const a=atts[i];if(say)say("Preparo gli allegati ("+(i+1)+" di "+atts.length+")…");
@@ -3090,7 +3156,40 @@ async function attMerge(blob,b,say){
       }
     }catch(e){throw {code:"attbad",name:a.name};}
   }
+  if(forPrint)return new Blob([await attPrintPages(pdf,nSheet,PL)],{type:"application/pdf"});
+  // per l'app degli autisti le pagine restano come sono: la stampa a grandezza reale del foglio non vale per gli allegati
+  try{pdf.catalog.getOrCreateViewerPreferences().setPrintScaling(PL.PrintScaling.AppDefault);}catch(_){}
   return new Blob([await pdf.save()],{type:"application/pdf"});
+}
+// 3.0.4: copia per la stampa. Le pagine del foglio restano identiche; ogni pagina degli allegati si mette su una
+// pagina A4 verticale (girata di 90° se è orizzontale) dentro 5 mm dal bordo. Una pagina che non si riesce a
+// copiare così resta com'è.
+async function attPrintPages(src,nSheet,PL){
+  const {PDFDocument,degrees}=PL,PW=595.28,PH=841.89,MG=14.17;
+  const out=await PDFDocument.create();
+  out.setTitle(src.getTitle()||"Foglio di servizio");out.setAuthor("La Terra s.r.l.");
+  try{out.catalog.getOrCreateViewerPreferences().setPrintScaling(PL.PrintScaling.None);}catch(_){}
+  const n=src.getPageCount();
+  for(const pg of await out.copyPages(src,[...Array(nSheet).keys()]))out.addPage(pg);
+  for(let i=nSheet;i<n;i++){
+    const sp=src.getPage(i);
+    try{
+      const cb=sp.getCropBox(),mb=sp.getMediaBox(),bx=cb&&cb.width>1&&cb.height>1?cb:mb;
+      const e=await out.embedPage(sp,{left:bx.x,bottom:bx.y,right:bx.x+bx.width,top:bx.y+bx.height});
+      const w=e.width,h=e.height,rot=(((sp.getRotation().angle||0)%360)+360)%360;
+      const dw=rot%180?h:w,dh=rot%180?w:h; // come si vede la pagina
+      const T=(rot+(dw>dh?270:0))%360; // giro totale in senso orario: le pagine orizzontali si girano a sinistra
+      const fw=T%180?h:w,fh=T%180?w:h,sc=Math.min((PW-2*MG)/fw,(PH-2*MG)/fh),bw=fw*sc,bh=fh*sc;
+      const x0=(PW-bw)/2,y0=(PH-bh)/2;
+      const at=T===0?{x:x0,y:y0}:T===90?{x:x0,y:y0+w*sc}:T===180?{x:x0+w*sc,y:y0+h*sc}:{x:x0+h*sc,y:y0};
+      const p=out.addPage([PW,PH]);
+      p.drawPage(e,{x:at.x,y:at.y,xScale:sc,yScale:sc,rotate:degrees(-T)});
+    }catch(err){
+      console.warn("Allegato: pagina "+(i+1)+" copiata com'è",err);
+      const [cp]=await out.copyPages(src,[i]);out.addPage(cp);
+    }
+  }
+  return out.save();
 }
 const attErrText=(e,what)=>{const c=e&&e.code;return c==="attmissing"?"Non trovo in Dropbox l'allegato «"+e.name+"»: "+what+". Apri la prenotazione, togli l'allegato e allegalo di nuovo.":
   c==="attbad"?"L'allegato «"+e.name+"» non si riesce a unire al foglio: "+what+". Toglilo e allegalo di nuovo salvato come PDF.":
@@ -3114,7 +3213,7 @@ async function printWithAtts(b,part,saving){
   const n=attOf(b).length,nTxt=n===1?"l'allegato":"i "+n+" allegati";
   const tail=t=>saving.then(x=>x?t+" "+x:t);
   let blob;const btns=[$("sheetPrint"),$("sheetPdf")];btns.forEach(x=>x.disabled=true);
-  try{say("Preparo la stampa del foglio con "+nTxt+"…");blob=await sheetPdfFull(b,part,say);}
+  try{say("Preparo la stampa del foglio con "+nTxt+"…");blob=await sheetPdfFull(b,part,say,true);}
   catch(e){console.error(e);ACC.tlog("errore","Stampa del foglio con gli allegati non riuscita",String((e&&(e.code||e.message))||e));tail(attErrText(e,"la stampa non è partita")).then(say);return;}
   finally{btns.forEach(x=>x.disabled=false);}
   const u=URL.createObjectURL(blob);setTimeout(()=>URL.revokeObjectURL(u),600000);
@@ -3132,7 +3231,7 @@ async function printWithAtts(b,part,saving){
   catch(_){inTab();}
 }
 // PDF del foglio con gli allegati in coda (non con «Solo parte contabile»)
-async function sheetPdfFull(b,part,say){const blob=await tplPDF(b,part);return part==="office"?blob:attMerge(blob,b,say);}
+async function sheetPdfFull(b,part,say,forPrint){const blob=await tplPDF(b,part);return part==="office"?blob:attMerge(blob,b,say,forPrint);}
 
 // =====================================================================================
 // 3.0.3 — Pulizia notturna: le prenotazioni rimaste «in sospeso» (?) si eliminano dopo il giorno del servizio
@@ -3160,7 +3259,7 @@ async function purgeRun(){
     for(const b of l){
       try{
         writeDayOps(b.start,{bookings:{[b.id]:null}},{know:knowOf(b),ifOpz:true});
-        ACC.log("prenotazione","Eliminata automaticamente la prenotazione "+bookingLabel(b)+": era ancora in sospeso dopo l'ultimo giorno del servizio",{id:b.id});
+        if(!noCli(b))ACC.log("prenotazione","Eliminata automaticamente la prenotazione "+bookingLabel(b)+": era ancora in sospeso dopo l'ultimo giorno del servizio",{id:b.id}); // 3.0.4
         withdrawAfterDelete(b);pdfDelAdd(b);attDropLater(b.id,attOf(b).map(a=>a.path));
         done.push(b);
       }catch(e){ACC.tlog("errore","Pulizia delle prenotazioni in sospeso non riuscita",String((e&&(e.code||e.message))||e));break;}
@@ -3298,7 +3397,7 @@ function toggleConfirm(id,start){
   const was=pending(cur),b=Object.assign({},cur,{status:was?"confermato":"opzione",updatedAt:new Date().toISOString(),updBy:meName()});
   try{
     writeDayOps(start,{bookings:{[id]:b}},{edit:true,only:true,base:cur.updatedAt||null,patch:["status","updBy"]});
-    ACC.log("prenotazione",(was?"Confermata":"Rimessa in sospeso")+" la prenotazione "+bookingLabel(Object.assign({start},b)),{id,ch:[["Stato",was?"in sospeso":"confermato",was?"confermato":"in sospeso"]]});
+    if(!noCli(b))ACC.log("prenotazione",(was?"Confermata":"Rimessa in sospeso")+" la prenotazione "+bookingLabel(Object.assign({start},b)),{id,ch:[["Stato",was?"in sospeso":"confermato",was?"confermato":"in sospeso"]]});
     renderAll();toast(was?"Prenotazione confermata":"Prenotazione rimessa in sospeso");
   }catch(err){handleErr(err);}
 }
@@ -3968,7 +4067,11 @@ function renderContab(){
       '<label class="perm"><input type="checkbox" data-ct="opzioni.splitPA"'+(O.splitPA?" checked":"")+'> <span><b>Enti pubblici: scissione dei pagamenti</b> – l\'ente paga solo l\'imponibile, l\'IVA la versa lui</span></label></div>'+
       '<div class="set-card"><h4>Sconti e arrotondamenti</h4><div class="ct-grid two"><div class="f"><label for="ct-sc">Sconto proposto su ogni fattura (%)</label><input id="ct-sc" data-ct="opzioni.scontoPerc" data-t="num" type="number" min="0" max="100" step="0.01" value="'+esc(O.scontoPerc)+'"></div><div class="f"><label for="ct-bollo">Importo del bollo (€)</label><input id="ct-bollo" data-ct="opzioni.bolloImporto" data-t="num" type="number" min="0" max="100" step="0.01" value="'+esc(O.bolloImporto)+'"></div>'+
       '<div class="f"><label for="ct-arr">Arrotondamento del totale</label><select id="ct-arr" data-ct="opzioni.arrot">'+optList(FT.ARROT,O.arrot)+'</select></div><div class="f"><label for="ct-arrv">Verso</label><select id="ct-arrv" data-ct="opzioni.arrotVerso">'+optList(FT.VERSI,O.arrotVerso)+'</select></div></div>'+
-      '<p class="mst-sub">Sono i valori proposti: su ogni bozza sconto e arrotondamento si possono cambiare o togliere.</p></div></div>';
+      '<p class="mst-sub">Sono i valori proposti: su ogni bozza sconto e arrotondamento si possono cambiare o togliere.</p></div>'+
+      // 3.0.4: numerazione: l'agenda propone il numero successivo; qui l'ultimo numero fatto fuori dall'agenda
+      '<div class="set-card"><h4>Numerazione delle fatture</h4><p class="mst-sub">L\'agenda propone il numero successivo al più alto dell\'anno tra le sue fatture e quello scritto qui. Scrivi qui l\'ultimo numero emesso <b>fuori dall\'agenda</b> (per esempio con il programma di contabilità).</p><div class="ct-grid two">'+
+      '<div class="f"><label for="ct-unum">Ultimo numero emesso fuori dall\'agenda</label><input id="ct-unum" data-ct="opzioni.ultimoNum" maxlength="20" placeholder="es. 496/00" value="'+esc(O.ultimoNum||"")+'" autocomplete="off"></div>'+
+      '<div class="f"><label for="ct-uanno">Dell\'anno</label><input id="ct-uanno" data-ct="opzioni.ultimoAnno" data-t="num" type="number" min="2000" max="2099" step="1" placeholder="'+new Date().getFullYear()+'" value="'+(O.ultimoAnno?esc(O.ultimoAnno):"")+'"></div></div></div></div>';
   }
   $("contBody").innerHTML=h;
 }
@@ -4025,7 +4128,10 @@ function invClient(b){
   if(!piva&&/^[A-Z]{2}[A-Z0-9]{2,}$/.test(est)){paese=est.slice(0,2);piva=est.slice(2);}
   let comune=f("city"),prov=f("prov").toUpperCase();const m=/^(.*?)\s*\(([A-Za-z]{2})\)\s*$/.exec(comune);if(m){comune=m[1];if(!prov)prov=m[2].toUpperCase();}
   const cf=idNorm(f("cf"));
-  return {code:String(c[0]),nome:c[1]||b.client||"",paese,piva,cf:piva&&cf===piva?"":cf,sdi:f("sdi").toUpperCase(),pec:f("pec"),indirizzo:f("addr"),cap:f("cap"),comune,prov,nazione:paese};
+  // 3.0.4: la nazione dalla colonna «Nazione» dell'anagrafica; se manca, dalla partita IVA estera; altrimenti Italia
+  const nz=nazCode(f("naz")),nazione=nz||paese,estero=nazione!=="IT"; // 3.0.4: nel foglio può esserci la sigla (US) o il nome (Stati Uniti)
+  let sdi=f("sdi").toUpperCase();if(estero&&!sdi)sdi="XXXXXXX";
+  return {code:String(c[0]),nome:c[1]||b.client||"",paese:estero&&!piva?nazione:paese,piva,cf:piva&&cf===piva?"":cf,sdi,pec:estero?"":f("pec"),indirizzo:f("addr"),cap:f("cap"),comune,prov:estero?"":prov,nazione};
 }
 // I servizi di una bozza come sono adesso in agenda. Un servizio spostato di giorno tiene il suo id ma cambia
 // data (e n. foglio): si ritrova lo stesso. missing: i n. foglio dei servizi che non ci sono più.
@@ -4053,6 +4159,7 @@ function openInvoice(list,forceNew){
   if(!forceNew){const ids=new Set(list.map(b=>b.id)),old=STORE.drafts().filter(d=>d.servizi.some(s=>ids.has(s.id)));if(old.length){invPending=list;openInvList(old.map(d=>d.id));return;}}
   invPending=null;
   const C=STORE.contab(),d=FT.newDraft(list.map(invService),invClient(list[0]),C,{today:todayISO(),by:meName()});
+  d.numero=invNumProposed(d); // 3.0.4: numero proposto (si può cambiare)
   INV={d,rev:"",isNew:true,dirty:true,edits:0,scadAuto:true,touched:false};showInvoice();
 }
 function openDraft(id){
@@ -4127,21 +4234,25 @@ function renderInvForm(){
   let h='<section class="iv-sec"><h4>Documento</h4><div class="iv-grid g4">'+
     ivF("iv-tipo","Tipo",'<select id="iv-tipo" data-m="tipo">'+optList(Object.assign({},FT.TIPI_SCELTA,FT.TIPI_SCELTA[d.tipo]?{}:{[d.tipo]:(FT.TIPI_DOC[d.tipo]||d.tipo)+" (non più usato)"}),d.tipo)+'</select>')+
     ivF("iv-data","Data",'<input id="iv-data" data-m="data" type="date" min="2000-01-01" max="2099-12-31" value="'+esc(d.data)+'">')+
-    ivF("iv-numero","Numero",ivI("iv-numero","numero",d.numero,' maxlength="20" placeholder="lo assegna la contabilità"'))+
+    ivF("iv-numero",'Numero'+(!d.numero&&!INV.locked?' <small>· <button type="button" class="linkbtn" id="ivNumUse" title="Scrive il numero proposto: lo puoi cambiare">usa '+esc(invNumProposed(d))+'</button></small>':''),ivI("iv-numero","numero",d.numero,' maxlength="20" placeholder="proposto: '+esc(invNumProposed(d))+'"'))+
     ivF("iv-serv","Servizi",'<output id="iv-serv" class="iv-out">'+(fogli.length?esc(fogli.length>3?fogli.slice(0,3).join(", ")+" … ("+fogli.length+")":fogli.join(", ")):"nessun servizio collegato")+'</output>')+
     ivF("iv-causale",'Causale <small class="iv-cnote" id="ivCNote">'+(INV.causLink!==false?'· diventa la descrizione della riga del noleggio':'· bozza di prima della 2.6: resta una voce a parte (cancellala e riscrivila per farla diventare la descrizione del noleggio)')+'</small>','<textarea id="iv-causale" data-m="causale" data-mem="fattura" rows="1" maxlength="1000" placeholder="Scrivi qui la causale: prende il posto del testo automatico «NOLEGGIO …» della riga del noleggio">'+esc(d.causale)+'</textarea>',"w4")+'</div></section>';
-  h+='<section class="iv-sec"><h4>Cliente <small>dall\'anagrafica clienti'+(c.code?" · codice "+esc(c.code):"")+'</small></h4><div class="iv-grid g4">'+
+  // 3.0.4: cliente estero (nazione diversa da IT): partita IVA o identificativo del suo paese, CAP del suo paese,
+  // niente provincia né PEC, codice destinatario XXXXXXX (modificabile)
+  const est=c.nazione!=="IT";
+  h+='<section class="iv-sec"><h4>Cliente <small>dall\'anagrafica clienti'+(c.code?" · codice "+esc(c.code):"")+(est?' · <b class="iv-est">cliente estero</b>':'')+'</small></h4><div class="iv-grid g4">'+
     ivF("iv-c-nome","Denominazione",ivI("iv-c-nome","cliente.nome",c.nome,' maxlength="80"'),"w2")+
-    ivF("iv-c-piva","Partita IVA",'<span class="iv-pair">'+ivI("iv-c-paese","cliente.paese",c.paese,' data-t="up" maxlength="2" aria-label="Paese della partita IVA" class="cc"')+ivI("iv-c-piva","cliente.piva",c.piva,' maxlength="28"')+'</span>')+
-    ivF("iv-c-cf","Codice fiscale",ivI("iv-c-cf","cliente.cf",c.cf,' data-t="up" maxlength="16"'))+
+    ivF("iv-c-naz","Nazione",'<span class="iv-pair iv-nazp"><input id="iv-c-naz" data-naz="1" value="'+esc(nazShow(c.nazione))+'" maxlength="60" list="dlNaz" autocomplete="off" placeholder="es. Stati Uniti" aria-describedby="ivNazName"><output id="ivNazName" class="iv-out iv-naz" title="sigla della nazione">'+esc(c.nazione)+'</output></span>')+
+    ivF("iv-c-piva",est?"Partita IVA estera":"Partita IVA",'<span class="iv-pair">'+ivI("iv-c-paese","cliente.paese",c.paese,' data-t="up" maxlength="2" aria-label="Paese della partita IVA" class="cc"')+ivI("iv-c-piva","cliente.piva",c.piva,' maxlength="28"'+(est?' placeholder="se ce l\'ha"':''))+'</span>')+
     ivF("iv-c-ind","Indirizzo",ivI("iv-c-ind","cliente.indirizzo",c.indirizzo,' maxlength="60"'),"w2")+
-    ivF("iv-c-cap","CAP",ivI("iv-c-cap","cliente.cap",c.cap,' maxlength="5" inputmode="numeric"'))+
-    ivF("iv-c-comune","Comune",ivI("iv-c-comune","cliente.comune",c.comune,' maxlength="60"'))+
-    ivF("iv-c-prov","Provincia",ivI("iv-c-prov","cliente.prov",c.prov,' data-t="up" maxlength="2"'))+
-    ivF("iv-c-naz","Nazione",ivI("iv-c-naz","cliente.nazione",c.nazione,' data-t="up" maxlength="2"'))+
-    ivF("iv-c-sdi",pa?"Codice univoco ufficio":"Codice destinatario",ivI("iv-c-sdi","cliente.sdi",c.sdi,' data-t="up" maxlength="7"'))+
-    ivF("iv-c-pec","PEC",ivI("iv-c-pec","cliente.pec",c.pec,' maxlength="256" type="email"'))+
-    '<label class="perm w4"><input type="checkbox" id="iv-c-pa" data-m="cliente.pa"'+(pa?" checked":"")+'> <span><b>Ente pubblico</b> (scuole, comuni…): codice ufficio di 6 caratteri, fattura in formato PA</span></label></div>'+
+    ivF("iv-c-cap",est?"CAP estero":"CAP",ivI("iv-c-cap","cliente.cap",c.cap,est?' maxlength="12"':' maxlength="5" inputmode="numeric"'))+
+    ivF("iv-c-comune",est?"Città":"Comune",ivI("iv-c-comune","cliente.comune",c.comune,' maxlength="60"'))+
+    (est?'':ivF("iv-c-prov","Provincia",ivI("iv-c-prov","cliente.prov",c.prov,' data-t="up" maxlength="2"')))+
+    ivF("iv-c-cf",est?"Identificativo fiscale":"Codice fiscale",ivI("iv-c-cf","cliente.cf",c.cf,' data-t="up" maxlength="'+(est?28:16)+'"'+(est?' placeholder="se non ha P.IVA" title="Identificativo fiscale del suo paese, se non ha la partita IVA"':'')))+
+    ivF("iv-c-sdi",pa?"Codice univoco ufficio":"Codice destinatario",ivI("iv-c-sdi","cliente.sdi",c.sdi,' data-t="up" maxlength="7"'+(est?' placeholder="XXXXXXX"':'')))+
+    (est?'':ivF("iv-c-pec","PEC",ivI("iv-c-pec","cliente.pec",c.pec,' maxlength="256" type="email"')))+
+    (est?'<p class="iv-note w4">Fattura a un cliente estero: nel file vanno il codice destinatario <b>XXXXXXX</b>, CAP <b>00000</b> (il CAP del suo paese finisce nell\'indirizzo) e la sigla della nazione, come indicato dall\'Agenzia delle Entrate (FAQ n. 63 del 19/07/2019).</p>':
+    '<label class="perm w4"><input type="checkbox" id="iv-c-pa" data-m="cliente.pa"'+(pa?" checked":"")+'> <span><b>Ente pubblico</b> (scuole, comuni…): codice ufficio di 6 caratteri, fattura in formato PA</span></label>')+'</div>'+
     '<div class="iv-grid g4 iv-pa"'+(pa||d.pa.ordNum||d.pa.cig||d.pa.cup||d.pa.split?"":" hidden")+' id="ivPa">'+
     ivF("iv-ordnum","Ordine n.",ivI("iv-ordnum","pa.ordNum",d.pa.ordNum,' maxlength="20"'))+
     ivF("iv-orddata","Ordine del",'<input id="iv-orddata" data-m="pa.ordData" type="date" min="2000-01-01" max="2099-12-31" value="'+esc(d.pa.ordData)+'">')+
@@ -4193,7 +4304,7 @@ const arrotHint=(d,C)=>d.arrotStep===1?"all'euro":d.arrotStep===0.5?"ai 50 cent"
 // totali, anteprima e controlli: si rifanno a ogni tasto, senza toccare i campi in cui si sta scrivendo
 function renderInvLive(){
   if(!INV)return;
-  const d=INV.d,C=STORE.contab(),k=FT.calc(d,C),issues=FT.validate(d,C),errs=issues.filter(x=>x.lv==="err");
+  const d=INV.d,C=STORE.contab(),k=FT.calc(d,C),issues=FT.validate(d,C).concat(invExtraIssues(d)),errs=issues.filter(x=>x.lv==="err");
   for(const l of k.lines){const el=$("invForm").querySelector('[data-rtot="'+(window.CSS&&CSS.escape?CSS.escape(l.id):l.id)+'"]');if(el)el.textContent=eur2(l.tot);}
   const ph=$("ivPriceHd");if(ph)ph.textContent=d.lordi?"Prezzo IVA compr.":"Prezzo netto";
   $("invTotals").innerHTML='<span>Imponibile <b>'+eur2(k.imponibile)+'</b></span><span>IVA <b>'+eur2(k.imposta)+'</b></span>'+(k.arrot?'<span>Arrot. <b>'+eur2(k.arrot)+'</b></span>':"")+'<span class="tot">Totale <b>€ '+eur2(k.totale)+'</b></span>'+(k.split?'<span>Da pagare <b>€ '+eur2(k.daPagare)+'</b></span>':"");
@@ -4209,9 +4320,9 @@ function renderInvLive(){
 // l'anteprima ha la stessa disposizione della fattura dell'Agenzia delle Entrate (quella dei PDF che ricevono i clienti)
 function invoiceHTML(d,k,C){
   const A=C.azienda,c=d.cliente,dt=x=>FT.itLong(x),li=(l,v)=>v?'<div>'+l+': <b>'+esc(v)+'</b></div>':"";
-  const dest=c.pa?c.sdi:c.nazione!=="IT"?"XXXXXXX":/^[A-Z0-9]{7}$/.test(c.sdi)?c.sdi:c.pec?"Indicata PEC":"0000000";
+  const est=c.nazione!=="IT",fd=FT.destOf(c),dest=fd==="0000000"&&c.pec&&!est?"Indicata PEC":fd; // 3.0.4: come nel file XML
   let h='<div class="fe"><div class="fe-parti"><div><h5>Cedente/prestatore (fornitore)</h5>'+li("Identificativo fiscale ai fini IVA",A.paese+A.piva)+li("Codice fiscale",A.cf)+li("Denominazione",A.nome)+li("Regime fiscale",A.regime+" ("+(FT.REGIMI[A.regime]||"").toLowerCase()+")")+li("Indirizzo",[A.indirizzo,A.civico].filter(Boolean).join(", "))+'<div>Comune: <b>'+esc(A.comune)+'</b> Provincia: <b>'+esc(A.prov)+'</b></div><div>Cap: <b>'+esc(A.cap)+'</b> Nazione: <b>'+esc(A.nazione)+'</b></div>'+li("Telefono",A.tel)+'</div>'+
-    '<div><h5>Cessionario/committente (cliente)</h5>'+li("Identificativo fiscale ai fini IVA",c.piva?c.paese+c.piva:"")+li("Codice fiscale",c.cf)+li("Denominazione",c.nome)+li("Indirizzo",[c.indirizzo,c.civico].filter(Boolean).join(", "))+'<div>Comune: <b>'+esc(c.comune)+'</b> Provincia: <b>'+esc(c.prov)+'</b></div><div>Cap: <b>'+esc(c.nazione==="IT"&&/^\d{5}$/.test(c.cap)?c.cap:"00000")+'</b> Nazione: <b>'+esc(c.nazione)+'</b></div>'+(dest==="Indicata PEC"?li("Pec",c.pec):"")+'</div></div>';
+    '<div><h5>Cessionario/committente (cliente)</h5>'+li("Identificativo fiscale ai fini IVA",c.piva?(est&&c.paese==="IT"?c.nazione:c.paese)+c.piva:est&&c.cf?c.nazione+c.cf:"")+li("Codice fiscale",est?(/^[A-Z0-9]{11,16}$/.test(c.cf)?c.cf:""):c.cf)+li("Denominazione",c.nome)+li("Indirizzo",[c.indirizzo,c.civico].filter(Boolean).join(", ")+(est&&c.cap&&!/^0+$/.test(c.cap)?" "+c.cap:""))+'<div>Comune: <b>'+esc(c.comune)+'</b>'+(est?'':' Provincia: <b>'+esc(c.prov)+'</b>')+'</div><div>Cap: <b>'+esc(c.nazione==="IT"&&/^\d{5}$/.test(c.cap)?c.cap:"00000")+'</b> Nazione: <b>'+esc(c.nazione)+'</b></div>'+(dest==="Indicata PEC"?li("Pec",c.pec):"")+'</div></div>';
   h+='<table class="fe-t fe-doc"><thead><tr><th>Tipologia documento</th><th>Numero documento</th><th>Data documento</th><th>Codice destinatario</th></tr></thead><tbody><tr><td>'+esc(d.tipo)+' ('+esc((FT.TIPI_DOC[d.tipo]||"").toLowerCase())+')</td><td>'+(String(d.numero||"").trim()?esc(d.numero):'<span class="fe-bozza">BOZZA</span>')+'</td><td>'+esc(dt(d.data))+'</td><td>'+esc(dest)+'</td></tr></tbody></table>';
   const ord=d.pa.ordNum||d.pa.cig||d.pa.cup?"Vs.Ord. "+(d.pa.ordNum||"")+(d.pa.ordData?" del "+dt(d.pa.ordData):"")+(d.pa.cup?" CUP: "+d.pa.cup:"")+(d.pa.cig?" CIG: "+d.pa.cig:""):"";
   h+='<table class="fe-t fe-righe"><thead><tr><th class="l">Descrizione</th><th>Quantità</th><th>Prezzo unitario</th><th>Sconto o magg.</th><th>%IVA</th><th>Prezzo totale</th></tr></thead><tbody>'+
@@ -4237,6 +4348,55 @@ function invRegen(ask){
   const cb=$("iv-bolloadd");if(cb)cb.checked=false;
   $("ivRows").innerHTML=invRowsHTML();growAll($("ivRows"));invTouch();return true;
 }
+// 3.0.4: nazione del cliente cambiata nella bozza: estero ↔ Italia
+function invNazChanged(){
+  const d=INV.d,c=d.cliente,n=String(c.nazione||"").toUpperCase();c.nazione=/^[A-Z]{2}$/.test(n)?n:"IT";
+  if(c.nazione!=="IT"){
+    if(!c.sdi||c.sdi==="0000000")c.sdi="XXXXXXX";
+    if(c.paese==="IT"&&!/^\d{11}$/.test(c.piva))c.paese=c.nazione;
+    c.prov="";if(c.pa){c.pa=false;invPaChanged();}
+  }else{
+    if(c.sdi==="XXXXXXX")c.sdi="";
+    if(c.paese!=="IT"&&!c.piva)c.paese="IT";
+  }
+}
+// 3.0.4: nel campo Nazione si scrive il nome («Stati Uniti») o la sigla (US); accanto si vede la sigla che andrà in fattura.
+// Uscendo dal campo: se la riconosce cambia la nazione del cliente; se no resta quella di prima e lo dice.
+function invNazInput(el,done){
+  const d=INV.d,t=el.value.trim(),code=t?nazCode(t):"IT",o=$("ivNazName");
+  if(o)o.textContent=code||"?";el.classList.toggle("miss",!code);
+  if(!done)return;
+  if(!code){toast("Non riconosco la nazione «"+t+"»: sceglila dall'elenco (es. Stati Uniti) o scrivi la sigla (US).");el.value=nazShow(d.cliente.nazione);if(o)o.textContent=d.cliente.nazione;el.classList.remove("miss");return;}
+  el.value=nazShow(code);
+  if(code===d.cliente.nazione)return;
+  d.cliente.nazione=code;invNazChanged();renderInvForm();invTouch();
+}
+function invNumLink(){
+  const lab=document.querySelector('#invForm label[for="iv-numero"]'),f=$("iv-numero");if(!lab||!f||!INV)return;
+  const pr=invNumProposed(INV.d),show=!String(INV.d.numero||"").trim()&&!INV.locked;
+  f.placeholder="proposto: "+pr;
+  const st=(show?"1|":"0|")+pr;if(lab.dataset.st===st)return; // niente da cambiare: il pulsante resta lo stesso (un clic in corso non si perde)
+  lab.dataset.st=st;lab.innerHTML='Numero'+(show?' <small>· <button type="button" class="linkbtn" id="ivNumUse" title="Scrive il numero proposto: lo puoi cambiare">usa '+esc(pr)+'</button></small>':'');
+}
+// 3.0.4: numero proposto: il più alto dell'anno della fattura (tra le altre bozze e fatture con il numero e l'ultimo
+// numero emesso fuori dall'agenda, scritto in Contabilità) più uno, con la stessa forma (496/00 → 497/00)
+function invNumProposed(d){
+  const C=STORE.contab(),y=String(FT.okDate(d.data)?d.data:todayISO()).slice(0,4);
+  return FT.nextNumero(STORE.drafts().filter(x=>x.id!==d.id&&String(x.numero||"").trim()).map(x=>({numero:x.numero,data:x.data})),y,{numero:C.opzioni.ultimoNum,anno:C.opzioni.ultimoAnno});
+}
+const sameNum=(a,b)=>{const p=FT.parseNumero(a),q=FT.parseNumero(b);return p&&q?p.n===q.n&&p.pre.trim().toUpperCase()===q.pre.trim().toUpperCase()&&p.suf.trim().toUpperCase()===q.suf.trim().toUpperCase():String(a||"").trim().toUpperCase()===String(b||"").trim().toUpperCase();};
+// controlli che guardano anche le altre bozze: numero già usato nello stesso anno; nazione sconosciuta
+function invExtraIssues(d){
+  const out=[],n=String(d.numero||"").trim(),y=String(d.data||"").slice(0,4);
+  if(n)for(const x of STORE.drafts()){
+    if(x.id===d.id||String(x.data||"").slice(0,4)!==y||!sameNum(x.numero,n))continue;
+    const who="«"+(x.cliente&&x.cliente.nome||"")+"» del "+itD(x.data),nc=(x.tipo==="TD04")!==(d.tipo==="TD04");
+    if(x.xmlAt&&!nc)out.push({lv:"err",msg:"Il numero "+n+" è già della fattura emessa "+who+": usa "+invNumProposed(d)+"."});
+    else out.push({lv:"warn",msg:(x.xmlAt?"Il numero "+n+" è già della "+(x.tipo==="TD04"?"nota di credito":"fattura")+" emessa ":"Anche la bozza ")+who+(x.xmlAt?"":" (non ancora emessa) ha il numero "+n)+"."});
+  }
+  const nz=d.cliente&&d.cliente.nazione;if(nz&&nz!=="IT"&&/^[A-Z]{2}$/.test(nz)&&!NAZ_LIST.includes(nz))out.push({lv:"warn",msg:"Cliente: non conosco la nazione «"+nz+"», controlla la sigla."});
+  return out;
+}
 function invPaChanged(){
   const d=INV.d,C=STORE.contab(),pa=d.cliente.pa;
   d.pa.split=pa&&C.opzioni.splitPA;
@@ -4255,10 +4415,12 @@ function invInput(e){
       if(INV.causLink!==false&&String(d.causale||"").trim()&&r===invCausTarget(d)){d.causale=r.desc;r.auto="";d.causaleId=r.desc.trim()?r.id:"";const ca=$("iv-causale");if(ca){ca.value=d.causale;autoGrow(ca);}}}
     invTouch();return;
   }
+  if(el.dataset.naz){invNazInput(el,e.type==="change");return;} // 3.0.4
   const p=el.dataset.m;if(!p)return;
   let v=inpVal(el);if(el.dataset.t==="bool")v=el.value==="1";
   if(p==="arrot"){d.arrotStep=0;d.arrotAuto=el.value===""&&C.opzioni.arrot!=="no";d.arrot=el.value===""?0:Number(el.value)||0;el.placeholder=arrotHint(d,C);document.querySelectorAll("#invForm [data-arr]").forEach(b=>b.setAttribute("aria-pressed","false"));invTouch();return;}
   setPath(d,p,v);
+  if(p==="numero"||p==="data")invNumLink(); // 3.0.4: «usa …» il numero proposto quando il numero è vuoto
   if(p==="causale"){autoGrow(el);invCausaleSync();INV.touched=true;}
   if(p==="pagamento.scad")INV.scadAuto=false;
   // la scadenza segue la data senza ridisegnare il modulo (scrivendo la data a mano il cursore resta dov'è)
@@ -4282,6 +4444,7 @@ $("invForm").addEventListener("input",invInput);$("invForm").addEventListener("c
 $("invForm").addEventListener("submit",e=>e.preventDefault());
 $("invForm").addEventListener("click",e=>{
   if(!INV)return;const d=INV.d,C=STORE.contab(),t=e.target;
+  if(t.closest("#ivNumUse")){d.numero=invNumProposed(d);const f=$("iv-numero");if(f)f.value=d.numero;invNumLink();invTouch();return;} // 3.0.4
   if(t.closest("#ivPaShow")){$("ivPa").hidden=false;t.closest("#ivPaShow").remove();$("iv-ordnum").focus();return;}
   if(t.closest("#ivRegen")){invRegen(true);return;}
   const arr=t.closest("[data-arr]");
@@ -4366,7 +4529,7 @@ $("invXml").onclick=async()=>{
   const cur=INV,C=STORE.contab();
   // il file si scrive dalla bozza ripulita (stessi controlli di quando si salva): quello che si vede è quello che esce
   const d=FT.cleanDraft(cur.d);
-  const errs=FT.validate(cur.d,C).concat(d?FT.validate(d,C):[{lv:"err",msg:"La bozza non è valida."}]).filter(x=>x.lv==="err");
+  const errs=FT.validate(cur.d,C).concat(d?FT.validate(d,C).concat(invExtraIssues(d)):[{lv:"err",msg:"La bozza non è valida."}]).filter(x=>x.lv==="err");
   if(errs.length){invMsg("Prima correggi: "+errs[0].msg,"err");return;}
   // un altro dispositivo ha salvato questa bozza mentre era aperta qui: niente file fatto da una copia vecchia
   if(!cur.isNew&&STORE.draftRev(cur.d.id)&&STORE.draftRev(cur.d.id)!==cur.rev){invMsg("Un altro dispositivo ha modificato questa bozza mentre era aperta qui: chiudila e riaprila prima di creare il file.","err");return;}
@@ -4410,6 +4573,84 @@ $("invPrint").onclick=async()=>{
   fr=document.createElement("iframe");fr.id="printFrame";fr.setAttribute("aria-hidden","true");fr.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
   document.body.appendChild(fr);await new Promise(r=>{fr.onload=r;fr.srcdoc=html;});
   try{fr.contentWindow.focus();fr.contentWindow.print();}catch(_){toast("Non riesco ad aprire la stampa.");}
+};
+
+// 3.0.4 «Scarica anteprima»: la stessa anteprima (disposizione della fattura dell'Agenzia delle Entrate) in un file PDF
+async function invPreviewPdf(d,C){
+  const k=FT.calc(d,C),A=C.azienda,c=d.cliente,est=c.nazione!=="IT",fd=FT.destOf(c),dest=fd==="0000000"&&c.pec&&!est?"Indicata PEC":fd;
+  const PL=await loadPdfLib(),{PDFDocument,StandardFonts,rgb}=PL,pdf=await PDFDocument.create();
+  pdf.setTitle("Fattura "+(String(d.numero||"").trim()?"n. "+d.numero:"(bozza)")+" – "+(c.nome||""));pdf.setAuthor(A.nome||"La Terra s.r.l.");pdf.setCreator("Agenda Flotta La Terra");
+  let reg,bold,HK=1,conv=t=>FT.latin(t);
+  try{const F=await loadPdfFonts();reg=customFont(pdf,PL,F.regular,"AGENDA+AgendaSans-Regular");bold=customFont(pdf,PL,F.bold,"AGENDB+AgendaSans-Bold");}
+  catch(e){reg=await pdf.embedFont(StandardFonts.Helvetica);bold=await pdf.embedFont(StandardFonts.HelveticaBold);HK=0.92;conv=t=>pdfTxt(FT.latin(t));}
+  const W=595.28,H=841.89,M=34,ink=rgb(0,0,0),grey=rgb(0.35,0.35,0.35),line=rgb(0,0,0),hdBg=rgb(0.93,0.93,0.93);
+  const pages=[];let page=null,y=0;
+  const tw=(t,sz,b)=>(b?bold:reg).widthOfTextAtSize(conv(t),sz*HK);
+  const txt=(t,x,yy,sz,b,col)=>{const v=conv(t);if(v)page.drawText(v,{x,y:yy,size:sz*HK,font:b?bold:reg,color:col||ink});};
+  const wrap=(t,w,sz,b)=>{const out=[];for(const para of String(t==null?"":t).split(/\n/)){let cur="";for(const word of conv(para).split(/\s+/).filter(Boolean)){let wd=word;while(tw(wd,sz,b)>w&&wd.length>1){let i=wd.length-1;while(i>1&&tw(wd.slice(0,i),sz,b)>w)i--;if(cur){out.push(cur);cur="";}out.push(wd.slice(0,i));wd=wd.slice(i);}
+      const tryL=cur?cur+" "+wd:wd;if(tw(tryL,sz,b)<=w)cur=tryL;else{if(cur)out.push(cur);cur=wd;}}out.push(cur);}return out.length?out:[""];};
+  const box=(x,yy,w,h,fill)=>page.drawRectangle({x,y:yy,width:w,height:h,borderColor:line,borderWidth:0.7,color:fill||undefined});
+  const newPage=()=>{page=pdf.addPage([W,H]);pages.push(page);y=H-M;};
+  const need=h=>{if(y-h<M+18){newPage();return true;}return false;};
+  newPage();
+  // 1) cedente e cessionario, su due colonne
+  const colW=(W-2*M)/2,pad=6,sz=8.6,lh=11;
+  // una riga può avere più coppie «etichetta: valore» (Comune … Provincia …); le etichette in chiaro, i valori in grassetto
+  const gap=sz*0.32;
+  const partLines=(title,rows)=>{const out=[{t:title,b:true,title:true}];for(const r of rows){const pairs=(Array.isArray(r[0])?r:[r]).filter(x=>x[1]!==""&&x[1]!=null);if(!pairs.length)continue;
+      const segs=pairs.map(([l,v])=>({lab:l+":",v:String(v)})),wid=segs.reduce((t,x,i)=>t+tw(x.lab,sz,false)+gap+tw(x.v,sz,true)+(i?gap*3:0),0);
+      if(wid<=colW-2*pad)out.push({segs});else for(const x of segs){const lw=tw(x.lab,sz,false)+gap;if(lw+tw(x.v,sz,true)<=colW-2*pad)out.push({segs:[x]});else{out.push({segs:[{lab:x.lab,v:""}]});for(const p of wrap(x.v,colW-2*pad,sz,true))out.push({segs:[{lab:"",v:p}]});}}}return out;};
+  const L1=partLines("Cedente/prestatore (fornitore)",[["Identificativo fiscale ai fini IVA",A.paese+A.piva],["Codice fiscale",A.cf],["Denominazione",A.nome],["Regime fiscale",A.regime+" ("+String(FT.REGIMI[A.regime]||"").toLowerCase()+")"],["Indirizzo",[A.indirizzo,A.civico].filter(Boolean).join(", ")],[["Comune",A.comune],["Provincia",A.prov]],[["Cap",A.cap],["Nazione",A.nazione]],["Telefono",A.tel]]);
+  const idC=c.piva?(est&&c.paese==="IT"?c.nazione:c.paese)+c.piva:est&&c.cf?c.nazione+c.cf:"";
+  const L2=partLines("Cessionario/committente (cliente)",[["Identificativo fiscale ai fini IVA",idC],["Codice fiscale",est?(/^[A-Z0-9]{11,16}$/.test(c.cf)?c.cf:""):c.cf],["Denominazione",c.nome],["Indirizzo",[c.indirizzo,c.civico].filter(Boolean).join(", ")+(est&&c.cap&&!/^0+$/.test(c.cap)?" "+c.cap:"")],[["Comune",c.comune],["Provincia",est?"":c.prov]],[["Cap",c.nazione==="IT"&&/^\d{5}$/.test(c.cap)?c.cap:"00000"],["Nazione",c.nazione]],["Pec",dest==="Indicata PEC"?c.pec:""]]);
+  const hh=Math.max(L1.length,L2.length)*lh+2*pad+2;
+  box(M,y-hh,colW,hh);box(M+colW,y-hh,colW,hh);
+  [[L1,M],[L2,M+colW]].forEach(([L,x])=>{let yy=y-pad-sz;for(const r of L){if(r.title)txt(r.t,x+pad,yy,9.2,true);else{let xx=x+pad;r.segs.forEach((g,i)=>{if(i)xx+=gap*3;if(g.lab){txt(g.lab,xx,yy,sz,false);xx+=tw(g.lab,sz,false)+gap;}txt(g.v,xx,yy,sz,true);xx+=tw(g.v,sz,true);});}yy-=lh;}});
+  y-=hh+12;
+  // tabella generica: colonne {t, w (frazione), a: "l"|"c"|"r"}; righe di celle (testo); caption facoltativa
+  const table=(cols,rows,o)=>{
+    o=o||{};const tot=W-2*M,ws=cols.map(x=>x.w*tot),fs=o.size||8.4,lhh=10.4,cp=4;
+    const drawHead=()=>{
+      if(o.caption){need(16);box(M,y-15,tot,15);txt(o.caption,M+(tot-tw(o.caption,9,true))/2,y-11,9,true);y-=15;}
+      const hl=cols.map((x,i)=>wrap(x.t,ws[i]-2*cp,7.6,false)),h=Math.max(...hl.map(l=>l.length))*9.4+2*cp;
+      need(h);let x=M;cols.forEach((col,i)=>{box(x,y-h,ws[i],h,hdBg);hl[i].forEach((ln,j)=>{const w=tw(ln,7.6,false),xx=col.a==="l"?x+cp:x+(ws[i]-w)/2;txt(ln,xx,y-cp-7.6-j*9.4,7.6,false,grey);});x+=ws[i];});y-=h;};
+    drawHead();
+    for(const r of rows){
+      const cl=r.map((v,i)=>wrap(v,ws[i]-2*cp,fs,!!(o.boldLast&&i===r.length-1))),h=Math.max(...cl.map(l=>l.length))*lhh+2*cp;
+      if(need(h)){drawHead();}
+      let x=M;r.forEach((v,i)=>{box(x,y-h,ws[i],h);const a=cols[i].a||"l",b=!!(o.boldLast&&i===r.length-1);cl[i].forEach((ln,j)=>{const w=tw(ln,fs,b),xx=a==="l"?x+cp:a==="c"?x+(ws[i]-w)/2:x+ws[i]-cp-w;txt(ln,xx,y-cp-fs-j*lhh+1,fs,b);});x+=ws[i];});
+      y-=h;
+    }
+    y-=10;
+  };
+  const dt=x=>FT.itLong(x),num=x=>eur2(x);
+  table([{t:"Tipologia documento",w:.25,a:"c"},{t:"Numero documento",w:.25,a:"c"},{t:"Data documento",w:.25,a:"c"},{t:"Codice destinatario",w:.25,a:"c"}],
+    [[d.tipo+" ("+String(FT.TIPI_DOC[d.tipo]||"").toLowerCase()+")",String(d.numero||"").trim()||"BOZZA",dt(d.data),dest]],{boldLast:false});
+  const ord=d.pa.ordNum||d.pa.cig||d.pa.cup?"Vs.Ord. "+(d.pa.ordNum||"")+(d.pa.ordData?" del "+dt(d.pa.ordData):"")+(d.pa.cup?" CUP: "+d.pa.cup:"")+(d.pa.cig?" CIG: "+d.pa.cig:""):"";
+  const righe=[];if(ord)righe.push([ord,"","","","",""]);if(FT.causaleApart(d))righe.push([d.causale,"","","","",""]);
+  for(const l of k.lines)righe.push([l.desc,num(l.qta),Number(l.unit).toLocaleString("it-IT",{minimumFractionDigits:2,maximumFractionDigits:6}),[l.sc,l.docSc].filter(Boolean).map(x=>"SC "+num(x)+"%").join(" + "),l.aliqOk?(l.perc>0?num(l.perc):l.natura):"?",num(l.tot)]);
+  if(!righe.length)righe.push(["Nessuna riga","","","","",""]);
+  table([{t:"Descrizione",w:.47,a:"l"},{t:"Quantità",w:.08,a:"r"},{t:"Prezzo unitario",w:.12,a:"r"},{t:"Sconto o magg.",w:.11,a:"c"},{t:"%IVA",w:.08,a:"r"},{t:"Prezzo totale",w:.14,a:"r"}],righe);
+  table([{t:"esigibilità iva / riferimenti normativi",w:.46,a:"l"},{t:"%IVA",w:.1,a:"r"},{t:"Totale imponibile",w:.22,a:"r"},{t:"Totale imposta",w:.22,a:"r"}],
+    k.riepilogo.map(r=>[r.esigibilita==="S"?"S (scissione dei pagamenti)":r.esigibilita==="I"?"I (esigibilità immediata)":(r.rif||FT.NATURE[r.natura]||""),r.perc>0?num(r.perc):(r.natura||"?"),num(r.imponibile),num(r.imposta)]),{caption:"RIEPILOGHI IVA"});
+  table([{t:"Importo bollo",w:.25,a:"c"},{t:"Sconto/Maggiorazione",w:.25,a:"c"},{t:"Arr.",w:.2,a:"c"},{t:"Totale documento",w:.3,a:"r"}],
+    [[k.bollo?num(k.bollo)+" (virtuale)":"",k.sconto?"SC "+num(k.sconto)+"%":"",k.arrot?num(k.arrot):"",num(k.totale)]],{caption:"TOTALI",boldLast:true});
+  const pg=d.pagamento;
+  table([{t:"Modalità pagamento",w:.2,a:"l"},{t:"Coordinate bancarie",w:.34,a:"l"},{t:"Istituto",w:.2,a:"l"},{t:"Data scadenza",w:.13,a:"c"},{t:"Importo",w:.13,a:"r"}],
+    [[pg.mod+" "+(FT.MOD_PAG[pg.mod]||""),pg.mod==="MP05"&&A.iban?"IBAN "+A.iban+(A.abi||A.cab?"\nABI "+A.abi+" - CAB "+A.cab:""):"",pg.mod==="MP05"?A.banca:"",dt(pg.scad),num(k.daPagare)]]);
+  // piè di pagina: anteprima e numero di pagina
+  pages.forEach((pp,i)=>{page=pp;const t="Anteprima della fattura"+(String(d.numero||"").trim()?" n. "+d.numero:" (bozza, senza numero)")+" – il documento valido è il file XML trasmesso al Sistema di Interscambio",pn="Pagina "+(i+1)+" di "+pages.length;
+    txt(t,M,M-14,7,false,grey);txt(pn,W-M-tw(pn,7,false),M-14,7,false,grey);});
+  return new Blob([await pdf.save()],{type:"application/pdf"});
+}
+$("invPdf").onclick=async()=>{
+  if(!INV)return;const b=$("invPdf");b.disabled=true;invMsg("Preparo il PDF…");
+  try{
+    const d=INV.d,C=STORE.contab(),blob=await invPreviewPdf(d,C);
+    const nm="Anteprima fattura "+(String(d.numero||"").trim()?String(d.numero).replace(/[\/\\:*?"<>|]+/g,"-"):"bozza")+" "+(slug(d.cliente.nome)||"cliente")+".pdf";
+    dlFile(blob,nm);invMsg("PDF dell'anteprima scaricato ("+nm+").","ok");
+  }catch(err){console.error(err);ACC.tlog("errore","Bozza fattura: PDF dell'anteprima non creato",String((err&&(err.code||err.message))||err));invMsg("Non sono riuscito a creare il PDF dell'anteprima.","err");}
+  finally{b.disabled=false;}
 };
 
 // ----- elenco delle bozze -----
@@ -5096,7 +5337,7 @@ const sheetSay=t=>{$("sheetMsg").textContent=t;};
 $("sheetSend").onclick=async()=>{
   if(!sheetBooking)return;refreshSheetBooking();
   // il capo sceglie sempre bus e autisti prima di inviare
-  if(isInvio()){openCapo(sheetBooking,{alias:SHO.alias,noPlate:SHO.noPlate});return;}
+  if(isInvio()){openCapo(sheetBooking,{alias:SHO.alias,noPlate:false});return;} // 3.0.4: da MAX sempre con targa e ID
   $("sheetSend").disabled=true;
   try{await sendToDriver(sheetBooking,{alias:SHO.alias,noPlate:SHO.noPlate},sheetSay);refreshSheetBooking();}
   finally{$("sheetSend").disabled=false;renderSheetSent();}
@@ -5397,9 +5638,9 @@ $("sdList").addEventListener("click",async e=>{
   const b=bookingsAll().find(x=>x.id===id);if(!b){toast("La prenotazione non c'è più.");renderInvio();return;}
   if(pv){openSheet(b);return;}
   if(of){of.disabled=true;try{await withdrawFromDriver(b);}finally{renderInvio();}return;}
-  // prima di inviare si scelgono bus e autisti; intestazione e targa: come all'ultimo invio (o quelle solite, al primo)
+  // prima di inviare si scelgono bus e autisti; intestazione: come all'ultimo invio (o quella solita, al primo); targa e ID sempre
   let al=false;try{al=localStorage.getItem("agenda-sheet-alias")==="1";}catch(_){}
-  openCapo(b,b.sent&&b.sent.at&&!b.sent.off?{alias:b.sent.alias,noPlate:b.sent.noPlate}:{alias:al,noPlate:true}); // 2.8: targa e ID nascosti di serie
+  openCapo(b,{alias:b.sent&&b.sent.at&&!b.sent.off?b.sent.alias:al,noPlate:false}); // 3.0.4: MAX invia sempre con targa e ID mezzo (prima: nascosti di serie)
 });
 
 // =====================================================================================
@@ -5793,7 +6034,7 @@ async function capoApply(send){
     }
     if(!send){closeCapo();toast(synced?"Scelta salvata: bus e autisti aggiornati in tutta l'Agenda.":"Scelta salvata su questo dispositivo: arriverà agli altri appena torna la connessione.");return;}
     if(!synced){cpSay("La scelta è salvata su questo dispositivo, ma "+(navigator.onLine?"Dropbox non ha ancora risposto":"sei offline")+": il foglio NON è partito. Riprova tra poco con «Invia all'autista».");return;}
-    const ok=await sendToDriver(b,Object.assign({},cpOpts||{},{noConfirm:true,thinOk:!!thin}),cpSay);
+    const ok=await sendToDriver(b,Object.assign({},cpOpts||{},{noConfirm:true,thinOk:!!thin,noPlate:false}),cpSay); // 3.0.4: da MAX sempre con targa e ID
     if(ok){const cur=bookingsAll().find(x=>x.id===b.id),to=(cur&&cur.sent&&cur.sent.to)||[d1,d2].filter(Boolean);closeCapo();toast("Foglio inviato a "+to.join(" e ")+".");
       if(!$("ovSheet").hidden&&sheetBooking&&sheetBooking.id===b.id){refreshSheetBooking();renderSheet();}}
   }finally{cpBusy=false;if(!$("ovCapo").hidden)cpButtons();if(!$("invio").hidden)renderInvio();}

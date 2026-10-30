@@ -426,6 +426,19 @@
       zip.file(tp, tx);
     }
   }
+  // colonne «virtuali» dei clienti: l'app le manda con una chiave che comincia con «_» e qui diventano la colonna vera
+  // (se manca la si aggiunge in fondo alla tabella, con questa intestazione)
+  function virtualCols(cols, hdr, colOf) {
+    return [{ key: "_SDI", name: "Codice univoco", re: /univoco|\bsdi\b/i }, { key: "_NAZ", name: "Nazione", re: /^\s*(nazione|paese)\b/i }].map((x) => Object.assign(x, { col: colOf(x.re) }));
+  }
+  // nuove colonne: l'area del foglio arriva fino all'ultima e ognuna ha una larghezza leggibile
+  function widenSheet(xml, newCols) {
+    for (const x of newCols) {
+      xml = xml.replace(/(<dimension ref="[A-Z]+\d+:)([A-Z]+)(\d+)/, (all, pre, col, n) => (colIdx(col) < colIdx(x.col) ? pre + x.col + n : all));
+      if (/<cols>/.test(xml) && !new RegExp('<col [^>]*min="' + colIdx(x.col) + '"').test(xml)) xml = xml.replace("</cols>", '<col min="' + colIdx(x.col) + '" max="' + colIdx(x.col) + '" width="16" customWidth="1"/></cols>');
+    }
+    return xml;
+  }
   async function addTableColumn(zip, path, rows, byNum, col, name) {
     // testo dell'intestazione nei testi condivisi, come le altre intestazioni
     let idx = null;
@@ -491,7 +504,8 @@
     const cols = Object.keys(hdr).sort((x, y) => colIdx(x) - colIdx(y));
     const colOf = (re) => cols.find((c) => re.test(hdr[c])) || null;
     const cPiva = colOf(/partita\s*iva(?!.*estera)/i), cCf = colOf(/codice\s*fiscale/i), cName = "B";
-    let cSdi = colOf(/univoco|\bsdi\b/i), newSdiCol = null;
+    // colonne che l'app aggiunge in fondo alla tabella se mancano: codice univoco (SDI) e, dalla 3.0.4, nazione
+    const VC = virtualCols(cols, hdr, colOf), newCols = [];
     let lastData = 1, maxCode = 0;
     const byPiva = {}, byCf = {}, byName = {}, byCode = {};
     for (const n in recs) {
@@ -523,9 +537,8 @@
         if (byCode[String(code)] != null) { results.push({ tmp: nc.tmp, error: "codeexists", code, by: byCode[String(code)] }); continue; }
         if (code > maxCode) maxCode = code;
       } else code = ++maxCode;
-      // codice univoco (SDI): se nel foglio manca la colonna, la aggiunge in fondo alla tabella
-      if (v._SDI && !cSdi) { cSdi = COLS[colIdx(cols[cols.length - 1])]; newSdiCol = cSdi; hdr[cSdi] = "Codice univoco"; cols.push(cSdi); }
-      if (v._SDI) { v[cSdi] = v._SDI; }
+      // codice univoco (SDI) e nazione: se nel foglio manca la colonna, la aggiunge in fondo alla tabella
+      for (const x of VC) { if (!v[x.key]) continue; if (!x.col) { x.col = COLS[colIdx(cols[cols.length - 1])]; newCols.push(x); hdr[x.col] = x.name; cols.push(x.col); } v[x.col] = v[x.key]; }
       const r = ++lastData, prev = prevCells();
       let cells, open;
       if (byNum[r] != null) { const old = rows[byNum[r]].xml; open = old.slice(0, old.indexOf(">") + 1).replace(/\/>$/, ">"); cells = rowCells(old); }
@@ -534,7 +547,7 @@
       const put = (c, val) => { cells[c] = { xml: makeCell(c + r, styleOf(c), val), s: styleOf(c), inner: "" }; };
       for (const c of cols) { if (c === "A") continue; if (!cells[c] && prev[c]) put(c, null); }
       put("A", { n: code });
-      for (const c of Object.keys(v)) if (c !== "A" && c !== "_SDI" && hdr[c]) put(c, v[c]);
+      for (const c of Object.keys(v)) if (c !== "A" && c.charAt(0) !== "_" && hdr[c]) put(c, v[c]);
       const x = open + Object.keys(cells).sort((p, q) => colIdx(p) - colIdx(q)).map((k) => cells[k].xml).join("") + "</row>";
       if (byNum[r] != null) rows[byNum[r]].xml = x; else { byNum[r] = rows.length; rows.push({ n: r, xml: x }); }
       if (r > maxRow) maxRow = r;
@@ -547,14 +560,12 @@
       }
     }
     if (!added) return { added: 0, results };
-    if (newSdiCol) await addTableColumn(zip, path, rows, byNum, newSdiCol, "Codice univoco");
+    for (const x of newCols) await addTableColumn(zip, path, rows, byNum, x.col, x.name);
+    if (newCols.length && lists) lists.clientCols = cols.map((c) => ({ c, h: hdr[c] }));
     rows.sort((x, y) => x.n - y.n);
     xml = head + rows.map((x) => x.xml).join("") + tail;
     xml = xml.replace(/(<dimension ref="[A-Z]+\d+:)([A-Z]+)(\d+)/, (all, pre, col, n) => (+n < maxRow ? pre + col + maxRow : all));
-    if (newSdiCol) {
-      xml = xml.replace(/(<dimension ref="[A-Z]+\d+:)([A-Z]+)(\d+)/, (all, pre, col, n) => (colIdx(col) < colIdx(newSdiCol) ? pre + newSdiCol + n : all));
-      if (/<cols>/.test(xml) && !new RegExp('<col [^>]*min="' + colIdx(newSdiCol) + '"').test(xml)) xml = xml.replace("</cols>", '<col min="' + colIdx(newSdiCol) + '" max="' + colIdx(newSdiCol) + '" width="16" customWidth="1"/></cols>');
-    }
+    xml = widenSheet(xml, newCols);
     return { added, results, xml, path, maxRow };
   }
 
@@ -583,7 +594,7 @@
     }
     const cols = Object.keys(hdr).sort((x, y) => colIdx(x) - colIdx(y));
     const colOf = (re) => cols.find((c) => re.test(hdr[c])) || null;
-    let cSdi = colOf(/univoco|\bsdi\b/i), newSdiCol = null;
+    const VC = virtualCols(cols, hdr, colOf), newCols = [];
     const same = (x, y) => String(x == null ? "" : x).trim().replace(/\s+/g, " ") === String(y == null ? "" : y).trim().replace(/\s+/g, " ");
     const num = (x) => (x != null && x !== "" && isFinite(Number(x)) ? Number(x) : null);
     const eq = (x, y) => same(x, y) || (num(x) != null && num(x) === num(y));
@@ -593,10 +604,11 @@
       const rn = rowOfCode[k];
       if (rn == null) { results.push({ tmp: ed.tmp, code: ed.code, error: "nocode" }); continue; }
       const v = Object.assign({}, ed.vals || {}), base = Object.assign({}, ed.base || {});
-      if ("_SDI" in v) {
-        if (!cSdi && v._SDI) { cSdi = COLS[colIdx(cols[cols.length - 1])]; newSdiCol = cSdi; hdr[cSdi] = "Codice univoco"; cols.push(cSdi); }
-        if (cSdi) { v[cSdi] = v._SDI; if (!(cSdi in base)) base[cSdi] = base._SDI || ""; }
-        delete v._SDI;
+      for (const x of VC) {
+        if (!(x.key in v)) continue;
+        if (!x.col && v[x.key]) { x.col = COLS[colIdx(cols[cols.length - 1])]; newCols.push(x); hdr[x.col] = x.name; cols.push(x.col); }
+        if (x.col) { v[x.col] = v[x.key]; if (!(x.col in base)) base[x.col] = base[x.key] || ""; }
+        delete v[x.key];
       }
       const row = rows[byNum[rn]], cells = rowCells(row.xml), open = row.xml.slice(0, row.xml.indexOf(">") + 1).replace(/\/>$/, ">");
       const prevRow = (() => { for (let n = rn - 1; n >= 2; n--) if (byNum[n] != null) return rowCells(rows[byNum[n]].xml); return {}; })();
@@ -627,15 +639,10 @@
       results.push({ tmp: ed.tmp, code: ed.code, applied, conflicts });
     }
     if (!changed) return { changed: 0, results };
-    if (newSdiCol) {
-      await addTableColumn(zip, path, rows, byNum, newSdiCol, "Codice univoco");
-      if (lists) lists.clientCols = cols.map((c) => ({ c, h: hdr[c] }));
-    }
+    for (const x of newCols) await addTableColumn(zip, path, rows, byNum, x.col, x.name);
+    if (newCols.length && lists) lists.clientCols = cols.map((c) => ({ c, h: hdr[c] }));
     xml = head + rows.map((x) => x.xml).join("") + tail;
-    if (newSdiCol) {
-      xml = xml.replace(/(<dimension ref="[A-Z]+\d+:)([A-Z]+)(\d+)/, (all, pre, col, n) => (colIdx(col) < colIdx(newSdiCol) ? pre + newSdiCol + n : all));
-      if (/<cols>/.test(xml) && !new RegExp('<col [^>]*min="' + colIdx(newSdiCol) + '"').test(xml)) xml = xml.replace("</cols>", '<col min="' + colIdx(newSdiCol) + '" max="' + colIdx(newSdiCol) + '" width="16" customWidth="1"/></cols>');
-    }
+    xml = widenSheet(xml, newCols);
     return { changed, results, xml, path };
   }
 
@@ -680,5 +687,6 @@
   async function lists(buf) { const zip = await openZip(buf); const sstF = zip.file("xl/sharedStrings.xml"); const sst = sstF ? parseSST(await readText(zip, "xl/sharedStrings.xml")) : []; const out = await readLists(zip, sst); if (zip._agendaTooBig) throw { code: "toobig" }; return out; }
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).fatturato = "3.0";
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).fatturato = "3.0.4"; // 3.0.4: colonna «Nazione» nel foglio clienti
   window.FAT = { apply, lists, COLS, colIdx, xEsc, openZip, readText, wholeSheet, balanced };
 })();

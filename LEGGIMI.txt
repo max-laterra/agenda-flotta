@@ -1,9 +1,108 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 3.0.3 (27/10/2026)
+AGENDA FLOTTA LA TERRA – VERSIONE 3.0.4 (30/10/2026)
 ===================================================
 La versione in uso si vede nell'app: in alto accanto a "Sincronizzato",
 nella schermata di accesso e nel Menu. Deve corrispondere a quella di questo file.
 
-COME AGGIORNARE ALLA 3.0.3 DALLA 3.0, 3.0.1 O 3.0.2 (2 minuti, solo 5 file)
+COME AGGIORNARE ALLA 3.0.4 DALLA 3.0.3 (2 minuti, solo 5 file)
+--------------------------------------------------------------
+Serve la 3.0.3 già su GitHub (in alto nell'agenda "v3.0.3"). Se hai una versione più vecchia,
+carica prima l'aggiornamento della 3.0.3 (oppure il pacchetto completo della 3.0.4).
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   5 file: app.js, index.html, fatture.js, fatturato.js, LEGGIMI.txt. Niente config.js. Gli altri
+   file restano quelli della 3.0.3 (store.js e autisti.js della 3.0.3 vanno bene così).
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v3.0.4".
+   Se compare "Aggiornamento in corso (…)" è normale per qualche minuto; se resta, su GitHub
+   manca il file scritto tra parentesi.
+3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda. Una pagina rimasta aperta con la
+   versione di prima avvisa da sola e non salva niente finché non la riapri.
+4. Subito dopo: Archivio › Contabilità › Opzioni › "Numerazione delle fatture": scrivi l'ultimo
+   numero di fattura emesso fuori dall'agenda (per esempio 496/00) e l'anno, poi "Salva".
+
+NOVITÀ DELLA 3.0.4: FATTURE A CLIENTI ESTERI
+--------------------------------------------
+- Campo "Nazione" (bozza di fattura e anagrafica clienti): si scrive il NOME del paese in
+  italiano (es. Stati Uniti, Germania, Malta) oppure la sigla (US, DE, MT); vanno bene anche
+  "usa", "Inghilterra", "Olanda" e i nomi in inglese. Mentre scrivi si apre l'elenco delle
+  nazioni. Nella bozza accanto al nome compare la sigla; nel file fatturato e nel file XML va
+  sempre la sigla di 2 lettere. Un nome che non esiste non si salva: compare l'avviso "Non
+  riconosco la nazione…" e resta la nazione di prima.
+- Bozza di fattura: con una nazione diversa da Italia la bozza diventa "cliente estero":
+  · "Partita IVA estera" (sigla del paese + numero; la sigla scritta anche davanti al numero
+    si toglie da sola);
+  · "Identificativo fiscale" al posto del codice fiscale, solo se il cliente non ha la partita
+    IVA (fino a 28 caratteri);
+  · "CAP estero" e "Città"; niente provincia, niente PEC, niente "Ente pubblico";
+  · "Codice destinatario" di serie XXXXXXX (si può cambiare: serve solo se il cliente ha un
+    codice italiano).
+- Nel file XML (FAQ dell'Agenzia delle Entrate n. 63 del 19/07/2019): codice destinatario
+  XXXXXXX, IdPaese = sigla del paese, IdCodice = partita IVA (o identificativo), CAP 00000 con il
+  CAP del paese estero scritto nell'indirizzo, niente provincia, Nazione = sigla. Anteprima e
+  stampa mostrano gli stessi dati.
+- Anagrafica clienti: nuovo campo "Nazione" (vuoto = Italia). Il foglio "clienti" del
+  file fatturato non aveva questa colonna: la prima volta che salvi una nazione l'agenda aggiunge
+  la colonna "Nazione" in fondo alla tabella (come aveva fatto con il codice univoco), senza
+  toccare il resto del file. La bozza prende la nazione da lì (anche se nel file qualcuno
+  ha scritto il nome a mano, es. "Stati Uniti") oppure dalla "Partita IVA estera". Per un cliente estero il CAP può avere anche lettere (es. VLT 1117).
+- Aliquote IVA: restano quelle della Contabilità. Per i servizi a clienti esteri decidete con il
+  commercialista quale aliquota o natura usare.
+
+NOVITÀ DELLA 3.0.4: NUMERO DELLA FATTURA PROPOSTO
+------------------------------------------------
+- Ogni bozza nuova ha già il numero proposto: il più alto dell'anno tra le fatture e bozze
+  dell'agenda e l'"ultimo numero emesso fuori dall'agenda" (Contabilità › Opzioni), più uno,
+  con la stessa forma: dopo 496/00 viene 497/00. Si può sempre cambiare. Anno nuovo: si
+  riparte da 1 con la stessa forma (1/00).
+- Nelle bozze senza numero, accanto a "Numero" c'è "usa 497/00": un clic e lo scrive.
+- Se il numero è già di una fattura emessa dello stesso anno: errore ("Il numero 497/00 è già
+  della fattura emessa «…»: usa 498/00") e "Crea file XML" resta spento. Se è di un'altra bozza
+  non ancora emessa: solo un avviso.
+
+NOVITÀ DELLA 3.0.4: "SCARICA ANTEPRIMA"
+---------------------------------------
+- Nella bozza di fattura, accanto a "Stampa anteprima", il pulsante "Scarica anteprima" salva
+  subito un PDF dell'anteprima (stessa disposizione della fattura dell'Agenzia delle Entrate),
+  per esempio "Anteprima fattura 497-00 nome_cliente.pdf". In fondo alla pagina c'è scritto che
+  il documento valido è il file XML trasmesso al Sistema di Interscambio.
+
+NOVITÀ DELLA 3.0.4: LE PRENOTAZIONI SENZA CLIENTE NON VANNO NEL REGISTRO
+-----------------------------------------------------------------------
+- Finché una prenotazione è senza cliente, nel registro attività non si scrive niente: né la
+  creazione, né le modifiche, né la conferma o la rimessa in sospeso con il clic sul "?", né
+  l'eliminazione (anche quella automatica della pulizia di mezzanotte).
+- Quando inserisci il cliente si scrive "Modificata la prenotazione «Cliente» … Cliente: — →
+  Cliente" e da lì in poi tutto va nel registro come sempre.
+- Una prenotazione che aveva il cliente e a cui lo togli: la modifica si scrive (era una
+  prenotazione vera). Le prenotazioni con il cliente funzionano come prima.
+- Le prenotazioni senza cliente create prima della 3.0.3 che hanno già il n. foglio restano
+  come sono (scelta del 28/10).
+
+CORREZIONI DELLA 3.0.4: TARGA E ID MEZZO NEI FOGLI INVIATI DA MAX
+-----------------------------------------------------------------
+- Quando MAX (profilo "solo anteprima e invio") invia un foglio all'autista, il foglio ha
+  SEMPRE la targa e l'ID mezzo (casella "Numero"), sia con "Invia" dall'elenco sia
+  dall'anteprima. Nel suo profilo la spunta "Nascondi Targa e ID Mezzo" non c'è più e
+  l'anteprima li fa vedere.
+- In ufficio non cambia niente: la spunta resta, di serie spuntata, e chi invia sceglie.
+- I fogli già inviati da MAX senza targa restano com'erano: per far arrivare la targa
+  all'autista, MAX li invia di nuovo ("Invia di nuovo all'autista").
+
+CORREZIONI DELLA 3.0.4: MARGINI DELLA STAMPA CON GLI ALLEGATI
+-------------------------------------------------------------
+- Il foglio stampato insieme agli allegati ha gli stessi margini e la stessa grandezza della
+  stampa normale (margini di 10 mm; un foglio lungo, rimpicciolito per stare in una pagina,
+  resta centrato come nella stampa normale). Vale anche per "Salva PDF", per la copia in
+  Dropbox e per il PDF che arriva all'autista. La pagina 2 (programma completo) ha gli stessi
+  margini e caratteri della stampa normale.
+- Il PDF da stampare chiede a Chrome di stampare a grandezza reale: prima Chrome lo
+  rimpiccioliva per farlo stare nell'area stampabile quando c'erano pagine di misure diverse
+  (foto orizzontali, PDF in formato lettera).
+- Solo nella stampa, le pagine degli allegati diventano tutte A4 verticali: quelle orizzontali
+  girate, quelle più grandi rimpicciolite, tutte dentro 5 mm dal bordo (così la stampante non
+  taglia niente). Nel PDF che arriva all'autista gli allegati restano nelle loro misure.
+- Se nella finestra di stampa di Chrome i margini ti sembrano ancora diversi, controlla in
+  "Altre impostazioni" che "Scala" sia "Predefinita".
+
+COME SI AGGIORNAVA ALLA 3.0.3 DALLA 3.0, 3.0.1 O 3.0.2 (storico, 5 file)
 -------------------------------------------------------------------------------
 Serve la 3.0 (o la 3.0.1, o la 3.0.2) già su GitHub: in alto nell'agenda "v3.0", "v3.0.1" o
 "v3.0.2". Se hai una versione più vecchia, carica prima lo zip completo della 3.0 (oppure il
@@ -370,7 +469,7 @@ NOVITÀ DELLA 2.8 (per la 2.9 cambia il punto 2: la copia in Dropbox ora si salv
   stampa, PDF, copia in Dropbox e foglio inviato all'autista sono senza targa e senza ID mezzo.
   Per farli vedere togli la spunta prima di stampare o inviare.
 - Un foglio già inviato, riaprendolo, riparte da com'era all'invio. Anche il capo, al primo
-  invio, parte con targa e ID nascosti.
+  invio, parte con targa e ID nascosti. (Dalla 3.0.4 MAX invia sempre con targa e ID mezzo.)
 
 3. BARRA FERMA IN ALTO (vista Giorno e vista Settimana)
 - Scorrendo restano fermi i pulsanti, la riga dei giorni del mese e la barra grigia con data e

@@ -60,7 +60,7 @@
         { id: "pasti", nome: "Rimborso pasti autista", uso: "pasti", testo: "RIMBORSO SPESE ANTICIPATE PER PASTI LIBERI AUTISTA", aliq: "iva10" },
       ],
       mezzi: { bus: "PULLMAN DA {POSTI} POSTI", van: "MINIVAN DA {POSTI} POSTI", auto: "AUTO" },
-      opzioni: { lordi: true, maiuscole: true, tipo: "TD01", mod: "MP05", cond: "TP02", giorni: 0, giorniPA: 30, splitPA: true, scontoPerc: 0, arrot: "no", arrotVerso: "vicino", bolloImporto: 2 },
+      opzioni: { lordi: true, maiuscole: true, tipo: "TD01", mod: "MP05", cond: "TP02", giorni: 0, giorniPA: 30, splitPA: true, scontoPerc: 0, arrot: "no", arrotVerso: "vicino", bolloImporto: 2, ultimoNum: "", ultimoAnno: 0 },
     };
   }
   const ID_RE = /^[A-Za-z0-9_-]{1,24}$/;
@@ -101,6 +101,8 @@
     const sp = numOr(p.scontoPerc, 0); O.scontoPerc = sp >= 0 && sp <= 100 ? Math.round(sp * 100) / 100 : 0;
     O.arrot = has(ARROT, str(p.arrot, 6)) ? str(p.arrot, 6) : "no"; O.arrotVerso = has(VERSI, p.arrotVerso) ? p.arrotVerso : "vicino";
     const bi = numOr(p.bolloImporto, 2); O.bolloImporto = bi >= 0 && bi <= 100 ? r2(bi) : 2;
+    // 3.0.4: ultimo numero di fattura emesso fuori dall'agenda (programma di contabilità) e il suo anno: serve per proporre il numero
+    O.ultimoNum = str(p.ultimoNum, 20).trim(); const ua = Math.round(numOr(p.ultimoAnno, 0)); O.ultimoAnno = ua >= 2000 && ua <= 2099 ? ua : 0;
     o.opzioni = O;
     return o;
   }
@@ -112,7 +114,10 @@
     c = isObj(c) ? c : {}; const o = {};
     for (const k of CLI) o[k] = str(c[k], 200).trim();
     o.paese = /^[A-Z]{2}$/.test(up(o.paese)) ? up(o.paese) : "IT"; o.nazione = /^[A-Z]{2}$/.test(up(o.nazione)) ? up(o.nazione) : "IT";
-    o.prov = up(o.prov).slice(0, 2); o.sdi = up(o.sdi).replace(/\s+/g, "").slice(0, 7); o.piva = o.piva.replace(/\s+/g, "").slice(0, 28); o.cf = up(o.cf).replace(/\s+/g, "").slice(0, 16);
+    o.prov = up(o.prov).slice(0, 2); o.sdi = up(o.sdi).replace(/\s+/g, "").slice(0, 7); o.piva = up(o.piva).replace(/[\s.\-]+/g, "").slice(0, 28);
+    // 3.0.4: cliente estero: al posto del codice fiscale un identificativo del suo paese (fino a 28 caratteri), CAP del suo paese
+    if (/^[A-Z]{2}/i.test(o.piva) && up(o.piva).slice(0, 2) === o.paese) o.piva = o.piva.slice(2); // la sigla del paese scritta anche davanti al numero
+    const est = o.nazione !== "IT"; o.cf = up(o.cf).replace(/\s+/g, "").slice(0, est ? 28 : 16); o.cap = o.cap.slice(0, 12); if (est) o.prov = "";
     o.pa = !!c.pa;
     return o;
   }
@@ -331,14 +336,25 @@
     else if (!/\d/.test(d.numero)) err("Il numero della fattura deve contenere almeno una cifra.");
     if (!latin(c.nome)) err("Cliente: manca la denominazione (servono lettere dell'alfabeto latino).");
     if (!two(c.nazione)) err("Cliente: la nazione è la sigla di 2 lettere (IT per l'Italia).");
-    if (c.piva && !two(c.paese)) err("Cliente: davanti alla partita IVA serve la sigla del paese (IT).");
-    if (!c.piva && !c.cf) err("Cliente: serve la partita IVA o il codice fiscale.");
-    if (c.piva && c.paese === "IT" && !/^\d{11}$/.test(c.piva)) err("Cliente: la partita IVA italiana ha 11 cifre.");
-    if (c.cf && !/^[A-Z0-9]{11,16}$/.test(c.cf)) err("Cliente: il codice fiscale ha 11 cifre (enti e società) o 16 caratteri (persone).");
-    if (!latin(c.indirizzo)) err("Cliente: manca l'indirizzo."); if (!latin(c.comune)) err("Cliente: manca il comune.");
+    const est = two(c.nazione) && c.nazione !== "IT";
+    if (est) {
+      // 3.0.4: cliente estero (FAQ dell'Agenzia delle Entrate n. 63 del 19/07/2019): codice destinatario XXXXXXX,
+      // identificativo fiscale del paese estero (fino a 28 caratteri), CAP 00000, niente provincia
+      if (c.piva && !two(c.paese)) err("Cliente estero: davanti alla partita IVA serve la sigla del paese (es. MT, DE, FR).");
+      if (!c.piva && !c.cf) err("Cliente estero: scrivi la partita IVA del suo paese o un altro identificativo fiscale (fino a 28 caratteri).");
+      if (c.piva && c.paese === "IT" && !/^\d{11}$/.test(c.piva)) err("Cliente: la partita IVA italiana ha 11 cifre.");
+      if (c.cf && !/^[A-Z0-9]{1,28}$/.test(c.cf)) err("Cliente estero: l'identificativo fiscale ha solo lettere e numeri (fino a 28).");
+    } else {
+      if (c.piva && !two(c.paese)) err("Cliente: davanti alla partita IVA serve la sigla del paese (IT).");
+      if (!c.piva && !c.cf) err("Cliente: serve la partita IVA o il codice fiscale.");
+      if (c.piva && c.paese === "IT" && !/^\d{11}$/.test(c.piva)) err("Cliente: la partita IVA italiana ha 11 cifre.");
+      if (c.cf && !/^[A-Z0-9]{11,16}$/.test(c.cf)) err("Cliente: il codice fiscale ha 11 cifre (enti e società) o 16 caratteri (persone).");
+    }
+    if (!latin(c.indirizzo)) err("Cliente: manca l'indirizzo."); if (!latin(c.comune)) err(est ? "Cliente estero: manca la città." : "Cliente: manca il comune.");
     if (c.nazione === "IT") { if (!c.cap) warn("Cliente: senza CAP nel file viene scritto 00000."); else if (!/^\d{5}$/.test(c.cap)) err("Cliente: il CAP ha 5 cifre."); if (!/^[A-Z]{2}$/.test(c.prov)) warn("Cliente: manca la provincia (sigla di 2 lettere)."); }
-    if (c.pa) { if (!/^[A-Z0-9]{6}$/.test(c.sdi)) err("Ente pubblico: il codice univoco ufficio ha 6 caratteri."); if (!d.pa.cig) warn("Ente pubblico: di solito serve il CIG."); }
+    if (c.pa) { if (est) err("Un cliente estero non può essere un ente pubblico italiano: togli la spunta «Ente pubblico»."); if (!/^[A-Z0-9]{6}$/.test(c.sdi)) err("Ente pubblico: il codice univoco ufficio ha 6 caratteri."); if (!d.pa.cig) warn("Ente pubblico: di solito serve il CIG."); }
     else if (c.sdi && !/^[A-Z0-9]{7}$/.test(c.sdi)) err("Cliente: il codice destinatario ha 7 caratteri (6 per gli enti pubblici).");
+    else if (est && c.sdi && c.sdi !== "XXXXXXX") warn("Cliente estero con codice destinatario " + c.sdi + ": va bene solo se ha un codice italiano; di solito è XXXXXXX.");
     else if (c.nazione === "IT" && !c.sdi && !c.pec) warn("Cliente senza codice destinatario né PEC: nel file va 0000000 e la fattura gli arriva solo nell'area riservata dell'Agenzia delle Entrate.");
     if (c.pec && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.pec)) err("Cliente: la PEC non è un indirizzo valido.");
     if ((d.pa.ordNum || d.pa.cig || d.pa.cup) && !d.pa.ordNum) warn("Ordine / CIG: senza numero d'ordine nel file viene scritto il CIG al suo posto.");
@@ -380,17 +396,37 @@
   // il progressivo dopo (se in Dropbox c'è già un file con quel nome) e quello scritto nel nome di un file già creato
   const nextProg = (p) => base36(parseInt(String(p || "0"), 36) + 1, 5);
   const progOf = (name) => { const m = /^[A-Z]{2}[A-Za-z0-9]{1,28}_([A-Z0-9]{5})\.xml$/.exec(String(name || "")); return m ? m[1] : ""; };
+  // codice destinatario scritto nel file: ente pubblico il suo codice ufficio; estero XXXXXXX (o il codice scritto,
+  // se ha un codice italiano); Italia il codice scritto o 0000000 (con la PEC se c'è)
+  const destOf = (c) => (c.pa ? c.sdi : c.nazione !== "IT" ? (/^[A-Z0-9]{7}$/.test(c.sdi) ? c.sdi : "XXXXXXX") : /^[A-Z0-9]{7}$/.test(c.sdi) ? c.sdi : "0000000");
+  // 3.0.4: numero della fattura proposto. Il più alto dell'anno tra le fatture dell'agenda e l'ultimo numero emesso fuori
+  // (Contabilità), più uno, con la stessa forma: «496/00» → «497/00», «0099» → «0100». Anno nuovo: da 1, stessa forma.
+  function parseNumero(s) { const m = /^(\D*?)(\d+)(.*)$/.exec(String(s == null ? "" : s).trim()); return m ? { pre: m[1], n: Number(m[2]), w: m[2].length, suf: m[3] } : null; }
+  function nextNumero(list, year, extra) {
+    year = String(year || ""); let best = null, last = null;
+    const look = (num, y, when) => {
+      const p = parseNumero(num); if (!p || !isFinite(p.n)) return;
+      if (String(y) === year && (!best || p.n > best.n)) best = p;
+      if (!last || String(when || "") > last.when) last = { p, when: String(when || "") };
+    };
+    for (const x of Array.isArray(list) ? list : []) if (x && okDate(x.data)) look(x.numero, x.data.slice(0, 4), x.data);
+    if (extra && extra.numero && extra.anno) look(extra.numero, extra.anno, String(extra.anno) + "-12-31");
+    const shape = best || (last && last.p) || { pre: "", n: 0, w: 1, suf: "" }, n = best ? best.n + 1 : 1;
+    return (shape.pre + String(n).padStart(best ? shape.w : 1, "0") + shape.suf).slice(0, 20);
+  }
   const numeroDoc = (d) => { const n = latin(d.numero, 20); if (n) return n; const f = (d.servizi && d.servizi[0] && d.servizi[0].foglio) || ""; return ("BOZZA " + (String(f).replace(/\D/g, "") || "0")).slice(0, 20); };
   // solo le cifre del telefono, senza il prefisso dell'Italia scritto come +39 o 0039
   const telDigits = (t) => String(t || "").trim().replace(/^(\+|00)39/, "").replace(/[^\d]/g, "");
   function sede(o) {
     const it = o.nazione === "IT";
+    // 3.0.4: estero: CAP 00000 e il CAP del paese estero nell'indirizzo (FAQ AdE n. 63)
+    if (!it && latin(o.cap) && !/^0+$/.test(o.cap)) o = Object.assign({}, o, { indirizzo: (latin(o.indirizzo) + " " + latin(o.cap)).trim() });
     return el("Indirizzo", o.indirizzo, 60) + el("NumeroCivico", o.civico, 8) + "<CAP>" + (it && /^\d{5}$/.test(o.cap) ? o.cap : "00000") + "</CAP>" + el("Comune", o.comune, 60) + (it && /^[A-Z]{2}$/.test(o.prov) ? "<Provincia>" + o.prov + "</Provincia>" : "") + "<Nazione>" + o.nazione + "</Nazione>";
   }
   function xml(d, C, o) {
     o = o || {}; const A = C.azienda, c = d.cliente, k = calc(d, C), pa = !!c.pa, fmt = pa ? "FPA12" : "FPR12";
     const foreign = c.nazione !== "IT";
-    const dest = pa ? c.sdi : foreign ? "XXXXXXX" : /^[A-Z0-9]{7}$/.test(c.sdi) ? c.sdi : "0000000";
+    const dest = destOf(c);
     const prog = /^[A-Z0-9]{1,10}$/.test(o.prog || "") ? o.prog : progressivo(o.when);
     // telefono: da 5 a 12 cifre (senza il prefisso internazionale dell'Italia); altrimenti non si scrive
     let tel = telDigits(A.tel); if (tel.length < 5 || tel.length > 12) tel = "";
@@ -401,7 +437,12 @@
     x += grp("CedentePrestatore", grp("DatiAnagrafici", grp("IdFiscaleIVA", el("IdPaese", A.paese) + el("IdCodice", A.piva, 28)) + el("CodiceFiscale", A.cf, 16) + grp("Anagrafica", el("Denominazione", A.nome, 80)) + "<RegimeFiscale>" + A.regime + "</RegimeFiscale>") + grp("Sede", sede(A)) +
       (/^[A-Z]{2}$/.test(up(A.reaUfficio).trim()) && latin(A.reaNumero) ? grp("IscrizioneREA", "<Ufficio>" + up(A.reaUfficio).trim() + "</Ufficio>" + el("NumeroREA", A.reaNumero, 20) + (numOr(A.capitale, 0) > 0 ? "<CapitaleSociale>" + amt(numOr(A.capitale, 0)) + "</CapitaleSociale>" : "") + (A.socioUnico ? "<SocioUnico>" + A.socioUnico + "</SocioUnico>" : "") + "<StatoLiquidazione>" + A.liquidazione + "</StatoLiquidazione>") : "") +
       grp("Contatti", (tel ? "<Telefono>" + tel + "</Telefono>" : "") + (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(A.email) ? el("Email", A.email, 256) : "")));
-    x += grp("CessionarioCommittente", grp("DatiAnagrafici", (c.piva ? grp("IdFiscaleIVA", el("IdPaese", c.paese) + el("IdCodice", c.piva, 28)) : "") + el("CodiceFiscale", c.cf, 16) + grp("Anagrafica", el("Denominazione", c.nome, 80))) + grp("Sede", sede(c)));
+    // 3.0.4: cliente estero senza partita IVA: l'identificativo del suo paese va in IdCodice (con la sigla della nazione)
+    // e, per il consumatore finale, anche in CodiceFiscale se ne ha la forma (FAQ AdE n. 63)
+    const fid = foreign && !c.piva && c.cf ? c.cf : "", fpa = foreign && (!c.piva || c.paese === "IT") ? c.nazione : c.paese;
+    const idf = c.piva ? grp("IdFiscaleIVA", el("IdPaese", fpa) + el("IdCodice", c.piva, 28)) : fid ? grp("IdFiscaleIVA", el("IdPaese", c.nazione) + el("IdCodice", fid, 28)) : "";
+    const cfx = foreign ? (/^[A-Z0-9]{11,16}$/.test(c.cf) ? el("CodiceFiscale", c.cf, 16) : "") : el("CodiceFiscale", c.cf, 16);
+    x += grp("CessionarioCommittente", grp("DatiAnagrafici", idf + cfx + grp("Anagrafica", el("Denominazione", c.nome, 80))) + grp("Sede", sede(c)));
     x += "</FatturaElettronicaHeader><FatturaElettronicaBody>";
     // dati generali
     const ord = d.pa.ordNum || d.pa.cig || d.pa.cup ? grp("DatiOrdineAcquisto", el("IdDocumento", d.pa.ordNum || d.pa.cig || d.pa.cup, 20) + (okDate(d.pa.ordData) ? "<Data>" + d.pa.ordData + "</Data>" : "") + el("CodiceCUP", d.pa.cup, 15) + el("CodiceCIG", d.pa.cig, 15)) : "";
@@ -427,7 +468,7 @@
     return { xml: x, name: A.paese + latin(A.piva, 28).replace(/[^A-Za-z0-9]/g, "") + "_" + prog + ".xml", prog, formato: fmt, calc: k };
   }
 
-  const API = { VERSION: "3.0", REGIMI, NATURE, TIPI_DOC, TIPI_SCELTA, causaleRow, causaleApart, parkLines, extraLines, MOD_PAG, COND_PAG, USI, ARROT, VERSI, defaults, cleanContab, cleanDraft, cleanCliente, newDraft, linesFor, lineFromService, fill, mezzo, periodo, mesi, calc, validate, xml, latin, isPA, okDate, addDays, itLong, itShort, newId, r2, amt, numOr, progressivo, nextProg, progOf, numeroDoc };
+  const API = { VERSION: "3.0.4", REGIMI, NATURE, TIPI_DOC, TIPI_SCELTA, causaleRow, causaleApart, parkLines, extraLines, MOD_PAG, COND_PAG, USI, ARROT, VERSI, defaults, cleanContab, cleanDraft, cleanCliente, newDraft, linesFor, lineFromService, fill, mezzo, periodo, mesi, calc, validate, xml, latin, isPA, okDate, addDays, itLong, itShort, newId, r2, amt, numOr, progressivo, nextProg, progOf, numeroDoc, destOf, parseNumero, nextNumero };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
-  if (root) { root.FATTURE = API; if (root.document) (root.AGENDA_FILES = root.AGENDA_FILES || {}).fatture = "3.0"; }
+  if (root) { root.FATTURE = API; if (root.document) { (root.AGENDA_FILES = root.AGENDA_FILES || {}).fatture = "3.0"; (root.AGENDA_PATCH = root.AGENDA_PATCH || {}).fatture = "3.0.4"; } } // 3.0.4: clienti esteri, numero proposto
 })(typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null);
