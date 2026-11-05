@@ -425,6 +425,8 @@
       if ("xcat" in v) o.xcat = txt(v.xcat, 60);
       if ("num" in v) o.num = txt(v.num, 20);
       if ("ord" in v) { const r = Number(v.ord); if (isFinite(r)) o.ord = r; else delete o.ord; }
+      // 3.0.5: gone = dal giorno in cui il mezzo è eliminato (venduto); from = dal giorno in cui c'è (mezzo aggiunto)
+      for (const k of ["gone", "from"]) { if (k in v) { const d = txt(v[k], 10); if (/^\d{4}-\d{2}-\d{2}$/.test(d)) o[k] = d; else delete o[k]; } }
       out.push(o);
     }
     return out;
@@ -971,8 +973,9 @@
   // ---------- configurazione ----------
   async function putJSON(path, obj) { await DBX.upload(path, enc.encode(JSON.stringify(obj, null, 1)), "overwrite"); }
   // Flotta: si applicano solo i campi cambiati (per id del mezzo) sull'ultima versione in Dropbox.
-  // patches: {idMezzo: {name, seats, plate, xcat}} ; base: flotta da usare se in Dropbox non c'è ancora.
-  async function patchFleet(patches, base) {
+  // patches: {idMezzo: {name, seats, plate, xcat, gone}} ; base: flotta da usare se in Dropbox non c'è ancora.
+  // adds (3.0.5): mezzi nuovi, con un id mai usato. I mezzi non si tolgono mai dal file: si eliminano con gone.
+  async function patchFleet(patches, base, adds) {
     noRO();
     if (!navigator.onLine) throw { code: "offline" };
     const path = P.cfg + "/flotta.json";
@@ -986,7 +989,9 @@
       for (const id in patches) {
         const v = vehicles.find((x) => x.id === id); if (!v) continue;
         for (const k in patches[id]) { if (!same(v[k], patches[id][k])) { v[k] = patches[id][k]; if (["plate", "xcat", "seats"].includes(k) && !changedIds.includes(id)) changedIds.push(id); } }
+        if (v.gone === "") delete v.gone; // rimesso in flotta
       }
+      for (const a of Array.isArray(adds) ? adds : []) if (a && a.id && !vehicles.some((x) => x.id === a.id)) vehicles.push(clone(a));
       try {
         await DBX.upload(path, enc.encode(JSON.stringify({ vehicles }, null, 1)), f ? { update: f.meta.rev } : "add");
       } catch (e) { if (e.code === "conflict") continue; throw e; }
@@ -1410,7 +1415,7 @@
   }
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "3.0";
-  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "3.0.3"; // 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "3.0.5"; // 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
   window.STORE = {
     BASE, P,
     saveAttachment, readAttachment, removeAttachment, cleanAtt, ATT_MAX,

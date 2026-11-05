@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="3.0.4",APP_DATE="30/10/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="3.0.5",APP_DATE="05/11/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
@@ -14,7 +14,7 @@ const APP_VERSION="3.0.4",APP_DATE="30/10/2026";window.AGENDA_VERSION=APP_VERSIO
 // 3.0.4: aggiornamento parziale (app.js, index.html, fatture.js, fatturato.js): le prenotazioni senza cliente non vanno
 //        nel registro attività; fatture a clienti esteri, numero della fattura proposto, «Scarica anteprima» (PDF).
 //        store.js e autisti.js restano quelli della 3.0.3.
-const APP_FAMILY="3.0",APP_PATCH={index:"3.0.4",store:"3.0.3",autisti:"3.0.3",fatture:"3.0.4",fatturato:"3.0.4"};
+const APP_FAMILY="3.0",APP_PATCH={index:"3.0.5",store:"3.0.5",autisti:"3.0.3",fatture:"3.0.4",fatturato:"3.0.4"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -248,6 +248,19 @@ function byDay(){
 const dayList=ds=>byDay()[ds]||[];
 function on(date,vid,list){return (list?list.filter(b=>b.start<=date&&endOf(b)>=date):dayList(date)).filter(b=>b.vehicle===vid).sort((a,b)=>(a.time||"99").localeCompare(b.time||"99"));}
 function vehicle(id){return S.fleet.find(v=>v.id===id)||(isXbus(id)?xbVeh(id):undefined);}
+// 3.0.5: mezzi eliminati (venduti) e mezzi aggiunti. Un mezzo eliminato resta nell'elenco con i suoi dati (v.gone = dal
+// giorno in cui non è più in flotta): prenotazioni, fogli di servizio, fatturato e fatture di prima restano come sono.
+// v.from = dal giorno in cui c'è (mezzo aggiunto). Nelle viste un mezzo compare nei giorni in cui è in flotta e, fuori da
+// quei giorni, solo se ha servizi.
+function vOn(v,ds){return !!v&&(!v.from||!ds||ds>=v.from)&&(!v.gone||!ds||ds<v.gone);}
+function fleetOn(ds){return S.fleet.filter(v=>vOn(v,ds));}
+function fleetRows(days){
+  days=[].concat(days);const used=new Set();
+  for(const ds of days)for(const b of dayList(ds))used.add(b.vehicle);
+  return S.fleet.filter(v=>used.has(v.id)||days.some(ds=>vOn(v,ds)));
+}
+const vOffNote=(v,ds)=>vOn(v,ds)?"":v.gone&&ds>=v.gone?"eliminato dal "+itD(v.gone):v.from?"in flotta dal "+itD(v.from):"";
+const vOffTag=(v,ds)=>{const n=vOffNote(v,ds);return n?'<small class="v-off" title="Mezzo '+esc(n)+': compare qui perché ha servizi">'+esc(n)+'</small>':"";};
 // ---------- extra bus (2.8): bus di altre aziende che fanno un nostro servizio, aggiunti giorno per giorno ----------
 // Nella giornata (giorni/…json, campo xbus) c'è l'elenco degli extra bus di quel giorno; la prenotazione su un extra
 // bus ha vehicle "xb:<id>" e una copia dei dati (b.xbus: azienda, posti, targa), così si vede anche negli altri
@@ -289,15 +302,16 @@ function renderWeek(){
     '<div class="sright"><div class="nav"><button id="wPrev" aria-label="Settimana precedente">‹</button><button id="wNext" aria-label="Settimana successiva">›</button></div></div>';
   let h='<colgroup><col class="vcol" style="width:'+(vehColW(13.5)+14)+'px">'+days.map(()=>"<col>").join("")+'</colgroup><thead><tr><th class="vc">Mezzo</th>';
   for(const ds of days){
-    const w=wday(ds),busy=new Set(dayList(ds).filter(b=>!isXbus(b.vehicle)).map(b=>b.vehicle)).size;
-    h+='<th class="'+(w===0?"sun ":"")+(ds===t?"today ":"")+(ds===S.sel?"sel":"")+'" data-goday="'+ds+'" title="Apri la giornata"><span class="wdn">'+WDL[w]+'</span><span class="dnum">'+parse(ds).getUTCDate()+" "+MN[parse(ds).getUTCMonth()].slice(0,3)+'</span><span class="occ">'+busy+"/"+S.fleet.length+' impegnati'+(()=>{const rp=riposoNames(ds);return rp.length?'<b class="rp-n" title="'+esc("A riposo: "+rp.map(x=>x.n).join(", "))+'">'+rp.length+'</b>':"";})()+'</span></th>';
+    // 3.0.5: «x/26 impegnati» non più sotto la data (è nella riga «Mezzi impegnati» in fondo); resta il numerino degli autisti a riposo
+    const w=wday(ds);
+    h+='<th class="'+(w===0?"sun ":"")+(ds===t?"today ":"")+(ds===S.sel?"sel":"")+'" data-goday="'+ds+'" title="Apri la giornata"><span class="wdn">'+WDL[w]+'</span><span class="dnum">'+parse(ds).getUTCDate()+" "+MN[parse(ds).getUTCMonth()].slice(0,3)+'</span>'+(()=>{const rp=riposoNames(ds);return rp.length?'<span class="occ"><b class="rp-n" title="'+esc("A riposo: "+rp.map(x=>x.n).join(", "))+'">'+rp.length+'</b> a riposo</span>':"";})()+'</th>';
   }
   h+='</tr></thead><tbody>';
   // 2.8: in fondo gli extra bus della settimana (altre aziende); «+ Aggiungi» solo nei giorni in cui ci sono
   const xbw=new Map();for(const ds of days)for(const x of dayXbus(ds)){if(!xbw.has(x.vid))xbw.set(x.vid,{def:x.def,days:new Set()});xbw.get(x.vid).days.add(ds);}
-  const rowsV=S.fleet.map(v=>({v,xb:null})).concat([...xbw].map(([vid,o])=>({v:xbVehOf(o.def,vid),xb:o})));
+  const rowsV=fleetRows(days).map(v=>({v,xb:null})).concat([...xbw].map(([vid,o])=>({v:xbVehOf(o.def,vid),xb:o})));
   for(const {v,xb} of rowsV){
-    h+='<tr'+(xb?' class="xbrow"':'')+'><th class="vc"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span></th>';
+    h+='<tr'+(xb?' class="xbrow"':'')+'><th class="vc"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span>'+(xb?"":vOffTag(v,days.find(ds=>!vOn(v,ds))||days[0]))+'</th>';
     for(const ds of days){
       const list=on(ds,v.id);
       let inner="";
@@ -309,12 +323,16 @@ function renderWeek(){
           '<span class="cl">'+esc(dispClient(b))+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(whatToday(b,ds)?'<span class="rt'+(dayProgram(b,ds)?" pg":"")+'">'+esc(whatToday(b,ds))+'</span>':"")+'</button>';
       }
       const canAdd=!S.readOnly&&(!xb||xb.days.has(ds));
-      if(canAdd)inner+='<span class="plus">+ Aggiungi</span>';
-      h+='<td class="wc'+(wday(ds)===0?" sun":"")+'"'+(canAdd?' data-addv="'+esc(v.id)+'" data-addd="'+esc(ds)+'"':'')+'><div class="wcell">'+inner+'</div></td>';
+      // 3.0.5: dove c'è già un servizio il «+» non occupa spazio (compare nell'angolo al passaggio del mouse)
+      if(canAdd)inner+=list.length?'<span class="plus" title="Aggiungi un altro servizio su questo mezzo">+</span>':'<span class="plus">+ Aggiungi</span>';
+      h+='<td class="wc'+(wday(ds)===0?" sun":"")+'"'+(canAdd?' data-addv="'+esc(v.id)+'" data-addd="'+esc(ds)+'"':'')+'><div class="wcell'+(list.length?" has":"")+'">'+inner+'</div></td>';
     }
     h+='</tr>';
   }
-  h+='</tbody><tfoot><tr><th class="vc">Autisti extra</th>';
+  // 3.0.5: sotto i mezzi, quanti mezzi della flotta sono impegnati ogni giorno (come nella vista Mese)
+  h+='</tbody><tfoot><tr class="wk-occ"><th class="vc">Mezzi impegnati</th>';
+  for(const ds of days){const nf=fleetOn(ds).length,p=dayCounts(ds).p;h+='<td class="'+(wday(ds)===0?"sun":"")+(nf&&p>=nf?" full":"")+'" data-goday="'+ds+'" title="'+esc(itD(ds)+": "+p+" su "+nf+" mezzi impegnati · "+Math.max(0,nf-p)+" liberi")+'"><b>'+p+'</b> su '+nf+'</td>';}
+  h+='</tr><tr><th class="vc">Autisti extra</th>';
   for(const ds of days){const ex=(S.days[ds]&&S.days[ds].extra)||"";h+='<td class="'+(wday(ds)===0?"sun":"")+'" data-goday="'+ds+'" title="Apri la giornata per modificare">'+(ex?esc(ex):'<span class="none">Nessuno</span>')+'</td>';}
   h+='</tr></tfoot>';
   $("wgrid").innerHTML=h;
@@ -345,11 +363,11 @@ function missingOf(b){const m=[];if(!b)return m;const P=missPrefs();if(P.mode===
 function missBadge(b,ds){if(!b||!(ds?missOnDate(ds,ds):missOnDate(b.start,endOf(b))))return "";const m=missingOf(b);if(!m.length)return "";const t="Da completare: "+m.join(", ");return '<span class="miss-x" title="'+esc(t)+'" aria-label="'+esc(t)+'">!</span>';}
 function renderMonthBar(){
   const k=mkey(S.sel);$("mTitle").textContent=MN[+k.slice(5,7)-1]+" "+k.slice(0,4);
-  $("fleetCount").textContent=S.fleet.length+" mezzi";
+  $("fleetCount").textContent=fleetOn(S.sel).length+" mezzi";
 }
 let cntOpen=true;try{cntOpen=localStorage.getItem("agenda-conteggi")!=="0";}catch(_){}
 function renderStrip(){
-  const k=mkey(S.sel),n=dim(k),all=bookingsAll(),t=todayISO(),nf=S.fleet.length;
+  const k=mkey(S.sel),n=dim(k),all=bookingsAll(),t=todayISO();
   const wkA=S.view==="week"?weekStart(S.sel):"",wkZ=wkA?addDays(wkA,6):"";
   let g='<div class="lab lg"><button type="button" class="cnt-tg lb" id="cntToggle" aria-expanded="'+cntOpen+'" title="'+(cntOpen?"Nascondi":"Mostra")+' i conteggi (autisti, servizi, mezzi)"><b>G</b><small>giorno</small><i>'+(cntOpen?"▲":"▼")+'</i></button></div>';
   let ra='<div class="lab r2" title="Autisti impegnati"><span class="lb"><b>A</b><small>autisti</small></span></div>';
@@ -358,7 +376,7 @@ function renderStrip(){
   for(let d=1;d<=n;d++){
     const ds=k+"-"+pad(d),w=wday(ds);
     const inwk=wkA&&ds>=wkA&&ds<=wkZ;
-    const c=dayCounts(ds);
+    const c=dayCounts(ds),nf=fleetOn(ds).length; // 3.0.5: i mezzi in flotta quel giorno
     const pct=Math.round(c.p/Math.max(1,nf)*100);
     const when=WDL[w]+" "+d+": ";
     const nm=missOnDate(ds,ds)?dayList(ds).filter(b=>missingOf(b).length).length:0;
@@ -429,7 +447,7 @@ function renderDay(){
       '<div class="grp">'+
         '<div class="stat" title="'+(dc.gen?"di cui "+dc.gen+" da assegnare":"")+'"><b>'+dc.a+'</b><span>Autisti</span></div>'+
         '<div class="stat"><b>'+today.length+'</b><span>Servizi</span></div>'+
-        '<div class="stat" title="'+busy.size+" su "+S.fleet.length+' mezzi"><b>'+busy.size+'</b><span>Mezzi</span></div>'+
+        '<div class="stat" title="'+busy.size+" su "+fleetOn(date).length+' mezzi"><b>'+busy.size+'</b><span>Mezzi</span></div>'+
       '</div>'+
       (tcount.length?'<div class="grp">'+tcount.map(([k,n])=>'<div class="stat"><b>'+n+'</b><span>'+(n===1?TYPES[k]:STAT_LABELS[k])+'</span></div>').join("")+'</div>':'')+
     '</div>'+
@@ -437,10 +455,10 @@ function renderDay(){
   $("sheet").className="sheet"+(w===0?" sun":"");
   $("sheet").style.setProperty("--vehw",vehColW(15)+"px");
   let h="";
-  for(const v of S.fleet){
+  for(const v of fleetRows(date)){ // 3.0.5: i mezzi eliminati solo se quel giorno hanno servizi
     const list=on(date,v.id);
-    h+='<div class="row'+(list.length?" busy":"")+'">'+
-      '<div class="veh"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span></div>'+
+    h+='<div class="row'+(list.length?" busy":"")+(vOn(v,date)?"":" v-offrow")+'">'+
+      '<div class="veh"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span>'+vOffTag(v,date)+'</div>'+
       '<div class="slots">'+(list.length?list.map(b=>bookingHTML(b,date)).join(""):'<span class="free">Libero</span>')+'</div>'+
       (S.readOnly?"<span></span>":'<button class="add" data-add="'+esc(v.id)+'">+ Aggiungi</button>')+
     '</div>';
@@ -471,8 +489,9 @@ function renderMonth(){
   let h='<thead><tr><th class="vc">Mezzo</th>';
   for(let d=1;d<=n;d++){const ds=k+"-"+pad(d),w=wday(ds);h+='<th class="'+(w===0?"sun ":"")+(ds===S.sel?"sel":"")+'" data-day="'+ds+'" style="cursor:pointer">'+WD[w].slice(0,1)+'<span class="n">'+d+'</span></th>';}
   h+='</tr></thead><tbody>';
-  for(const v of S.fleet){
-    h+='<tr><th class="vc"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span></th>';
+  const mdays=[];for(let d=1;d<=n;d++)mdays.push(k+"-"+pad(d));
+  for(const v of fleetRows(mdays)){
+    h+='<tr><th class="vc"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span>'+vOffTag(v,mdays.find(ds=>!vOn(v,ds))||mdays[0])+'</th>';
     for(let d=1;d<=n;d++){
       const ds=k+"-"+pad(d),w=wday(ds),list=on(ds,v.id);
       let inner="",tip=[];
@@ -490,8 +509,9 @@ function renderMonth(){
     }
     h+='</tr>';
   }
-  h+='</tbody><tfoot><tr><th class="vc" style="font-size:11.5px;color:var(--ink-3)">Mezzi liberi</th>';
-  for(let d=1;d<=n;d++){const ds=k+"-"+pad(d);const busy=new Set(dayList(ds).filter(b=>!isXbus(b.vehicle)).map(b=>b.vehicle)).size;h+='<td class="'+(wday(ds)===0?"sun":"")+'">'+(S.fleet.length-busy)+'</td>';}
+  // 3.0.5: «Mezzi impegnati» al posto di «Mezzi liberi» (i liberi restano nel riquadro al passaggio del mouse)
+  h+='</tbody><tfoot><tr><th class="vc" style="font-size:11.5px;color:var(--ink-3)" title="Quanti mezzi della flotta hanno almeno un servizio quel giorno">Mezzi impegnati</th>';
+  for(let d=1;d<=n;d++){const ds=k+"-"+pad(d),nf=fleetOn(ds).length,busy=dayCounts(ds).p;h+='<td class="'+(wday(ds)===0?"sun":"")+(nf&&busy>=nf?" full":"")+'" title="'+esc(itD(ds)+": "+busy+" su "+nf+" mezzi impegnati · "+Math.max(0,nf-busy)+" liberi")+'">'+busy+'</td>';}
   h+='</tr></tfoot>';
   $("mgrid").innerHTML=h;
 }
@@ -515,7 +535,7 @@ let editing=null; // {id,start}
 let formCashWas=false; // la prenotazione aperta aveva anticipo o busta (per svuotarli nel fatturato se vengono tolti)
 function openForm(opts){
   opts=opts||{};memIdx=null; // i suggerimenti ripartono dalle prenotazioni di adesso
-  const b=opts.booking||{type:"gita",vehicle:opts.vehicle||S.fleet[0].id,start:opts.date||S.sel,end:"",time:"",time2:"",client:"",clientCode:"",route:"",event:"",escort:"",pax:"",price:"",driver:GEN1,driver2:"",contact:"",status:"opzione",notes:""}; // (nuova: Gita, in sospeso finché non la confermi)
+  const b=opts.booking||{type:"gita",vehicle:opts.vehicle||(fleetOn(opts.date||S.sel)[0]||S.fleet[0]).id,start:opts.date||S.sel,end:"",time:"",time2:"",client:"",clientCode:"",route:"",event:"",escort:"",pax:"",price:"",driver:GEN1,driver2:"",contact:"",status:"opzione",notes:""}; // (nuova: Gita, in sospeso finché non la confermi)
   editing=opts.booking?{id:b.id,start:b.start,foglio:b.foglio||"",base:b.updatedAt||null,by:b.by||"",byAt:b.byAt||"",updBy:b.updBy||"",updAt:b.updatedAt||""}:null;progReady=false;
   // solo il Master vede chi ha creato e modificato la prenotazione
   const wh=editing&&isMaster()?[editing.by?"Creata da "+editing.by+(editing.byAt?" "+fmtTime(editing.byAt):""):"",editing.updBy?"ultima modifica di "+editing.updBy+(editing.updAt?" "+fmtTime(editing.updAt):""):""].filter(Boolean).join(" · "):"";
@@ -528,7 +548,7 @@ function openForm(opts){
   formXbCur=isXbus(b.vehicle)?{vid:b.vehicle,def:Object.assign({},xbIndex().get(b.vehicle)||{},b.xbus||{})}:null;
   fillVehOpts(b.vehicle,b.start);
   $("t-"+normType(b.type)).checked=true;
-  $("f-vehicle").value=b.vehicle;if(!$("f-vehicle").value&&S.fleet[0])$("f-vehicle").value=S.fleet[0].id;$("f-start").value=b.start;$("f-end").value=(b.end&&b.end>=b.start)?b.end:b.start;$("f-end").min=b.start||"";formStart=b.start;
+  $("f-vehicle").value=b.vehicle;if(!$("f-vehicle").value&&$("f-vehicle").options[0])$("f-vehicle").value=$("f-vehicle").options[0].value;$("f-start").value=b.start;$("f-end").value=(b.end&&b.end>=b.start)?b.end:b.start;$("f-end").min=b.start||"";formStart=b.start;
   $("f-time").value=b.time||"";$("f-time2").value=b.time2||"";$("f-client").value=b.client||"";$("f-route").value=b.route||"";
   $("f-pax").value=b.pax==null?"":b.pax;$("f-event").value=b.event||"";$("f-escort").value=b.escort||"";$("f-driver").value=b.driver||"";$("f-contact").value=b.contact||"";$("f-contactname").value=b.contactName||"";$("f-contactnote").value=b.contactNote||"";$("f-contactrole").innerHTML=tendinaOpts("ruolo",b.contactRole||"");drvPaint("f-driver");drvPaint("f-driver2");
   $("f-status").value=b.status==="opzione"?"opzione":"confermato";paintStatus();
@@ -704,10 +724,11 @@ function fillVehOpts(sel,date){
   if(formXbCur)formXb.set(formXbCur.vid,formXbCur.def);
   if(keep&&!formXb.has(keep[0]))formXb.set(keep[0],keep[1]);
   if(validDate(date))for(const x of dayXbus(date))if(!formXb.has(x.vid))formXb.set(x.vid,x.def);
-  let h=S.fleet.map(v=>'<option value="'+esc(v.id)+'">'+esc(vehLabel(v))+'</option>').join("");
+  const vd=validDate(date)?date:"";
+  let h=S.fleet.filter(v=>vOn(v,vd)||v.id===sel).map(v=>'<option value="'+esc(v.id)+'">'+esc(vehLabel(v)+(vOn(v,vd)?"":" · "+vOffNote(v,vd)))+'</option>').join(""); // 3.0.5
   if(formXb.size)h+='<optgroup label="Extra bus (altre aziende)">'+[...formXb].map(([vid,def])=>'<option value="'+esc(vid)+'">'+esc(vehLabel(xbVehOf(def,vid)))+'</option>').join("")+'</optgroup>';
   $("f-vehicle").innerHTML=h;
-  if(sel!=null){$("f-vehicle").value=sel;if(!$("f-vehicle").value&&S.fleet[0])$("f-vehicle").value=S.fleet[0].id;}
+  if(sel!=null){$("f-vehicle").value=sel;if(!$("f-vehicle").value&&$("f-vehicle").options[0])$("f-vehicle").value=$("f-vehicle").options[0].value;}
 }
 const formXbusOf=vid=>{if(!isXbus(vid))return "";const d=formXb.get(vid)||{};return {id:vid.slice(3),az:String(d.az||""),posti:String(d.posti||""),targa:String(d.targa||"")};};
 let pkAsk=null; // la tendina che ha chiesto «Nuovo parcheggio»
@@ -797,6 +818,9 @@ function checkWarns(){
   if(b.end&&b.end<b.start)w.push("La data di rientro è prima della partenza.");
   if(b.end&&diff(b.start,b.end)>30)w.push("Un servizio può durare al massimo 31 giorni.");
   if(v&&v.seats&&b.pax!==""&&/^\d+$/.test(String(b.pax))&&+b.pax>v.seats)w.push("Passeggeri ("+b.pax+") oltre la capienza del mezzo ("+v.seats+" posti).");
+  // 3.0.5: mezzo eliminato dalla flotta (o non ancora in flotta) in uno dei giorni del servizio
+  if(v&&!v.xbus&&validDate(b.start)){const e=validDate(b.end)&&b.end>=b.start&&diff(b.start,b.end)<=31?b.end:b.start;let off="";for(let d=b.start,n=0;d<=e&&n<32&&!off;d=addDays(d,1),n++)if(!vOn(v,d))off=d;
+    if(off)w.push("Il mezzo "+vehLabel(v)+" è "+vOffNote(v,off)+": per il "+itD(off)+" scegli un altro mezzo.");}
   dvSeatsWarn(b).forEach(x=>w.push(x)); // 3.0.3: mezzi dei singoli giorni del tour
   // 3.0.3: mezzo e autisti controllati giorno per giorno (nei tour con cambi, quelli di ogni giorno)
   const C=dayConflicts(b,editing?editing.id:"");
@@ -852,7 +876,7 @@ function dvRowsHTML(c){
     oth.forEach(x=>[x.driver,x.driver2].map(realDriver).filter(Boolean).forEach(d=>busyD.add(drvKey(d))));
     const vb=id=>busyV.has(id)?" · impegnato":"",mv=vehicle(c.main.v);
     let vo='<option value="">'+esc("Come il tour"+(mv?" – "+vehLabel(mv):"")+vb(c.main.v))+'</option>'+
-      S.fleet.map(v=>'<option value="'+esc(v.id)+'"'+(o.v===v.id?" selected":"")+'>'+esc(vehLabel(v)+(o.v===v.id?"":vb(v.id)))+'</option>').join("");
+      S.fleet.filter(v=>vOn(v,ds)||o.v===v.id).map(v=>'<option value="'+esc(v.id)+'"'+(o.v===v.id?" selected":"")+'>'+esc(vehLabel(v)+(vOn(v,ds)?"":" · "+vOffNote(v,ds))+(o.v===v.id?"":vb(v.id)))+'</option>').join(""); // 3.0.5
     const xbs=dayXbus(ds).filter(x=>x.vid!==c.main.v);
     if(o.v&&isXbus(o.v)&&!xbs.some(x=>x.vid===o.v))xbs.push({vid:o.v,def:o.xb||xbIndex().get(o.v)||{}});
     if(xbs.length)vo+='<optgroup label="Extra bus di quel giorno">'+xbs.map(x=>'<option value="'+esc(x.vid)+'"'+(o.v===x.vid?" selected":"")+'>'+esc(vehLabel(xbVehOf(x.def,x.vid))+(o.v===x.vid?"":vb(x.vid)))+'</option>').join("")+'</optgroup>';
@@ -1836,40 +1860,160 @@ function pdfPill(){
 }
 
 // ---------- flotta ----------
+// 3.0.5: «+ Aggiungi mezzo», «Elimina» (mezzo venduto o non più usato) e «Rimetti in flotta». Un mezzo eliminato non si
+// cancella: resta nel file della flotta con la data (gone) da cui non è più in agenda, così le prenotazioni, i fogli di
+// servizio, il fatturato e le fatture dei giorni prima restano con il mezzo e la targa di allora.
+let fleetOpen=null,fleetCats=[];
+function flRowHTML(v,i,cats,isNew){
+  const xc=isNew?"":xcatOf(v),k=isNew?"new"+i:String(i);
+  return '<div class="fleet-row'+(isNew?' fl-new':'')+'" '+(isNew?'data-new="'+esc(v.id)+'"':'data-id="'+esc(v.id)+'"')+'>'+
+    '<input id="fl-n-'+k+'" class="fl-n" value="'+esc(v.name||"")+'" aria-label="Nome"'+(isNew?' placeholder="es. 54 posti"':'')+' maxlength="60">'+
+    '<input id="fl-s-'+k+'" class="fl-s" type="number" min="1" max="999" value="'+(v.seats||"")+'" aria-label="Posti">'+
+    '<select id="fl-x-'+k+'" class="fl-x" aria-label="Mezzo (Excel)">'+(isNew?'<option value="">scegli…</option>':'')+cats.map(c=>'<option'+(c===xc?' selected':'')+'>'+esc(c)+'</option>').join("")+'</select>'+
+    '<input id="fl-p-'+k+'" class="fl-p" list="pl'+esc(xc)+'" value="'+esc(v.plate||"")+'" placeholder="Targa" aria-label="Targa" autocomplete="off" maxlength="20">'+
+    '<input id="fl-i-'+k+'" class="fl-i" value="'+esc(v.num==null?"":v.num)+'" placeholder="ID" aria-label="ID mezzo" autocomplete="off" maxlength="20">'+
+    (isNew?'<button type="button" class="fl-act" data-flnewdel title="Togli questo mezzo nuovo (non è ancora salvato)" aria-label="Togli il mezzo nuovo">×</button>'+
+      '<div class="fl-sub">Mezzo nuovo · in agenda dal <input type="date" class="fl-from" value="'+esc(v.from)+'" min="2000-01-01" max="2099-12-31" aria-label="In agenda dal"></div>'
+      :'<button type="button" class="fl-act" data-fldel title="Elimina questo mezzo (venduto o non più usato): resta nei giorni passati" aria-label="Elimina il mezzo">🗑</button>')+
+  '</div>';
+}
+function flGoneHTML(v){
+  return '<div class="fl-gone-row" data-id="'+esc(v.id)+'"><span class="fl-gl"><b>'+esc(vehLabel(v))+'</b><small>eliminato dal '+esc(itD(v.gone))+'</small></span>'+
+    '<button type="button" class="btn" data-flback>Rimetti in flotta</button></div>';
+}
+// prenotazioni su quel mezzo dal giorno «from» in poi (anche i giorni dei tour con un altro mezzo)
+function flConflicts(id,from){
+  const out=[];
+  for(const b of bookingsAll()){
+    const e=endOf(b);if(e<from)continue;
+    let d0=b.vehicle===id&&b.start>=from?b.start:"";
+    for(let d=b.start>from?b.start:from,n=0;!d0&&d<=e&&n<32;d=addDays(d,1),n++)if(dayView(b,d).vehicle===id)d0=d;
+    if(d0)out.push({b,d:d0});
+  }
+  return out.sort((x,y)=>x.d.localeCompare(y.d));
+}
+function flConflictMsg(v,from,c){
+  return "Non posso eliminare "+vehLabel(v)+" dal "+itD(from)+": "+(c.length===1?"c'è ancora un servizio":"ci sono ancora "+c.length+" servizi")+" su questo mezzo. Spostal"+(c.length===1?"o":"i")+" prima su un altro mezzo: "+
+    c.slice(0,6).map(x=>itD(x.d)+" "+(TYPES[x.b.type]||"")+" "+dispClient(x.b)+(x.b.foglio?" (n. "+x.b.foglio+")":"")).join("; ")+(c.length>6?" e altri "+(c.length-6):"")+".";
+}
 function openFleet(){
   const T=S.regole.targhe||{},N=S.regole.numeri||{};
   const cats=[...new Set(XCATS.concat(Object.keys(T)).concat(S.fleet.map(xcatOf)))].sort((a,b)=>(parseInt(a.replace(/\D/g,""),10)||0)-(parseInt(b.replace(/\D/g,""),10)||0));
   $("dlPlates").innerHTML=cats.map(c=>'<datalist id="pl'+esc(c)+'">'+(T[c]||[]).map(t=>'<option value="'+esc(t)+'">'+(N[t]?"n. "+esc(N[t]):"")+'</option>').join("")+'</datalist>').join("");
-  fleetOpen={};S.fleet.forEach(v=>{fleetOpen[v.id]={name:v.name,seats:v.seats||null,plate:v.plate||"",xcat:xcatOf(v),num:v.num==null?"":String(v.num)};});
-  $("fleetList").innerHTML=S.fleet.map((v,i)=>{const xc=xcatOf(v);return '<div class="fleet-row" data-id="'+esc(v.id)+'"><input id="fl-n-'+i+'" value="'+esc(v.name)+'" aria-label="Nome"><input id="fl-s-'+i+'" type="number" min="1" value="'+(v.seats||"")+'" aria-label="Posti"><select id="fl-x-'+i+'" aria-label="Mezzo (Excel)">'+cats.map(c=>'<option'+(c===xc?' selected':'')+'>'+esc(c)+'</option>').join("")+'</select><input id="fl-p-'+i+'" list="pl'+esc(xc)+'" value="'+esc(v.plate||"")+'" placeholder="Targa" aria-label="Targa" autocomplete="off"><input id="fl-i-'+i+'" value="'+esc(v.num==null?"":v.num)+'" placeholder="ID" aria-label="ID mezzo" autocomplete="off"></div>';}).join("");
-  const ro=!canEdit("fleet");$("fFleet").classList.toggle("fleet-ro",ro);$("fleetRo").hidden=!ro;$("flSave").hidden=ro;
+  fleetCats=cats;fleetOpen={};S.fleet.forEach(v=>{fleetOpen[v.id]={name:v.name,seats:v.seats||null,plate:v.plate||"",xcat:xcatOf(v),num:v.num==null?"":String(v.num)};});
+  const act=S.fleet.filter(v=>!v.gone),gone=S.fleet.filter(v=>v.gone).sort((a,b)=>b.gone.localeCompare(a.gone));
+  $("fleetList").innerHTML=act.map(v=>flRowHTML(v,S.fleet.indexOf(v),cats,false)).join("");
+  $("fleetGoneList").innerHTML=gone.map(flGoneHTML).join("");$("fleetGone").hidden=!gone.length;
+  $("fleetErr").hidden=true;$("fleetErr").textContent="";
+  const ro=!canEdit("fleet");$("fFleet").classList.toggle("fleet-ro",ro);$("fleetRo").hidden=!ro;$("flSave").hidden=ro;$("flAdd").hidden=ro;$("fleetHow").hidden=ro;
   $("fleetList").querySelectorAll("input,select").forEach(el=>{el.readOnly=ro;if(el.tagName==="SELECT")el.disabled=ro;});
+  $("fFleet").querySelectorAll("[data-fldel],[data-flback]").forEach(el=>el.hidden=ro);
   $("ovFleet").hidden=false;
 }
-let fleetOpen=null;
 // (la Flotta è nell'Archivio)
-$("fleetList").addEventListener("change",e=>{const m=/^fl-x-(\d+)$/.exec(e.target.id);if(m)$("fl-p-"+m[1]).setAttribute("list","pl"+e.target.value);});
+$("fleetList").addEventListener("change",e=>{
+  const row=e.target.closest(".fleet-row");if(!row)return;
+  if(e.target.classList.contains("fl-x"))row.querySelector(".fl-p").setAttribute("list","pl"+e.target.value);
+  // mezzo nuovo: scritti i posti, la categoria Excel si propone da sola (si può cambiare)
+  if(e.target.classList.contains("fl-s")&&row.dataset.new){const x=row.querySelector(".fl-x"),n=Number(e.target.value);if(!x.dataset.touched&&n>0){x.value=xcatOf({seats:n});row.querySelector(".fl-p").setAttribute("list","pl"+x.value);}}
+  if(e.target.classList.contains("fl-x")&&row.dataset.new)e.target.dataset.touched="1";
+});
+$("fleetList").addEventListener("click",e=>{
+  const t=e.target.closest("button");if(!t||!fleetOpen||!canEdit("fleet"))return;
+  const row=t.closest(".fleet-row"),ask=t.closest(".fl-ask");
+  if(t.hasAttribute("data-flnewdel")){row.remove();return;}
+  if(t.hasAttribute("data-fldel")){
+    const nx=row.nextElementSibling;if(nx&&nx.classList.contains("fl-ask")){nx.remove();return;}
+    const v=vehicle(row.dataset.id);if(!v)return;
+    row.insertAdjacentHTML("afterend",'<div class="fl-ask" data-for="'+esc(v.id)+'"><p>Eliminare <b>'+esc(vehLabel(v))+'</b>? Dal giorno <input type="date" class="fl-gdate" value="'+todayISO()+'" min="2000-01-01" max="2099-12-31" aria-label="Eliminato dal"> non compare più in agenda e non si può più prenotare.</p>'+
+      '<p class="fl-keep">Prenotazioni, fogli di servizio, fatturato e fatture dei giorni prima restano come sono, con questo mezzo e questa targa.</p><p class="fl-err" hidden></p>'+
+      '<div class="fl-askb"><button type="button" class="btn danger" data-flgo>Elimina il mezzo</button><button type="button" class="btn" data-flno>Annulla</button></div></div>');
+    row.nextElementSibling.querySelector(".fl-gdate").focus();return;
+  }
+  if(t.hasAttribute("data-flno")){ask.remove();return;}
+  if(t.hasAttribute("data-flgo")){
+    const id=ask.dataset.for,v=vehicle(id),from=ask.querySelector(".fl-gdate").value,er=ask.querySelector(".fl-err");
+    const r=$("fleetList").querySelector('.fleet-row[data-id="'+CSS.escape(id)+'"]');
+    if(!validDate(from)){er.textContent="Scrivi la data da cui il mezzo non è più in flotta.";er.hidden=false;return;}
+    const c=flConflicts(id,from);if(c.length){er.textContent=flConflictMsg(v,from,c);er.hidden=false;return;}
+    ask.remove();if(!r)return;
+    r.dataset.gone=from;r.classList.add("fl-going");r.querySelectorAll("input,select").forEach(el=>el.disabled=true);
+    const b=r.querySelector("[data-fldel]");b.removeAttribute("data-fldel");b.setAttribute("data-flundo","");b.textContent="↺";b.title="Annulla: il mezzo resta in flotta";b.setAttribute("aria-label","Annulla l'eliminazione");
+    r.insertAdjacentHTML("beforeend",'<div class="fl-sub fl-gonenote">Da eliminare dal '+esc(itD(from))+': premi «Salva flotta» per confermare.</div>');
+    return;
+  }
+  if(t.hasAttribute("data-flundo")){
+    delete row.dataset.gone;row.classList.remove("fl-going");row.querySelectorAll("input,select").forEach(el=>el.disabled=false);
+    const n=row.querySelector(".fl-gonenote");if(n)n.remove();
+    t.removeAttribute("data-flundo");t.setAttribute("data-fldel","");t.textContent="🗑";t.title="Elimina questo mezzo (venduto o non più usato): resta nei giorni passati";t.setAttribute("aria-label","Elimina il mezzo");
+  }
+});
+$("fleetGoneList").addEventListener("click",e=>{
+  const t=e.target.closest("[data-flback]");if(!t||!fleetOpen||!canEdit("fleet"))return;
+  const row=t.closest(".fl-gone-row"),on=!row.dataset.back;
+  if(on)row.dataset.back="1";else delete row.dataset.back;
+  row.classList.toggle("fl-back",on);t.textContent=on?"Annulla":"Rimetti in flotta";
+  const sm=row.querySelector("small"),v=vehicle(row.dataset.id);if(sm&&v)sm.textContent=on?"torna in flotta: premi «Salva flotta»":"eliminato dal "+itD(v.gone);
+});
+$("flAdd").onclick=()=>{
+  if(!fleetOpen||!canEdit("fleet"))return;
+  const id="m"+Date.now().toString(36)+Math.random().toString(36).slice(2,5); // id nuovo, mai di un mezzo eliminato
+  const k=$("fleetList").querySelectorAll(".fl-new").length+1;
+  $("fleetList").insertAdjacentHTML("beforeend",flRowHTML({id,from:todayISO()},k,fleetCats,true));
+  const r=$("fleetList").lastElementChild;r.scrollIntoView({block:"nearest"});r.querySelector(".fl-n").focus();
+};
 $("flCancel").onclick=()=>$("ovFleet").hidden=true;
 // Ogni riga è legata al suo mezzo (data-id), non alla posizione nell'elenco. Si salvano solo i campi
 // cambiati, sull'ultima versione della flotta in Dropbox: le modifiche fatte intanto da altri restano.
 $("fFleet").addEventListener("submit",async e=>{
   e.preventDefault();if(S.readOnly||!fleetOpen||!canEdit("fleet")){$("ovFleet").hidden=true;return;}
+  const showErr=m=>{$("fleetErr").innerHTML=m.map(esc).join("<br>");$("fleetErr").hidden=false;$("fleetErr").scrollIntoView({block:"nearest"});};
+  $("fleetErr").hidden=true;
   if(!navigator.onLine){toast("Per modificare la flotta serve la connessione a internet.");return;}
-  const patches={};
-  for(const row of $("fleetList").querySelectorAll(".fleet-row")){
+  const patches={},adds=[],errs=[],today=todayISO(),plates=[];
+  const val=row=>{const s=row.querySelector(".fl-s").value;return {name:cleanText(row.querySelector(".fl-n").value),seats:s?Number(s):null,plate:cleanText(row.querySelector(".fl-p").value).toUpperCase(),xcat:row.querySelector(".fl-x").value,num:cleanText(row.querySelector(".fl-i").value)};};
+  for(const row of $("fleetList").querySelectorAll(".fleet-row[data-id]")){
     const id=row.dataset.id,o=fleetOpen[id];if(!o)continue;
-    const inp=row.querySelectorAll("input"),sel=row.querySelector("select");
-    const now={name:cleanText(inp[0].value)||o.name,seats:inp[1].value?Number(inp[1].value):null,plate:cleanText(inp[2].value).toUpperCase(),xcat:sel.value,num:cleanText(inp[3].value)};
+    const r=val(row),now={name:r.name||o.name,seats:r.seats,plate:r.plate,xcat:r.xcat,num:r.num};
     const p={};for(const k in now)if(JSON.stringify(now[k])!==JSON.stringify(o[k]))p[k]=now[k];
+    if(row.dataset.gone){const v=vehicle(id),c=flConflicts(id,row.dataset.gone);if(c.length){errs.push(flConflictMsg(v,row.dataset.gone,c));continue;}p.gone=row.dataset.gone;}
+    else if(now.plate)plates.push({plate:now.plate,lab:now.name||id,mine:"plate" in p});
     if(Object.keys(p).length)patches[id]=p;
   }
-  if(!Object.keys(patches).length){$("ovFleet").hidden=true;return;}
-  const btn=$("fFleet").querySelector('button[type="submit"]');btn.disabled=true;
+  for(const row of $("fleetGoneList").querySelectorAll(".fl-gone-row[data-back]")){const id=row.dataset.id,v=vehicle(id);if(fleetOpen[id]){patches[id]={gone:""};if(v&&v.plate)plates.push({plate:String(v.plate).toUpperCase(),lab:vehLabel(v),mine:true});}}
+  for(const row of $("fleetList").querySelectorAll(".fleet-row[data-new]")){
+    const r=val(row),from=row.querySelector(".fl-from").value;
+    if(!(r.seats>0&&r.seats<1000)){errs.push("Mezzo nuovo"+(r.plate?" "+r.plate:r.name?" «"+r.name+"»":"")+": scrivi quanti posti ha.");continue;}
+    if(from&&!validDate(from)){errs.push("Mezzo nuovo"+(r.plate?" "+r.plate:"")+": la data «in agenda dal» non è valida.");continue;}
+    const h=/(^|\s)H$/i.test(r.name);
+    adds.push({id:row.dataset.new,name:r.name||(r.seats+" posti"+(h?" H":"")),seats:Math.round(r.seats),h,kind:r.seats<=4?"auto":r.seats<=9?"van":"bus",plate:r.plate,xcat:r.xcat||xcatOf({seats:r.seats}),num:r.num,from:from||today});
+    if(r.plate)plates.push({plate:r.plate,lab:"mezzo nuovo",mine:true});
+  }
+  // la stessa targa su due mezzi in flotta (solo se riguarda una targa scritta adesso)
+  for(const x of plates)if(x.mine){const o=plates.filter(y=>y!==x&&y.plate===x.plate);if(o.length&&!errs.some(m=>m.includes("targa "+x.plate)))errs.push("La targa "+x.plate+" c'è già su un altro mezzo in flotta ("+o[0].lab+"). Se il mezzo è stato venduto, eliminalo con 🗑 prima di aggiungerlo di nuovo.");}
+  if(errs.length){showErr(errs);return;}
+  if(!Object.keys(patches).length&&!adds.length){$("ovFleet").hidden=true;return;}
+  // ordine: il mezzo nuovo va con quelli che hanno gli stessi posti (dopo di loro)
+  for(const a of adds){
+    const list=sortFleet(S.fleet.filter(v=>!v.gone&&typeof v.ord==="number").concat(adds.filter(x=>x!==a&&typeof x.ord==="number")));
+    if(!list.length)continue;
+    const i=list.findIndex(v=>(v.seats||0)<a.seats);
+    a.ord=i<0?list[list.length-1].ord+1:i===0?list[0].ord-1:(list[i-1].ord+list[i].ord)/2;
+  }
+  const btn=$("flSave");btn.disabled=true;
   try{
-    const vs=await STORE.patchFleet(patches,S.fleet.map(v=>Object.assign({},v,{xcat:xcatOf(v)})));
-    const fch=[];for(const id in patches){const o=fleetOpen[id]||{};for(const k in patches[id])fch.push([(o.name||id)+" – "+({name:"nome",seats:"posti",plate:"targa",xcat:"mezzo Excel",num:"ID mezzo"}[k]||k),o[k]==null?"":String(o[k]),String(patches[id][k]==null?"":patches[id][k])]);}
+    const vs=await STORE.patchFleet(patches,S.fleet.map(v=>Object.assign({},v,{xcat:xcatOf(v)})),adds);
+    const fch=[];
+    for(const id in patches){const o=fleetOpen[id]||{},v=vehicle(id);
+      for(const k in patches[id]){
+        if(k==="gone")fch.push([vehLabel(v||o),patches[id].gone?"in flotta":"eliminato",patches[id].gone?"eliminato dal "+itD(patches[id].gone):"rimesso in flotta"]);
+        else fch.push([(o.name||id)+" – "+({name:"nome",seats:"posti",plate:"targa",xcat:"mezzo Excel",num:"ID mezzo"}[k]||k),o[k]==null?"":String(o[k]),String(patches[id][k]==null?"":patches[id][k])]);
+      }}
+    for(const a of adds)fch.push([vehLabel(a),"","aggiunto (in agenda dal "+itD(a.from)+")"]);
     ACC.log("impostazioni","Modificata la flotta",{ch:fch});
-    S.fleet=sortFleet(vs);$("ovFleet").hidden=true;fleetOpen=null;renderAll();toast("Flotta aggiornata");
+    const nG=Object.values(patches).filter(p=>p.gone).length,nB=Object.values(patches).filter(p=>p.gone==="").length;
+    S.fleet=sortFleet(vs);$("ovFleet").hidden=true;fleetOpen=null;renderAll();
+    toast("Flotta aggiornata"+[adds.length?(adds.length===1?"1 mezzo aggiunto":adds.length+" mezzi aggiunti"):"",nG?(nG===1?"1 mezzo eliminato":nG+" mezzi eliminati"):"",nB?(nB===1?"1 mezzo rimesso in flotta":nB+" mezzi rimessi in flotta"):""].filter(Boolean).map((x,i)=>(i?", ":": ")+x).join(""));
   }catch(err){toast(err&&err.code==="offline"?"Per modificare la flotta serve la connessione a internet.":"Non riesco a salvare la flotta adesso. Riprova tra poco.");}
   finally{btn.disabled=false;}
 });
@@ -3987,7 +4131,7 @@ function renderSettings(){
   $("setGSite").textContent=location.origin+"/*";
   $("setLock").value=String(st.autoLock||0);
   const pm=st.perms||{};$("permClients").checked=pm.clients!==false;$("permFleet").checked=pm.fleet!==false;$("permAnag").checked=pm.anag!==false;$("permInv").checked=pm.inv!==false;$("permCont").checked=pm.contab===true;
-  $("setFatInfo").innerHTML="File fatturato: "+(fy.length?fy.map(y=>(y==="*"?"":y+" → ")+"<b>"+esc(ff[y].name)+"</b>").join(", "):"<b>non collegato</b>")+". Flotta: <b>"+S.fleet.length+" mezzi</b>.";
+  $("setFatInfo").innerHTML="File fatturato: "+(fy.length?fy.map(y=>(y==="*"?"":y+" → ")+"<b>"+esc(ff[y].name)+"</b>").join(", "):"<b>non collegato</b>")+". Flotta: <b>"+fleetOn(todayISO()).length+" mezzi</b>.";
 }
 function setGMsg(t,c){$("setGMsg").textContent=t||"";$("setGMsg").className="set-msg"+(c?" "+c:"");}
 $("setGTest").onclick=async()=>{
@@ -4240,7 +4384,8 @@ function renderInvForm(){
   // 3.0.4: cliente estero (nazione diversa da IT): partita IVA o identificativo del suo paese, CAP del suo paese,
   // niente provincia né PEC, codice destinatario XXXXXXX (modificabile)
   const est=c.nazione!=="IT";
-  h+='<section class="iv-sec"><h4>Cliente <small>dall\'anagrafica clienti'+(c.code?" · codice "+esc(c.code):"")+(est?' · <b class="iv-est">cliente estero</b>':'')+'</small></h4><div class="iv-grid g4">'+
+  h+='<section class="iv-sec"><h4>Cliente <small>dall\'anagrafica clienti'+(est?' · <b class="iv-est">cliente estero</b>':'')+'</small></h4><div class="iv-grid g4">'+
+    ivF("iv-c-code","Codice Multi",ivI("iv-c-code","cliente.code",c.code,' maxlength="20" autocomplete="off" placeholder="nessuno" title="Codice del cliente in Multi: si stampa nell\'anteprima sotto il numero del documento. Cambiarlo qui vale solo per questa fattura."'))+ // 3.0.5
     ivF("iv-c-nome","Denominazione",ivI("iv-c-nome","cliente.nome",c.nome,' maxlength="80"'),"w2")+
     ivF("iv-c-naz","Nazione",'<span class="iv-pair iv-nazp"><input id="iv-c-naz" data-naz="1" value="'+esc(nazShow(c.nazione))+'" maxlength="60" list="dlNaz" autocomplete="off" placeholder="es. Stati Uniti" aria-describedby="ivNazName"><output id="ivNazName" class="iv-out iv-naz" title="sigla della nazione">'+esc(c.nazione)+'</output></span>')+
     ivF("iv-c-piva",est?"Partita IVA estera":"Partita IVA",'<span class="iv-pair">'+ivI("iv-c-paese","cliente.paese",c.paese,' data-t="up" maxlength="2" aria-label="Paese della partita IVA" class="cc"')+ivI("iv-c-piva","cliente.piva",c.piva,' maxlength="28"'+(est?' placeholder="se ce l\'ha"':''))+'</span>')+
@@ -4262,7 +4407,8 @@ function renderInvForm(){
     (pa||d.pa.ordNum||d.pa.cig||d.pa.cup||d.pa.split?"":'<button type="button" class="linkbtn" id="ivPaShow">+ Ordine d\'acquisto / CIG / CUP</button>')+'</section>';
   h+='<section class="iv-sec"><h4>Righe</h4><div class="iv-bar">'+
     '<label>Prezzi <select id="iv-lordi" data-m="lordi" data-t="bool"><option value="1"'+(d.lordi?" selected":"")+'>IVA compresa (come in agenda)</option><option value="0"'+(d.lordi?"":" selected")+'>IVA esclusa</option></select></label>'+
-    (d.servizi.length>1?'<label>Noleggio <select id="iv-modo" data-m="modo"><option value="riepilogo"'+(d.modo==="riepilogo"?" selected":"")+'>una riga riepilogativa</option><option value="singole"'+(d.modo==="singole"?" selected":"")+'>una riga per servizio</option></select></label>':"")+
+    // 3.0.5: la scelta tra riga di riepilogo e un servizio per riga è una spunta (prima era il menu «Noleggio»)
+    (d.servizi.length>1?'<label class="iv-riep" title="Spuntata: una riga sola con la causale di riepilogo e la somma dei servizi. Senza spunta: ogni servizio su una riga, con la data, i posti e l\'itinerario."><input type="checkbox" id="iv-riep" data-m="modo" data-t="riep"'+(d.modo==="riepilogo"?" checked":"")+'> <b>Causale di riepilogo</b> <small id="ivRiepNote">'+invRiepNote(d)+'</small></label>':"")+
     (d.servizi.length?'<button type="button" class="linkbtn" id="ivRegen" title="Rifà le righe partendo dai dati dei servizi come sono adesso in agenda">↻ Rifai le righe dai servizi</button>':"")+invMealsNote(d)+'</div>'+
     '<div class="iv-rows"><div class="iv-row hd"><span>N.</span><span>Descrizione</span><span>Q.tà</span><span id="ivPriceHd">Prezzo</span><span>Sc. %</span><span>IVA</span><span class="r">Imponibile</span><span></span></div><div id="ivRows">'+invRowsHTML()+'</div></div>'+
     '<div class="iv-add"><button type="button" class="btn" data-radd="libera">+ Riga</button><select id="ivCau" aria-label="Causale da aggiungere"><option value="">+ Riga da causale…</option>'+C.causali.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.nome)+'</option>').join("")+'</select><button type="button" class="btn" data-radd="sconto">+ Sconto in euro</button></div></section>';
@@ -4304,13 +4450,13 @@ const arrotHint=(d,C)=>d.arrotStep===1?"all'euro":d.arrotStep===0.5?"ai 50 cent"
 // totali, anteprima e controlli: si rifanno a ogni tasto, senza toccare i campi in cui si sta scrivendo
 function renderInvLive(){
   if(!INV)return;
-  const d=INV.d,C=STORE.contab(),k=FT.calc(d,C),issues=FT.validate(d,C).concat(invExtraIssues(d)),errs=issues.filter(x=>x.lv==="err");
+  const d=INV.d,C=STORE.contab(),k=FT.calc(d,C),rk=x=>x.lv==="err"?0:x.dup?1:2,issues=FT.validate(d,C).concat(invExtraIssues(d)).sort((a,z)=>rk(a)-rk(z)),errs=issues.filter(x=>x.lv==="err"); // 3.0.5: prima gli errori, poi il numero già usato
   for(const l of k.lines){const el=$("invForm").querySelector('[data-rtot="'+(window.CSS&&CSS.escape?CSS.escape(l.id):l.id)+'"]');if(el)el.textContent=eur2(l.tot);}
   const ph=$("ivPriceHd");if(ph)ph.textContent=d.lordi?"Prezzo IVA compr.":"Prezzo netto";
   $("invTotals").innerHTML='<span>Imponibile <b>'+eur2(k.imponibile)+'</b></span><span>IVA <b>'+eur2(k.imposta)+'</b></span>'+(k.arrot?'<span>Arrot. <b>'+eur2(k.arrot)+'</b></span>':"")+'<span class="tot">Totale <b>€ '+eur2(k.totale)+'</b></span>'+(k.split?'<span>Da pagare <b>€ '+eur2(k.daPagare)+'</b></span>':"");
   $("invPaper").innerHTML=invoiceHTML(d,k,C);
   issues.sort((a,b)=>(a.lv==="err"?0:1)-(b.lv==="err"?0:1));
-  $("invIssues").innerHTML=issues.length?'<ul>'+issues.map(x=>'<li class="'+x.lv+'">'+(x.lv==="err"?"Da correggere: ":"Nota: ")+esc(x.msg)+'</li>').join("")+'</ul>':'<p class="ok">Tutto in ordine: il file XML si può creare.</p>';
+  $("invIssues").innerHTML=issues.length?'<ul>'+issues.map(x=>'<li class="'+x.lv+(x.dup?" dup":"")+'">'+(x.lv==="err"?"Da correggere: ":x.dup?"Attenzione: ":"Nota: ")+esc(x.msg)+'</li>').join("")+'</ul>':'<p class="ok">Tutto in ordine: il file XML si può creare.</p>';
   const off=S.readOnly||!canInv(); // permesso tolto mentre la bozza è aperta: si può ancora guardare, non salvare né creare il file
   $("invXml").disabled=!!errs.length||off;$("invXml").title=errs.length?"Prima correggi le voci segnate in rosso":"";
   $("invSave").disabled=off;$("invDel").disabled=off;
@@ -4324,6 +4470,7 @@ function invoiceHTML(d,k,C){
   let h='<div class="fe"><div class="fe-parti"><div><h5>Cedente/prestatore (fornitore)</h5>'+li("Identificativo fiscale ai fini IVA",A.paese+A.piva)+li("Codice fiscale",A.cf)+li("Denominazione",A.nome)+li("Regime fiscale",A.regime+" ("+(FT.REGIMI[A.regime]||"").toLowerCase()+")")+li("Indirizzo",[A.indirizzo,A.civico].filter(Boolean).join(", "))+'<div>Comune: <b>'+esc(A.comune)+'</b> Provincia: <b>'+esc(A.prov)+'</b></div><div>Cap: <b>'+esc(A.cap)+'</b> Nazione: <b>'+esc(A.nazione)+'</b></div>'+li("Telefono",A.tel)+'</div>'+
     '<div><h5>Cessionario/committente (cliente)</h5>'+li("Identificativo fiscale ai fini IVA",c.piva?(est&&c.paese==="IT"?c.nazione:c.paese)+c.piva:est&&c.cf?c.nazione+c.cf:"")+li("Codice fiscale",est?(/^[A-Z0-9]{11,16}$/.test(c.cf)?c.cf:""):c.cf)+li("Denominazione",c.nome)+li("Indirizzo",[c.indirizzo,c.civico].filter(Boolean).join(", ")+(est&&c.cap&&!/^0+$/.test(c.cap)?" "+c.cap:""))+'<div>Comune: <b>'+esc(c.comune)+'</b>'+(est?'':' Provincia: <b>'+esc(c.prov)+'</b>')+'</div><div>Cap: <b>'+esc(c.nazione==="IT"&&/^\d{5}$/.test(c.cap)?c.cap:"00000")+'</b> Nazione: <b>'+esc(c.nazione)+'</b></div>'+(dest==="Indicata PEC"?li("Pec",c.pec):"")+'</div></div>';
   h+='<table class="fe-t fe-doc"><thead><tr><th>Tipologia documento</th><th>Numero documento</th><th>Data documento</th><th>Codice destinatario</th></tr></thead><tbody><tr><td>'+esc(d.tipo)+' ('+esc((FT.TIPI_DOC[d.tipo]||"").toLowerCase())+')</td><td>'+(String(d.numero||"").trim()?esc(d.numero):'<span class="fe-bozza">BOZZA</span>')+'</td><td>'+esc(dt(d.data))+'</td><td>'+esc(dest)+'</td></tr></tbody></table>';
+  if(String(c.code||"").trim())h+='<div class="fe-cod">Codice cliente: <b>'+esc(String(c.code).trim())+'</b></div>'; // 3.0.5: codice Multi del cliente
   const ord=d.pa.ordNum||d.pa.cig||d.pa.cup?"Vs.Ord. "+(d.pa.ordNum||"")+(d.pa.ordData?" del "+dt(d.pa.ordData):"")+(d.pa.cup?" CUP: "+d.pa.cup:"")+(d.pa.cig?" CIG: "+d.pa.cig:""):"";
   h+='<table class="fe-t fe-righe"><thead><tr><th class="l">Descrizione</th><th>Quantità</th><th>Prezzo unitario</th><th>Sconto o magg.</th><th>%IVA</th><th>Prezzo totale</th></tr></thead><tbody>'+
     (ord?'<tr><td class="l">'+esc(ord)+'</td><td></td><td></td><td></td><td></td><td></td></tr>':"")+(FT.causaleApart(d)?'<tr><td class="l">'+esc(d.causale)+'</td><td></td><td></td><td></td><td></td><td></td></tr>':"")+
@@ -4378,11 +4525,17 @@ function invNumLink(){
   const st=(show?"1|":"0|")+pr;if(lab.dataset.st===st)return; // niente da cambiare: il pulsante resta lo stesso (un clic in corso non si perde)
   lab.dataset.st=st;lab.innerHTML='Numero'+(show?' <small>· <button type="button" class="linkbtn" id="ivNumUse" title="Scrive il numero proposto: lo puoi cambiare">usa '+esc(pr)+'</button></small>':'');
 }
-// 3.0.4: numero proposto: il più alto dell'anno della fattura (tra le altre bozze e fatture con il numero e l'ultimo
-// numero emesso fuori dall'agenda, scritto in Contabilità) più uno, con la stessa forma (496/00 → 497/00)
+// numero proposto: l'ultima fattura emessa dell'anno della fattura più uno, con la stessa forma (496/00 → 497/00).
+// 3.0.5: contano solo le fatture emesse (file XML creato) e l'ultimo numero emesso fuori dall'agenda (Contabilità);
+// le bozze non ancora emesse non contano più (prima una bozza con un numero scritto spostava in avanti la proposta)
 function invNumProposed(d){
   const C=STORE.contab(),y=String(FT.okDate(d.data)?d.data:todayISO()).slice(0,4);
-  return FT.nextNumero(STORE.drafts().filter(x=>x.id!==d.id&&String(x.numero||"").trim()).map(x=>({numero:x.numero,data:x.data})),y,{numero:C.opzioni.ultimoNum,anno:C.opzioni.ultimoAnno});
+  return FT.nextNumero(STORE.drafts().filter(x=>x.id!==d.id&&x.xmlAt&&String(x.numero||"").trim()).map(x=>({numero:x.numero,data:x.data})),y,{numero:C.opzioni.ultimoNum,anno:C.opzioni.ultimoAnno});
+}
+// 3.0.5: fatture emesse dello stesso anno con lo stesso numero (le note di credito a parte)
+function invNumDups(d){
+  const n=String(d.numero||"").trim(),y=String(d.data||"").slice(0,4);if(!n)return [];
+  return STORE.drafts().filter(x=>x.id!==d.id&&x.xmlAt&&String(x.data||"").slice(0,4)===y&&sameNum(x.numero,n)&&(x.tipo==="TD04")===(d.tipo==="TD04"));
 }
 const sameNum=(a,b)=>{const p=FT.parseNumero(a),q=FT.parseNumero(b);return p&&q?p.n===q.n&&p.pre.trim().toUpperCase()===q.pre.trim().toUpperCase()&&p.suf.trim().toUpperCase()===q.suf.trim().toUpperCase():String(a||"").trim().toUpperCase()===String(b||"").trim().toUpperCase();};
 // controlli che guardano anche le altre bozze: numero già usato nello stesso anno; nazione sconosciuta
@@ -4391,7 +4544,7 @@ function invExtraIssues(d){
   if(n)for(const x of STORE.drafts()){
     if(x.id===d.id||String(x.data||"").slice(0,4)!==y||!sameNum(x.numero,n))continue;
     const who="«"+(x.cliente&&x.cliente.nome||"")+"» del "+itD(x.data),nc=(x.tipo==="TD04")!==(d.tipo==="TD04");
-    if(x.xmlAt&&!nc)out.push({lv:"err",msg:"Il numero "+n+" è già della fattura emessa "+who+": usa "+invNumProposed(d)+"."});
+    if(x.xmlAt&&!nc)out.push({lv:"warn",dup:true,msg:"il numero "+n+" è già della fattura emessa "+who+" (numero libero: "+invNumProposed(d)+"). Lo SdI scarta una fattura con lo stesso numero e lo stesso anno: se la emetti lo stesso, ti chiedo conferma."}); // 3.0.5: prima bloccava
     else out.push({lv:"warn",msg:(x.xmlAt?"Il numero "+n+" è già della "+(x.tipo==="TD04"?"nota di credito":"fattura")+" emessa ":"Anche la bozza ")+who+(x.xmlAt?"":" (non ancora emessa) ha il numero "+n)+"."});
   }
   const nz=d.cliente&&d.cliente.nazione;if(nz&&nz!=="IT"&&/^[A-Z]{2}$/.test(nz)&&!NAZ_LIST.includes(nz))out.push({lv:"warn",msg:"Cliente: non conosco la nazione «"+nz+"», controlla la sigla."});
@@ -4418,6 +4571,7 @@ function invInput(e){
   if(el.dataset.naz){invNazInput(el,e.type==="change");return;} // 3.0.4
   const p=el.dataset.m;if(!p)return;
   let v=inpVal(el);if(el.dataset.t==="bool")v=el.value==="1";
+  if(el.dataset.t==="riep")v=el.checked?"riepilogo":"singole"; // 3.0.5: spunta «Causale di riepilogo»
   if(p==="arrot"){d.arrotStep=0;d.arrotAuto=el.value===""&&C.opzioni.arrot!=="no";d.arrot=el.value===""?0:Number(el.value)||0;el.placeholder=arrotHint(d,C);document.querySelectorAll("#invForm [data-arr]").forEach(b=>b.setAttribute("aria-pressed","false"));invTouch();return;}
   setPath(d,p,v);
   if(p==="numero"||p==="data")invNumLink(); // 3.0.4: «usa …» il numero proposto quando il numero è vuoto
@@ -4429,7 +4583,7 @@ function invInput(e){
     let redraw=false;
     if(p==="cliente.sdi"){const pa=FT.isPA(d.cliente);if(pa!==d.cliente.pa){d.cliente.pa=pa;invPaChanged();redraw=true;}}
     if(p==="cliente.pa"){invPaChanged();redraw=true;}
-    if(p==="modo"){if(invRegen(true)!==true){d.modo=d.modo==="riepilogo"?"singole":"riepilogo";redraw=true;}}
+    if(p==="modo"){if(invRegen(true)!==true){d.modo=d.modo==="riepilogo"?"singole":"riepilogo";redraw=true;}else{const n=$("ivRiepNote");if(n)n.textContent=invRiepNote(d);}}
     if(p==="bollo"){if(!d.bollo&&d.bolloAddebita){d.bolloAddebita=false;d.righe=d.righe.filter(r=>r.tipo!=="bollo");}redraw=true;}
     if(p==="bolloAddebita"){
       d.righe=d.righe.filter(r=>r.tipo!=="bollo");
@@ -4533,6 +4687,11 @@ $("invXml").onclick=async()=>{
   if(errs.length){invMsg("Prima correggi: "+errs[0].msg,"err");return;}
   // un altro dispositivo ha salvato questa bozza mentre era aperta qui: niente file fatto da una copia vecchia
   if(!cur.isNew&&STORE.draftRev(cur.d.id)&&STORE.draftRev(cur.d.id)!==cur.rev){invMsg("Un altro dispositivo ha modificato questa bozza mentre era aperta qui: chiudila e riaprila prima di creare il file.","err");return;}
+  // 3.0.5: numero già di un'altra fattura emessa dello stesso anno: si può emettere, ma solo dopo la conferma
+  const dups=cur.locked?[]:invNumDups(d);
+  if(dups.length){const x=dups[0],who="«"+(x.cliente&&x.cliente.nome||"")+"» del "+itD(x.data);
+    if(!confirm("Attenzione: il numero "+String(d.numero).trim()+" è già della fattura emessa "+who+(dups.length>1?" (e di altre "+(dups.length-1)+")":"")+".\n\nIl Sistema di Interscambio scarta una fattura con lo stesso numero e lo stesso anno di una già inviata e non scartata. Il numero libero è "+invNumProposed(d)+".\n\nCreo lo stesso il file XML con il numero "+String(d.numero).trim()+"?")){invMsg("File non creato: il numero "+String(d.numero).trim()+" è già usato (il numero libero è "+invNumProposed(d)+").","err");return;}
+  }
   $("invXml").disabled=true;cur.busy=true;invMsg("Preparo il file…");
   try{
     // rifatto per la stessa bozza: stesso progressivo d'invio, e il file nuovo prende il posto di quello di prima.
@@ -4560,12 +4719,14 @@ $("invXml").onclick=async()=>{
     const saved=INV===cur?await invSave(true):false;
     const blob=new Blob([out.xml],{type:"application/xml"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=out.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
     cur.locked=true; // 3.0: con il file XML la fattura è emessa: si blocca
+    // 3.0.5: fattura emessa: i servizi spuntati per la fattura unica si tolgono dalla selezione
+    {const ids=new Set((d.servizi||[]).map(s=>s.id));let ch=false;for(const k of [...invSel])if(ids.has(k.split("|")[0])){invSel.delete(k);ch=true;}if(ch)renderBill();}
     ACC.log("fattura",(fix?"Corretta e rifatta (file di prima in «sostituite»):":again?"Rifatto":"Creato")+" il file XML "+out.name+" («"+(d.cliente.nome||"")+"», € "+eur2(out.calc.totale)+", formato "+out.formato+")",{id:d.id});
     if(INV===cur)invMsg("File "+out.name+" scaricato."+where+(saved?"":" La bozza però non è stata salvata."),saved&&!oldLeft?"ok":"err");
   }catch(err){console.error(err);ACC.tlog("errore","Bozza fattura: file XML non creato",String((err&&(err.code||err.message))||err));if(INV===cur)invMsg("Non sono riuscito a creare il file.","err");}
   finally{cur.busy=false;if(INV===cur)renderInvLive();}
 };
-const FE_PRINT='@page{size:A4 portrait;margin:12mm}html,body{margin:0;background:#fff;color:#111;font:9.5pt/1.35 Arial,Helvetica,sans-serif}.fe h5{margin:0 0 3pt;font-size:9.5pt}.fe-parti{display:grid;grid-template-columns:1fr 1fr;border:1px solid #000;margin-bottom:10pt}.fe-parti>div{padding:5pt 8pt}.fe-parti>div+div{border-left:1px solid #000}.fe-t{width:100%;border-collapse:collapse;margin:0 0 12pt}.fe-t caption{border:1px solid #000;border-bottom:0;font-weight:700;padding:3pt}.fe-t th{border:1px solid #000;font-weight:400;padding:3pt 5pt;font-size:8.5pt}.fe-t td{padding:4pt 5pt;text-align:right;vertical-align:top;border-left:1px solid #000;border-right:1px solid #000}.fe-t tbody tr:last-child td{border-bottom:1px solid #000}.fe-t .l{text-align:left}.fe-doc td{text-align:center;font-weight:700}.fe-bozza{letter-spacing:.1em}.fe-righe td.l{white-space:pre-wrap;overflow-wrap:anywhere}.fe-miss{color:#b00020;font-weight:700}';
+const FE_PRINT='@page{size:A4 portrait;margin:12mm}html,body{margin:0;background:#fff;color:#111;font:9.5pt/1.35 Arial,Helvetica,sans-serif}.fe h5{margin:0 0 3pt;font-size:9.5pt}.fe-parti{display:grid;grid-template-columns:1fr 1fr;border:1px solid #000;margin-bottom:10pt}.fe-parti>div{padding:5pt 8pt}.fe-parti>div+div{border-left:1px solid #000}.fe-t{width:100%;border-collapse:collapse;margin:0 0 12pt}.fe-t caption{border:1px solid #000;border-bottom:0;font-weight:700;padding:3pt}.fe-t th{border:1px solid #000;font-weight:400;padding:3pt 5pt;font-size:8.5pt}.fe-t td{padding:4pt 5pt;text-align:right;vertical-align:top;border-left:1px solid #000;border-right:1px solid #000}.fe-t tbody tr:last-child td{border-bottom:1px solid #000}.fe-t .l{text-align:left}.fe-doc td{text-align:center;font-weight:700}.fe-cod{margin:-2pt 0 10pt;font-size:10pt}.fe-bozza{letter-spacing:.1em}.fe-righe td.l{white-space:pre-wrap;overflow-wrap:anywhere}.fe-miss{color:#b00020;font-weight:700}';
 $("invPrint").onclick=async()=>{
   if(!INV)return;
   const d=INV.d,C=STORE.contab(),html='<!doctype html><html lang="it"><head><meta charset="utf-8"><title>'+esc("Fattura "+(d.numero?"n. "+d.numero+" ":"")+(d.cliente.nome||""))+'</title><style>'+FE_PRINT+'</style></head><body>'+invoiceHTML(d,FT.calc(d,C),C)+'</body></html>';
@@ -4626,6 +4787,9 @@ async function invPreviewPdf(d,C){
   const dt=x=>FT.itLong(x),num=x=>eur2(x);
   table([{t:"Tipologia documento",w:.25,a:"c"},{t:"Numero documento",w:.25,a:"c"},{t:"Data documento",w:.25,a:"c"},{t:"Codice destinatario",w:.25,a:"c"}],
     [[d.tipo+" ("+String(FT.TIPI_DOC[d.tipo]||"").toLowerCase()+")",String(d.numero||"").trim()||"BOZZA",dt(d.data),dest]],{boldLast:false});
+  // 3.0.5: codice Multi del cliente, a sinistra tra i dati del documento e la tabella delle righe (spazio più largo)
+  const cod=String(c.code||"").trim();
+  if(cod){const lab="Codice cliente:",cs=9.4;need(26);txt(lab,M,y-8,cs,false);txt(cod,M+tw(lab,cs,false)+cs*0.32,y-8,cs,true);y-=8+12;}
   const ord=d.pa.ordNum||d.pa.cig||d.pa.cup?"Vs.Ord. "+(d.pa.ordNum||"")+(d.pa.ordData?" del "+dt(d.pa.ordData):"")+(d.pa.cup?" CUP: "+d.pa.cup:"")+(d.pa.cig?" CIG: "+d.pa.cig:""):"";
   const righe=[];if(ord)righe.push([ord,"","","","",""]);if(FT.causaleApart(d))righe.push([d.causale,"","","","",""]);
   for(const l of k.lines)righe.push([l.desc,num(l.qta),Number(l.unit).toLocaleString("it-IT",{minimumFractionDigits:2,maximumFractionDigits:6}),[l.sc,l.docSc].filter(Boolean).map(x=>"SC "+num(x)+"%").join(" + "),l.aliqOk?(l.perc>0?num(l.perc):l.natura):"?",num(l.tot)]);
@@ -4864,7 +5028,7 @@ document.addEventListener("scroll",e=>{const b=$("memSug");if(b&&!b.hidden&&!b.c
 // ---------- Archivio (2.0): anagrafiche clienti, flotta, referenti, guide, hotel e tendine ----------
 const ARCH=[
   {k:"clienti",ic:"👥",t:"Anagrafica clienti",n:()=>S.clients.length.toLocaleString("it-IT")+" clienti",open:()=>openClients()},
-  {k:"flotta",ic:"🚌",t:"Anagrafica flotta",n:()=>S.fleet.length+" mezzi",open:()=>openFleet()},
+  {k:"flotta",ic:"🚌",t:"Anagrafica flotta",n:()=>{const g=S.fleet.length-fleetOn(todayISO()).length;return fleetOn(todayISO()).length+" mezzi"+(g?" · "+g+" eliminat"+(g===1?"o":"i"):"");},open:()=>openFleet()},
   {k:"autisti",ic:"🧑‍✈️",t:"Anagrafica autisti",n:()=>drivers().length+" autisti",open:()=>openReg("autisti")},
   {k:"referenti",ic:"☎️",t:"Anagrafica referenti",n:()=>regRows("referenti").length+" referenti",open:()=>openReg("referenti")},
   {k:"guide",ic:"🧭",t:"Anagrafica guide",n:()=>regRows("guide").length+" guide",open:()=>openReg("guide")},
@@ -5734,6 +5898,8 @@ function renderFormMeals(b){
       (r.others.length?'<span class="pst-w">⚠ lo stesso giorno ha anche: '+esc(r.others.map(svcName).join(", "))+'</span>':'')+'</li>').join("")+'</ul>';
 }
 $("fPasti").addEventListener("click",e=>{const h=e.target.closest(".pst-f-h");if(!h)return;const l=$("fPasti").querySelector(".pst-f-l");l.hidden=!l.hidden;h.setAttribute("aria-expanded",String(!l.hidden));h.querySelector(".pst-f-d").textContent=l.hidden?"dettaglio":"chiudi";});
+// 3.0.5: nota accanto alla spunta «Causale di riepilogo» (fattura unica di più servizi)
+function invRiepNote(d){const n=((d&&d.servizi)||[]).length;return d&&d.modo==="riepilogo"?"· una riga sola con il totale dei "+n+" servizi":"· ogni servizio su una riga ("+n+" righe)";}
 // bozza fattura: quanti pasti hanno segnato gli autisti nei servizi della fattura
 function invMealsNote(d){
   const all=bookingsAll(),t=mealsSum(((d&&d.servizi)||[]).map(s=>{const b=all.find(x=>x.id===s.id&&(!s.start||x.start===s.start))||all.find(x=>x.id===s.id);return b?serviceMeals(b):null;}));
@@ -5955,7 +6121,7 @@ function openCapo(b0,o){
   oth.forEach(x=>[x.driver,x.driver2].map(realDriver).filter(Boolean).forEach(d=>busyD.add(drvKey(d))));
   $("cpTitle").textContent="Bus e autisti · foglio n. "+(b.foglio||"—");
   $("cpInfo").innerHTML="<b>"+esc(dispClient(b))+"</b> · "+esc(TYPES[b.type]||"Servizio")+" · "+esc(itD(b.start))+(endOf(b)!==b.start?" – "+esc(itD(endOf(b))):"")+(b.time?" · ore "+esc(b.time):"")+(b.pax!==""&&b.pax!=null?" · "+esc(b.pax)+" passeggeri":"")+(b.route?"<br>"+esc(b.route):"");
-  $("cpVeh").innerHTML=S.fleet.map(v=>'<option value="'+esc(v.id)+'">'+esc(vehLabel(v))+(busyV.has(v.id)?" · già impegnato":"")+'</option>').join("")+(isXbus(b.vehicle)?'<option value="'+esc(b.vehicle)+'">'+esc(vehLabel(vehicle(b.vehicle)))+'</option>':""); // extra bus (2.8): resta tra le scelte
+  $("cpVeh").innerHTML=S.fleet.filter(v=>vOn(v,b.start)||v.id===b.vehicle).map(v=>'<option value="'+esc(v.id)+'">'+esc(vehLabel(v))+(vOn(v,b.start)?"":" · "+esc(vOffNote(v,b.start)))+(busyV.has(v.id)?" · già impegnato":"")+'</option>').join("")+(isXbus(b.vehicle)?'<option value="'+esc(b.vehicle)+'">'+esc(vehLabel(vehicle(b.vehicle)))+'</option>':""); // extra bus (2.8): resta tra le scelte
   $("cpVeh").value=b.vehicle;
   const c1=cpName(b.driver),c2=cpName(b.driver2),names=drivers().map(d=>d[0]);
   [c1,c2].forEach(n=>{if(n&&!names.includes(n))names.push(n);}); // nomi di prenotazioni vecchie, fuori elenco

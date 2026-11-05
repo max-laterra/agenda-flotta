@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="3.0" data-p="3.0.4">
+<html lang="it" data-v="3.0" data-p="3.0.5">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -242,6 +242,7 @@ table.mg{border-collapse:separate;border-spacing:0;font-size:12px;width:100%}
 :root[data-theme="dark"] .cell{color:#0E1620}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .cell{color:#0E1620}}
 .mg tfoot td{font-size:11.5px;text-align:center;color:var(--ink-2);font-variant-numeric:tabular-nums;height:28px;border-bottom:0}
+.mg tfoot td.full,.wk tfoot tr.wk-occ td.full{color:var(--warn);font-weight:700} /* 3.0.5: tutti i mezzi impegnati */
 
 /* week grid */
 .dbtn.inweek:not([aria-current="date"]){border-color:var(--ink-3)}
@@ -265,7 +266,10 @@ table.wk{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px;t
 .wk td.wc .plus{display:block;color:var(--ink-3);font-size:12px;opacity:0;padding:4px}
 .wk td.wc:hover .plus,.wk td.wc:focus-within .plus{opacity:1}
 @media (hover:none){.wk td.wc .plus{opacity:.5}}
-.wcell{display:flex;flex-direction:column;gap:3px}
+.wcell{display:flex;flex-direction:column;gap:3px;position:relative}
+/* 3.0.5: nelle caselle con un servizio il «+» non occupa spazio: un tondino nell'angolo, al passaggio del mouse */
+.wk td.wc .wcell.has .plus{position:absolute;right:-2px;bottom:-2px;width:22px;height:22px;padding:0;border-radius:50%;background:var(--surface);border:1px solid var(--line);color:var(--ink);font-size:16px;font-weight:700;line-height:20px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.wk td.wc .wcell.has .plus:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
 .wb{display:block;width:100%;text-align:left;border:1px solid transparent;border-left-width:3px;border-radius:6px;padding:3px 6px;font-size:12px;line-height:1.3;background:var(--surface-2);overflow:hidden}
 .wb.transfer{background:var(--transfer-bg);border-left-color:var(--transfer-fill)}
 .wb.gita{background:var(--gita-bg);border-left-color:var(--gita-fill)}
@@ -284,6 +288,11 @@ table.wk{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px;t
 .wk tfoot td{padding:7px 8px;font-size:12.5px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink-2);cursor:pointer}
 .wk tfoot td:hover{background:var(--accent-soft)}
 .wk tfoot td .none{color:var(--ink-3);font-style:italic}
+/* 3.0.5: riga «Mezzi impegnati» in fondo alla settimana */
+.wk tfoot tr.wk-occ td{text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
+.wk tfoot tr.wk-occ td b{font-size:15px;color:var(--ink)}
+.wk tfoot tr.wk-occ td.full b{color:var(--warn)}
+.wk tfoot tr.wk-occ+tr td,.wk tfoot tr.wk-occ+tr th{border-top:1px solid var(--line)}
 
 
 /* importi */
@@ -530,10 +539,40 @@ table.bt{border-collapse:collapse;width:100%;min-width:1180px;font-size:13px}
 @media (max-width:520px){.fgrid{grid-template-columns:1fr}.types{grid-template-columns:1fr 1fr}}
 
 .fleet-list{display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow-y:auto}
-.fleet-row{display:grid;grid-template-columns:1.3fr 64px 1.1fr 1fr 90px;gap:8px}
+.fleet-row{display:grid;grid-template-columns:1.3fr 64px 1.1fr 1fr 90px 40px;gap:8px}
 .fleet-row select{border:1px solid var(--line);border-radius:8px;padding:7px 6px;background:var(--bg);min-width:0;width:100%}
 .fleet-row input{border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:var(--bg);min-width:0;width:100%}
-.fleet-head{display:grid;grid-template-columns:1.3fr 64px 1.1fr 1fr 90px;gap:8px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+/* 3.0.5: aggiungi / elimina / rimetti in flotta */
+.fleet-how{margin:0;font-size:13px;line-height:1.45;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+.fl-act{border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer;font-size:16px;line-height:1;padding:0;min-height:34px}
+.fl-act:hover{border-color:var(--warn)}
+.fleet-row .fl-sub{grid-column:1/-1;font-size:12.5px;color:var(--ink-2);display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:-2px}
+.fleet-row .fl-sub input{width:auto;padding:4px 7px}
+.fl-new{background:#EEF6EF;border:1px dashed #7FB08A;border-radius:10px;padding:8px}
+.fl-going input,.fl-going select{opacity:.5;text-decoration:line-through}
+.fl-going .fl-gonenote{color:var(--warn);font-weight:600}
+.fl-ask{border:1px solid var(--warn);background:#FFF4F2;border-radius:10px;padding:10px 12px;font-size:13.5px;color:var(--ink-2)}
+.fl-ask p{margin:0 0 6px}.fl-ask b{color:var(--ink)}.fl-ask input{border:1px solid var(--line);border-radius:7px;padding:3px 6px;background:var(--surface)}
+.fl-ask .fl-keep{font-size:12.5px}.fl-ask .fl-err{color:var(--warn);font-weight:600}
+.fl-askb{display:flex;gap:8px;flex-wrap:wrap}
+.fleet-addbar{display:flex;margin-top:-4px}
+.fleet-gone{border-top:1px solid var(--line);padding-top:10px}
+.fleet-gone h4{margin:0 0 2px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.fleet-gone>p{margin:0 0 8px;font-size:12.5px;color:var(--ink-3)}
+.fl-gone-row{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line)}
+.fl-gone-row .fl-gl{display:flex;flex-direction:column;font-size:13.5px;color:var(--ink-3)}.fl-gone-row .fl-gl b{color:var(--ink-2);text-decoration:line-through}
+.fl-gone-row.fl-back .fl-gl b{text-decoration:none;color:var(--ink)}.fl-gone-row.fl-back small{color:#1E6B3A;font-weight:600}
+.fleet-err{margin:0;color:var(--warn);font-size:13.5px;font-weight:600;line-height:1.45}
+.v-off{display:block;font-size:10.5px;font-weight:600;color:var(--warn);line-height:1.2}
+.v-offrow .veh{opacity:.85}
+.fleet-head{display:grid;grid-template-columns:1.3fr 64px 1.1fr 1fr 90px 40px;gap:8px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+@media (max-width:620px){ /* 3.0.5: flotta sul telefono, due righe per mezzo */
+  .fleet-head{display:none}
+  .fleet-row{grid-template-columns:1fr 60px 78px 40px;border-bottom:1px solid var(--line);padding-bottom:8px}
+  .fleet-row input,.fleet-row select{padding-left:7px;padding-right:5px}
+  .fleet-row .fl-n{grid-column:1;grid-row:1}.fleet-row .fl-s{grid-column:2;grid-row:1}.fleet-row .fl-i{grid-column:3;grid-row:1}.fleet-row .fl-act{grid-column:4;grid-row:1}
+  .fleet-row .fl-x{grid-column:1;grid-row:2}.fleet-row .fl-p{grid-column:2/5;grid-row:2}
+}
 
 .banner{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:6px 8px 6px 14px;font-weight:600;font-size:14px;display:flex;flex-direction:column;gap:4px}
 .banner .bn{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
@@ -727,9 +766,7 @@ img{max-width:100%}
 @media (min-width:1280px){
   .legend{max-width:none}
   .row{padding:9px 16px 9px 12px}
-  /* più prenotazioni dello stesso mezzo affiancate invece che una sotto l'altra */
-  .slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:8px}
-  .slots .free{grid-column:1/-1}
+  /* 3.0.5: più servizi dello stesso mezzo di nuovo uno sotto l'altro anche sullo schermo grande (prima affiancati) */
   .wk col.vcol{width:200px}
   .wk td.wc{height:52px}
   .wb{font-size:12.5px}
@@ -920,6 +957,8 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 .iv-note{grid-column:1/-1;margin:2px 0 0;font-size:13px;line-height:1.45;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
 .iv-bar{display:flex;gap:6px 16px;align-items:center;flex-wrap:wrap;font-size:13.5px;color:var(--ink-2)}
 .iv-bar select{border:1px solid var(--line);border-radius:7px;padding:4px 6px;background:var(--bg);margin-left:4px}
+.iv-riep{display:inline-flex;gap:7px;align-items:center;flex-wrap:wrap;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:4px 10px;background:var(--bg)} /* 3.0.5 */
+.iv-riep input{width:17px;height:17px;margin:0;cursor:pointer}.iv-riep b{color:var(--ink)}.iv-riep small{color:var(--ink-3);font-size:12.5px}
 .iv-rows{border:1px solid var(--line);border-radius:8px;overflow:auto}
 .iv-row{display:grid;grid-template-columns:22px 64px 104px 64px minmax(120px,150px) minmax(84px,1fr) 70px;grid-template-areas:"n d d d d d d" ". q p s a t o";gap:6px;padding:7px 8px;border-top:1px solid var(--line);align-items:start}
 .iv-row>:nth-child(1){grid-area:n}.iv-row>:nth-child(2){grid-area:d}.iv-row>:nth-child(3){grid-area:q}.iv-row>:nth-child(4){grid-area:p}.iv-row>:nth-child(5){grid-area:s}.iv-row>:nth-child(6){grid-area:a}.iv-row>:nth-child(7){grid-area:t}.iv-row>:nth-child(8){grid-area:o}
@@ -940,7 +979,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 .inv-totals b{color:var(--ink)}.inv-totals .tot{font-size:17px}.inv-totals .tot b{font-size:19px}
 .inv-issues{font-size:13.5px;max-height:88px;overflow:auto;border-top:1px dashed var(--line);padding-top:6px}
 .inv-issues ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px}
-.inv-issues li.err{color:var(--warn);font-weight:600}.inv-issues li.warn{color:var(--ink-2)}.inv-issues .ok{margin:0;color:var(--ok);font-weight:600}
+.inv-issues li.err{color:var(--warn);font-weight:600}.inv-issues li.warn{color:var(--ink-2)}.inv-issues li.dup{color:#7A4E00;background:#FFF4D6;border-radius:5px;padding:2px 6px;font-weight:600}.inv-issues .ok{margin:0;color:var(--ok);font-weight:600}
 .inv-badge{display:inline-block;border-radius:5px;padding:1px 7px;font-size:12px;font-weight:700;background:#FFF4D6;color:#7A4E00;white-space:nowrap}
 .inv-badge.xml{background:#DCF3E4;color:#135C33}
 .inv-list{max-height:62vh}
@@ -964,6 +1003,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 .fe-t td{padding:4px 5px;text-align:right;vertical-align:top;border-left:1px solid #000;border-right:1px solid #000;font-variant-numeric:tabular-nums}
 .fe-t tbody tr:last-child td{border-bottom:1px solid #000}
 .fe-t .l{text-align:left}.fe-doc td{text-align:center;font-weight:700}
+.fe-cod{margin:-2px 0 12px;font-size:12px} /* 3.0.5: codice Multi del cliente */
 .fe-righe td.l{white-space:pre-wrap;overflow-wrap:anywhere;width:52%}
 .fe-bozza{letter-spacing:.1em;color:#7A4E00;background:#FFF4D6;border-radius:3px;padding:0 5px}.fe-miss{color:#b00020;font-weight:700}
 @media (max-width:1100px){
@@ -974,7 +1014,12 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 @media (max-width:760px){
   .ct-grid,.ct-grid.two,.iv-grid.g4{grid-template-columns:1fr 1fr}.iv-grid .w2,.ct-grid .w2{grid-column:1/-1}
   .ct-row.ct-iva,.ct-row.ct-cau{grid-template-columns:1fr 1fr}.ct-row.hd{display:none}.ct-row textarea{grid-column:1/-1}
-  .iv-row{grid-template-columns:22px 1fr 1fr 1fr}.iv-row.hd{display:none}.iv-row textarea{grid-column:2/-1}.iv-row .tot{grid-column:2/4;text-align:left}.iv-row .n{grid-row:1}
+  /* 3.0.5: righe della fattura sul telefono su tre righe (prima quantità, prezzo e sconto erano schiacciati):
+     descrizione · quantità, prezzo, sconto · IVA, imponibile, pulsanti; l'intestazione resta e fa da legenda */
+  .iv-row{grid-template-columns:22px minmax(0,1.15fr) minmax(0,1fr) minmax(0,.85fr);grid-template-areas:"n d d d" ". q p s" ". a t o";row-gap:6px}
+  .iv-row.hd{row-gap:3px}.iv-row.hd>span{overflow-wrap:anywhere}
+  .iv-row select{padding-left:5px;padding-right:2px}.iv-row:not(.hd) .tot{font-size:14px;overflow-wrap:anywhere}
+  .iv-row .ops .btn{min-width:28px;padding:4px 6px}
   .bt td.acts{position:static;box-shadow:none}
   #contTabs{max-width:100%;overflow-x:auto}#contTabs button{white-space:nowrap}
   .inv-foot .btn{padding:6px 9px;font-size:13px}.inv-totals{font-size:13.5px}.inv-totals .tot b{font-size:17px}
@@ -1088,6 +1133,7 @@ input.drv-g{color:#1F6B3A;font-weight:600}input.drv-r{color:#9B1C1C;font-weight:
 .rp-day .rp-lab{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#FFB4B4}
 .rp-day .rp-name{background:#D32F2F;color:#fff;border-radius:999px;padding:3px 10px;font-weight:700;font-size:13.5px;white-space:nowrap}
 .wk thead th .occ .rp-n{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 4px;margin-left:6px;border-radius:999px;background:#D32F2F;color:#fff;font-size:11px;font-weight:800;vertical-align:1px}
+.wk thead th .occ .rp-n:first-child{margin-left:0} /* 3.0.5: senza «x/26 impegnati» il numerino è il primo */
 .rp-btn{border-color:#D32F2F;color:#B71C1C}
 .rp-list{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:8px 0 10px;padding:8px 12px;border:1px solid color-mix(in srgb,#D32F2F 30%,var(--line));border-radius:10px;background:color-mix(in srgb,#D32F2F 5%,var(--surface));font-size:13.5px}
 .rp-list.none{color:var(--ink-3);border-style:dashed;background:none}
@@ -1728,8 +1774,12 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
     <h3>Flotta</h3>
     <p class="menu-note" id="fleetRo" hidden>Solo il Master può modificare la flotta: qui puoi consultarla.</p>
     <p style="margin:0;color:var(--ink-2);font-size:14px">Il mezzo e la targa vanno nelle colonne G e H del fatturato. Le targhe proposte sono quelle del foglio "regole" del tuo file.</p>
-    <div class="fleet-head"><span>Nome</span><span>Posti</span><span>Mezzo (Excel)</span><span>Targa</span><span>ID mezzo</span></div>
+    <p class="fleet-how" id="fleetHow">Mezzo venduto o non più usato: premi <b>🗑</b> sulla sua riga. Resta nei giorni passati con la sua targa (prenotazioni, fogli di servizio, fatturato e fatture non cambiano). Per un mezzo nuovo usa <b>+ Aggiungi mezzo</b>: non scrivere la targa nuova sopra quella di un mezzo venduto, cambierebbe anche i servizi passati.</p>
+    <div class="fleet-head"><span>Nome</span><span>Posti</span><span>Mezzo (Excel)</span><span>Targa</span><span>ID mezzo</span><span></span></div>
     <div class="fleet-list" id="fleetList"></div>
+    <div class="fleet-addbar"><button type="button" class="btn" id="flAdd">+ Aggiungi mezzo</button></div>
+    <div class="fleet-gone" id="fleetGone" hidden><h4>Mezzi eliminati</h4><p>Non sono più in agenda dal giorno indicato. Restano nei giorni passati con i loro servizi.</p><div id="fleetGoneList"></div></div>
+    <p class="fleet-err" id="fleetErr" role="alert" hidden></p>
     <div class="mfoot"><button type="button" class="btn" id="flCancel">Chiudi</button><button type="submit" class="btn primary" id="flSave">Salva flotta</button></div>
   </form>
 </div>

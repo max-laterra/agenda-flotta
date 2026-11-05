@@ -1,22 +1,118 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 3.0.4 (30/10/2026)
+AGENDA FLOTTA LA TERRA – VERSIONE 3.0.5 (05/11/2026)
 ===================================================
 La versione in uso si vede nell'app: in alto accanto a "Sincronizzato",
 nella schermata di accesso e nel Menu. Deve corrispondere a quella di questo file.
 
-COME AGGIORNARE ALLA 3.0.4 DALLA 3.0.3 (2 minuti, solo 5 file)
+COME AGGIORNARE ALLA 3.0.5 DALLA 3.0.4 (2 minuti, solo 4 file)
 --------------------------------------------------------------
-Serve la 3.0.3 già su GitHub (in alto nell'agenda "v3.0.3"). Se hai una versione più vecchia,
-carica prima l'aggiornamento della 3.0.3 (oppure il pacchetto completo della 3.0.4).
+Serve la 3.0.4 già su GitHub (in alto nell'agenda "v3.0.4"). Se hai una versione più vecchia,
+carica prima l'aggiornamento della 3.0.4 (oppure il pacchetto completo della 3.0.5).
 1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
-   5 file: app.js, index.html, fatture.js, fatturato.js, LEGGIMI.txt. Niente config.js. Gli altri
-   file restano quelli della 3.0.3 (store.js e autisti.js della 3.0.3 vanno bene così).
-2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v3.0.4".
+   4 file: app.js, index.html, store.js, LEGGIMI.txt. Niente config.js. Gli altri file restano
+   quelli della 3.0.4 (fatture.js e fatturato.js della 3.0.4, autisti.js della 3.0.3).
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v3.0.5".
    Se compare "Aggiornamento in corso (…)" è normale per qualche minuto; se resta, su GitHub
    manca il file scritto tra parentesi.
 3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda. Una pagina rimasta aperta con la
    versione di prima avvisa da sola e non salva niente finché non la riapri.
-4. Subito dopo: Archivio › Contabilità › Opzioni › "Numerazione delle fatture": scrivi l'ultimo
-   numero di fattura emesso fuori dall'agenda (per esempio 496/00) e l'anno, poi "Salva".
+4. Niente da fare sull'app degli autisti.
+
+NOVITÀ DELLA 3.0.5: ANAGRAFICA FLOTTA – AGGIUNGERE ED ELIMINARE I MEZZI
+-----------------------------------------------------------------------
+Archivio › Anagrafica flotta. I campi si modificano scrivendoci sopra, come prima; in più:
+- 🗑 su ogni riga: elimina un mezzo venduto o non più usato.
+  · Chiede da che giorno (di serie oggi). Da quel giorno il mezzo non compare più in agenda e
+    non si può più scegliere nelle prenotazioni nuove.
+  · Il mezzo NON si cancella: resta nel file della flotta con i suoi dati. Nei giorni prima
+    compare come sempre, con i suoi servizi. Fogli di servizio in Dropbox, righe del
+    fatturato (mezzo e targa) e fatture già fatte restano come sono.
+  · Se dal giorno scelto ci sono ancora servizi su quel mezzo, non lo elimina e dice quali
+    sono: prima spostali su un altro mezzo (oppure scegli un giorno dopo l'ultimo servizio).
+  · La riga diventa barrata: "Da eliminare dal …". Si conferma con "Salva flotta"; ↺ annulla.
+- "+ Aggiungi mezzo" (sotto l'elenco): riga nuova con nome, posti, mezzo (Excel), targa,
+  ID mezzo e "in agenda dal" (di serie oggi). Scritti i posti, il mezzo (Excel) si propone da
+  solo. Senza nome diventa "60 posti" (con i posti scritti). In agenda va con i mezzi che
+  hanno gli stessi posti. Nei giorni prima di "in agenda dal" non compare.
+- "Mezzi eliminati" (in fondo al pannello): l'elenco con la data; "Rimetti in flotta" lo fa
+  tornare in agenda (anche per un errore).
+- Mezzo venduto e mezzo nuovo con un'altra targa: elimina il vecchio con 🗑 e aggiungi il
+  nuovo. NON scrivere la targa nuova sopra quella vecchia: cambierebbe la targa anche nelle
+  righe del fatturato dei servizi passati.
+- La stessa targa su due mezzi in flotta: non salva e lo dice.
+- In agenda: un mezzo eliminato che ha comunque un servizio dopo la data (per esempio
+  arrivato da un altro dispositivo) compare in quel giorno con la scritta rossa
+  "eliminato dal …", così non si perde. Nel modulo, se il mezzo di un servizio è eliminato
+  in quei giorni, compare l'avviso "scegli un altro mezzo".
+- I conteggi dei mezzi (Giorno, Settimana, Mese, Archivio) contano solo quelli in flotta quel
+  giorno. Aggiunge, elimina e rimette in flotta chi può già modificare la flotta (permesso
+  "Flotta" nel Pannello Master).
+
+NOVITÀ DELLA 3.0.5: CODICE MULTI DEL CLIENTE NELLA FATTURA
+----------------------------------------------------------
+- Anteprima della fattura (sullo schermo, "Stampa anteprima" e "Scarica anteprima"): tra la
+  tabella "Tipologia documento / Numero / Data / Codice destinatario" e la tabella delle righe
+  c'è più spazio e, a sinistra, la riga "Codice cliente: …" con il codice Multi del cliente.
+- Bozza di fattura, riquadro "Cliente": nuovo campo "Codice Multi" (il primo del riquadro).
+  Si riempie da solo con il codice dell'anagrafica clienti (colonna A del foglio "clienti" del
+  file fatturato) e si può cambiare. Il codice cambiato vale solo per quella fattura:
+  l'anagrafica clienti e il file fatturato non cambiano.
+- Campo vuoto (per esempio cliente non in anagrafica): la riga "Codice cliente" non si stampa
+  e lo spazio resta quello di prima.
+- Fattura emessa (file XML già creato): il campo è bloccato come gli altri; per cambiarlo serve
+  "Modifica fattura emessa".
+- Il codice Multi non va nel file XML: serve solo nell'anteprima e nella stampa.
+
+NOVITÀ DELLA 3.0.5: NUMERO DELLA FATTURA E FATTURE DI PIÙ SERVIZI
+-----------------------------------------------------------------
+- Numero proposto: l'ultima fattura EMESSA dell'anno (file XML creato) più uno, con la stessa
+  forma (dopo 496/00 viene 497/00). Conta anche l'"ultimo numero emesso fuori dall'agenda"
+  scritto in Contabilità › Opzioni. Le bozze non ancora emesse non contano più: prima una bozza
+  con un numero scritto a mano spostava in avanti il numero proposto.
+- Numero già di un'altra fattura emessa dello stesso anno: prima "Crea file XML" restava spento,
+  ora si può emettere lo stesso.
+  · Nella bozza compare l'avviso evidenziato in arancione: "Attenzione: il numero … è già della
+    fattura emessa «…» (numero libero: …)".
+  · Premendo "Crea file XML" l'agenda chiede conferma. "OK" crea il file con quel numero,
+    "Annulla" non crea niente.
+  · Attenzione: il Sistema di Interscambio scarta una fattura con lo stesso numero e lo stesso
+    anno di una già inviata e non scartata. Usa lo stesso numero solo se l'altra fattura è
+    stata scartata o non è mai stata inviata (da verificare con il commercialista).
+- Fattura unica di più servizi: quando crei il file XML, le caselle dei servizi spuntati nella
+  vista Fatturato si tolgono da sole. Se salvi solo la bozza, le spunte restano.
+
+NOVITÀ DELLA 3.0.5: SPUNTA "CAUSALE DI RIEPILOGO" (FATTURA UNICA DI PIÙ SERVIZI)
+-------------------------------------------------------------------------------
+- Nella bozza, sezione "Righe", il menu "Noleggio" (una riga riepilogativa / una riga per
+  servizio) è diventato la spunta "Causale di riepilogo".
+  · Spuntata (di serie, come prima): una riga sola con la causale di riepilogo del mese e la
+    somma dei servizi. Accanto: "una riga sola con il totale dei … servizi".
+  · Senza spunta: ogni servizio su una riga, con la data, i posti del mezzo e l'itinerario.
+    Accanto: "ogni servizio su una riga (… righe)".
+- Il totale della fattura non cambia: cambia solo come sono scritte le righe del noleggio.
+  Parcheggi, pasti ed extra restano sempre su righe a parte.
+- Se hai già scritto o corretto le righe a mano, cambiando la spunta l'agenda chiede conferma
+  prima di rifarle: "Annulla" lascia tutto com'è.
+- La scelta si salva con la bozza. Con un servizio solo la spunta non compare.
+
+NOVITÀ DELLA 3.0.5: VISTE SETTIMANA, MESE E GIORNO
+--------------------------------------------------
+- Settimana: nelle caselle che hanno già un servizio la scritta "+ Aggiungi" non occupa più
+  spazio sotto il servizio (le righe sono più basse). Al suo posto c'è un tondino "+"
+  nell'angolo in basso a destra, che compare quando passi il mouse sulla casella (su iPad e
+  telefono si vede sempre, più chiaro): cliccandolo aggiungi un altro servizio su quel mezzo
+  e quel giorno. Nelle caselle vuote resta "+ Aggiungi".
+- Settimana: nuova riga "MEZZI IMPEGNATI" in fondo, sotto i mezzi e sopra "Autisti extra":
+  per ogni giorno quanti mezzi hanno almeno un servizio, su quanti sono in flotta quel giorno
+  (es. "3 su 26"). Tutti impegnati: il numero diventa rosso. Passando il mouse si vedono anche
+  i liberi; cliccando si apre la giornata. Sotto la data, in alto, non c'è più
+  "… /26 impegnati": resta solo il numerino rosso degli autisti a riposo, ora con scritto
+  "a riposo".
+- Mese: l'ultima riga "Mezzi liberi" è diventata "Mezzi impegnati" (stesso numero della riga
+  "M" in alto). I liberi si vedono passando il mouse sul numero.
+- Giorno: più servizi dello stesso mezzo nello stesso giorno sono di nuovo uno sotto l'altro,
+  ognuno su tutta la riga con orari, cliente, itinerario e autista incolonnati. Prima, sugli
+  schermi larghi (da 1280 punti in su), erano affiancati.
+- Gli extra bus (bus di altre aziende) non contano tra i mezzi impegnati, come prima.
 
 NOVITÀ DELLA 3.0.4: FATTURE A CLIENTI ESTERI
 --------------------------------------------
@@ -101,6 +197,21 @@ CORREZIONI DELLA 3.0.4: MARGINI DELLA STAMPA CON GLI ALLEGATI
   taglia niente). Nel PDF che arriva all'autista gli allegati restano nelle loro misure.
 - Se nella finestra di stampa di Chrome i margini ti sembrano ancora diversi, controlla in
   "Altre impostazioni" che "Scala" sia "Predefinita".
+
+COME SI AGGIORNAVA ALLA 3.0.4 DALLA 3.0.3 (storico, 5 file)
+-----------------------------------------------------------
+Serve la 3.0.3 già su GitHub (in alto nell'agenda "v3.0.3"). Se hai una versione più vecchia,
+carica prima l'aggiornamento della 3.0.3 (oppure il pacchetto completo della 3.0.4).
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   5 file: app.js, index.html, fatture.js, fatturato.js, LEGGIMI.txt. Niente config.js. Gli altri
+   file restano quelli della 3.0.3 (store.js e autisti.js della 3.0.3 vanno bene così).
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v3.0.4".
+   Se compare "Aggiornamento in corso (…)" è normale per qualche minuto; se resta, su GitHub
+   manca il file scritto tra parentesi.
+3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda. Una pagina rimasta aperta con la
+   versione di prima avvisa da sola e non salva niente finché non la riapri.
+4. Subito dopo: Archivio › Contabilità › Opzioni › "Numerazione delle fatture": scrivi l'ultimo
+   numero di fattura emesso fuori dall'agenda (per esempio 496/00) e l'anno, poi "Salva".
 
 COME SI AGGIORNAVA ALLA 3.0.3 DALLA 3.0, 3.0.1 O 3.0.2 (storico, 5 file)
 -------------------------------------------------------------------------------
