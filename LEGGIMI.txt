@@ -1,7 +1,48 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 3.0.5 (05/11/2026)
+AGENDA FLOTTA LA TERRA – VERSIONE 3.0.6 (09/11/2026)
 ===================================================
 La versione in uso si vede nell'app: in alto accanto a "Sincronizzato",
 nella schermata di accesso e nel Menu. Deve corrispondere a quella di questo file.
+
+COME AGGIORNARE ALLA 3.0.6 DALLA 3.0.5 (1 minuto, solo 2 file)
+--------------------------------------------------------------
+Serve la 3.0.5 già su GitHub (in alto nell'agenda "v3.0.5"). Se hai una versione più vecchia,
+carica prima l'aggiornamento della 3.0.5 (le istruzioni sono qui sotto).
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   2 file: app.js e LEGGIMI.txt. Niente config.js. Tutti gli altri file restano quelli della 3.0.5.
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v3.0.6".
+3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda. Una pagina rimasta aperta con la
+   versione di prima avvisa da sola e non salva niente finché non la riapri.
+4. Niente da fare sull'app degli autisti e niente da fare sui dati.
+
+NOVITÀ DELLA 3.0.6: AUTISTA RINOMINATO = SEMPRE LA STESSA PERSONA
+-----------------------------------------------------------------
+Il problema: il 4/11 nell'Archivio › Anagrafica autisti "Cascone Saro" è stato corretto in
+"Cascone Rosario". I servizi inseriti prima, il telefono di prima e le crocette dei pasti di
+ottobre e dell'1–3 novembre hanno ancora "Cascone Saro" (cartella del telefono cascone-saro);
+dopo il cambio il telefono scrive sotto "Cascone Rosario" (cartella cascone-rosario). Nella
+pagina Autisti comparivano due righe, "Cascone Rosario" e "Cascone Saro", come due persone.
+Adesso:
+- L'agenda si ricorda il nome di prima di ogni autista rinominato nell'anagrafica. Il nome di
+  prima vale come quello nuovo: nella pagina Autisti c'è UNA riga sola, "Cascone Rosario", con
+  tutte le crocette (quelle di prima e quelle di adesso), i giorni di servizio e le correzioni
+  dell'ufficio. Lo stesso nel Fatturato, nel modulo, nella vista Giorno e nella bozza fattura.
+- Nei conteggi degli autisti del giorno conta una persona sola; giorni di riposo e colore del
+  nome valgono anche per i servizi scritti con il nome di prima.
+- I servizi già inseriti NON cambiano: nel modulo resta scritto "Cascone Saro". Va bene così.
+- Per "Cascone Saro" non devi fare niente: il nome di prima si riconosce da solo.
+- Da adesso, ogni volta che correggi il nome di un autista scrivendoci sopra, il nome vecchio
+  si salva da solo. Fermando il mouse sul nome, in Anagrafica autisti, si vede "Nome di prima".
+- Vale solo se il nome nuovo ha una parola in comune con quello vecchio (il cognome, oppure il
+  nome). Se scrivi un autista nuovo sopra a uno che non c'è più (persona diversa, per esempio
+  "Rossi Mario" → "Bianchi Luca") NON si uniscono. Ma per una persona diversa è meglio togliere
+  la riga (×) e aggiungere quella nuova con "+ Nuovo".
+- Se un nome di prima viene aggiunto di nuovo come autista a sé (una seconda persona con quel
+  nome), da quel momento i due restano separati.
+DA SAPERE: FOGLI GIÀ INVIATI A CASCONE
+- Il telefono di Cascone adesso è collegato come "Cascone Rosario". I fogli dei servizi futuri
+  con "Cascone Saro", inviati prima del cambio di nome, adesso compaiono "Da reinviare": è
+  giusto, perché erano stati inviati al nome di prima. Aprili e premi di nuovo "Invia
+  all'autista": partono con il nome di adesso.
 
 COME AGGIORNARE ALLA 3.0.5 DALLA 3.0.4 (2 minuti, solo 4 file)
 --------------------------------------------------------------

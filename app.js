@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="3.0.5",APP_DATE="05/11/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="3.0.6",APP_DATE="09/11/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
@@ -14,6 +14,8 @@ const APP_VERSION="3.0.5",APP_DATE="05/11/2026";window.AGENDA_VERSION=APP_VERSIO
 // 3.0.4: aggiornamento parziale (app.js, index.html, fatture.js, fatturato.js): le prenotazioni senza cliente non vanno
 //        nel registro attività; fatture a clienti esteri, numero della fattura proposto, «Scarica anteprima» (PDF).
 //        store.js e autisti.js restano quelli della 3.0.3.
+// 3.0.6: aggiornamento parziale (solo app.js): nomi di prima degli autisti (un autista rinominato nell'anagrafica
+//        resta una persona sola: servizi già inseriti, telefono, crocette dei pasti). Gli altri file restano della 3.0.5.
 const APP_FAMILY="3.0",APP_PATCH={index:"3.0.5",store:"3.0.5",autisti:"3.0.3",fatture:"3.0.4",fatturato:"3.0.4"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
@@ -95,17 +97,56 @@ const realDriver=x=>{x=String(x||"").trim();return x&&!isGen(x)?x:"";};
 const DRIVERS0=[["Accardi Giovanni","g"],["Buscema Salvatore","r"],["Calabrese Saro","g"],["Campo Gianfranco","g"],["Capuano Cosimo","r"],["Cascone Saro","g"],["Di Blasi Antonio","g"],["Giannone Piero","r"],["Giannone Roberto","r"],["Giummarra Luca","g"],["Giunta Fabio","g"],["Giurdanella Giorgio","r"],["Gurrieri Angelo","r"],["La Terra Massimo","r"],["Lo Buglio Antonio","g"],["Lucenti Franco","r"],["Panasia Giovanni","r"],["Senia Fabio","g"],["Silipo Graziano","r"],["Sortino Giorgio","g"],["Virduzzo Luca","g"]];
 // 2.8: l'elenco degli autisti si cambia nell'Archivio (anagrafica autisti, config/anagrafica-autisti.json). Finché
 // l'anagrafica non è stata toccata vale l'elenco di sempre (DRIVERS0); colore "g" verde, "r" rosso.
-let _drvSrc=null,_drvList=DRIVERS0;
+let _drvSrc=null,_drvList=DRIVERS0,_drvAka=new Map(),_drvAkaId=new Map();
 function drivers(){
   const r=STORE.reg("autisti");
-  if(r!==_drvSrc){_drvSrc=r;_drvList=r&&r.seeded&&Array.isArray(r.rows)?r.rows.filter(x=>x&&typeof x==="object"&&String(x.nome||"").trim()).map(x=>[String(x.nome).trim().replace(/\s+/g," "),x.colore==="r"?"r":"g"]).sort((a,b)=>a[0].localeCompare(b[0],"it")):DRIVERS0;}
+  if(r!==_drvSrc){
+    _drvSrc=r;const rows=r&&r.seeded&&Array.isArray(r.rows)?r.rows.filter(x=>x&&typeof x==="object"&&String(x.nome||"").trim()):null;
+    _drvList=rows?rows.map(x=>[String(x.nome).trim().replace(/\s+/g," "),x.colore==="r"?"r":"g"]).sort((a,b)=>a[0].localeCompare(b[0],"it")):DRIVERS0;
+    drvAkaBuild(rows||[]);
+  }
   return _drvList;
+}
+// 3.0.6: NOMI DI PRIMA. Cambiando il nome di un autista nell'anagrafica (es. «Cascone Saro» → «Cascone Rosario») i
+// servizi già inseriti, il telefono e le crocette dei pasti tengono il nome vecchio: è la stessa persona, conta una
+// volta sola e nella pagina Autisti ha una riga sola. Nomi di prima di una riga: quello dell'elenco di sempre (l'id
+// «d-…» delle righe di partenza viene da lì) e quelli salvati a ogni cambio di nome (campo «prima», separati da «;»).
+// Valgono solo se hanno una parola in comune con il nome di adesso (il cognome, o il nome): un autista scritto sopra
+// a un altro (persona diversa) non si unisce. Un nome di prima che è anche il nome di un autista in elenco non vale.
+const drvNorm=x=>norm(x).replace(/[.]/g," ").replace(/\s+/g," ").trim();
+const drvWords=x=>drvNorm(x).split(/[^a-z0-9]+/).filter(w=>w.length>2);
+const drvPrima=r=>(Array.isArray(r&&r.prima)?r.prima:String((r&&r.prima)||"").split(";")).map(x=>String(x||"").trim().replace(/\s+/g," ")).filter(Boolean);
+function drvOldNames(row){
+  const nome=String((row&&row.nome)||"").trim();if(!nome)return [];
+  const seed=DRIVERS0.find(d=>"d-"+AUT.slug(d[0])===String(row.id||"")),ws=new Set(drvWords(nome)),out=[];
+  for(const t of (seed?[seed[0]]:[]).concat(drvPrima(row)))
+    if(drvNorm(t)!==drvNorm(nome)&&drvWords(t).some(w=>ws.has(w))&&!out.some(x=>drvNorm(x)===drvNorm(t)))out.push(t);
+  return out;
+}
+// nome di prima (normalizzato) → nome di adesso; id delle crocette del nome di prima → id di adesso
+function drvAkaBuild(rows){
+  const cur=new Set(_drvList.map(d=>drvNorm(d[0]))),curId=new Set(_drvList.map(d=>AUT.slug(d[0]))),m=new Map(),bad=new Set();
+  for(const x of rows){const nome=String(x.nome).trim().replace(/\s+/g," ");for(const o of drvOldNames(x)){const k=drvNorm(o);if(cur.has(k))continue;if(m.has(k)&&m.get(k)!==nome)bad.add(k);else m.set(k,nome);}}
+  for(const k of bad)m.delete(k); // lo stesso nome di prima su due autisti: non si sa chi è, resta com'è
+  const ids=new Map();for(const [k,nome] of m){const a=AUT.slug(k),c=AUT.slug(nome);if(a&&c&&a!==c&&!curId.has(a))ids.set(a,c);}
+  _drvAka=m;_drvAkaId=ids;
+}
+const drvCanonId=id=>(drivers(),_drvAkaId.get(id)||id);
+// tutti gli id di un autista: il suo e quelli dei nomi di prima (le crocette del telefono stanno sotto il nome di allora)
+function drvIdsOf(id){drivers();const l=[id];for(const [a,c] of _drvAkaId)if(c===id)l.push(a);return l;}
+// cambio di nome nell'anagrafica: il nome vecchio va tra quelli di prima (rinominato di nuovo come prima, si toglie)
+function drvKeepOld(r,nuovo){
+  const old=String(r.nome||"").trim().replace(/\s+/g," "),l=drvPrima(r),nk=drvNorm(nuovo),seen=new Set(),out=[];
+  if(old)l.push(old);
+  for(const x of l){const k=drvNorm(x);if(k&&k!==nk&&!seen.has(k)){seen.add(k);out.push(x);}}
+  if(out.length)r.prima=out.slice(-8).join("; ").slice(0,480);else delete r.prima;
 }
 // nomi abbreviati delle prenotazioni vecchie (es. "Campo G.") → nome per esteso, per contare una persona una volta sola
 function driverCanon(x){
   x=String(x||"").trim().replace(/\s+/g," ");if(!x||isGen(x))return x;
   const n=norm(x).replace(/\bold\b/g,"").replace(/[.]/g," ").replace(/\s+/g," ").trim();
   const exact=drivers().find(d=>norm(d[0])===n);if(exact)return exact[0];
+  const aka=_drvAka.get(n);if(aka)return aka; // 3.0.6: nome di prima (es. «Cascone Saro» → «Cascone Rosario»)
   const parts=n.split(" "),ini=parts.length>1&&parts[parts.length-1].length===1?parts.pop():"",sur=parts.join(" ");
   const same=drivers().filter(d=>norm(d[0]).startsWith(sur+" "));
   if(same.length===1)return same[0][0];
@@ -5064,7 +5105,7 @@ const REG_NOTE={referenti:"Si scelgono nel modulo della prenotazione (riga Refer
   parcheggi:"Si scelgono nel modulo della prenotazione, accanto a «€ Parcheggi» (anche più di uno). «In fattura» è come il parcheggio compare nella riga di rimborso della bozza fattura (es. A SIRACUSA, ALL'APT. DI CATANIA): se è vuoto si usa la città. «IVA della ricevuta» è l'aliquota di quella riga.",
   note:"Voci della casella «Causale» delle note per l'autista. Parcheggi, autista e 3 ore vanno nelle righe 1°, 2° e 3° del foglio di servizio; le altre nella 4° (extra).",
   ruolo:"Voci della casella «Ruolo» del referente.",
-  autisti:"Gli autisti delle caselle «1° autista» e «2° autista» del modulo, della pagina Autisti e del profilo di MAX. Scrivi cognome e nome per esteso (es. Rossi Mario), uguale al nome usato nell'app degli autisti. Togliendo un autista (×) sparisce dagli elenchi, ma i servizi già inseriti tengono il suo nome; cambiare il nome vale per i servizi nuovi. «Autista generico» resta sempre.",
+  autisti:"Gli autisti delle caselle «1° autista» e «2° autista» del modulo, della pagina Autisti e del profilo di MAX. Scrivi cognome e nome per esteso (es. Rossi Mario), uguale al nome usato nell'app degli autisti. Togliendo un autista (×) sparisce dagli elenchi, ma i servizi già inseriti tengono il suo nome. Se cambi il nome scrivendoci sopra (es. «Cascone Saro» → «Cascone Rosario») i servizi già inseriti tengono quello vecchio, ma l'agenda sa che è la stessa persona: conta una volta sola e nella pagina Autisti ha una riga sola, con le crocette di prima e di adesso (fermando il mouse sul nome si vede quello di prima). Per una persona diversa non scrivere sopra: togli (×) e aggiungi con «+ Nuovo». «Autista generico» resta sempre.",
   spese:"Voci della casella «€ Extra» del modulo della prenotazione (accanto a «€ Pasti»). L'extra va nel file fatturato (colonne «€ varie / tipo varie») e nella bozza fattura, con la causale scritta qui."};
 const isTend=k=>k==="note"||k==="ruolo"||k==="spese";
 const regFile=k=>isTend(k)?"tendine":k;
@@ -5093,12 +5134,18 @@ function renderReg(){
   const cols=REG_COLS[k],ro=regRO(),words=norm($("regQ").value).split(/[^a-z0-9]+/).filter(Boolean);
   const all=regList(k),list=regSort(k,all.filter(r=>!words.length||wmatch(cols.map(c=>r[c[0]]).join(" "),words)));
   const tpl=cols.map(c=>c[0]==="indirizzo"||c[0]==="nome"||c[0]==="cliente"||c[0]==="v"?"minmax(160px,1.6fr)":c[3]==="aliq"?"minmax(150px,1fr)":"minmax(110px,1fr)").join(" ")+(ro?"":" 36px");
-  const cell=(c,r)=>c[3]==="col"?'<select data-c="'+c[0]+'"'+(ro?' disabled':'')+' aria-label="'+esc(c[1])+'"><option value="g"'+(r[c[0]]!=="r"?" selected":"")+'>verde</option><option value="r"'+(r[c[0]]==="r"?" selected":"")+'>rosso</option></select>':c[3]==="aliq"?'<select data-c="'+c[0]+'"'+(ro?' disabled':'')+' aria-label="'+esc(c[1])+'">'+aliqOpts(STORE.contab(),r[c[0]]||"","da scegliere in fattura")+'</select>':'<input data-c="'+c[0]+'" maxlength="'+(c[0]==="v"?60:200)+'" value="'+esc(r[c[0]]||"")+'"'+(c[2]?' list="'+c[2]+'"':'')+(ro?' readonly':'')+' aria-label="'+esc(c[1])+'" autocomplete="off"'+(c[0]==="fatt"?' placeholder="A '+esc(String(r.citta||"città").toUpperCase())+'"':'')+'>';
+  const cell=(c,r)=>c[3]==="col"?'<select data-c="'+c[0]+'"'+(ro?' disabled':'')+' aria-label="'+esc(c[1])+'"><option value="g"'+(r[c[0]]!=="r"?" selected":"")+'>verde</option><option value="r"'+(r[c[0]]==="r"?" selected":"")+'>rosso</option></select>':c[3]==="aliq"?'<select data-c="'+c[0]+'"'+(ro?' disabled':'')+' aria-label="'+esc(c[1])+'">'+aliqOpts(STORE.contab(),r[c[0]]||"","da scegliere in fattura")+'</select>':'<input data-c="'+c[0]+'" maxlength="'+(c[0]==="v"?60:200)+'" value="'+esc(r[c[0]]||"")+'"'+(c[2]?' list="'+c[2]+'"':'')+(ro?' readonly':'')+(k==="autisti"&&c[0]==="nome"?drvOldTitle(r):"")+' aria-label="'+esc(c[1])+'" autocomplete="off"'+(c[0]==="fatt"?' placeholder="A '+esc(String(r.citta||"città").toUpperCase())+'"':'')+'>';
   const row=(r,isNew)=>'<div class="reg-row'+(isNew?" new":"")+'" data-id="'+esc(r.id)+'" style="grid-template-columns:'+tpl+'">'+cols.map(c=>cell(c,r)).join("")+(ro?'':'<button type="button" class="del" data-regdel="'+esc(r.id)+'" title="Elimina" aria-label="Elimina">×</button>')+'</div>';
   $("regTable").innerHTML='<div class="reg-row hd" style="grid-template-columns:'+tpl+'">'+cols.map(c=>'<span>'+esc(c[1])+'</span>').join("")+(ro?'':'<span></span>')+'</div>'+
     regNew.map(r=>row(r,true)).join("")+list.map(r=>row(r,false)).join("")+(list.length||regNew.length?'':'<div class="reg-empty">'+(words.length?"Nessun risultato.":"Ancora vuota."+(ro?"":" Premi «+ Nuovo» per aggiungere."))+'</div>');
   $("regCount").textContent=all.length+(isTend(k)?" voci":"")+(words.length?" · "+list.length+" trovati":"");
   $("regNew").hidden=ro;
+}
+// 3.0.6: fermando il mouse sul nome di un autista si vedono i nomi di prima (servizi già inseriti, telefono, crocette)
+function drvOldTitle(r){
+  const nome=String(r.nome||"").trim().replace(/\s+/g," ");drivers();
+  const l=drvOldNames(r).filter(x=>_drvAka.get(drvNorm(x))===nome);
+  return l.length?' title="'+esc("Nome di prima: "+l.join(", ")+"\nI servizi già inseriti con questo nome, il telefono e le crocette contano per "+nome+".")+'"':"";
 }
 function regMsg(t,err){$("regMsg").textContent=t||"";$("regMsg").className="reg-msg"+(err?" err":"");}
 $("regQ").addEventListener("input",renderReg);
@@ -5139,7 +5186,7 @@ async function regSaveRow(rowEl,k){
     }else{
       // solo le caselle cambiate su questo dispositivo: le modifiche fatte intanto da altri sulla stessa riga restano
       let before=null,after=null;if(!dirty.length)return;
-      await updReg(k,J=>{const r=(J.rows||[]).find(x=>x.id===id);if(!r)return null;before=Object.assign({},r);for(const f of dirty)r[f]=vals[f]||"";Object.assign(r,{updBy:meName(),updAt:new Date().toISOString()});after=Object.assign({},r);return J;});
+      await updReg(k,J=>{const r=(J.rows||[]).find(x=>x.id===id);if(!r)return null;before=Object.assign({},r);if(k==="autisti"&&dirty.includes("nome"))drvKeepOld(r,vals.nome||"");for(const f of dirty)r[f]=vals[f]||"";Object.assign(r,{updBy:meName(),updAt:new Date().toISOString()});after=Object.assign({},r);return J;});
       if(!before){regMsg("Questa riga è stata eliminata da un altro dispositivo: la modifica non è stata salvata.",true);renderReg();return;}
       ACC.log("impostazioni",REG_TITLE[k]+": modificato «"+(after.nome||after.cliente||"")+"»",{ch:REG_COLS[k].filter(c=>(before[c[0]]||"")!==(after[c[0]]||"")).map(c=>[c[1],before[c[0]]||"",after[c[0]]||""])});
     }
@@ -5817,10 +5864,12 @@ $("sdList").addEventListener("click",async e=>{
 // I pasti si vedono anche su ogni servizio (Fatturato, modulo, vista Giorno, bozza fattura): solo i numeri,
 // l'importo in fattura lo decide l'ufficio.
 const pstN=v=>{const n=Number(v);return Number.isInteger(n)&&n>0?Math.min(2,n):0;};
-const _drvIdC=new Map(),_bkIds=new WeakMap();
-function drvId(n){let v=_drvIdC.get(n);if(v===undefined){v=AUT.slug(driverCanon(n));_drvIdC.set(n,v);}return v;}
+let _drvIdC=new Map(),_bkIds=new WeakMap(),_drvIdS=null;
+// 3.0.6: le memorie si svuotano quando cambia l'anagrafica autisti (nomi nuovi e nomi di prima)
+function drvIdFresh(){const l=drivers();if(l!==_drvIdS){_drvIdS=l;_drvIdC=new Map();_bkIds=new WeakMap();}}
+function drvId(n){drvIdFresh();let v=_drvIdC.get(n);if(v===undefined){v=AUT.slug(driverCanon(n));_drvIdC.set(n,v);}return v;}
 // autisti di una prenotazione (le prenotazioni si ricreano a ogni cambio dei dati: la memoria si svuota da sola)
-function bookingDrvIds(b){let v=_bkIds.get(b);if(!v){v=[...new Set([b.driver,b.driver2].map(realDriver).filter(Boolean).map(drvId).filter(Boolean))];_bkIds.set(b,v);}return v;}
+function bookingDrvIds(b){drvIdFresh();let v=_bkIds.get(b);if(!v){v=[...new Set([b.driver,b.driver2].map(realDriver).filter(Boolean).map(drvId).filter(Boolean))];_bkIds.set(b,v);}return v;}
 let _pcIdx={src:null,map:null};
 function pastiCorr(){
   pastiNeedRegs(renderPastiAny);
@@ -5837,9 +5886,16 @@ function pastiCorr(){
   return _pcIdx.map;
 }
 // pasti di un autista in un giorno: quelli corretti dall'ufficio, altrimenti quelli dell'autista
+// 3.0.6: anche quelli segnati sotto un nome di prima dell'autista (stesso giorno in due file: vale il più recente)
 function mealDay(aid,d){
-  const e=AUT.pasti(aid,d.slice(0,7)),g=e&&e.g[d],drv=g?{po:g.po,pl:g.pl}:null,c=pastiCorr().get(aid+"|"+d)||null,v=c||drv;
-  return {po:v?v.po:0,pl:v?v.pl:0,drv,corr:c,none:!!(e&&e.rec[d]==="no"),src:c?"ufficio":drv?"autista":""};
+  const mk=d.slice(0,7),pc=pastiCorr();let drv=null,up="",none=false,c=null;
+  for(const id of drvIdsOf(aid)){
+    const e=AUT.pasti(id,mk);
+    if(e){const g=e.g[d],u=String(e.upd||"");if(g&&(!drv||u>up)){drv={po:g.po,pl:g.pl};up=u;}if(e.rec[d]==="no")none=true;}
+    if(!c)c=pc.get(id+"|"+d)||null;
+  }
+  const v=c||drv;
+  return {po:v?v.po:0,pl:v?v.pl:0,drv,corr:c,none,src:c?"ufficio":drv?"autista":""};
 }
 function mealsTxt(po,pl){const p=[];if(po)p.push(po+(po>1?" offerti":" offerto"));if(pl)p.push(pl+(pl>1?" liberi":" libero"));return p.join(" · ")||"nessun pasto";}
 const mealsShort=(po,pl)=>[po?po+" off.":"",pl?pl+" lib.":""].filter(Boolean).join(" · ");
@@ -5914,8 +5970,9 @@ function pastiPeople(k){
   const map=new Map(),from=k+"-01",to=k+"-"+pad(dim(k));
   for(const d of drivers()){const id=AUT.slug(d[0]);if(id)map.set(id,{id,name:d[0]});}
   for(const b of bookingsAll()){if(b.start>to||endOf(b)<from)continue;for(const n of allDriversOf(b)){const id=drvId(n);if(id&&!map.has(id))map.set(id,{id,name:driverCanon(n)});}}
-  for(const w of AUT.pastiWho())if(!map.has(w.id)&&w.months.includes(k))map.set(w.id,{id:w.id,name:w.name||w.id});
-  for(const [key,c] of pastiCorr()){const [a,d]=key.split("|");if(mkey(d)===k&&!map.has(a))map.set(a,{id:a,name:c.name||a});}
+  // 3.0.6: le crocette e le correzioni sotto un nome di prima vanno sulla riga dell'autista di adesso
+  for(const w of AUT.pastiWho()){const id=drvCanonId(w.id);if(!map.has(id)&&w.months.includes(k))map.set(id,{id,name:w.name||w.id});}
+  for(const [key,c] of pastiCorr()){const [a0,d]=key.split("|"),a=drvCanonId(a0);if(mkey(d)===k&&!map.has(a))map.set(a,{id:a,name:c.name||a});}
   return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name,"it"));
 }
 // servizi di ogni autista giorno per giorno nel mese: "id|data" → prenotazioni
@@ -6084,7 +6141,8 @@ async function savePasto(undo){
   poBusy=true;$("poMsg").textContent="Salvo…";$("poSave").disabled=$("poUndo").disabled=true;
   try{
     const who=meName()||"Ufficio",at=new Date().toISOString();
-    await STORE.updateReg("pasti",r=>{r.rows=(Array.isArray(r.rows)?r.rows:[]).filter(x=>!(x&&x.a===aid&&x.d===d));if(!undo&&!same)r.rows.push({id:aid+"_"+d,a:aid,d,n:name,po:String(po),pl:String(pl),by:who,at});return r;});
+    const ids=drvIdsOf(aid); // 3.0.6: si toglie anche una correzione fatta sotto un nome di prima
+    await STORE.updateReg("pasti",r=>{r.rows=(Array.isArray(r.rows)?r.rows:[]).filter(x=>!(x&&ids.includes(x.a)&&x.d===d));if(!undo&&!same)r.rows.push({id:aid+"_"+d,a:aid,d,n:name,po:String(po),pl:String(pl),by:who,at});return r;});
     ACC.log("pasti",(undo||same?"Tolta la correzione delle crocette di ":"Corrette le crocette di ")+name+" del "+itD(d)+(undo||same?" (resta quello dell'autista: "+(m.drv?mealsTxt(drv.po,drv.pl):"niente")+")":": "+mealsTxt(po,pl)+" (l'autista aveva segnato: "+(m.drv?mealsTxt(drv.po,drv.pl):"niente")+")"));
     if(PO===me)closePasto();
     renderPastiAny();toast(undo||same?"Correzione tolta":"Correzione salvata");
