@@ -1,7 +1,106 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 3.0.6 (09/11/2026)
+AGENDA FLOTTA LA TERRA – VERSIONE 3.0.8 (11/11/2026)
 ===================================================
 La versione in uso si vede nell'app: in alto accanto a "Sincronizzato",
 nella schermata di accesso e nel Menu. Deve corrispondere a quella di questo file.
+La 3.0.8 contiene anche le novità preparate come 3.0.7 (mezzo da fatturare e account unico di
+Massimo): la 3.0.7 non è mai stata caricata, si passa direttamente dalla 3.0.6 alla 3.0.8.
+
+COME AGGIORNARE ALLA 3.0.8 DALLA 3.0.6 (2 minuti, solo 4 file)
+--------------------------------------------------------------
+Serve la 3.0.6 già su GitHub (in alto nell'agenda "v3.0.6"). Se hai una versione più vecchia,
+carica prima l'aggiornamento della 3.0.6 (oppure il pacchetto completo della 3.0.8).
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   4 file: app.js, index.html, store.js, LEGGIMI.txt. Niente config.js. Gli altri file restano
+   quelli di adesso (fatture.js e fatturato.js della 3.0.4, autisti.js della 3.0.3).
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v3.0.8".
+   Se compare "Aggiornamento in corso (…)" è normale per qualche minuto; se resta, su GitHub
+   manca il file scritto tra parentesi.
+3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda. Una pagina rimasta aperta con la
+   versione di prima avvisa da sola e non salva niente finché non la riapri.
+4. Niente da fare sull'app degli autisti e niente da fare sui dati.
+
+DOPO L'AGGIORNAMENTO: L'ACCOUNT UNICO DI MASSIMO (Super Master, 2 minuti)
+------------------------------------------------------------------------
+1. Entra come Super Master.
+2. Menu › "Pannello Master" › scheda "Utenti".
+3. Sulla riga "Massimo La Terra" premi "Modifica".
+4. Metti la spunta "MAX" (sotto "Account attivo").
+5. Premi "Salva". Nell'elenco, accanto a Massimo, compare "MAX".
+6. Sulla riga del vecchio account "MAX" premi "Modifica".
+7. Togli la spunta "Account attivo".
+8. Premi "Salva". Il vecchio account non può più entrare, ma resta nel registro.
+9. Massimo esce e rientra con il suo account di sempre: in alto "Massimo La Terra · Master ·
+   MAX" e il pulsante "Invio fogli".
+
+NOVITÀ 1: IL CLIENTE CHIEDE IL 64 POSTI, VA IL 79: CHE COSA SI FATTURA
+----------------------------------------------------------------------
+Il problema: il cliente chiede il 64 posti; per motivi nostri Massimo manda il 79 posti; in
+fattura e nel file fatturato finiva il 79 posti.
+Adesso:
+- Quando si cambia il mezzo con uno che ha un ALTRO numero di posti, l'agenda chiede
+  "Perché cambi il mezzo?":
+  · "Motivi logistici – scelta nostra": si fattura ancora il mezzo chiesto dal cliente.
+  · "Motivi logistici e contabili – lo chiede il cliente": da adesso si fattura il mezzo nuovo.
+  · "Annulla": non salva niente.
+- La domanda compare solo dalle 24 ore prima della partenza. Prima di allora un cambio di
+  mezzo vuol dire che è cambiata la richiesta, e si fattura il mezzo nuovo senza chiedere.
+- Vale sia dalla finestra di MAX sia dal modulo della prenotazione (ufficio).
+- Se i posti sono gli stessi (un 54 posti al posto di un altro 54 posti) non chiede niente.
+- Nella giornata e nella settimana il servizio ha il segno "fatt. 64 p."; fermando il mouse
+  si legge chi l'ha deciso e quando. Nel modulo, sotto "Mezzo", è scritto che cosa si
+  fattura, con il pulsante "Il cliente ha chiesto il 79: fattura questo" se poi cambia idea.
+- File fatturato: colonna Mezzo (G) e colonna Targa (H) sono quelle del mezzo da fatturare
+  (il 64 posti chiesto, con la sua targa). Nella pagina Fatturato dell'agenda, sotto, la nota
+  "va il 79 posti … · scelta nostra" dice quale bus è andato davvero.
+- Bozza di fattura: "noleggio bus da 64 posti", con la targa del 64.
+- I servizi già inseriti restano come sono.
+
+NOVITÀ 2: UN SOLO ACCOUNT PER MASSIMO (PERMESSO MAX)
+----------------------------------------------------
+Il problema: con due account (uno normale e uno MAX), entrando con quello sbagliato i fogli
+partivano senza targa e ID mezzo.
+Adesso:
+- Massimo usa solo il suo account Master, con la spunta "MAX" (la mette il Super Master: vedi
+  sopra "Dopo l'aggiornamento").
+- Con il permesso MAX: tutti gli invii dei fogli passano dalla finestra di MAX (bus e
+  autisti), sempre con targa e ID mezzo; può cambiare mezzo e autisti anche dei servizi già
+  decisi da MAX; il pulsante "Invio fogli" in alto apre l'elenco dei servizi del giorno da
+  inviare, e "‹ Torna all'agenda" riporta all'agenda.
+- Gli altri utenti dell'ufficio non cambiano.
+- Il vecchio profilo "solo anteprima e invio" funziona ancora (se un giorno servisse), ma
+  dopo l'aggiornamento va disattivato.
+
+NOVITÀ 3: POST-IT
+-----------------
+Foglietti colorati con un testo libero, attaccati a un giorno oppure a un bus in quel giorno.
+COME SI ATTACCANO
+- Tasto destro sul giorno nella barra del mese → "Aggiungi un post-it". Sul telefono e
+  sull'iPad: dito premuto sul giorno per mezzo secondo.
+- Sul singolo bus: tasto destro sulla riga del mezzo (vista Giorno) o sulla casella del mezzo
+  (vista Settimana) → "Aggiungi un post-it sul mezzo" (oppure "Post-it per tutto il giorno").
+- Nella vista Giorno, sotto la data, anche il pulsante "+ Post-it".
+- Si apre il post-it grande in mezzo allo schermo: scrivi (fino a 300 caratteri, anche su più
+  righe), scegli il colore (giallo, rosa, verde, azzurro) e premi "Attacca": il post-it vola
+  e si attacca al giorno (o al bus).
+- "Ripeti fino al": lo stesso post-it su più giorni di fila (massimo 31).
+- Cliccando un post-it attaccato si riapre: si modifica ("Salva") o si stacca ("Stacca"). Un
+  post-it ripetuto si modifica una volta sola per tutti i giorni; "Stacca da tutti i giorni"
+  lo toglie da tutti.
+DOVE SI VEDONO
+- Barra del mese: un foglietto colorato sul giorno (con il numero, se ce n'è più di uno);
+  fermando il mouse si legge il testo, cliccandoci si riapre.
+- Vista Giorno: i post-it del giorno sotto la data (con chi l'ha scritto e quando), quelli dei
+  bus sotto il nome del mezzo.
+- Vista Settimana: post-it del giorno sotto la data, post-it dei bus nella casella.
+- Vista Mese: un puntino sul giorno e un angolino colorato sulla casella del bus.
+- "Invio fogli" (MAX): il post-it del giorno in cima, quello del bus sulla scheda del servizio.
+DA SAPERE
+- Non vanno MAI sul foglio di servizio per l'autista né nei PDF: restano solo nell'agenda.
+- Si salvano su Dropbox con la giornata: li vedono tutti i computer e i telefoni collegati.
+- Li possono attaccare, cambiare e staccare tutti gli utenti; il vecchio profilo "solo
+  anteprima e invio" li vede ma non li cambia.
+- Ogni post-it attaccato, cambiato o staccato finisce nel Registro, con nome e ora.
+- Al massimo 40 post-it per giorno.
 
 COME AGGIORNARE ALLA 3.0.6 DALLA 3.0.5 (1 minuto, solo 2 file)
 --------------------------------------------------------------
@@ -1164,6 +1263,14 @@ UTENTI, MASTER E REGISTRO (dalla 1.8)
   dell'azienda può vedere tutti i file (registro compreso). Tieni quella password per te.
 
 STORICO DELLE VERSIONI
+- 3.0.8 (11/11/2026) · Mezzo da fatturare: cambiando il bus con uno di altri posti (dalle 24
+                     ore prima) l'agenda chiede il motivo; "scelta nostra" = si fattura il
+                     mezzo chiesto (categoria e targa nel file fatturato e in fattura).
+                   · Account unico di Massimo: Master con il permesso MAX ("Invio fogli",
+                     invii sempre con targa e ID mezzo); il vecchio account MAX si disattiva.
+                   · Post-it sui giorni e sui bus (tasto destro o dito premuto), mai sui fogli
+                     degli autisti.
+- 3.0.6 (09/11/2026) · Autista rinominato nell'anagrafica = sempre la stessa persona.
 - 3.0.2 (23/10/2026) · Allegati per l'autista nella prenotazione (PDF e foto): si stampano dopo
                      il foglio e partono per l'autista in coda al PDF del foglio; cartella
                      "Allegati" in Dropbox. "MAX" al posto di "capo" nel quadratino e nelle

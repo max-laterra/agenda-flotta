@@ -40,6 +40,12 @@
     const u = a && a.uid && cache.users && cache.users.users ? cache.users.users[a.uid] : null;
     return u && u.active !== false ? u.role : "";
   }
+  // 3.0.7: permesso «MAX» su un account normale: decide bus e autisti come il profilo «solo anteprima e invio»
+  function actorMax() {
+    let a = null; try { a = hooks.actor(); } catch (_) {}
+    const u = a && a.uid && cache.users && cache.users.users ? cache.users.users[a.uid] : null;
+    return !!u && u.active !== false && u.max === true;
+  }
   // profilo «solo anteprima e invio» (2.5): non scrive mai niente, tranne il segno «inviato all'autista»
   // outdated (2.6): su Dropbox c'è già una versione più nuova dell'agenda (versione-minima.json) e questa pagina è
   // rimasta aperta con quella di prima: non scrive più niente finché non si ricarica.
@@ -48,7 +54,7 @@
   const sentOnly = (ops) => Array.isArray(ops) && ops.length > 0 && ops.every((op) => op && op.t === "put" && op.edit && op.only && Array.isArray(op.patch) && op.patch.length === 1 && op.patch[0] === "sent");
   // Scelta del capo (2.5): chi invia i fogli decide bus e autisti. La modifica porta il segno "boss" e tocca
   // solo questi campi; la possono fare il profilo «solo anteprima e invio» e il Super Master.
-  const BOSS_F = ["vehicle", "driver", "driver2", "dayv", "capo", "updBy"], LOCK_F = ["vehicle", "driver", "driver2", "dayv"]; // 3.0.3: dayv = mezzi del tour giorno per giorno
+  const BOSS_F = ["vehicle", "driver", "driver2", "dayv", "capo", "updBy", "fveh"], LOCK_F = ["vehicle", "driver", "driver2", "dayv"]; // 3.0.3: dayv = mezzi del tour giorno per giorno
   const bossOnly = (op) => !!op && op.t === "put" && op.edit === true && op.only === true && op.boss === true && Array.isArray(op.patch) && op.patch.length > 0 && op.patch.every((k) => BOSS_F.includes(k));
   const status = { online: navigator.onLine, syncing: false, error: null, lastSync: null, storage: null };
   function counts() { return { pending: queue.days.length, fatPending: Object.keys(queue.fat).length + queue.clients.filter((c) => !c.failed).length }; }
@@ -256,6 +262,12 @@
         const cur = doc.extra || "";
         if (strict && op.base != null && cur !== op.base && cur !== op.v) { doc.extra = merge3(op.base, op.v, cur); notes.push({ kind: "extraMerged", date: doc.date }); }
         else doc.extra = op.v;
+      } else if (op.t === "postit") {
+        // 3.0.8: post-it del giorno (vid vuoto) o di un mezzo in quel giorno: si attacca/modifica (set) o si stacca (del)
+        const l = Array.isArray(doc.postit) ? doc.postit.filter(isObj) : [];
+        if (isObj(op.set) && typeof op.set.id === "string") { const n = cleanPostit(op.set), i = l.findIndex((x) => x.id === n.id); if (i >= 0) l[i] = n; else if (l.length < 40) l.push(n); }
+        else if (typeof op.del === "string") { const i = l.findIndex((x) => x.id === op.del); if (i >= 0) l.splice(i, 1); }
+        doc.postit = l;
       } else if (op.t === "xbus") {
         // 2.8: extra bus del giorno (bus di altre aziende): si aggiunge (add) o si toglie (del) uno alla volta
         const l = Array.isArray(doc.xbus) ? doc.xbus.filter(isObj) : [];
@@ -287,7 +299,7 @@
   function mutateDay(date, ops) {
     if (outdated) throw { code: "outdated" };
     if (!validDate(date)) throw { code: "baddate" };
-    const role = actorRole(), boss = role === "invio" || role === "super";
+    const role = actorRole(), boss = role === "invio" || role === "super" || actorMax(); // 3.0.7: anche il permesso MAX
     if (role === "invio" && !(Array.isArray(ops) && ops.length > 0 && ops.every((op) => sentOnly([op]) || bossOnly(op)))) throw { code: "readonly" };
     if (!boss && Array.isArray(ops) && ops.some((op) => op && op.boss)) throw { code: "readonly" };
     // dopo la scelta del capo l'ufficio non invia e non ritira più il foglio di quel servizio
@@ -469,6 +481,7 @@
       const lvl = u.lvl === "super" || u.lvl === "invio" ? u.lvl : "";
       users[id] = Object.assign({}, u, { name, role: lvl || (u.role === "master" ? "master" : "utente"), active: u.active !== false, iter: it, pwAt: when(u.pwAt), created: when(u.created), createdBy: txt(u.createdBy, 80) });
       if (lvl) users[id].lvl = lvl; else delete users[id].lvl;
+      if (u.max === true && !lvl) users[id].max = true; else delete users[id].max; // 3.0.7: permesso MAX
       if ("prefs" in u) { const pf = cleanPrefs(u.prefs); if (pf) users[id].prefs = pf; else delete users[id].prefs; }
       // codice di recupero del Super Master: solo se ha la forma di un'impronta
       if ("rec" in u) { const r = u.rec; if (isObj(r) && /^[0-9a-f]{16,128}$/i.test(txt(r.salt, 200)) && /^[0-9a-f]{64}$/i.test(txt(r.hash, 200)) && Number.isInteger(Number(r.iter)) && Number(r.iter) >= ITER_MIN && Number(r.iter) <= ITER_MAX) users[id].rec = { salt: r.salt, hash: r.hash, iter: Number(r.iter) }; else delete users[id].rec; }
@@ -554,6 +567,8 @@
   const B_VAL = ["pax", "price", "park", "meals", "advance", "saldoAmt", "clientCode", "foglio"]; // numero o testo
   const B_ROWS = ["refs", "guides", "hotels", "dnotes"];
   // extra bus (2.8): id, azienda, posti, targa
+  // 3.0.8: post-it: testo libero, colore, chi e quando; g = gruppo dei post-it ripetuti su più giorni
+  function cleanPostit(x) { const o = { id: txt(x.id, 40).replace(/[^\w:-]/g, ""), vid: txt(x.vid, 60).replace(/[^\w:-]/g, ""), text: txt(x.text, 300), col: ["y", "p", "g", "b"].includes(x.col) ? x.col : "y", by: txt(x.by, 80), at: txt(x.at, 40) }; if (x.g) o.g = txt(x.g, 40).replace(/[^\w:-]/g, ""); if (x.till) o.till = txt(x.till, 10); if (x.upd) o.upd = txt(x.upd, 40); return o; }
   function cleanXbus(x) { return { id: txt(x.id, 40).replace(/[^\w:-]/g, ""), az: txt(x.az, 80).trim(), posti: txt(x.posti, 6).replace(/\D/g, ""), targa: txt(x.targa, 20).trim().toUpperCase() }; }
   function cleanBooking(b, date) {
     if (!isObj(b)) return null;
@@ -567,6 +582,8 @@
     if (b.end && !validDate(b.end)) b.end = "";
     if ("sent" in b) { if (isObj(b.sent)) b.sent = cleanSent(b.sent); else delete b.sent; }
     if ("capo" in b) { if (isObj(b.capo)) b.capo = { at: txt(b.capo.at, 40), by: txt(b.capo.by, 80) }; else delete b.capo; }
+    // 3.0.7: mezzo da fatturare (il mezzo chiesto dal cliente, quando ne va un altro per motivi nostri)
+    if ("fveh" in b) { if (isObj(b.fveh) && typeof b.fveh.v === "string" && b.fveh.v) b.fveh = { v: txt(b.fveh.v, 60).replace(/[^\w:-]/g, ""), at: txt(b.fveh.at, 40), by: txt(b.fveh.by, 80) }; else delete b.fveh; }
     // extra (2.8): fino a 3 voci con causale e cifra; exOwn: l'agenda gestisce le colonne «varie» del fatturato
     if ("extras" in b) b.extras = Array.isArray(b.extras) ? b.extras.filter(isObj).slice(0, 3).map((e) => { const a = typeof e.amt === "number" ? e.amt : typeof e.amt === "string" && e.amt.trim() !== "" ? Number(e.amt) : NaN; return { c: txt(e.c, 60), amt: isFinite(a) ? Math.round(a * 100) / 100 : "" }; }) : [];
     if ("exOwn" in b) b.exOwn = b.exOwn === true;
@@ -622,6 +639,7 @@
     if (validDate(date)) { doc.date = date; doc.month = date.slice(0, 7); } // la data è quella del nome del file
     if ("extra" in doc && typeof doc.extra !== "string") doc.extra = txt(doc.extra);
     if ("xbus" in doc) doc.xbus = Array.isArray(doc.xbus) ? doc.xbus.filter((x) => isObj(x) && typeof x.id === "string").slice(0, 30).map(cleanXbus) : [];
+    if ("postit" in doc) doc.postit = Array.isArray(doc.postit) ? doc.postit.filter((x) => isObj(x) && typeof x.id === "string").slice(0, 40).map(cleanPostit) : []; // 3.0.8
     doc.seq = typeof doc.seq === "number" && isFinite(doc.seq) && doc.seq >= 0 ? Math.floor(doc.seq) : 0;
     if ("applied" in doc) doc.applied = Array.isArray(doc.applied) ? doc.applied.filter((x) => typeof x === "string") : [];
     return doc;
@@ -649,7 +667,7 @@
     if (cache.regs) { const g = {}; if (isObj(cache.regs)) for (const k of Object.keys(REGF)) { const c = cache.regs[k] ? cleanReg(k, cache.regs[k]) : null; if (c) g[k] = c; } cache.regs = Object.keys(g).length ? g : null; }
     if (cache.contab) cache.contab = isObj(cache.contab) && window.FATTURE ? window.FATTURE.cleanContab(cache.contab) : null;
     if (cache.drafts) { const g = {}; if (isObj(cache.drafts) && window.FATTURE) for (const k of Object.keys(cache.drafts)) { const e = cache.drafts[k], d = isObj(e) ? window.FATTURE.cleanDraft(e.doc) : null; if (d && d.id === k && !badKey(k)) g[k] = { doc: d, rev: txt(e.rev, 80) }; } cache.drafts = g; }
-    queue.days = queue.days.filter((it) => isObj(it) && validDate(it.date) && Array.isArray(it.ops)).map((it) => { it.ops = it.ops.filter((op) => isObj(op) && (op.t === "extra" || op.t === "xbus" || (typeof op.id === "string" && !badKey(op.id) && (op.t === "del" || (op.t === "put" && isObj(op.b)))))); return it; });
+    queue.days = queue.days.filter((it) => isObj(it) && validDate(it.date) && Array.isArray(it.ops)).map((it) => { it.ops = it.ops.filter((op) => isObj(op) && (op.t === "extra" || op.t === "xbus" || op.t === "postit" || (typeof op.id === "string" && !badKey(op.id) && (op.t === "del" || (op.t === "put" && isObj(op.b)))))); return it; });
     queue.clients = queue.clients.filter(isObj);
   }
 
@@ -1415,7 +1433,7 @@
   }
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "3.0";
-  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "3.0.5"; // 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "3.0.8"; // 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
   window.STORE = {
     BASE, P,
     saveAttachment, readAttachment, removeAttachment, cleanAtt, ATT_MAX,

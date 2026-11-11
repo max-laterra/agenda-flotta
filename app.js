@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="3.0.6",APP_DATE="09/11/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="3.0.8",APP_DATE="11/11/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
@@ -16,7 +16,7 @@ const APP_VERSION="3.0.6",APP_DATE="09/11/2026";window.AGENDA_VERSION=APP_VERSIO
 //        store.js e autisti.js restano quelli della 3.0.3.
 // 3.0.6: aggiornamento parziale (solo app.js): nomi di prima degli autisti (un autista rinominato nell'anagrafica
 //        resta una persona sola: servizi già inseriti, telefono, crocette dei pasti). Gli altri file restano della 3.0.5.
-const APP_FAMILY="3.0",APP_PATCH={index:"3.0.5",store:"3.0.5",autisti:"3.0.3",fatture:"3.0.4",fatturato:"3.0.4"};
+const APP_FAMILY="3.0",APP_PATCH={index:"3.0.8",store:"3.0.8",autisti:"3.0.3",fatture:"3.0.4",fatturato:"3.0.4"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -177,6 +177,15 @@ function driversHTML(b){
 }
 // categoria "Mezzo" del fatturato (colonna G) in base ai posti
 const XCATS=["_3_posti","_7_posti","_20_posti","_28_posti","_42_posti","_54_posti","_58_posti","_64_posti","_81_posti"];
+// 3.0.7 — mezzo da fatturare. b.fveh = {v, at, by} c'è solo quando il mezzo che va (b.vehicle) è stato cambiato per
+// motivi nostri (logistici): il cliente paga il mezzo che aveva chiesto (fveh.v). Senza fveh si fattura il mezzo che va.
+function billVeh(b){const f=b&&b.fveh&&b.fveh.v?vehicle(b.fveh.v):null;return f||vehicle(b&&b.vehicle)||{};}
+const vCat=v=>v?[xcatOf(v),v.seats||0,v.h?1:0].join("|"):"";
+const sameCat=(a,b)=>vCat(a||{})===vCat(b||{});
+const seatsLbl=v=>v&&v.seats?v.seats+" posti"+(v.h?" H":""):(v&&v.name)||"mezzo";
+function fvOn(b){return !!(b&&b.fveh&&b.fveh.v&&!sameCat(billVeh(b),vehicle(b.vehicle)||{}));}
+function fvTitle(b){const f=billVeh(b),v=vehicle(b.vehicle)||{},x=b.fveh||{};return "Si fattura il "+seatsLbl(f)+" chiesto dal cliente: il "+seatsLbl(v)+" è una scelta nostra (motivi logistici)"+(x.by?" – "+x.by:"")+(x.at?" "+fmtTime(x.at):"");}
+const fvChip=b=>fvOn(b)?'<i class="fv-m" title="'+esc(fvTitle(b))+'">fatt. '+esc(String(billVeh(b).seats||"")+(billVeh(b).seats?" p.":""))+'</i>':"";
 function xcatOf(v){if(v.xcat)return v.xcat;const n=v.seats;if(!n)return "_3_posti";if(n<=7)return "_7_posti";if(n<=20)return "_20_posti";if(n<=28)return "_28_posti";if(n<=42)return "_42_posti";if(n<=54)return "_54_posti";if(n<=58)return "_58_posti";if(n<=79)return "_64_posti";return "_81_posti";}
 function statsHTML(list){const tot='<div class="stat"><b>'+list.length+'</b><span>Servizi</span></div>';return tot+Object.keys(STAT_LABELS).map(k=>{const n=list.filter(b=>b.type===k).length;return n?'<div class="stat"><b>'+n+'</b><span>'+STAT_LABELS[k]+'</span></div>':"";}).join("");}
 const GROUPS={auto:"Auto e van",van:"Auto e van",bus:"Bus"};
@@ -327,7 +336,7 @@ function dayXbus(ds){
 }
 
 // ---------- rendering ----------
-function renderAll(){renderMonthBar();renderStrip();if(S.view==="day")renderDay();else if(S.view==="week")renderWeek();else if(S.view==="bill")renderBill();else if(S.view==="pasti")renderPasti();else renderMonth();}
+function renderAll(){$("btnInvio").hidden=!(hasMax()&&!isInvio());renderMonthBar();renderStrip();if(S.view==="day")renderDay();else if(S.view==="week")renderWeek();else if(S.view==="bill")renderBill();else if(S.view==="pasti")renderPasti();else renderMonth();}
 function weekStart(s){return addDays(s,-((wday(s)+6)%7));}
 
 function renderWeek(){
@@ -345,7 +354,7 @@ function renderWeek(){
   for(const ds of days){
     // 3.0.5: «x/26 impegnati» non più sotto la data (è nella riga «Mezzi impegnati» in fondo); resta il numerino degli autisti a riposo
     const w=wday(ds);
-    h+='<th class="'+(w===0?"sun ":"")+(ds===t?"today ":"")+(ds===S.sel?"sel":"")+'" data-goday="'+ds+'" title="Apri la giornata"><span class="wdn">'+WDL[w]+'</span><span class="dnum">'+parse(ds).getUTCDate()+" "+MN[parse(ds).getUTCMonth()].slice(0,3)+'</span>'+(()=>{const rp=riposoNames(ds);return rp.length?'<span class="occ"><b class="rp-n" title="'+esc("A riposo: "+rp.map(x=>x.n).join(", "))+'">'+rp.length+'</b> a riposo</span>':"";})()+'</th>';
+    h+='<th class="'+(w===0?"sun ":"")+(ds===t?"today ":"")+(ds===S.sel?"sel":"")+'" data-goday="'+ds+'" title="Apri la giornata"><span class="wdn">'+WDL[w]+'</span><span class="dnum">'+parse(ds).getUTCDate()+" "+MN[parse(ds).getUTCMonth()].slice(0,3)+'</span>'+(()=>{const rp=riposoNames(ds);return rp.length?'<span class="occ"><b class="rp-n" title="'+esc("A riposo: "+rp.map(x=>x.n).join(", "))+'">'+rp.length+'</b> a riposo</span>':"";})()+(()=>{const pd=postitsOf(ds,"");return pd.length?'<span class="wpi wh">'+pd.slice(0,2).map(p=>piNote(p,ds,"sm")).join("")+(pd.length>2?piMark(pd.slice(2),ds,"more"):"")+'</span>':"";})()+'</th>';
   }
   h+='</tr></thead><tbody>';
   // 2.8: in fondo gli extra bus della settimana (altre aziende); «+ Aggiungi» solo nei giorni in cui ci sono
@@ -361,12 +370,13 @@ function renderWeek(){
         if(spans(b)){const tot=diff(b.start,endOf(b))+1,i=diff(b.start,ds)+1;tp+=" "+i+"/"+tot;if(i>1)tm=i===tot&&b.time2?b.time2:"";}
         inner+='<button class="wb '+esc(b.type)+(pending(b)?" opzione":"")+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc((pending(b)?"IN SOSPESO · ":"Confermata · ")+(b.foglio?"n. "+b.foglio+" · ":"")+(b.client||"")+(b.event?" – "+b.event:"")+(whatToday(b,ds)?" – "+whatToday(b,ds):"")+(b.driver?" · Autista: "+b.driver:"")+(b.escort?" · Accompagnatore: "+b.escort:"")+(dvNote(b)?" · "+dvNote(b):""))+'">'+
           '<span class="l1">'+missBadge(b,ds)+(tm?'<span class="tm">'+esc(tm)+'</span>':"")+'<span class="tp">'+tp+'</span><span class="stm '+(pending(b)?"q":"ok")+'" aria-hidden="true">'+(pending(b)?"?":"✓")+'</span></span>'+
-          '<span class="cl">'+esc(dispClient(b))+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(whatToday(b,ds)?'<span class="rt'+(dayProgram(b,ds)?" pg":"")+'">'+esc(whatToday(b,ds))+'</span>':"")+'</button>';
+          '<span class="cl">'+fvChip(b)+esc(dispClient(b))+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(whatToday(b,ds)?'<span class="rt'+(dayProgram(b,ds)?" pg":"")+'">'+esc(whatToday(b,ds))+'</span>':"")+'</button>';
       }
       const canAdd=!S.readOnly&&(!xb||xb.days.has(ds));
       // 3.0.5: dove c'è già un servizio il «+» non occupa spazio (compare nell'angolo al passaggio del mouse)
       if(canAdd)inner+=list.length?'<span class="plus" title="Aggiungi un altro servizio su questo mezzo">+</span>':'<span class="plus">+ Aggiungi</span>';
-      h+='<td class="wc'+(wday(ds)===0?" sun":"")+'"'+(canAdd?' data-addv="'+esc(v.id)+'" data-addd="'+esc(ds)+'"':'')+'><div class="wcell'+(list.length?" has":"")+'">'+inner+'</div></td>';
+      const pl=xb?[]:postitsOf(ds,v.id);
+      h+='<td class="wc'+(wday(ds)===0?" sun":"")+(pl.length?" has-pi":"")+'"'+(canAdd?' data-addv="'+esc(v.id)+'" data-addd="'+esc(ds)+'"':'')+'><div class="wcell'+(list.length?" has":"")+'">'+(pl.length?'<div class="wpi">'+pl.map(p=>piNote(p,ds,"sm")).join("")+'</div>':"")+inner+'</div></td>';
     }
     h+='</tr>';
   }
@@ -421,7 +431,7 @@ function renderStrip(){
     const pct=Math.round(c.p/Math.max(1,nf)*100);
     const when=WDL[w]+" "+d+": ";
     const nm=missOnDate(ds,ds)?dayList(ds).filter(b=>missingOf(b).length).length:0;
-    g+='<button class="dbtn'+(w===0?" sun":"")+(ds===t?" today":"")+(inwk?" inweek":"")+'" data-day="'+ds+'"'+(ds===S.sel?' aria-current="date"':"")+' title="'+c.p+' mezzi impegnati'+(nm?" · "+nm+(nm===1?" servizio":" servizi")+" da completare (prezzo, ora o codice cliente)":"")+'">'+(nm?'<i class="miss-d" aria-hidden="true">!</i>':"")+'<span class="wd">'+WD[w]+'</span><span class="dn">'+d+'</span><span class="load"><b style="width:'+pct+'%"></b></span></button>';
+    g+='<button class="dbtn'+(w===0?" sun":"")+(ds===t?" today":"")+(inwk?" inweek":"")+'" data-day="'+ds+'"'+(ds===S.sel?' aria-current="date"':"")+' title="'+c.p+' mezzi impegnati'+(nm?" · "+nm+(nm===1?" servizio":" servizi")+" da completare (prezzo, ora o codice cliente)":"")+'">'+(nm?'<i class="miss-d" aria-hidden="true">!</i>':"")+piMark(postitsOf(ds),ds,"all")+'<span class="wd">'+WD[w]+'</span><span class="dn">'+d+'</span><span class="load"><b style="width:'+pct+'%"></b></span></button>';
     const cls="cc r2"+(w===0?" sun":"")+(ds===S.sel?" sel":"")+(inwk?" inweek":"");
     ra+='<button type="button" class="'+cls+(c.a?"":" z")+'" data-day="'+ds+'" title="'+when+c.a+' autisti'+(c.gen?" (di cui "+c.gen+" da assegnare)":"")+'">'+c.a+(c.gen?'<span class="tbd"></span>':"")+'</button>';
     rs+='<button type="button" class="'+cls+(c.s?"":" z")+'" data-day="'+ds+'" title="'+when+c.s+' servizi">'+c.s+'</button>';
@@ -471,7 +481,7 @@ function bookingHTML(b,date){
     '<span class="c-du">'+esc(durShort(b,date))+'</span>'+
     '<span class="c-cl">'+missBadge(b,date)+(over?'<span class="over" title="Passeggeri oltre la capienza">!</span> ':'')+esc(name)+(attOf(b).length?'<span class="att-k" title="'+attOf(b).length+(attOf(b).length===1?" allegato":" allegati")+' per l\'autista">📎'+(attOf(b).length>1?attOf(b).length:"")+'</span>':'')+'</span>'+
     '<span class="c-rt'+(dayProgram(b,date)?" pg":"")+'">'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+esc(whatToday(b,date)||"")+'</span>'+
-    '<span class="c-dr">'+(b.capo?'<i class="capo-m" title="'+esc(capoTitle(b))+'">MAX</i>':'')+(dvT?'<i class="dv-m" title="'+esc(dvT)+'">cambio</i>':'')+drv+'</span>'+
+    '<span class="c-dr">'+fvChip(b)+(b.capo?'<i class="capo-m" title="'+esc(capoTitle(b))+'">MAX</i>':'')+(dvT?'<i class="dv-m" title="'+esc(dvT)+'">cambio</i>':'')+drv+'</span>'+
     '</button>'+sentChip(b)+mealChip(b,date)+'</div>';
 }
 
@@ -493,13 +503,14 @@ function renderDay(){
       (tcount.length?'<div class="grp">'+tcount.map(([k,n])=>'<div class="stat"><b>'+n+'</b><span>'+(n===1?TYPES[k]:STAT_LABELS[k])+'</span></div>').join("")+'</div>':'')+
     '</div>'+
     '<div class="nav"><button id="dPrev" aria-label="Giorno precedente">‹</button><button id="dNext" aria-label="Giorno successivo">›</button></div></div>';
+  renderPiRow(date);
   $("sheet").className="sheet"+(w===0?" sun":"");
   $("sheet").style.setProperty("--vehw",vehColW(15)+"px");
   let h="";
   for(const v of fleetRows(date)){ // 3.0.5: i mezzi eliminati solo se quel giorno hanno servizi
     const list=on(date,v.id);
     h+='<div class="row'+(list.length?" busy":"")+(vOn(v,date)?"":" v-offrow")+'">'+
-      '<div class="veh"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span>'+vOffTag(v,date)+'</div>'+
+      '<div class="veh"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span>'+vOffTag(v,date)+postitsOf(date,v.id).map(p=>piNote(p,date,"sm")).join("")+'</div>'+
       '<div class="slots">'+(list.length?list.map(b=>bookingHTML(b,date)).join(""):'<span class="free">Libero</span>')+'</div>'+
       (S.readOnly?"<span></span>":'<button class="add" data-add="'+esc(v.id)+'">+ Aggiungi</button>')+
     '</div>';
@@ -528,7 +539,7 @@ function renderMonth(){
   const k=mkey(S.sel),n=dim(k),all=bookingsAll(),t=todayISO();
   $("msign").innerHTML='<div class="date"><span>'+MN[+k.slice(5,7)-1]+" "+k.slice(0,4)+'</span></div><div class="sright"><div class="nav"><button id="msPrev" aria-label="Mese precedente">‹</button><button id="msNext" aria-label="Mese successivo">›</button></div></div>';
   let h='<thead><tr><th class="vc">Mezzo</th>';
-  for(let d=1;d<=n;d++){const ds=k+"-"+pad(d),w=wday(ds);h+='<th class="'+(w===0?"sun ":"")+(ds===S.sel?"sel":"")+'" data-day="'+ds+'" style="cursor:pointer">'+WD[w].slice(0,1)+'<span class="n">'+d+'</span></th>';}
+  for(let d=1;d<=n;d++){const ds=k+"-"+pad(d),w=wday(ds);const pd=postitsOf(ds,"");h+='<th class="'+(w===0?"sun ":"")+(ds===S.sel?"sel":"")+(pd.length?" has-pi":"")+'" data-day="'+ds+'" style="cursor:pointer"'+(pd.length?' title="'+esc(piTip(pd))+'"':'')+'>'+(pd.length?'<i class="pi-dot c-'+esc(pd[0].col)+'"></i>':'')+WD[w].slice(0,1)+'<span class="n">'+d+'</span></th>';}
   h+='</tr></thead><tbody>';
   const mdays=[];for(let d=1;d<=n;d++)mdays.push(k+"-"+pad(d));
   for(const v of fleetRows(mdays)){
@@ -546,7 +557,8 @@ function renderMonth(){
         inner='<div class="'+cls+'">'+lab+'</div>';
         tip=list.map(x=>(pending(x)?"? ":"✓ ")+(TYPES[x.type]||"")+(x.time?" "+x.time:"")+" – "+dispClient(x)+(x.event?" · "+x.event:"")+(whatToday(x,ds)?" ("+whatToday(x,ds)+")":""));
       }
-      h+='<td class="c'+(w===0?" sun":"")+(ds===S.sel?" sel":"")+'" data-day="'+ds+'" title="'+esc(ds.split("-").reverse().join("/")+(tip.length?"\n"+tip.join("\n"):" – libero"))+'">'+inner+'</td>';
+      const pv=postitsOf(ds,v.id);if(pv.length)inner+='<i class="pi-cn c-'+esc(pv[0].col)+'"></i>';
+      h+='<td class="c'+(w===0?" sun":"")+(ds===S.sel?" sel":"")+'" data-day="'+ds+'" title="'+esc(ds.split("-").reverse().join("/")+(tip.length?"\n"+tip.join("\n"):" – libero")+(pv.length?"\n"+piTip(pv):""))+'">'+inner+'</td>';
     }
     h+='</tr>';
   }
@@ -574,6 +586,17 @@ function showBanner(m){notify(m,true);}
 // ---------- form prenotazione ----------
 let editing=null; // {id,start}
 let formCashWas=false; // la prenotazione aperta aveva anticipo o busta (per svuotarli nel fatturato se vengono tolti)
+// 3.0.7: nel modulo, sotto «Mezzo»: che cosa si fattura quando il mezzo che va è diverso da quello chiesto
+let formFvClear=false;
+function fvFormNote(b){
+  formFvClear=false;const n=$("fFv");
+  if(!b||!fvOn(b)){n.hidden=true;n.innerHTML="";return;}
+  const f=billVeh(b),v=vehicle(b.vehicle)||{},x=b.fveh||{};
+  n.innerHTML='<span>Si fattura il <b>'+esc(seatsLbl(f))+'</b> chiesto dal cliente. Il '+esc(seatsLbl(v))+' è una scelta nostra (motivi logistici)'+(x.by||x.at?' – '+esc([x.by,x.at?fmtTime(x.at):""].filter(Boolean).join(" ")):'')+'.</span>'+
+    (S.readOnly?'':'<button type="button" class="linkbtn" id="fFvCli">Il cliente ha chiesto il '+esc(seatsLbl(v))+': fattura questo</button>');
+  n.hidden=false;
+}
+document.addEventListener("click",e=>{if(e.target&&e.target.id==="fFvCli"){formFvClear=true;const v=vehicle($("f-vehicle").value)||{};$("fFv").innerHTML='<span>Al salvataggio: si fattura il <b>'+esc(seatsLbl(v))+'</b> (chiesto dal cliente).</span>';}});
 function openForm(opts){
   opts=opts||{};memIdx=null; // i suggerimenti ripartono dalle prenotazioni di adesso
   const b=opts.booking||{type:"gita",vehicle:opts.vehicle||(fleetOn(opts.date||S.sel)[0]||S.fleet[0]).id,start:opts.date||S.sel,end:"",time:"",time2:"",client:"",clientCode:"",route:"",event:"",escort:"",pax:"",price:"",driver:GEN1,driver2:"",contact:"",status:"opzione",notes:""}; // (nuova: Gita, in sospeso finché non la confermi)
@@ -608,7 +631,8 @@ function openForm(opts){
   $("fBusta").hidden=!(editing&&hasBusta(b)); // 2.8: modello spese della busta da stampare
   [...$("fBooking").elements].forEach(el=>{if(el.id!=="fCancel"&&el.id!=="fBusta"&&!el.hasAttribute("data-attopen"))el.disabled=S.readOnly;}); // gli allegati si aprono anche in sola lettura
   // bus e autisti decisi dal capo: l'ufficio non li cambia più (il Super Master sì)
-  {const dec=!!(editing&&b.capo),lock=dec&&!isSuper();
+  fvFormNote(editing?b:null);
+  {const dec=!!(editing&&b.capo),lock=dec&&!isSuper()&&!hasMax();
     if(lock){["f-vehicle","f-driver","f-driver2"].forEach(id=>{$(id).disabled=true;});document.querySelectorAll('#fBooking [data-gen],#fBooking [data-drvopen]').forEach(x=>{x.disabled=true;});}
     $("fCapo").hidden=!dec;if(dec)$("fCapo").textContent=capoTitle(b)+(lock?": da qui non si cambiano più. Per cambiarli serve MAX, che invia di nuovo il foglio.":": tu puoi ancora cambiarli.");}
   formLoading=true;syncType();formLoading=false;checkWarns();
@@ -1614,12 +1638,13 @@ $("fBooking").addEventListener("submit",async e=>{
   // modifica di una prenotazione già salvata: prima si chiede conferma, con l'elenco delle modifiche
   if(editing&&!editConfirmed){
     const ch=formChanges().filter(k=>FIELD_LBL[k]);
-    if(!ch.length){
+    if(!ch.length&&!formFvClear){
       const want=openSheetAfterSave,cur=bookingsAll().find(x=>x.id===editing.id);openSheetAfterSave=false;
       closeForm();if(want&&cur&&hasSheet(cur))openSheetConfirmed(cur);else toast(want&&cur?NOFG:"Nessuna modifica da salvare.");
       return;
     }
-    $("fEditList").innerHTML=ch.map(k=>'<li><b>'+esc(FIELD_LBL[k])+'</b>: '+esc(logVal(k,formOrig[k]))+' → '+esc(logVal(k,b[k]))+'</li>').join("");
+    $("fEditList").innerHTML=ch.map(k=>'<li><b>'+esc(FIELD_LBL[k])+'</b>: '+esc(logVal(k,formOrig[k]))+' → '+esc(logVal(k,b[k]))+'</li>').join("")+
+      (formFvClear?'<li><b>Mezzo da fatturare</b>: '+esc(seatsLbl(billVeh(editing&&bookingsAll().find(x=>x.id===editing.id)||{})))+' → '+esc(seatsLbl(vehicle(b.vehicle)||{}))+' (chiesto dal cliente)</li>':'');
     $("fEditAsk").hidden=false;$("fCloseAsk").hidden=true;$("fConfirm").hidden=true;setTimeout(()=>$("fEditYes").focus(),30);
     return;
   }
@@ -1629,17 +1654,29 @@ $("fBooking").addEventListener("submit",async e=>{
   let bossEdit=false;
   if(editing){const cur=bookingsAll().find(x=>x.id===editing.id);if(cur&&cur.sent)b.sent=cur.sent;
     // scelta del capo: il segno resta; bus e autisti restano i suoi (li cambia solo il Super Master)
-    if(cur&&cur.capo){b.capo=cur.capo;if(isSuper())bossEdit=true;else{b.vehicle=cur.vehicle;b.driver=cur.driver||"";b.driver2=cur.driver2||"";b.dayv=Array.isArray(cur.dayv)?cur.dayv:[];}}}
+    if(cur&&cur.capo){b.capo=cur.capo;if(isSuper()||hasMax())bossEdit=true;else{b.vehicle=cur.vehicle;b.driver=cur.driver||"";b.driver2=cur.driver2||"";b.dayv=Array.isArray(cur.dayv)?cur.dayv:[];}}}
+  // 3.0.7: mezzo cambiato con un altro numero di posti: si chiede il motivo (che cosa si fattura)
+  let fvCh=null,fvPatch=false;
+  if(editing){const cur=bookingsAll().find(x=>x.id===editing.id);
+    if(cur){
+      let fv;
+      if(formFvClear&&b.vehicle===cur.vehicle&&fvOn(cur))fv={fveh:null,why:"cli",billed:billVeh(cur),nv:vehicle(cur.vehicle)||{}};
+      else{fv=await fvAfterChange(cur,b.vehicle,b);if(!fv){openSheetAfterSave=false;return;}} // «Annulla»: il modulo resta aperto
+      if(fv.fveh)b.fveh=fv.fveh;else delete b.fveh;
+      fvPatch=JSON.stringify(cur.fveh||null)!==JSON.stringify(b.fveh||null);if(fv.why)fvCh=fvLogRow(fv);
+    }}
   const id=editing?editing.id:("b"+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
   const old=editing&&editing.start,moved=!!(old&&old!==b.start);
   // per le modifiche: versione di partenza e campi cambiati, così non si cancellano le modifiche fatte da altri nel frattempo
   const meta=editing?{edit:true,base:editing.base,patch:withOldNoteKeys(formChanges())}:{};
+  if(fvPatch&&!meta.patch.includes("fveh"))meta.patch.push("fveh");
   if(editing){const ax=attFormDelta();if(ax)meta.attx=ax;} // 3.0.2: allegati aggiunti e tolti qui (si uniscono a quelli di altri)
   if(bossEdit)meta.boss=true;
   const who=meName();
   if(editing){b.by=editing.by;b.byAt=editing.byAt;b.updBy=who;if(meta.patch.length)meta.patch.push("updBy");}
   else{b.by=who;b.byAt=b.updatedAt;}
   const logCh=editing?meta.patch.filter(k=>FIELD_LBL[k]).map(k=>[FIELD_LBL[k],logVal(k,formOrig[k]),logVal(k,b[k])]):null;
+  if(logCh&&fvCh)logCh.push(fvCh);
   saving=true;$("fSave").disabled=true;$("fSheet").disabled=true;
   try{
     // n. foglio: AAMMGG + progressivo del giorno del servizio; resta fisso finché il servizio non cambia giorno
@@ -2189,12 +2226,12 @@ function num(x){return x===""||x==null?"":Number(x);}
 const exTot=r=>Math.round((r.EX||[]).reduce((a,e)=>a+(Number(e.amt)||0),0)*100)/100;
 function billTotal(r){return [r.P,r.Q,r.R].reduce((a,x)=>a+(x===""?0:x),0)+exTot(r);}
 function billRow(b){
-  const v=vehicle(b.vehicle)||{},type=normType(b.type);
+  const v=vehicle(b.vehicle)||{},fv=billVeh(b),type=normType(b.type); // 3.0.8: categoria e targa del mezzo da fatturare (quello chiesto dal cliente); il bus che va è nella nota «va il …»
   return {foglio:b.foglio,id:b.id,start:b.start,type:type,
     A:Number(b.foglio),B:TYPE_XL[type],C:b.clientCode===""||b.clientCode==null?"":b.clientCode,
-    D:b.client||"",G:xcatOf(v),H:(v.plate||"").trim(),I:b.start,J:endOf(b),
+    D:b.client||"",G:xcatOf(fv),H:(fv.plate||"").trim(),I:b.start,J:endOf(b),
     M:billItin(b),O:billNote(b),P:num(b.price),Q:num(b.park),R:num(b.meals),EX:cleanExtras(b.extras),ex:!!(b.exOwn||cleanExtras(b.extras).length),AH:cashOn(b)?num(b.advance):"",AI:cashOn(b)?(b.envelope||""):"",AJ:cashOn(b)?(b.envno||""):"",Z:realDriver(b.driver),AA:realDriver(b.driver2),dz:!realDriver(b.driver),daa:isGen(b.driver2),
-    vehicleName:v.name||"",tm:String(b.time||"")};
+    vehicleName:fv.name||"",vReal:fvOn(b)?vehLabel(v):"",fvSeats:fvOn(b)?seatsLbl(fv):"",tm:String(b.time||"")};
 }
 function billRows(days){
   const out=[];
@@ -2302,7 +2339,7 @@ async function renderBill(){
       (inv?'<td><span class="fst fst-'+s.k+'"'+(s.title?' title="'+esc(s.title)+'"':"")+'>'+esc(s.t)+'</span>'+(s.sub?'<span class="sub">'+esc(s.sub)+'</span>':"")+'</td>':"")+
       '<td><span class="tip" style="border-color:var(--'+esc(r.type)+'-fill)">'+esc(r.B)+'</span></td>'+
       '<td class="cli">'+esc(r.D||"—")+(r.C!==""?'<span class="sub">Cod. '+esc(r.C)+(c&&c[2]?' · '+esc(c[2]):'')+'</span>':'<span class="sub miss">senza codice cliente</span>')+'</td>'+
-      '<td>'+esc(r.G)+'<span class="sub">'+(r.H?esc(r.H):'<span class="miss">manca targa</span>')+'</span></td>'+
+      '<td>'+esc(r.G)+'<span class="sub">'+(r.H?esc(r.H):'<span class="miss">manca targa</span>')+'</span>'+(r.vReal?'<span class="sub fv-sub" title="Il cliente ha chiesto il '+esc(r.fvSeats)+': si fattura quello">va il '+esc(r.vReal)+' · scelta nostra</span>':'')+'</td>'+
       '<td class="num">'+dates(r)+'</td>'+
       '<td class="iti">'+esc(r.M)+(r.O?'<span class="sub">'+esc(r.O)+'</span>':'')+'</td>'+
       '<td>'+drv(r)+'</td>'+
@@ -2999,6 +3036,8 @@ function openSheet(b){
   const iv=isInvio();
   // 3.0.4: MAX invia sempre il foglio con targa e ID mezzo (l'anteprima li fa vedere, la spunta non c'è)
   if(iv){SHO.noPlate=false;$("sheetNoPlate").checked=false;}
+  // 3.0.7: account con il permesso MAX: l'anteprima parte con targa e ID (l'invio passa sempre dalla finestra di MAX)
+  else if(hasMax()){SHO.noPlate=false;$("sheetNoPlate").checked=false;}
   $("sheetNoPlate").closest("label").hidden=iv;
   $("sheetBack").hidden=iv;$("sheetPdf").hidden=iv;$("sheetPrint").hidden=iv;$("sheetShare").hidden=iv||!canShareFile;
   $("sheetPrint").textContent=S.readOnly?"Stampa":"Salva e stampa";$("sheetPrint").title=S.readOnly?"":"Stampa il foglio e salva la copia completa in Dropbox (Fogli di servizio)";
@@ -3592,6 +3631,7 @@ function writeDayOps(date,patch,extra){
   const ops=[];extra=extra||{};
   if(patch.bookings)for(const k in patch.bookings)ops.push(patch.bookings[k]===null?Object.assign({t:"del",id:k},extra.move&&typeof extra.move==="string"?{move:extra.move}:{},extra.client!=null?{client:extra.client}:{},extra.know?{know:extra.know}:{},extra.ifOpz?{ifOpz:true}:{}):Object.assign({t:"put",id:k,b:patch.bookings[k],assign:!!patch.assign},extra));
   if("extra" in patch)ops.push({t:"extra",v:patch.extra,base:patch.base==null?null:patch.base});
+  if(patch.postit)ops.push(Object.assign({t:"postit"},patch.postit)); // 3.0.8
   // 2.9: prenotazione spostata a un'altra data (nuovo n. foglio): i PDF del vecchio n. foglio vanno cancellati
   const moved=[];
   for(const op of ops)if(op.t==="del"&&op.move){const prev=((S.days[date]||{}).bookings||{})[op.id];if(prev&&prev.foglio)moved.push({id:op.id,foglio:prev.foglio,start:prev.start||date,client:prev.client||""});}
@@ -3793,6 +3833,10 @@ function myRole(){const s=ACC.session();return s?s.role:"";}
 function isSuper(){return myRole()==="super";}
 function isInvio(){return myRole()==="invio";}
 function isMaster(){const r=myRole();return r==="master"||r==="super";}
+// 3.0.7: permesso «MAX» su un account normale (Master o utente): decide bus e autisti e invia i fogli come il profilo
+// «solo anteprima e invio», senza un secondo account. Lo accende il Super Master (o un Master, per un utente).
+function meUser(){const s=ACC.session(),U=STORE.users;return s&&U&&U.users?U.users[s.uid]||null:null;}
+function hasMax(){if(isInvio())return true;const u=meUser();return !!(u&&u.max===true&&u.active!==false);}
 const ROLE_LBL={super:"Super Master",master:"Master",utente:"Utente",invio:"Solo anteprima e invio"};
 // cosa possono fare gli utenti normali (lo decide il Master nelle Impostazioni; di serie tutto permesso)
 function canEdit(kind){if(isMaster())return true;const p=((STORE.settings||{}).perms)||{};return p[kind]!==false;}
@@ -3803,7 +3847,7 @@ function reasonMsg(why){return {removed:"Il tuo account è stato eliminato dal M
 function applyRole(){
   const s=ACC.session(),sup=!!s&&s.role==="super",m=!!s&&(s.role==="master"||sup);
   document.body.classList.toggle("is-master",m);document.body.classList.toggle("is-super",sup);
-  $("whoAmI").hidden=!s;if(s){$("whoAmI").textContent=s.name+(sup?" · Super Master":m?" · Master":"");$("whoAmI").className="whoami"+(m?" m":"");}
+  $("whoAmI").hidden=!s;if(s){$("whoAmI").textContent=s.name+(sup?" · Super Master":m?" · Master":"")+(!sup&&hasMax()&&!isInvio()?" · MAX":"");$("whoAmI").className="whoami"+(m?" m":"");}
   document.querySelectorAll(".mst-only").forEach(el=>{el.hidden=!m;});
   document.querySelectorAll(".sup-only").forEach(el=>{el.hidden=!sup;});
   $("mstTitle").textContent=sup?"Pannello Super Master":"Pannello Master";
@@ -3815,7 +3859,7 @@ function renderWho(){
   const U=STORE.users||{users:{}};
   const list=userEntries(U).filter(([,u])=>u.active!==false&&u.role!=="super").sort((a,b)=>a[1].name.localeCompare(b[1].name,"it"));
   const ini=n=>String(n||"").trim().split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join("")||"?";
-  $("gWho").innerHTML=list.map(([id,u])=>'<button type="button" role="radio" data-uid="'+esc(id)+'" aria-checked="'+(id===loginUid)+'"><span class="av" aria-hidden="true">'+esc(ini(u.name))+'</span><span class="wn">'+esc(u.name)+(u.role==="master"?'<small>Master</small>':u.role==="invio"?'<small>Invio fogli</small>':'')+'</span></button>').join("")||'<p class="gate-sub">Nessun utente attivo.</p>';
+  $("gWho").innerHTML=list.map(([id,u])=>'<button type="button" role="radio" data-uid="'+esc(id)+'" aria-checked="'+(id===loginUid)+'"><span class="av" aria-hidden="true">'+esc(ini(u.name))+'</span><span class="wn">'+esc(u.name)+(u.role==="master"?'<small>Master'+(u.max===true?' · MAX':'')+'</small>':u.role==="invio"?'<small>Invio fogli</small>':u.max===true?'<small>MAX</small>':'')+'</span></button>').join("")||'<p class="gate-sub">Nessun utente attivo.</p>';
 }
 $("gWho").addEventListener("click",e=>{const b=e.target.closest("[data-uid]");if(!b)return;loginUid=b.dataset.uid;renderWho();$("gMsg").textContent="";$("gPw").focus();});
 $("gPwShow").onclick=()=>{const show=$("gPw").type==="password";$("gPw").type=show?"text":"password";$("gPwShow").textContent=show?"Nascondi":"Mostra";};
@@ -4012,7 +4056,7 @@ function renderUsers(){
   $("uList").innerHTML=list.map(([id,u])=>{
     const ll=lastLoginOf(id),on=(mstDevs||[]).some(d=>d.uid===id&&d.state==="attivo"&&Date.now()-new Date(d.last)<20*60000);
     return '<div class="u-row"><div><b>'+esc(u.name)+'</b>'+(id===me.uid?' <span class="pill">tu</span>':'')+'<small>'+(u.created?"creato il "+esc(itD(String(u.created).slice(0,10)))+(u.createdBy&&(sup||!supNames.has(norm(u.createdBy)))?" da "+esc(u.createdBy):""):"")+'</small></div>'+
-      '<div><span class="pill'+ROLE_PILL[u.role]+'">'+esc(ROLE_LBL[u.role])+'</span></div>'+
+      '<div><span class="pill'+ROLE_PILL[u.role]+'">'+esc(ROLE_LBL[u.role])+'</span>'+(u.max===true&&u.role!=="invio"&&u.role!=="super"?' <span class="pill i" title="Decide bus e autisti e invia i fogli (sempre con targa e ID mezzo)">MAX</span>':'')+'</div>'+
       '<div><span class="pill '+(u.active===false?"off":"on")+'">'+(u.active===false?"Disattivato":on?"Collegato ora":"Attivo")+'</span></div>'+
       '<div><small>Ultimo accesso</small>'+(ll?esc(fmtTime(ll.t))+'<small>'+esc(ACC.devLabel(ll.dv)||devAuto(ll.dv))+'</small>':'<small>—</small>')+'</div>'+
       '<div class="row-act">'+(canManage(u)?'<button type="button" class="btn" data-uedit="'+esc(id)+'">Modifica</button>':'<small>non modificabile da qui</small>')+'</div></div>';
@@ -4030,11 +4074,15 @@ function openUserForm(id){
   let so=rs.querySelector('option[value="super"]');if(own&&!so){so=document.createElement("option");so.value="super";so.textContent="Super Master";rs.appendChild(so);}else if(!own&&so)so.remove();
   [...rs.options].forEach(o=>{o.disabled=!sup&&o.value!=="utente";});rs.disabled=!sup||own;
   $("uName").value=u?u.name:"";rs.value=u?u.role:"utente";$("uActive").checked=u?u.active!==false:true;$("uActive").disabled=!!own;
+  $("uMax").checked=!!(u&&u.max===true);uMaxSync(); // 3.0.7
   $("uPw").value=u?"":ACC.genPassword();$("uPwLbl").textContent=u?"Nuova password":"Password da comunicare";$("uPw").placeholder=u?"lascia vuoto per non cambiarla":"";
   $("uDel").hidden=!u||id===(ACC.session()||{}).uid||own;$("uNote").textContent="";
   $("uForm").hidden=false;$("uName").focus();
 }
 $("uNew").onclick=()=>openUserForm(null);
+// 3.0.7: il permesso MAX vale per Master e utenti (il Super Master e il profilo «solo anteprima e invio» lo hanno già)
+function uMaxSync(){const r=$("uRole").value;$("uMaxRow").hidden=r==="super"||r==="invio";}
+$("uRole").addEventListener("change",uMaxSync);
 $("uList").addEventListener("click",e=>{const b=e.target.closest("[data-uedit]");if(b)openUserForm(b.dataset.uedit);});
 $("uGen").onclick=()=>{$("uPw").value=ACC.genPassword();};
 $("uCancel").onclick=()=>{$("uForm").hidden=true;uEditing=null;};
@@ -4044,6 +4092,7 @@ function mastersLeft(J,exceptId){return userEntries(J).filter(([id,u])=>id!==exc
 $("uForm").addEventListener("submit",async e=>{
   e.preventDefault();
   const name=cleanText($("uName").value),role=$("uRole").value,active=$("uActive").checked,pw=$("uPw").value.trim(),me=ACC.session(),note=$("uNote");
+  const maxOn=$("uMax").checked&&role!=="super"&&role!=="invio"; // 3.0.7
   const U=STORE.users||{users:{}},id=uEditing,old=id?U.users[id]:null;
   if(name.length<2){note.textContent="Scrivi nome e cognome.";return;}
   if(userEntries(U).some(([k,u])=>k!==id&&(isSuper()||u.role!=="super")&&norm(u.name)===norm(name))){note.textContent="Esiste già un utente con questo nome.";return;}
@@ -4066,11 +4115,12 @@ $("uForm").addEventListener("submit",async e=>{
       x.name=name;x.active=active;if(sec)Object.assign(x,sec);
       // i ruoli nuovi stanno nel campo lvl (vedi store.js): le versioni vecchie non li cancellano
       if(role==="super"||role==="invio"){x.lvl=role;x.role="utente";}else{delete x.lvl;x.role=role;}
+      if(maxOn)x.max=true;else delete x.max; // 3.0.7: permesso MAX
       J.users[nid]=x;return J;
     });
     if(id===me.uid&&sec){const s=ACC.session();s.pwAt=sec.pwAt;ACC.setSession(s);}
     const ch=[];
-    if(old){if(old.name!==name)ch.push(["Nome",old.name,name]);if(old.role!==role)ch.push(["Ruolo",ROLE_LBL[old.role]||old.role,ROLE_LBL[role]||role]);if((old.active!==false)!==active)ch.push(["Stato",old.active!==false?"attivo":"disattivato",active?"attivo":"disattivato"]);if(sec)ch.push(["Password","","cambiata"]);}
+    if(old){if(old.name!==name)ch.push(["Nome",old.name,name]);if(old.role!==role)ch.push(["Ruolo",ROLE_LBL[old.role]||old.role,ROLE_LBL[role]||role]);if((old.active!==false)!==active)ch.push(["Stato",old.active!==false?"attivo":"disattivato",active?"attivo":"disattivato"]);if(!!old.max!==maxOn)ch.push(["Permesso MAX",old.max?"sì":"no",maxOn?"sì":"no"]);if(sec)ch.push(["Password","","cambiata"]);}
     ACC.log("utenti",old?"Modificato l'utente «"+name+"»":"Creato l'utente «"+name+"» ("+(ROLE_LBL[role]||role)+")",ch.length?{ch}:null);
     $("uForm").hidden=true;uEditing=null;renderUsers();
     mstMsg(old?"Utente aggiornato."+(sec&&id!==me.uid?" Sui suoi dispositivi dovrà entrare con la nuova password.":""):"Utente creato. Password da comunicare: "+pw);
@@ -4301,8 +4351,8 @@ $("contSave").onclick=async()=>{
 // ----- dai servizi alla bozza -----
 const invKey=b=>b.id+"|"+b.start;
 function invService(b){
-  const v=vehicle(b.vehicle)||{};
-  return {id:b.id,start:b.start,end:endOf(b),type:normType(b.type),foglio:String(b.foglio||""),itin:billItin(b),event:b.event||"",pax:b.pax,client:b.client||"",vehicle:{kind:v.kind,seats:v.seats,plate:(v.plate||"").trim()},price:Number(b.price)||0,park:Number(b.park)||0,meals:Number(b.meals)||0,extras:cleanExtras(b.extras).filter(e=>Number(e.amt)>0).map(e=>({c:e.c,amt:Number(e.amt)})),parks:(Array.isArray(b.parks)?b.parks:[]).filter(p=>p&&p.pid).map(p=>{const r=parkReg(p.pid);return {key:p.pid,testo:parkFatt(r,p),aliq:r?String(r.aliq||""):"",amt:Number(p.amt)||0};})};
+  const v=vehicle(b.vehicle)||{},fv=billVeh(b); // 3.0.7: in fattura il mezzo da fatturare
+  return {id:b.id,start:b.start,end:endOf(b),type:normType(b.type),foglio:String(b.foglio||""),itin:billItin(b),event:b.event||"",pax:b.pax,client:b.client||"",vehicle:{kind:fv.kind,seats:fv.seats,plate:(fv.plate||"").trim()},price:Number(b.price)||0,park:Number(b.park)||0,meals:Number(b.meals)||0,extras:cleanExtras(b.extras).filter(e=>Number(e.amt)>0).map(e=>({c:e.c,amt:Number(e.amt)})),parks:(Array.isArray(b.parks)?b.parks:[]).filter(p=>p&&p.pid).map(p=>{const r=parkReg(p.pid);return {key:p.pid,testo:parkFatt(r,p),aliq:r?String(r.aliq||""):"",amt:Number(p.amt)||0};})};
 }
 // dati del cliente dall'anagrafica (foglio "clienti" del fatturato)
 function invClient(b){
@@ -5444,7 +5494,7 @@ function sentChip(b){
 // riga di stato nella finestra del foglio: inviato → aperto → busta consegnata
 function renderSheetSent(){
   const b0=sheetBooking,bar=$("sheetSent");if(!b0){bar.hidden=true;return;}
-  const b=bookingsAll().find(x=>x.id===b0.id)||b0,st=sentInfo(b),iv=isInvio(),on=AUT.linked();
+  const b=bookingsAll().find(x=>x.id===b0.id)||b0,st=sentInfo(b),iv=hasMax(),on=AUT.linked(); // 3.0.7: anche il permesso MAX
   const stp=(ok,t,sub)=>'<span class="stp'+(ok?" on":"")+'"><i>✓</i><span>'+esc(t)+(sub?' <small>'+esc(sub)+'</small>':'')+'</span></span>';
   let h="";
   if(!st||st.k==="ritirato"){
@@ -5548,7 +5598,7 @@ const sheetSay=t=>{$("sheetMsg").textContent=t;};
 $("sheetSend").onclick=async()=>{
   if(!sheetBooking)return;refreshSheetBooking();
   // il capo sceglie sempre bus e autisti prima di inviare
-  if(isInvio()){openCapo(sheetBooking,{alias:SHO.alias,noPlate:false});return;} // 3.0.4: da MAX sempre con targa e ID
+  if(hasMax()){openCapo(sheetBooking,{alias:SHO.alias,noPlate:false});return;} // 3.0.4: da MAX sempre con targa e ID (3.0.7: anche il permesso MAX)
   $("sheetSend").disabled=true;
   try{await sendToDriver(sheetBooking,{alias:SHO.alias,noPlate:SHO.noPlate},sheetSay);refreshSheetBooking();}
   finally{$("sheetSend").disabled=false;renderSheetSent();}
@@ -5816,7 +5866,8 @@ let sdDay="";
 function renderInvio(){
   if(!sdDay||!validDate(sdDay))sdDay=todayISO();
   const s=ACC.session()||{},d=parse(sdDay),w=wday(sdDay);
-  $("sdName").textContent=s.name||"";$("sdVer").textContent="Agenda Flotta La Terra · versione "+APP_VERSION+" · profilo «solo anteprima e invio»";
+  $("sdName").textContent=s.name||"";$("sdVer").textContent="Agenda Flotta La Terra · versione "+APP_VERSION+" · "+(isInvio()?"profilo «solo anteprima e invio»":"elenco «Invio fogli» (permesso MAX)");
+  $("sdBack").hidden=isInvio();
   $("sdDate").textContent=WDL[w]+" "+d.getUTCDate()+" "+MN[d.getUTCMonth()]+" "+d.getUTCFullYear()+(sdDay===todayISO()?" · oggi":"");
   $("sdDate").className="sd-date"+(w===0?" sun":"");
   if(document.activeElement!==$("sdPick"))$("sdPick").value=sdDay;
@@ -5830,11 +5881,13 @@ function renderInvio(){
     return '<div class="sd-card '+esc(b.type)+'">'+
       '<div class="sd-main"><div class="sd-l1"><span class="sd-time">'+esc(i===1?(b.time||"—"):"—")+'</span><span class="sd-cli">'+esc(dispClient(b))+'</span><span class="sd-tp">'+esc((TYPES[b.type]||"Servizio")+(tot>1?" · giorno "+i+" di "+tot:"")+(pending(b)?" · in sospeso":""))+'</span></div>'+
       '<div class="sd-rt">'+esc([hasEvent(b.type)&&b.event?b.event:"",whatToday(b,sdDay)||b.route||""].filter(Boolean).join(" – "))+'</div>'+
-      '<div class="sd-meta">Autista: <b>'+(driversHTML(b)||'<span class="gen">da assegnare</span>')+'</b> · Mezzo: <b>'+esc(vehLabel(v)||v.name||"—")+'</b> · Foglio n. <b>'+esc(b.foglio||"—")+'</b>'+(hasBusta(b)?' · Busta n. <b>'+esc(b.envno||"—")+'</b>':'')+(attOf(b).length?' · <span class="sd-att">📎 '+attOf(b).length+(attOf(b).length===1?" allegato":" allegati")+'</span>':'')+'</div>'+
+      '<div class="sd-meta">Autista: <b>'+(driversHTML(b)||'<span class="gen">da assegnare</span>')+'</b> · Mezzo: <b>'+esc(vehLabel(v)||v.name||"—")+'</b>'+(fvOn(b)?' <small class="fv-sub">(il cliente ha chiesto il '+esc(seatsLbl(billVeh(b)))+')</small>':'')+' · Foglio n. <b>'+esc(b.foglio||"—")+'</b>'+(hasBusta(b)?' · Busta n. <b>'+esc(b.envno||"—")+'</b>':'')+(attOf(b).length?' · <span class="sd-att">📎 '+attOf(b).length+(attOf(b).length===1?" allegato":" allegati")+'</span>':'')+'</div>'+
+      (()=>{const pl=postitsOf(sdDay,b.vehicle);return pl.length?'<div class="sd-pis">'+pl.map(p=>piNote(p,sdDay,"sm")).join("")+'</div>':"";})()+
       (nofg?'':'<div class="sd-capo'+(b.capo?" on":"")+'">'+esc(b.capo?capoTitle(b):"Bus e autisti scritti dall'ufficio: li decidi tu quando invii")+'</div>')+
       '<div class="sd-st">'+stTxt+'</div></div>'+
       '<div class="sd-act">'+(nofg?'':'<button type="button" class="btn" data-sdprev="'+esc(b.id)+'">Anteprima</button><button type="button" class="btn send" data-sdsend="'+esc(b.id)+'">'+(live?"Invia di nuovo":"Invia all'autista")+'</button>')+(live?'<button type="button" class="btn quiet" data-sdoff="'+esc(b.id)+'">Ritira il foglio</button>':'')+'</div></div>';
   }).join("")||'<div class="sd-empty">Nessun servizio in questo giorno.</div>';
+  {const pd=postitsOf(sdDay,"");if(pd.length)$("sdList").insertAdjacentHTML("afterbegin",'<div class="sd-pi">'+pd.map(p=>piNote(p,sdDay)).join("")+'</div>');}
   if(sdPastiOn)renderSdPasti();
 }
 function sdGo(day){if(validDate(day)){sdDay=day;renderInvio();}}
@@ -5843,6 +5896,9 @@ $("sdNext").onclick=()=>sdGo(addDays(sdDay||todayISO(),1));
 $("sdToday").onclick=()=>sdGo(todayISO());
 $("sdPick").addEventListener("change",()=>sdGo($("sdPick").value));
 $("sdOut").onclick=()=>doLogout();
+// 3.0.7: chi ha il permesso MAX apre l'elenco «Invio fogli» dalla sua agenda e ci torna
+$("btnInvio").onclick=()=>{if(!hasMax())return;closeOverlays();sdDay=S.sel&&validDate(S.sel)?S.sel:todayISO();$("app").hidden=true;$("invio").hidden=false;renderInvio();window.scrollTo(0,0);};
+$("sdBack").onclick=()=>{if(isInvio())return;$("invio").hidden=true;$("app").hidden=false;renderAll();};
 $("sdSync").onclick=async()=>{const b=$("sdSync");b.disabled=true;b.textContent="Aggiorno…";try{await STORE.pull();await AUT.sync();}finally{b.disabled=false;b.textContent="Aggiorna";renderInvio();toast(navigator.onLine?"Elenco aggiornato":"Sei offline");}};
 $("sdList").addEventListener("click",async e=>{
   const pv=e.target.closest("[data-sdprev]"),sn=e.target.closest("[data-sdsend]"),of=e.target.closest("[data-sdoff]"),id=pv?pv.dataset.sdprev:sn?sn.dataset.sdsend:of?of.dataset.sdoff:"";if(!id)return;
@@ -6159,7 +6215,7 @@ $("poUndo").onclick=()=>savePasto(true);
 // la scelta viene scritta sulla prenotazione e vale in tutta l'Agenda (viste, foglio, fatturato). Da quel
 // momento l'ufficio non può più cambiare bus e autisti di quel servizio né inviare o ritirare il foglio.
 const CAPO_NO="Bus e autisti di questo servizio li ha decisi MAX: il foglio lo invia (o lo ritira) solo lui.";
-function capoLock(b){return !!(b&&b.capo)&&!isInvio()&&!isSuper();}
+function capoLock(b){return !!(b&&b.capo)&&!hasMax()&&!isSuper();}
 function capoTitle(b){const c=(b&&b.capo)||{};return "Bus e autisti decisi da MAX"+(c.by?" ("+c.by+")":"")+(c.at?" "+fmtTime(c.at):"");}
 let cpB=null,cpOpts=null,cpBusy=false,cpDv=[];
 const cpSay=t=>{$("cpMsg").textContent=t;};
@@ -6171,7 +6227,7 @@ function cpOthers(b){
 }
 const cpName=x=>realDriver(x)?driverCanon(x):"";
 function openCapo(b0,o){
-  if(!isInvio()&&!isSuper())return;
+  if(!hasMax()&&!isSuper())return;
   const b=bookingsAll().find(x=>x.id===b0.id);if(!b){toast("La prenotazione non c'è più.");return;}
   if(!hasSheet(b)){toast(NOFG);return;} // 3.0.3
   cpB=b;cpOpts=o||{};cpBusy=false;
@@ -6189,6 +6245,7 @@ function openCapo(b0,o){
   $("cpDrv").value=c1;$("cpDrv2").value=c2&&c2!==c1?c2:"";
   const v0=vehicle(b.vehicle)||{};
   $("cpWas").textContent=b.capo?capoTitle(b)+".":"Scritto dall'ufficio: "+(vehLabel(v0)||v0.name||"—")+" · "+(driversText(b)||"autista da assegnare")+".";
+  $("cpReq").innerHTML="Il cliente ha chiesto: <b>"+esc(seatsLbl(billVeh(b)))+"</b>"+(fvOn(b)?" (si fattura questo; adesso va il "+esc(seatsLbl(v0))+")":"")+". "+(fvWindow(b)?"Se scegli un bus con un altro numero di posti ti chiedo il motivo.":"Mancano più di 24 ore alla partenza: se cambi bus si fattura quello nuovo (il motivo te lo chiedo dalle 24 ore prima).");
   const live=!!(b.sent&&b.sent.at&&!b.sent.off);
   $("cpSend").textContent=live?"Invia di nuovo all'autista":"Invia all'autista";
   cpDv=Array.isArray(b.dayv)?JSON.parse(JSON.stringify(b.dayv)):[];$("cpDays").innerHTML="";cpDaysRender(); // 3.0.3: tour, giorno per giorno
@@ -6224,11 +6281,207 @@ function cpWarns(){
 }
 ["cpVeh","cpDrv","cpDrv2"].forEach(id=>$(id).addEventListener("change",()=>{cpSay("");cpDaysRender();cpWarns();}));
 function closeCapo(){$("ovCapo").hidden=true;cpB=null;cpOpts=null;cpBusy=false;}
+// ---------- 3.0.7: cambio di mezzo → perché? (decide il mezzo da fatturare) ----------
+// "log" = motivi logistici, scelta nostra: si fattura ancora il mezzo chiesto dal cliente;
+// "cli" = motivi logistici e contabili, lo chiede il cliente: si fattura il mezzo nuovo.
+let vwDone=null;
+function askVehWhy(b,from,to){
+  return new Promise(res=>{
+    if(vwDone)vwDone(null);vwDone=res;
+    $("vwTitle").textContent="Perché cambi il mezzo?";
+    $("vwInfo").innerHTML="<b>"+esc(dispClient(b))+"</b> · "+esc(TYPES[b.type]||"Servizio")+" del "+esc(itD(b.start))+(endOf(b)!==b.start?" – "+esc(itD(endOf(b))):"")+"<br>Il cliente ha chiesto il <b>"+esc(seatsLbl(from))+"</b>; adesso scegli il <b>"+esc(vehLabel(to)||seatsLbl(to))+"</b>.";
+    $("vwLog").textContent="Il cliente paga il "+seatsLbl(from)+" che ha chiesto: in fattura e nel fatturato resta «"+seatsLbl(from)+"». In agenda e sul foglio dell'autista va il "+seatsLbl(to)+", con la sua targa.";
+    $("vwCli").textContent="Il cliente vuole un mezzo diverso: da adesso in fattura e nel fatturato «"+seatsLbl(to)+"». Controlla il prezzo.";
+    $("ovVeh").hidden=false;setTimeout(()=>{try{$("vwCancel").focus();}catch(_){}},30);
+  });
+}
+function vwClose(v){$("ovVeh").hidden=true;const r=vwDone;vwDone=null;if(r)r(v);}
+$("ovVeh").addEventListener("click",e=>{const o=e.target.closest("[data-why]");if(o)vwClose(o.dataset.why);});
+$("vwCancel").onclick=()=>vwClose(null);
+// la domanda sul motivo compare dalle 24 ore prima della partenza (data e ora del servizio; senza ora: dalla mezzanotte)
+function fvWindow(b){
+  if(!b||!validDate(b.start))return false;const t=/^(\d{1,2}):(\d{2})/.exec(String(b.time||"")),[y,m,d]=b.start.split("-").map(Number);
+  return Date.now()>=new Date(y,m-1,d,t?+t[1]:0,t?+t[2]:0).getTime()-864e5;
+}
+// mezzo da fatturare dopo il cambio da cur.vehicle a newVid. null = annullato; {fveh:null} = si fattura il mezzo che va
+// nb: la prenotazione come sarà dopo la modifica (data e ora di partenza, se cambiano anche quelle)
+async function fvAfterChange(cur,newVid,nb){
+  if(!cur||newVid===cur.vehicle)return {fveh:cur&&cur.fveh?cur.fveh:null};
+  const billed=billVeh(cur),nv=vehicle(newVid)||{};
+  if(sameCat(billed,nv))return {fveh:null}; // stesso tipo di mezzo (o si torna a quello chiesto): niente da chiedere
+  // più di 24 ore prima della partenza: è la programmazione normale, niente domanda (si fattura il mezzo che va;
+  // un mezzo da fatturare già deciso resta)
+  if(!fvWindow(nb||cur))return {fveh:cur.fveh||null};
+  const why=await askVehWhy(cur,billed,nv);if(!why)return null;
+  return {fveh:why==="log"?{v:billed.id,at:new Date().toISOString(),by:meName()}:null,why,billed,nv};
+}
+// =====================================================================================
+// 3.0.8 — Post-it: note libere attaccate a un giorno (barra del mese) o a un mezzo in quel giorno.
+// Si attaccano con il tasto destro (sul telefono: dito premuto) sulla barra del mese, sulle righe dei mezzi, sulle
+// caselle della settimana, oppure con «+ Post-it» sotto la data. Non vanno mai sui fogli per gli autisti.
+// =====================================================================================
+const PI_COLS=[["y","Giallo"],["p","Rosa"],["g","Verde"],["b","Azzurro"]];
+const PI_MAXDAYS=31;
+function postitsOf(ds,vid){const l=((S.days[ds]||{}).postit)||[];return vid==null?l.slice().sort((a,b)=>(a.vid?1:0)-(b.vid?1:0)):l.filter(x=>(x.vid||"")===(vid||""));}
+const piShort=(t,n)=>{t=String(t||"").replace(/\s+/g," ").trim();return t.length>n?t.slice(0,n-1)+"…":t;};
+const piWho=p=>[p.by||"",p.at?fmtTime(p.at):""].filter(Boolean).join(" · ");
+function piTip(l){return l.map(p=>"📌 "+(p.vid?(vehLabel(vehicle(p.vid)||{})+": "):"")+piShort(p.text,90)).join("\n");}
+// segno piccolo (barra del mese, intestazioni, caselle)
+function piMark(l,ds,cls){if(!l.length)return "";const p=l[0];return '<i class="pi-mk c-'+esc(p.col||"y")+(cls?" "+cls:"")+'" data-pimk="'+esc(ds)+'" data-pimv="'+esc(cls==="all"?"*":(p.vid||""))+'" title="'+esc(piTip(l))+'">'+(l.length>1?l.length:"")+'</i>';}
+// nota leggibile (riga sotto la data e caselle dei mezzi nella giornata)
+function piNote(p,ds,cls){return '<button type="button" class="pi-note c-'+esc(p.col||"y")+(cls?" "+cls:"")+'" data-pi="'+esc(p.id)+'" data-pid="'+esc(ds)+'" title="'+esc((p.vid?vehLabel(vehicle(p.vid)||{})+"\n":"")+p.text+"\n— "+piWho(p))+'"><span class="t">'+esc(cls==="sm"?piShort(p.text,140):p.text)+'</span>'+(cls==="sm"?'':'<small>'+esc(piWho(p))+(p.g&&p.till?" · fino al "+esc(itD(p.till)):"")+'</small>')+'</button>';}
+function renderPiRow(date){
+  const box=$("piRow");if(!box)return;
+  const day=postitsOf(date,""),ro=S.readOnly||isInvio();
+  box.innerHTML=day.map(p=>piNote(p,date)).join("")+(ro?"":'<button type="button" class="pi-add" data-piadd="'+esc(date)+'" title="Attacca un post-it a questo giorno (anche con il tasto destro sulla barra del mese)">+ Post-it</button>');
+  box.hidden=ro&&!day.length;
+}
+// ---- menu del tasto destro ----
+let ctxItems=[];
+function ctxClose(){const m=$("ctxMenu");if(m)m.hidden=true;ctxItems=[];}
+function ctxOpen(x,y,items){
+  const m=$("ctxMenu");ctxItems=items;
+  m.innerHTML=items.map((it,i)=>it.sep?'<hr>':'<button type="button" role="menuitem" data-ci="'+i+'">'+it.html+'</button>').join("");
+  m.hidden=false;const r=m.getBoundingClientRect();
+  m.style.left=Math.max(8,Math.min(x,innerWidth-r.width-8))+"px";m.style.top=Math.max(8,Math.min(y,innerHeight-r.height-8))+"px";
+  const f=m.querySelector("button");if(f)setTimeout(()=>{try{f.focus();}catch(_){}},10);
+}
+$("ctxMenu").addEventListener("click",e=>{const b=e.target.closest("[data-ci]");if(!b)return;const it=ctxItems[+b.dataset.ci];ctxClose();if(it&&it.run)it.run();});
+document.addEventListener("mousedown",e=>{if(!$("ctxMenu").hidden&&!e.target.closest("#ctxMenu"))ctxClose();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("ctxMenu").hidden)ctxClose();});
+window.addEventListener("scroll",()=>{if(!$("ctxMenu").hidden)ctxClose();},true);
+function piCtxTarget(el){
+  if(!el||!el.closest)return null;
+  const d=el.closest("#strip .dbtn,#strip .cc");if(d&&d.dataset.day)return {ds:d.dataset.day,vid:""};
+  const th=el.closest("#wgrid thead th[data-goday]");if(th)return {ds:th.dataset.goday,vid:""};
+  const mh=el.closest("#mgrid thead th[data-day]");if(mh)return {ds:mh.dataset.day,vid:""};
+  const wc=el.closest("#wgrid td.wc[data-addv]");if(wc)return {ds:wc.dataset.addd,vid:wc.dataset.addv};
+  const n=el.closest("[data-pi]");if(n){const p=postitsOf(n.dataset.pid).find(x=>x.id===n.dataset.pi);if(p)return {ds:n.dataset.pid,vid:p.vid||"",open:p};}
+  const r=el.closest("#sheet .row");if(r){const a=r.querySelector("[data-add]");if(a)return {ds:S.sel,vid:a.dataset.add};}
+  if(el.closest("#piRow,#sign"))return {ds:S.sel,vid:""};
+  return null;
+}
+function piMenu(t){
+  const dl=WDL[wday(t.ds)]+" "+itD(t.ds),v=t.vid?vehicle(t.vid):null,items=[];
+  if(t.open)items.push({html:'<b>Apri il post-it</b><small>'+esc(piShort(t.open.text,60))+'</small>',run:()=>piOpen(t.ds,t.vid,t.open)});
+  items.push({html:'<b>📌 Aggiungi un post-it'+(v?' sul mezzo':'')+'</b><small>'+esc((v?vehLabel(v)+" · ":"")+dl)+'</small>',run:()=>piOpen(t.ds,t.vid,null)});
+  if(v)items.push({html:'<b>📌 Post-it per tutto il giorno</b><small>'+esc(dl)+' (sulla barra del mese)</small>',run:()=>piOpen(t.ds,"",null)});
+  const all=postitsOf(t.ds,t.vid).filter(p=>!t.open||p.id!==t.open.id);
+  if(all.length){items.push({sep:1});all.slice(0,6).forEach(p=>items.push({html:'<span class="ctx-pi c-'+esc(p.col)+'"></span>'+esc(piShort(p.text,48)),run:()=>piOpen(t.ds,p.vid||"",p)}));}
+  return items;
+}
+let piLP=null;
+document.addEventListener("contextmenu",e=>{
+  if(piLP&&piLP.done){e.preventDefault();return;}
+  if(S.readOnly||isInvio()||$("app").hidden)return;
+  const t=piCtxTarget(e.target);if(!t)return;
+  e.preventDefault();ctxOpen(e.clientX,e.clientY,piMenu(t));
+});
+// telefono e iPad: dito premuto (0,6 secondi) = tasto destro
+{
+  document.addEventListener("pointerdown",e=>{if(e.pointerType==="mouse"||S.readOnly||isInvio()||$("app").hidden)return;const t=piCtxTarget(e.target);if(!t){piLP=null;return;}
+    const lp={x:e.clientX,y:e.clientY,t};lp.tm=setTimeout(()=>{lp.done=true;try{navigator.vibrate&&navigator.vibrate(12);}catch(_){}ctxOpen(lp.x,lp.y,piMenu(lp.t));},600);piLP=lp;});
+  const stop=()=>{if(piLP&&piLP.tm)clearTimeout(piLP.tm);};
+  document.addEventListener("pointermove",e=>{if(piLP&&!piLP.done&&Math.hypot(e.clientX-piLP.x,e.clientY-piLP.y)>10){stop();piLP=null;}});
+  document.addEventListener("pointerup",stop);document.addEventListener("pointercancel",()=>{stop();if(piLP&&!piLP.done)piLP=null;});
+  document.addEventListener("click",e=>{if(piLP&&piLP.done){e.preventDefault();e.stopPropagation();}piLP=null;},true);
+}
+// ---- il post-it grande ----
+let piCur=null;
+const piReduce=()=>{try{return matchMedia("(prefers-reduced-motion: reduce)").matches;}catch(_){return false;}};
+function piOpen(ds,vid,p){
+  if(!validDate(ds))return;
+  const v=vid?vehicle(vid):null,ro=S.readOnly||isInvio();
+  piCur={ds,vid:vid||"",p:p||null,col:(p&&p.col)||"y"};
+  $("piWhere").textContent=(v?vehLabel(v)+" · ":"")+WDL[wday(ds)]+" "+parse(ds).getUTCDate()+" "+MN[parse(ds).getUTCMonth()]+" "+ds.slice(0,4);
+  $("piText").value=p?p.text:"";$("piText").readOnly=ro;
+  $("piUntil").value=p&&p.till?p.till:"";$("piUntil").min=ds;$("piUntil").max=addDays(ds,PI_MAXDAYS-1);$("piUntilRow").hidden=!!p||ro;
+  $("piWho").textContent=p?"Attaccato da "+piWho(p)+(p.g&&p.till?" · ripetuto fino al "+itD(p.till)+" (le modifiche valgono per tutti i giorni)":""):"";
+  $("piDel").hidden=!p||ro;$("piDelAll").hidden=!p||!p.g||ro;$("piSave").hidden=ro;$("piSave").textContent=p?"Salva":"Attacca";
+  piColor(piCur.col);$("piMsg").textContent="";
+  const ov=$("ovPostit");ov.classList.remove("fly","drop");ov.hidden=false;
+  const pa=$("piPaper");pa.style.transform="";try{pa.getAnimations().forEach(a=>a.cancel());}catch(_){}
+  if(!piReduce())pa.animate([{transform:"scale(.55) rotate(-8deg)",opacity:0},{transform:"scale(1.04) rotate(-1deg)",opacity:1,offset:.7},{transform:"scale(1) rotate(-1.5deg)",opacity:1}],{duration:320,easing:"ease-out"});
+  setTimeout(()=>{try{$("piText").focus();}catch(_){}},60);
+}
+function piColor(c){piCur.col=c;const pa=$("piPaper");PI_COLS.forEach(([k])=>pa.classList.toggle("c-"+k,k===c));$("piCols").querySelectorAll("[data-col]").forEach(b=>b.setAttribute("aria-checked",String(b.dataset.col===c)));}
+$("piCols").addEventListener("click",e=>{const b=e.target.closest("[data-col]");if(b&&piCur)piColor(b.dataset.col);});
+function piClose(){$("ovPostit").hidden=true;$("ovPostit").classList.remove("fly","drop");piCur=null;try{$("piPaper").getAnimations().forEach(a=>a.cancel());}catch(_){}}
+$("piCancel").onclick=piClose;
+backdropClose($("ovPostit"),piClose);
+// dove va a finire il post-it (per l'animazione): il giorno nella barra del mese, oppure il mezzo nella giornata/settimana
+function piTargetEl(ds,vid){
+  if(!$("invio").hidden){const n=document.querySelector('#invio [data-pi]');return n||$("sdDate");}
+  if(vid){
+    if(S.view==="day"&&S.sel===ds){const a=document.querySelector('#sheet [data-add="'+CSS.escape(vid)+'"]');if(a){const r=a.closest(".row");if(r)return r.querySelector(".veh")||r;}}
+    if(S.view==="week"){const c=document.querySelector('#wgrid td.wc[data-addv="'+CSS.escape(vid)+'"][data-addd="'+ds+'"]');if(c)return c;}
+  }else if(S.view==="day"&&S.sel===ds){const b=$("piRow");if(b&&!b.hidden)return b.querySelector(".pi-add")||b;}
+  return document.querySelector('#strip .dbtn[data-day="'+ds+'"]');
+}
+function piFly(target,done){
+  const pa=$("piPaper"),ov=$("ovPostit");
+  if(piReduce()||!target||!pa.animate){done();return;}
+  const a=pa.getBoundingClientRect(),b=target.getBoundingClientRect();
+  if(!b.width||b.bottom<0||b.top>innerHeight){done();return;}
+  const dx=(b.left+b.width/2)-(a.left+a.width/2),dy=(b.top+b.height/2)-(a.top+a.height/2),s=Math.max(.06,Math.min(.4,Math.min(b.width,b.height)/a.width*1.15));
+  ov.classList.add("fly");
+  const an=pa.animate([
+    {transform:"translate(0,0) scale(1) rotate(-1.5deg)",offset:0},
+    {transform:"translate(0,-14px) scale(1.06) rotate(-3deg)",offset:.18},
+    {transform:"translate("+dx*.55+"px,"+(dy*.55-40)+"px) scale("+(s+.35)+") rotate(8deg)",offset:.62},
+    {transform:"translate("+dx+"px,"+dy+"px) scale("+s+") rotate(4deg)",offset:1}],{duration:820,easing:"cubic-bezier(.45,0,.25,1)",fill:"forwards"});
+  an.onfinish=()=>{done();target.animate&&target.animate([{transform:"scale(1)"},{transform:"scale(1.18)"},{transform:"scale(.96)"},{transform:"scale(1)"}],{duration:380,easing:"ease-out"});};
+}
+function piWriteDay(ds,op){writeDayOps(ds,{postit:op});}
+function piRefresh(){if(!$("invio").hidden)renderInvio();else renderAll();}
+$("piSave").onclick=()=>{
+  if(!piCur)return;const text=cleanText($("piText").value,true).replace(/\n{3,}/g,"\n\n").slice(0,300);
+  if(!text){$("piMsg").textContent="Scrivi qualcosa sul post-it.";$("piText").focus();return;}
+  const c=piCur,now=new Date().toISOString(),who=meName();
+  const till=!c.p&&$("piUntil").value&&$("piUntil").value>c.ds?$("piUntil").value:"";
+  if(till&&(!validDate(till)||diff(c.ds,till)>=PI_MAXDAYS)){$("piMsg").textContent="«Fino al» al massimo "+PI_MAXDAYS+" giorni.";return;}
+  const base=c.p?Object.assign({},c.p,{text,col:c.col,upd:now}):{id:"pi"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),vid:c.vid,text,col:c.col,by:who,at:now};
+  if(till){base.g=base.id;base.till=till;}
+  const tgt=piTargetEl(c.ds,c.vid);
+  piFly(tgt,()=>{
+    try{
+      if(till){for(let d=c.ds,i=0;d<=till&&i<PI_MAXDAYS;d=addDays(d,1),i++)piWriteDay(d,{set:Object.assign({},base,{id:i?base.id+"-"+i:base.id})});}
+      else if(c.p&&c.p.g){const t=c.p.till||c.ds;for(let d=addDays(c.ds,-PI_MAXDAYS);d<=t;d=addDays(d,1))for(const x of postitsOf(d))if(x.g===c.p.g)piWriteDay(d,{set:Object.assign({},x,{text,col:c.col,upd:now})});}
+      else piWriteDay(c.ds,{set:base});
+      ACC.log("prenotazione",(c.p?"Modificato il post-it del ":"Attaccato un post-it al ")+itD(c.ds)+(till?" (fino al "+itD(till)+")":"")+(c.vid?" sul "+vehLabel(vehicle(c.vid)||{}):""),{txt:text.slice(0,300)});
+    }catch(err){handleErr(err);}
+    piClose();piRefresh();
+    const el=document.querySelector('[data-pi="'+CSS.escape(base.id)+'"]');if(el){el.classList.add("pi-new");setTimeout(()=>el.classList.remove("pi-new"),1200);}
+  });
+};
+function piDrop(all){
+  if(!piCur||!piCur.p)return;const c=piCur,p=c.p;
+  const go=()=>{try{
+      if(all&&p.g){const t=p.till||c.ds;for(let d=addDays(c.ds,-PI_MAXDAYS);d<=t;d=addDays(d,1))for(const x of postitsOf(d))if(x.g===p.g)piWriteDay(d,{del:x.id});}
+      else piWriteDay(c.ds,{del:p.id});
+      ACC.log("prenotazione","Staccato il post-it del "+itD(c.ds)+(all&&p.g?" (tutti i giorni)":"")+(p.vid?" sul "+vehLabel(vehicle(p.vid)||{}):""),{txt:String(p.text||"").slice(0,300)});
+    }catch(err){handleErr(err);}piClose();piRefresh();toast("Post-it staccato");};
+  const pa=$("piPaper");
+  if(piReduce()||!pa.animate){go();return;}
+  $("ovPostit").classList.add("drop");
+  pa.animate([{transform:"rotate(-1.5deg)",opacity:1},{transform:"translate(-10px,-12px) rotate(-6deg)",opacity:1,offset:.2},{transform:"translate(40px,70vh) rotate(28deg)",opacity:0}],{duration:620,easing:"cubic-bezier(.5,0,.9,.6)",fill:"forwards"}).onfinish=go;
+}
+$("piDel").onclick=()=>piDrop(false);
+$("piDelAll").onclick=()=>piDrop(true);
+// clic su un post-it (riga sotto la data, mezzi, segni) e su «+ Post-it»
+document.addEventListener("click",e=>{
+  const ad=e.target.closest("[data-piadd]");if(ad){e.preventDefault();piOpen(ad.dataset.piadd,"",null);return;}
+  const mk=e.target.closest("[data-pimk]");if(mk){const ds=mk.dataset.pimk,l=mk.dataset.pimv==="*"?postitsOf(ds):postitsOf(ds,mk.dataset.pimv);if(!l.length)return;e.preventDefault();e.stopPropagation();
+    if(l.length===1){piOpen(ds,l[0].vid||"",l[0]);return;}const r=mk.getBoundingClientRect();
+    ctxOpen(r.left,r.bottom+4,l.map(p=>({html:'<span class="ctx-pi c-'+esc(p.col)+'"></span>'+esc((p.vid?vehLabel(vehicle(p.vid)||{})+": ":"")+piShort(p.text,48)),run:()=>piOpen(ds,p.vid||"",p)})));return;}
+  const n=e.target.closest("[data-pi]");if(n){e.preventDefault();e.stopPropagation();const p=postitsOf(n.dataset.pid).find(x=>x.id===n.dataset.pi);if(p)piOpen(n.dataset.pid,p.vid||"",p);}
+},true);
+const fvLogRow=fv=>["Mezzo da fatturare",seatsLbl(fv.billed),fv.why==="log"?seatsLbl(fv.billed)+" (cambio per motivi logistici: scelta nostra)":seatsLbl(fv.nv)+" (cambio chiesto dal cliente)"];
 $("cpCancel").onclick=()=>{if(!cpBusy)closeCapo();};
 backdropClose($("ovCapo"),()=>$("cpCancel").click());
 async function capoApply(send){
   if(!cpB||cpBusy)return;
-  if(!isInvio()&&!isSuper()){closeCapo();return;}
+  if(!hasMax()&&!isSuper()){closeCapo();return;}
   const b=bookingsAll().find(x=>x.id===cpB.id);
   if(!b){closeCapo();toast("La prenotazione non c'è più (eliminata o spostata).");if(!$("invio").hidden)renderInvio();return;}
   const veh=$("cpVeh").value,d1=$("cpDrv").value,d2=$("cpDrv2").value,dv=cpDvRead(),dvS=JSON.stringify(dv);
@@ -6237,14 +6490,19 @@ async function capoApply(send){
   if(d2&&d2===d1){cpSay("Il secondo autista è uguale al primo: toglilo o scegline un altro.");$("cpDrv2").focus();return;}
   const thin=send?thinSheet(b):""; // 3.0.3: foglio quasi vuoto: si chiede prima di salvare e inviare
   if(thin&&!confirm(THIN_Q(thin)))return;
+  // 3.0.7: bus con un altro numero di posti: perché? (decide che cosa si fattura)
+  let fv=null;if(veh!==b.vehicle){fv=await fvAfterChange(b,veh);if(!fv)return;}
   cpBusy=true;cpButtons();
   try{
     if(!(b.capo&&b.vehicle===veh&&(b.driver||"")===d1&&(b.driver2||"")===d2&&JSON.stringify(dvTrim(b.dayv||[],32))===dvS)){
       const now=new Date().toISOString(),who=meName();
       const nb=Object.assign({},b,{vehicle:veh,driver:d1,driver2:d2,dayv:dv,capo:{at:now,by:who},updatedAt:now,updBy:who});
-      try{writeDayOps(b.start,{bookings:{[b.id]:nb}},{edit:true,only:true,boss:true,base:b.updatedAt||null,patch:["vehicle","driver","driver2","dayv","capo","updBy"]});}
+      const pt=["vehicle","driver","driver2","dayv","capo","updBy"];
+      if(fv){if(fv.fveh)nb.fveh=fv.fveh;else delete nb.fveh;if(JSON.stringify(b.fveh||null)!==JSON.stringify(nb.fveh||null))pt.push("fveh");}
+      try{writeDayOps(b.start,{bookings:{[b.id]:nb}},{edit:true,only:true,boss:true,base:b.updatedAt||null,patch:pt});}
       catch(err){cpSay(err&&err.code==="readonly"?"Con questo profilo non si può fare.":"Non sono riuscito a salvare la scelta: riprova.");return;}
       const ch=[["Mezzo",logVal("vehicle",b.vehicle),logVal("vehicle",veh)],["1° Autista",b.driver||"—",d1],["2° Autista",b.driver2||"—",d2||"—"],["Giorno per giorno",logVal("dayv",b.dayv||[]),logVal("dayv",dv)]].filter(c=>c[1]!==c[2]);
+      if(fv&&fv.why)ch.push(fvLogRow(fv));
       ACC.log("prenotazione","MAX ha deciso bus e autisti di "+bookingLabel(nb),{id:b.id,ch});
       if(!$("invio").hidden)renderInvio();if(!$("app").hidden)renderAll();
       if(!$("ovSheet").hidden&&sheetBooking&&sheetBooking.id===b.id){refreshSheetBooking();renderSheet();}
