@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="3.0.8",APP_DATE="11/11/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="3.0.9",APP_DATE="11/11/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
@@ -16,7 +16,7 @@ const APP_VERSION="3.0.8",APP_DATE="11/11/2026";window.AGENDA_VERSION=APP_VERSIO
 //        store.js e autisti.js restano quelli della 3.0.3.
 // 3.0.6: aggiornamento parziale (solo app.js): nomi di prima degli autisti (un autista rinominato nell'anagrafica
 //        resta una persona sola: servizi già inseriti, telefono, crocette dei pasti). Gli altri file restano della 3.0.5.
-const APP_FAMILY="3.0",APP_PATCH={index:"3.0.8",store:"3.0.8",autisti:"3.0.3",fatture:"3.0.4",fatturato:"3.0.4"};
+const APP_FAMILY="3.0",APP_PATCH={index:"3.0.9",store:"3.0.8",autisti:"3.0.3",fatture:"3.0.4",fatturato:"3.0.4"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -354,7 +354,7 @@ function renderWeek(){
   for(const ds of days){
     // 3.0.5: «x/26 impegnati» non più sotto la data (è nella riga «Mezzi impegnati» in fondo); resta il numerino degli autisti a riposo
     const w=wday(ds);
-    h+='<th class="'+(w===0?"sun ":"")+(ds===t?"today ":"")+(ds===S.sel?"sel":"")+'" data-goday="'+ds+'" title="Apri la giornata"><span class="wdn">'+WDL[w]+'</span><span class="dnum">'+parse(ds).getUTCDate()+" "+MN[parse(ds).getUTCMonth()].slice(0,3)+'</span>'+(()=>{const rp=riposoNames(ds);return rp.length?'<span class="occ"><b class="rp-n" title="'+esc("A riposo: "+rp.map(x=>x.n).join(", "))+'">'+rp.length+'</b> a riposo</span>':"";})()+(()=>{const pd=postitsOf(ds,"");return pd.length?'<span class="wpi wh">'+pd.slice(0,2).map(p=>piNote(p,ds,"sm")).join("")+(pd.length>2?piMark(pd.slice(2),ds,"more"):"")+'</span>':"";})()+'</th>';
+    h+='<th class="'+(w===0?"sun ":"")+(ds===t?"today ":"")+(ds===S.sel?"sel":"")+'" data-goday="'+ds+'" title="Apri la giornata"><span class="wdn">'+WDL[w]+'</span><span class="dnum">'+parse(ds).getUTCDate()+" "+MN[parse(ds).getUTCMonth()].slice(0,3)+'</span>'+(()=>{const rp=riposoNames(ds);return rp.length?'<span class="occ"><b class="rp-n" title="'+esc("A riposo: "+rp.map(x=>x.n).join(", "))+'">'+rp.length+'</b> a riposo</span>':"";})()+(()=>{const pd=postitsOf(ds,"");return pd.length?'<span class="wpi wh">'+pd.slice(0,2).map(p=>piNote(p,ds,"sm")).join("")+(pd.length>2?piMark(pd,ds,"more",2):"")+'</span>':"";})()+'</th>';
   }
   h+='</tr></thead><tbody>';
   // 2.8: in fondo gli extra bus della settimana (altre aziende); «+ Aggiungi» solo nei giorni in cui ci sono
@@ -494,6 +494,7 @@ function renderDay(){
   const tcount=Object.keys(STAT_LABELS).map(k=>[k,today.filter(b=>b.type===k).length]).filter(x=>x[1]);
   $("sign").innerHTML=
     '<div class="date"><span>'+WDL[w]+'</span><span>'+d.getUTCDate()+" "+MN[d.getUTCMonth()]+" "+d.getUTCFullYear()+'</span>'+(date===todayISO()?'<span class="today-tag">Oggi</span>':'')+'</div>'+
+    '<div class="sign-pi" id="signPi"></div>'+ // 3.0.9: i post-it del giorno attaccati sulla barra grigia
     '<div class="sright">'+(()=>{const rp=riposoNames(date);return rp.length?'<div class="rp-day" title="Autisti che hanno chiesto il riposo per questo giorno"><span class="rp-lab">Riposo</span>'+rp.map(x=>'<span class="rp-name"'+(x.nota?' title="'+esc(x.nota)+'"':'')+'>'+esc(x.n)+'</span>').join("")+'</div>':"";})()+'<div class="stats">'+
       '<div class="grp">'+
         '<div class="stat" title="'+(dc.gen?"di cui "+dc.gen+" da assegnare":"")+'"><b>'+dc.a+'</b><span>Autisti</span></div>'+
@@ -503,7 +504,7 @@ function renderDay(){
       (tcount.length?'<div class="grp">'+tcount.map(([k,n])=>'<div class="stat"><b>'+n+'</b><span>'+(n===1?TYPES[k]:STAT_LABELS[k])+'</span></div>').join("")+'</div>':'')+
     '</div>'+
     '<div class="nav"><button id="dPrev" aria-label="Giorno precedente">‹</button><button id="dNext" aria-label="Giorno successivo">›</button></div></div>';
-  renderPiRow(date);
+  renderSignPi(date);
   $("sheet").className="sheet"+(w===0?" sun":"");
   $("sheet").style.setProperty("--vehw",vehColW(15)+"px");
   let h="";
@@ -6327,14 +6328,17 @@ const piShort=(t,n)=>{t=String(t||"").replace(/\s+/g," ").trim();return t.length
 const piWho=p=>[p.by||"",p.at?fmtTime(p.at):""].filter(Boolean).join(" · ");
 function piTip(l){return l.map(p=>"📌 "+(p.vid?(vehLabel(vehicle(p.vid)||{})+": "):"")+piShort(p.text,90)).join("\n");}
 // segno piccolo (barra del mese, intestazioni, caselle)
-function piMark(l,ds,cls){if(!l.length)return "";const p=l[0];return '<i class="pi-mk c-'+esc(p.col||"y")+(cls?" "+cls:"")+'" data-pimk="'+esc(ds)+'" data-pimv="'+esc(cls==="all"?"*":(p.vid||""))+'" title="'+esc(piTip(l))+'">'+(l.length>1?l.length:"")+'</i>';}
+function piMark(l,ds,cls,skip){if(!l.length)return "";const p=l[skip||0]||l[0];return '<i class="pi-mk c-'+esc(p.col||"y")+(cls?" "+cls:"")+'" data-pimk="'+esc(ds)+'" data-pimv="'+esc(cls==="all"?"*":(p.vid||""))+'" title="'+esc(piTip(l))+'">'+(cls==="more"?"+"+(l.length-(skip||0)):(l.length>1?l.length:""))+'</i>';}
 // nota leggibile (riga sotto la data e caselle dei mezzi nella giornata)
-function piNote(p,ds,cls){return '<button type="button" class="pi-note c-'+esc(p.col||"y")+(cls?" "+cls:"")+'" data-pi="'+esc(p.id)+'" data-pid="'+esc(ds)+'" title="'+esc((p.vid?vehLabel(vehicle(p.vid)||{})+"\n":"")+p.text+"\n— "+piWho(p))+'"><span class="t">'+esc(cls==="sm"?piShort(p.text,140):p.text)+'</span>'+(cls==="sm"?'':'<small>'+esc(piWho(p))+(p.g&&p.till?" · fino al "+esc(itD(p.till)):"")+'</small>')+'</button>';}
-function renderPiRow(date){
-  const box=$("piRow");if(!box)return;
-  const day=postitsOf(date,""),ro=S.readOnly||isInvio();
-  box.innerHTML=day.map(p=>piNote(p,date)).join("")+(ro?"":'<button type="button" class="pi-add" data-piadd="'+esc(date)+'" title="Attacca un post-it a questo giorno (anche con il tasto destro sulla barra del mese)">+ Post-it</button>');
-  box.hidden=ro&&!day.length;
+function piNote(p,ds,cls){return '<button type="button" class="pi-note c-'+esc(p.col||"y")+(cls?" "+cls:"")+'" data-pi="'+esc(p.id)+'" data-pid="'+esc(ds)+'" title="'+esc((p.vid?vehLabel(vehicle(p.vid)||{})+"\n":"")+p.text+"\n— "+piWho(p))+'"><span class="t">'+esc(cls==="sm"||cls==="bar"?piShort(p.text,140):p.text)+'</span>'+(cls==="sm"||cls==="bar"?'':'<small>'+esc(piWho(p))+(p.g&&p.till?" · fino al "+esc(itD(p.till)):"")+'</small>')+'</button>';}
+// 3.0.9: i post-it del giorno stanno attaccati sulla barra grigia della giornata (al massimo 3, poi «+N» con l'elenco).
+// Niente pulsante «+ Post-it»: si attaccano con il tasto destro (dito premuto sul telefono).
+const PI_ONBAR=3;
+function renderSignPi(date){
+  const box=$("signPi");if(!box)return;
+  const day=postitsOf(date,"");
+  box.innerHTML=day.slice(0,PI_ONBAR).map(p=>piNote(p,date,"bar")).join("")+(day.length>PI_ONBAR?piMark(day,date,"more",PI_ONBAR):"");
+  box.classList.toggle("on",day.length>0);$("sign").classList.toggle("has-pi",day.length>0);
 }
 // ---- menu del tasto destro ----
 let ctxItems=[];
@@ -6358,7 +6362,7 @@ function piCtxTarget(el){
   const wc=el.closest("#wgrid td.wc[data-addv]");if(wc)return {ds:wc.dataset.addd,vid:wc.dataset.addv};
   const n=el.closest("[data-pi]");if(n){const p=postitsOf(n.dataset.pid).find(x=>x.id===n.dataset.pi);if(p)return {ds:n.dataset.pid,vid:p.vid||"",open:p};}
   const r=el.closest("#sheet .row");if(r){const a=r.querySelector("[data-add]");if(a)return {ds:S.sel,vid:a.dataset.add};}
-  if(el.closest("#piRow,#sign"))return {ds:S.sel,vid:""};
+  if(el.closest("#sign"))return {ds:S.sel,vid:""};
   return null;
 }
 function piMenu(t){
@@ -6415,7 +6419,7 @@ function piTargetEl(ds,vid){
   if(vid){
     if(S.view==="day"&&S.sel===ds){const a=document.querySelector('#sheet [data-add="'+CSS.escape(vid)+'"]');if(a){const r=a.closest(".row");if(r)return r.querySelector(".veh")||r;}}
     if(S.view==="week"){const c=document.querySelector('#wgrid td.wc[data-addv="'+CSS.escape(vid)+'"][data-addd="'+ds+'"]');if(c)return c;}
-  }else if(S.view==="day"&&S.sel===ds){const b=$("piRow");if(b&&!b.hidden)return b.querySelector(".pi-add")||b;}
+  }else if(S.view==="day"&&S.sel===ds){const b=$("signPi");return b&&b.children.length?b.querySelector(".pi-note:last-of-type")||b:$("sign");}
   return document.querySelector('#strip .dbtn[data-day="'+ds+'"]');
 }
 function piFly(target,done){

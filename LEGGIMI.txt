@@ -1,10 +1,45 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 3.0.8 (11/11/2026)
+AGENDA FLOTTA LA TERRA – VERSIONE 3.0.9 (11/11/2026)
 ===================================================
 La versione in uso si vede nell'app: in alto accanto a "Sincronizzato",
 nella schermata di accesso e nel Menu. Deve corrispondere a quella di questo file.
-La 3.0.8 contiene anche le novità preparate come 3.0.7 (mezzo da fatturare e account unico di
-Massimo): la 3.0.7 non è mai stata caricata, si passa direttamente dalla 3.0.6 alla 3.0.8.
 
+COME AGGIORNARE ALLA 3.0.9 DALLA 3.0.8 (1 minuto, solo 3 file)
+--------------------------------------------------------------
+Serve la 3.0.8 già su GitHub (in alto nell'agenda "v3.0.8"). Se hai una versione più vecchia,
+carica prima l'aggiornamento della 3.0.8 (le istruzioni sono qui sotto) oppure il pacchetto
+completo della 3.0.9.
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   3 file: app.js, index.html, LEGGIMI.txt. Niente config.js. Gli altri file restano quelli
+   della 3.0.8 (store.js della 3.0.8, fatture.js e fatturato.js della 3.0.4, autisti.js
+   della 3.0.3).
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v3.0.9".
+3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda. Una pagina rimasta aperta con la
+   versione di prima avvisa da sola e non salva niente finché non la riapri.
+4. Niente da fare sull'app degli autisti e niente da fare sui dati: i post-it già attaccati
+   restano e si spostano da soli sulla barra grigia.
+
+NOVITÀ DELLA 3.0.9: POST-IT DEL GIORNO ATTACCATI SULLA BARRA GRIGIA
+-------------------------------------------------------------------
+- Nella vista Giorno i post-it del giorno non stanno più sotto la barra grigia (quella con la
+  data e i numeri): sono foglietti quadrati attaccati SOPRA la barra, tra la data e i numeri,
+  con lo scotch, un po' storti e che sporgono sotto la barra (come quando si attaccano).
+- Sulla barra ce ne stanno 3; dal quarto compare un foglietto "+1" (+2, +3…): cliccandolo si
+  vede l'elenco di tutti i post-it del giorno e si apre quello che serve. La barra non si
+  allunga.
+- Sul foglietto si leggono le prime 4 righe; fermando il mouse si legge tutto (con chi l'ha
+  scritto e quando), cliccandolo si apre grande per modificarlo o staccarlo.
+- Tolto il pulsante "+ Post-it". I post-it si attaccano con il tasto destro (sul telefono e
+  sull'iPad: dito premuto) sul giorno della barra del mese, sulla barra grigia della giornata
+  oppure sul bus.
+- Attaccando un post-it al giorno che stai guardando, vola dal centro dello schermo e si
+  attacca sulla barra grigia; per un altro giorno si attacca su quel giorno della barra del
+  mese, come prima.
+- Sul telefono il post-it sta dentro la barra grigia, subito sotto la data.
+- Tutto il resto dei post-it è come nella 3.0.8 (vedi sotto).
+
+------------------------------------------------------------------------------------------
+VERSIONE 3.0.8 (11/11/2026)
+------------------------------------------------------------------------------------------
 COME AGGIORNARE ALLA 3.0.8 DALLA 3.0.6 (2 minuti, solo 4 file)
 --------------------------------------------------------------
 Serve la 3.0.6 già su GitHub (in alto nell'agenda "v3.0.6"). Se hai una versione più vecchia,
@@ -78,7 +113,7 @@ COME SI ATTACCANO
   sull'iPad: dito premuto sul giorno per mezzo secondo.
 - Sul singolo bus: tasto destro sulla riga del mezzo (vista Giorno) o sulla casella del mezzo
   (vista Settimana) → "Aggiungi un post-it sul mezzo" (oppure "Post-it per tutto il giorno").
-- Nella vista Giorno, sotto la data, anche il pulsante "+ Post-it".
+- Nella vista Giorno, sotto la data, anche il pulsante "+ Post-it" (tolto nella 3.0.9).
 - Si apre il post-it grande in mezzo allo schermo: scrivi (fino a 300 caratteri, anche su più
   righe), scegli il colore (giallo, rosa, verde, azzurro) e premi "Attacca": il post-it vola
   e si attacca al giorno (o al bus).
@@ -89,8 +124,8 @@ COME SI ATTACCANO
 DOVE SI VEDONO
 - Barra del mese: un foglietto colorato sul giorno (con il numero, se ce n'è più di uno);
   fermando il mouse si legge il testo, cliccandoci si riapre.
-- Vista Giorno: i post-it del giorno sotto la data (con chi l'ha scritto e quando), quelli dei
-  bus sotto il nome del mezzo.
+- Vista Giorno: i post-it del giorno sotto la data (dalla 3.0.9 attaccati sulla barra grigia),
+  con chi l'ha scritto e quando; quelli dei bus sotto il nome del mezzo.
 - Vista Settimana: post-it del giorno sotto la data, post-it dei bus nella casella.
 - Vista Mese: un puntino sul giorno e un angolino colorato sulla casella del bus.
 - "Invio fogli" (MAX): il post-it del giorno in cima, quello del bus sulla scheda del servizio.
@@ -1263,6 +1298,8 @@ UTENTI, MASTER E REGISTRO (dalla 1.8)
   dell'azienda può vedere tutti i file (registro compreso). Tieni quella password per te.
 
 STORICO DELLE VERSIONI
+- 3.0.9 (11/11/2026) · Post-it del giorno attaccati sulla barra grigia (massimo 3, poi "+N");
+                     tolto il pulsante "+ Post-it".
 - 3.0.8 (11/11/2026) · Mezzo da fatturare: cambiando il bus con uno di altri posti (dalle 24
                      ore prima) l'agenda chiede il motivo; "scelta nostra" = si fattura il
                      mezzo chiesto (categoria e targa nel file fatturato e in fattura).

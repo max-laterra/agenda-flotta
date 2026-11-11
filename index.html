@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="3.0" data-p="3.0.8">
+<html lang="it" data-v="3.0" data-p="3.0.9">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -598,17 +598,13 @@ table.bt{border-collapse:collapse;width:100%;min-width:1180px;font-size:13px}
 .pi-mk.more{position:relative;top:0;left:0;display:inline-block;margin-top:4px;transform:rotate(-4deg)}
 #wgrid thead th .wpi.wh{display:flex;margin:6px 0 0;text-transform:none;letter-spacing:0}
 #wgrid thead th .wpi.wh .pi-note.sm .t{font-weight:600;color:var(--pi-ink)}
-/* riga dei post-it sotto la data */
-.pi-row{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px 16px;padding:6px 4px 2px}
+/* post-it (giorno: attaccati sulla barra grigia) */
 .pi-note{position:relative;display:flex;flex-direction:column;gap:2px;max-width:300px;min-width:120px;text-align:left;border:0;cursor:pointer;background:var(--pc);color:var(--pi-ink);padding:12px 14px 8px;box-shadow:0 1px 1px rgba(0,0,0,.08),0 6px 12px -6px rgba(0,0,0,.35);transform:rotate(-1.2deg);transition:transform .15s}
-.pi-row .pi-note:nth-child(even){transform:rotate(1deg)}
 .pi-note::before{content:"";position:absolute;top:-7px;left:50%;width:46px;height:14px;margin-left:-23px;background:rgba(255,255,255,.55);box-shadow:0 0 0 1px rgba(0,0,0,.04);transform:rotate(-3deg)}
 .pi-note .t{font:600 21px/1.08 var(--pi-hand);white-space:pre-wrap;word-break:break-word}
 .pi-note small{font-size:10.5px;color:rgba(59,51,36,.62)}
 .pi-note:hover{transform:rotate(0) translateY(-1px)}
 .pi-note:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-.pi-add{align-self:center;border:1.5px dashed var(--line);background:transparent;color:var(--ink-3);border-radius:6px;padding:8px 12px;font-weight:600;font-size:12.5px;cursor:pointer}
-.pi-add:hover{border-color:var(--ink-3);color:var(--ink-2)}
 /* post-it piccolo (sul mezzo) */
 .pi-note.sm{min-width:0;max-width:100%;padding:5px 7px 4px;margin-top:5px;transform:rotate(-1.5deg);box-shadow:0 3px 6px -3px rgba(0,0,0,.4)}
 .pi-note.sm::before{top:-4px;width:24px;height:8px;margin-left:-12px}
@@ -623,6 +619,18 @@ td.c{position:relative}
 .pi-cn{position:absolute;top:0;right:0;width:0;height:0;border-style:solid;border-width:0 9px 9px 0;border-color:transparent var(--pc) transparent transparent;filter:drop-shadow(-1px 1px 0 rgba(0,0,0,.25))}
 /* appena attaccato */
 @media (prefers-reduced-motion:no-preference){.pi-new{animation:piNew 1.1s ease-out}@keyframes piNew{0%{box-shadow:0 0 0 0 rgba(255,200,0,.9),0 6px 12px -6px rgba(0,0,0,.35)}100%{box-shadow:0 0 0 14px rgba(255,200,0,0),0 6px 12px -6px rgba(0,0,0,.35)}}}
+/* 3.0.9: post-it del giorno attaccati sulla barra grigia: foglietti quadrati che sporgono sotto la barra */
+.sign-pi{flex:1 1 0;min-width:0;display:none;align-items:flex-start;justify-content:center;gap:22px;padding:0 6px;align-self:stretch}
+.sign-pi.on{display:flex;min-width:120px}
+.sign.has-pi{margin-bottom:18px}
+.sign-pi .pi-note{flex:none;width:90px;height:90px;min-width:0;max-width:none;margin:-11px 0 -56px;padding:12px 8px 6px;justify-content:flex-start;box-shadow:0 1px 1px rgba(0,0,0,.18),0 10px 16px -6px rgba(0,0,0,.6);transform:rotate(3deg)}
+.sign-pi .pi-note:nth-of-type(2){transform:rotate(-3.5deg)}.sign-pi .pi-note:nth-of-type(3){transform:rotate(1.5deg)}
+.sign-pi .pi-note::before{top:-9px;width:44px;height:15px;margin-left:-22px;background:rgba(255,255,255,.62)}
+.sign-pi .pi-note::after{content:"";position:absolute;right:0;bottom:0;width:18px;height:18px;background:linear-gradient(135deg,rgba(0,0,0,.13) 0%,rgba(0,0,0,0) 60%)}
+.sign-pi .pi-note .t{font-size:16px;line-height:1.02;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.sign-pi .pi-note:hover{transform:rotate(0) translateY(-2px) scale(1.06);z-index:3}
+.sign-pi .pi-mk.more{position:relative;top:0;left:0;flex:none;align-self:center;min-width:30px;height:26px;font-size:13px;line-height:26px;transform:rotate(4deg)}
+@media (max-width:640px){.sign .sright{order:2}.sign-pi.on{order:1;flex:1 1 100%;justify-content:flex-start;flex-wrap:wrap;gap:18px;padding:8px 2px 4px}.sign-pi .pi-note{margin:0}.sign.has-pi{margin-bottom:0}}
 /* menu del tasto destro */
 .ctx-menu{position:fixed;z-index:80;min-width:250px;max-width:330px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:5px;box-shadow:0 14px 34px -10px rgba(0,0,0,.4)}
 .ctx-menu button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;border:0;background:transparent;color:inherit;padding:8px 10px;border-radius:7px;font-size:13.5px;cursor:pointer}
@@ -1494,7 +1502,6 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
   <section id="dayView">
     <div style="display:flex;flex-direction:column;gap:12px">
       <div class="sign" id="sign"></div>
-      <div class="pi-row" id="piRow" hidden></div>
       <div class="sheet" id="sheet"></div>
       <div class="extra">
         <div class="hd">
