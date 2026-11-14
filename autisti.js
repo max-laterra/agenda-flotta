@@ -232,6 +232,16 @@
     await c.upload(base + "/foglio.json", enc.encode(JSON.stringify(data, null, 1)), "overwrite");
     return { at, by: txt(o.by, 80), n, to: data.autisti.slice(), dir: dirOf(b), h, alias: !!o.alias, noPlate: !!o.noPlate };
   }
+  // 3.0.10: com'è il foglio nella cartella degli autisti (per rimettere il segno «inviato» perso con la 3.0.7–3.0.9):
+  // null se non c'è, se è stato ritirato o se non è di questa prenotazione
+  async function sentFromFolder(b) {
+    const f = await client().download(baseOf(b) + "/foglio.json"); if (!f) return null;
+    let d = null; try { d = JSON.parse(dec.decode(f.buf)); } catch (_) { return null; }
+    if (!d || d.ritirato || !d.inviato || !d.inviato.at || (d.id && d.id !== safeId(b.id))) return null;
+    const to = Array.isArray(d.autisti) ? d.autisti.filter((v) => typeof v === "string" && v.trim()).slice(0, 4) : [];
+    if (!to.length) return null;
+    return { at: txt(d.inviato.at, 40), by: txt(d.inviato.da, 80), n: Number(d.inviato.n) >= 1 ? Math.floor(Number(d.inviato.n)) : 1, to, dir: dirOf(b), h: "", alias: false, noPlate: false };
+  }
   async function withdraw(b, by) {
     const c = client(), base = baseOf(b), at = new Date().toISOString();
     await c.upload(base + "/foglio.json", enc.encode(JSON.stringify({ v: 1, id: safeId(b.id), foglio: txt(b.foglio, 30), autisti: [], autistiId: [], ritirato: { at, da: txt(by, 80) } }, null, 1)), "overwrite");
@@ -376,11 +386,11 @@
   const newPhoneId = () => { const r = crypto.getRandomValues(new Uint8Array(8)); let s = "t"; for (const x of r) s += (x % 36).toString(36); return s; };
 
   (root.AGENDA_FILES = root.AGENDA_FILES || {}).autisti = "3.0";
-  (root.AGENDA_PATCH = root.AGENDA_PATCH || {}).autisti = "3.0.3"; // 3.0.2: allegati nell'impronta del foglio («da reinviare»); 3.0.3: mezzi del tour giorno per giorno
+  (root.AGENDA_PATCH = root.AGENDA_PATCH || {}).autisti = "3.0.10"; // 3.0.2: allegati nell'impronta del foglio («da reinviare»); 3.0.3: mezzi del tour giorno per giorno; 3.0.10: sentFromFolder
   const API = Object.assign({}, PURE, {
     configure(h) { Object.assign(hooks, h); },
     linked, startLink, redirectMine, purpose, takeRedirect, revoke, prepare,
-    send, withdraw, reopen, sync, watch, unwatch, status, spese, photo, qrSvg, newPhoneId, dirOf,
+    send, withdraw, reopen, sentFromFolder, sync, watch, unwatch, status, spese, photo, qrSvg, newPhoneId, dirOf,
     phone: (pid) => st.phones[pid] || null,
     // crocette dei pasti (2.7): quelle di un autista in un mese, e gli autisti che ne hanno mandate
     pasti: (aid, mese) => (st.pasti[aid] && st.pasti[aid][mese]) || null,

@@ -246,6 +246,9 @@
         // 3.0.3: pulizia notturna delle prenotazioni rimaste in sospeso: si elimina solo se è ancora in sospeso
         // (nel frattempo qualcuno potrebbe averla confermata)
         if (op.ifOpz && prev.status !== "opzione") continue;
+        // 3.0.11: quelle senza cliente si eliminano già alle 00:00 del giorno del servizio: se intanto qualcuno ha
+        // scritto il cliente, resta (e segue la regola di quelle con il cliente)
+        if (op.ifNoCli && String(prev.client || "").trim()) continue;
         // Chi sposta o elimina sapeva della scelta del capo e dell'invio all'autista? (op.know = quello che vedeva.)
         // Se nel frattempo il capo ha deciso o il foglio è stato inviato: lo spostamento non si fa (si perderebbero
         // scelta e segno di invio); l'eliminazione sì, ma il foglio va ritirato dal telefono dell'autista.
@@ -1433,7 +1436,7 @@
   }
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "3.0";
-  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "3.0.8"; // 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "3.0.11"; // 3.0.11: pulizia di quelle senza cliente alle 00:00 del giorno del servizio; 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
   window.STORE = {
     BASE, P,
     saveAttachment, readAttachment, removeAttachment, cleanAtt, ATT_MAX,

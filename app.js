@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="3.0.9",APP_DATE="11/11/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="3.0.11",APP_DATE="14/11/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
@@ -16,7 +16,7 @@ const APP_VERSION="3.0.9",APP_DATE="11/11/2026";window.AGENDA_VERSION=APP_VERSIO
 //        store.js e autisti.js restano quelli della 3.0.3.
 // 3.0.6: aggiornamento parziale (solo app.js): nomi di prima degli autisti (un autista rinominato nell'anagrafica
 //        resta una persona sola: servizi già inseriti, telefono, crocette dei pasti). Gli altri file restano della 3.0.5.
-const APP_FAMILY="3.0",APP_PATCH={index:"3.0.9",store:"3.0.8",autisti:"3.0.3",fatture:"3.0.4",fatturato:"3.0.4"};
+const APP_FAMILY="3.0",APP_PATCH={index:"3.0.9",store:"3.0.11",autisti:"3.0.10",fatture:"3.0.4",fatturato:"3.0.4"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -431,7 +431,8 @@ function renderStrip(){
     const pct=Math.round(c.p/Math.max(1,nf)*100);
     const when=WDL[w]+" "+d+": ";
     const nm=missOnDate(ds,ds)?dayList(ds).filter(b=>missingOf(b).length).length:0;
-    g+='<button class="dbtn'+(w===0?" sun":"")+(ds===t?" today":"")+(inwk?" inweek":"")+'" data-day="'+ds+'"'+(ds===S.sel?' aria-current="date"':"")+' title="'+c.p+' mezzi impegnati'+(nm?" · "+nm+(nm===1?" servizio":" servizi")+" da completare (prezzo, ora o codice cliente)":"")+'">'+(nm?'<i class="miss-d" aria-hidden="true">!</i>':"")+piMark(postitsOf(ds),ds,"all")+'<span class="wd">'+WD[w]+'</span><span class="dn">'+d+'</span><span class="load"><b style="width:'+pct+'%"></b></span></button>';
+    g+='<button class="dbtn'+(w===0?" sun":"")+(ds===t?" today":"")+(inwk?" inweek":"")+'" data-day="'+ds+'"'+(ds===S.sel?' aria-current="date"':"")+' title="'+c.p+' mezzi impegnati'+(nm?" · "+nm+(nm===1?" servizio":" servizi")+" da completare (prezzo, ora o codice cliente)":"")+'">'+(nm?'<i class="miss-d" aria-hidden="true">!</i>':"")+ // 3.0.10: niente segno del post-it sulla barra del mese
+    '<span class="wd">'+WD[w]+'</span><span class="dn">'+d+'</span><span class="load"><b style="width:'+pct+'%"></b></span></button>';
     const cls="cc r2"+(w===0?" sun":"")+(ds===S.sel?" sel":"")+(inwk?" inweek":"");
     ra+='<button type="button" class="'+cls+(c.a?"":" z")+'" data-day="'+ds+'" title="'+when+c.a+' autisti'+(c.gen?" (di cui "+c.gen+" da assegnare)":"")+'">'+c.a+(c.gen?'<span class="tbd"></span>':"")+'</button>';
     rs+='<button type="button" class="'+cls+(c.s?"":" z")+'" data-day="'+ds+'" title="'+when+c.s+' servizi">'+c.s+'</button>';
@@ -3467,10 +3468,13 @@ async function sheetPdfFull(b,part,say,forPrint){const blob=await tplPDF(b,part)
 // che apre l'agenda dopo la mezzanotte (o quello rimasto aperto). Il profilo di MAX («solo anteprima e invio») no.
 // In Dropbox l'eliminazione vale solo se la prenotazione è ancora in sospeso (STORE: ifOpz): se intanto qualcuno
 // l'ha confermata, resta. Una prenotazione modificata oggi aspetta la mezzanotte successiva.
+// 3.0.11: quelle in sospeso SENZA cliente si eliminano già alle 00:00 che apre il giorno del servizio (primo giorno,
+// per i tour); in Dropbox solo se il cliente è ancora vuoto (STORE: ifNoCli). Quelle con il cliente come prima.
 let purgeBusy=false,purgeT=0,purgeDay="";
+const purgeEarly=(b,t)=>noCli(b)&&b.start<=t; // senza cliente: dal giorno del servizio
 function purgeCands(){
   const t=todayISO(),d0=new Date();d0.setHours(0,0,0,0);
-  return bookingsAll().filter(b=>pending(b)&&validDate(b.start)&&endOf(b)<t&&!STORE.isPending(b.id)&&(Date.parse(b.updatedAt||b.byAt||"")||0)<d0.getTime());
+  return bookingsAll().filter(b=>pending(b)&&validDate(b.start)&&(endOf(b)<t||purgeEarly(b,t))&&!STORE.isPending(b.id)&&(Date.parse(b.updatedAt||b.byAt||"")||0)<d0.getTime());
 }
 async function purgeRun(){
   if(purgeBusy||S.readOnly||S.outdated||isInvio()||!navigator.onLine||!ACC.session()||$("app").hidden)return;
@@ -3483,7 +3487,7 @@ async function purgeRun(){
     const done=[];
     for(const b of l){
       try{
-        writeDayOps(b.start,{bookings:{[b.id]:null}},{know:knowOf(b),ifOpz:true});
+        writeDayOps(b.start,{bookings:{[b.id]:null}},Object.assign({know:knowOf(b),ifOpz:true},noCli(b)&&endOf(b)>=todayISO()?{ifNoCli:true}:{}));
         if(!noCli(b))ACC.log("prenotazione","Eliminata automaticamente la prenotazione "+bookingLabel(b)+": era ancora in sospeso dopo l'ultimo giorno del servizio",{id:b.id}); // 3.0.4
         withdrawAfterDelete(b);pdfDelAdd(b);attDropLater(b.id,attOf(b).map(a=>a.path));
         done.push(b);
@@ -3492,7 +3496,8 @@ async function purgeRun(){
     if(!done.length)return;
     if(!$("app").hidden)renderAll();
     const lbl=b=>"«"+(b.client||"senza cliente")+"» del "+itD(b.start)+(b.foglio?" (n. "+b.foglio+")":"");
-    notify((done.length===1?"Eliminata la prenotazione ":"Eliminate "+done.length+" prenotazioni: ")+done.slice(0,8).map(lbl).join(", ")+(done.length>8?" e altre "+(done.length-8):"")+(done.length===1?": era":": erano")+" ancora in sospeso dopo il giorno del servizio.",true);
+    const early=done.every(b=>noCli(b)&&endOf(b)>=todayISO()); // 3.0.11
+    notify((done.length===1?"Eliminata la prenotazione ":"Eliminate "+done.length+" prenotazioni: ")+done.slice(0,8).map(lbl).join(", ")+(done.length>8?" e altre "+(done.length-8):"")+(done.length===1?": era":": erano")+(early?" ancora in sospeso e senza cliente nel giorno del servizio.":" ancora in sospeso"+(done.some(b=>noCli(b)&&endOf(b)>=todayISO())?" (senza cliente: nel giorno del servizio; con il cliente: dopo il giorno del servizio).":" dopo il giorno del servizio.")),true);
   }finally{purgeBusy=false;}
 }
 // alla mezzanotte (più mezzo minuto) di ogni giorno, finché l'agenda resta aperta
@@ -3630,7 +3635,7 @@ function toggleConfirm(id,start){
 function knowOf(b){return {c:(b&&b.capo&&b.capo.at)||"",s:b&&b.sent?(b.sent.at||"")+"|"+((b.sent.off&&b.sent.off.at)||""):""};}
 function writeDayOps(date,patch,extra){
   const ops=[];extra=extra||{};
-  if(patch.bookings)for(const k in patch.bookings)ops.push(patch.bookings[k]===null?Object.assign({t:"del",id:k},extra.move&&typeof extra.move==="string"?{move:extra.move}:{},extra.client!=null?{client:extra.client}:{},extra.know?{know:extra.know}:{},extra.ifOpz?{ifOpz:true}:{}):Object.assign({t:"put",id:k,b:patch.bookings[k],assign:!!patch.assign},extra));
+  if(patch.bookings)for(const k in patch.bookings)ops.push(patch.bookings[k]===null?Object.assign({t:"del",id:k},extra.move&&typeof extra.move==="string"?{move:extra.move}:{},extra.client!=null?{client:extra.client}:{},extra.know?{know:extra.know}:{},extra.ifOpz?{ifOpz:true}:{},extra.ifNoCli?{ifNoCli:true}:{}):Object.assign({t:"put",id:k,b:patch.bookings[k],assign:!!patch.assign},extra));
   if("extra" in patch)ops.push({t:"extra",v:patch.extra,base:patch.base==null?null:patch.base});
   if(patch.postit)ops.push(Object.assign({t:"postit"},patch.postit)); // 3.0.8
   // 2.9: prenotazione spostata a un'altra data (nuovo n. foglio): i PDF del vecchio n. foglio vanno cancellati
@@ -3738,7 +3743,7 @@ function unlocked(){
   ACC.beat();ACC.flushLog();
   setTimeout(()=>{if(isInvio()||!ACC.session())return;seedRegs();flushRegAdd();},2500);
   setTimeout(()=>{if(ACC.session()&&navigator.onLine)STORE.loadRegs().catch(()=>{});},3500); // anche il capo: anagrafica autisti e riposi (2.8)
-  autAfterRedirect();(STORE.aut?Promise.resolve():STORE.loadAut()).then(()=>AUT.sync());
+  autAfterRedirect();(STORE.aut?Promise.resolve():STORE.loadAut()).then(()=>AUT.sync()).then(()=>setTimeout(()=>repairSent().catch(()=>{}),4000)).catch(()=>{});
   // versione minima (2.6): questa versione la alza; se su Dropbox ce n'è già una più nuova la pagina smette di scrivere
   STORE.loadMinVer().then(()=>{checkMinVer();if(!S.outdated&&!S.readOnly)return STORE.raiseMinVer(APP_VERSION);}).catch(()=>{});
 }
@@ -5569,11 +5574,33 @@ async function sendToDriver(b0,o,say){
   }finally{sending=false;}
 }
 // scrive sulla prenotazione solo il campo «sent» (le modifiche fatte intanto da altri sugli altri campi restano)
+// 3.0.10: anche il Master con il permesso MAX scrive con il segno «capo» (prima solo il vecchio profilo MAX e il Super
+// Master): senza, su un servizio deciso da MAX il segno «inviato» veniva scartato e il foglio restava «In attesa».
 function markSent(b,sent){
   const doc=S.days[b.start],cur=doc&&doc.bookings&&doc.bookings[b.id];if(!cur)return false;
-  writeDayOps(b.start,{bookings:{[b.id]:Object.assign({},cur,{sent})}},Object.assign({edit:true,only:true,base:cur.updatedAt||null,patch:["sent"]},isInvio()||isSuper()?{boss:true}:{}));
+  writeDayOps(b.start,{bookings:{[b.id]:Object.assign({},cur,{sent})}},Object.assign({edit:true,only:true,base:cur.updatedAt||null,patch:["sent"]},hasMax()||isSuper()?{boss:true}:{}));
   if(!$("app").hidden)renderAll();if(!$("invio").hidden)renderInvio();
   return true;
+}
+// 3.0.10: fogli partiti davvero ma rimasti «In attesa» (Master con permesso MAX, versioni 3.0.7–3.0.9): il segno si
+// rimette da solo leggendo il foglio.json nella cartella degli autisti (data, chi l'ha inviato, a chi, n. invio).
+// Lo fa solo un dispositivo con il permesso MAX o il Super Master, solo sui servizi decisi da MAX senza il segno.
+let repairBusy=false;
+async function repairSent(){
+  if(repairBusy||!(hasMax()||isSuper())||S.readOnly||S.outdated||!navigator.onLine||!AUT.linked()||!AUT.sentFromFolder)return;
+  const from=addDays(todayISO(),-21),to=addDays(todayISO(),60);
+  const list=bookingsAll().filter(b=>b&&b.capo&&!(b.sent&&b.sent.at)&&hasSheet(b)&&!isXbus(b.vehicle)&&b.start>=from&&b.start<=to);
+  if(!list.length)return;
+  repairBusy=true;let n=0;
+  try{
+    for(const b of list){
+      let info=null;try{info=await AUT.sentFromFolder(b);}catch(_){continue;}
+      if(!info)continue;
+      const now=bookingsAll().find(x=>x.id===b.id);if(!now||(now.sent&&now.sent.at))continue;
+      if(markSent(now,info)){n++;ACC.log("foglio","Ripristinato il segno «inviato» del foglio di servizio n. "+(now.foglio||"")+" «"+(now.client||"")+"» (inviato "+fmtTime(info.at)+(info.by?" da "+info.by:"")+" a "+(info.to.join(", ")||"—")+")",{id:now.id});}
+    }
+  }finally{repairBusy=false;}
+  if(n){toast(n===1?"Ripristinato 1 foglio già inviato agli autisti":"Ripristinati "+n+" fogli già inviati agli autisti");ACC.tlog("info","3.0.10: ripristinato il segno «inviato» di "+n+" fogli");}
 }
 async function withdrawFromDriver(b0,say){
   say=say||toast;
@@ -6369,7 +6396,7 @@ function piMenu(t){
   const dl=WDL[wday(t.ds)]+" "+itD(t.ds),v=t.vid?vehicle(t.vid):null,items=[];
   if(t.open)items.push({html:'<b>Apri il post-it</b><small>'+esc(piShort(t.open.text,60))+'</small>',run:()=>piOpen(t.ds,t.vid,t.open)});
   items.push({html:'<b>📌 Aggiungi un post-it'+(v?' sul mezzo':'')+'</b><small>'+esc((v?vehLabel(v)+" · ":"")+dl)+'</small>',run:()=>piOpen(t.ds,t.vid,null)});
-  if(v)items.push({html:'<b>📌 Post-it per tutto il giorno</b><small>'+esc(dl)+' (sulla barra del mese)</small>',run:()=>piOpen(t.ds,"",null)});
+  if(v)items.push({html:'<b>📌 Post-it per tutto il giorno</b><small>'+esc(dl)+' (sulla barra grigia della giornata)</small>',run:()=>piOpen(t.ds,"",null)});
   const all=postitsOf(t.ds,t.vid).filter(p=>!t.open||p.id!==t.open.id);
   if(all.length){items.push({sep:1});all.slice(0,6).forEach(p=>items.push({html:'<span class="ctx-pi c-'+esc(p.col)+'"></span>'+esc(piShort(p.text,48)),run:()=>piOpen(t.ds,p.vid||"",p)}));}
   return items;

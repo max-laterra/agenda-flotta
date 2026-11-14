@@ -1,8 +1,98 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 3.0.9 (11/11/2026)
-===================================================
+AGENDA FLOTTA LA TERRA – VERSIONE 3.0.11 (14/11/2026)
+====================================================
 La versione in uso si vede nell'app: in alto accanto a "Sincronizzato",
 nella schermata di accesso e nel Menu. Deve corrispondere a quella di questo file.
 
+COME AGGIORNARE ALLA 3.0.11 (dalla 3.0.9 o dalla 3.0.10: 2 minuti, solo 4 file)
+-------------------------------------------------------------------------------
+Serve la 3.0.9 o la 3.0.10 già su GitHub (in alto nell'agenda "v3.0.9" o "v3.0.10"). Se hai una
+versione più vecchia, carica prima gli aggiornamenti di prima (le istruzioni sono qui sotto)
+oppure il pacchetto completo della 3.0.11.
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   4 file: app.js, store.js, autisti.js, LEGGIMI.txt. Niente config.js. Gli altri file restano
+   quelli di adesso (index.html della 3.0.9, fatture.js e fatturato.js della 3.0.4).
+   autisti.js è quello della 3.0.10: chi ha già la 3.0.10 lo ricarica uguale, non cambia niente.
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v3.0.11".
+   Se compare "Aggiornamento in corso (…)" per più di qualche minuto, su GitHub manca il file
+   scritto tra parentesi.
+3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda. Una pagina rimasta aperta con la
+   versione di prima avvisa da sola e non salva niente finché non la riapri.
+4. Se arrivi dalla 3.0.9: vale anche il punto 3 della 3.0.10 qui sotto (aprire l'agenda sul
+   computer di Massimo per sistemare i fogli rimasti "In attesa").
+5. Niente da fare sull'app degli autisti e niente da fare sui dati.
+
+NOVITÀ DELLA 3.0.11: PRENOTAZIONI IN SOSPESO SENZA CLIENTE, VIA ALLE 00:00 DEL GIORNO DEL SERVIZIO
+-------------------------------------------------------------------------------------------------
+- Una prenotazione ancora in sospeso (con il "?") e SENZA cliente viene eliminata da sola alle
+  00:00 che aprono il giorno del servizio (per i tour: il primo giorno). Esempio: gita del 14/11
+  senza cliente e non confermata → sparisce alle 00:00 del 14/11.
+- Quelle in sospeso CON il cliente restano come prima: si eliminano alle 00:00 del giorno dopo
+  l'ultimo giorno del servizio (così un servizio vero dimenticato senza conferma non sparisce
+  la mattina in cui il bus deve partire).
+- Le confermate non si toccano mai.
+- Come prima: la elimina il primo computer dell'ufficio che apre l'agenda dopo le 00:00 (o
+  quello rimasto aperto); una prenotazione modificata oggi aspetta la mezzanotte dopo; senza
+  connessione o con il profilo "solo anteprima e invio" non si elimina niente.
+- In più: se nel frattempo qualcuno ha scritto il cliente da un altro computer, non viene
+  eliminata (segue la regola di quelle con il cliente).
+- Avviso in alto: "Eliminata la prenotazione «senza cliente» del …: era ancora in sospeso e
+  senza cliente nel giorno del servizio."
+- La prenotazione senza cliente di oggi (14/11) sull'81 posti viene eliminata appena si apre
+  la 3.0.11.
+
+------------------------------------------------------------------------------------------
+VERSIONE 3.0.10 (14/11/2026)
+------------------------------------------------------------------------------------------
+COME AGGIORNARE ALLA 3.0.10 DALLA 3.0.9 (1 minuto, solo 3 file)
+---------------------------------------------------------------
+Serve la 3.0.9 già su GitHub (in alto nell'agenda "v3.0.9"). Se hai una versione più vecchia,
+carica prima gli aggiornamenti di prima (le istruzioni sono qui sotto) oppure il pacchetto
+completo della 3.0.10.
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   3 file: app.js, autisti.js, LEGGIMI.txt. Niente config.js. Gli altri file restano quelli
+   della 3.0.9 (index.html della 3.0.9, store.js della 3.0.8, fatture.js e fatturato.js della
+   3.0.4).
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v3.0.10".
+   Se compare "Aggiornamento in corso (autisti)" per più di qualche minuto, su GitHub manca
+   autisti.js.
+3. Apri l'agenda sul computer di Massimo (account "Massimo La Terra · Master · MAX") e lasciala
+   aperta un minuto: i fogli già partiti tornano da soli "Inviato" o "Aperto" e compare
+   l'avviso "Ripristinati N fogli già inviati agli autisti".
+4. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda.
+5. Niente da fare sull'app degli autisti: i fogli che hanno già ricevuto restano com'erano.
+   Niente da reinviare.
+
+CORREZIONE DELLA 3.0.10: FOGLI INVIATI DA MASSIMO CHE RESTAVANO "IN ATTESA"
+---------------------------------------------------------------------------
+Il problema: con l'account unico di Massimo (Master con il permesso MAX, dalla 3.0.8) i fogli
+inviati dalla finestra di MAX partivano davvero (gli autisti li vedevano), ma l'agenda non si
+segnava l'invio: la casella restava "In attesa", anche dopo che l'autista l'aveva aperto.
+Succedeva solo sui servizi con bus e autisti decisi da MAX. Con il vecchio profilo MAX e con
+il Super Master non succedeva.
+Adesso:
+- Gli invii (e i ritiri) di Massimo si segnano subito: "Inviato", poi "Aperto" quando
+  l'autista lo apre, come prima con il vecchio profilo.
+- I fogli già partiti negli ultimi 21 giorni ma rimasti "In attesa" si sistemano da soli: la
+  3.0.10 legge il foglio nella cartella degli autisti (data e ora dell'invio, chi l'ha inviato,
+  a quali autisti) e rimette il segno. Lo fa il computer di Massimo (o del Super Master)
+  appena si apre l'agenda. Ogni foglio sistemato finisce nel Registro ("Ripristinato il segno
+  «inviato» del foglio di servizio n. …").
+- Un foglio rimesso così non viene segnato "Da reinviare" anche se dopo l'invio è cambiato
+  qualcosa: se avete cambiato orari o itinerario dopo averlo mandato, inviatelo di nuovo voi.
+
+MODIFICA DELLA 3.0.10: NIENTE POST-IT SULLA BARRA DEL MESE
+----------------------------------------------------------
+- Sui giorni della barra del mese (in alto, quella con i giorni da 1 a 31) non compare più il
+  foglietto colorato dei post-it.
+- I post-it ci sono ancora, come prima: sulla barra grigia della giornata, sotto i mezzi, nella
+  vista Settimana, nella vista Mese e in "Invio fogli".
+- Per vedere i post-it di un altro giorno senza aprirlo: tasto destro sul giorno nella barra del
+  mese (sul telefono: dito premuto): nella tendina ci sono, si aprono cliccandoli.
+- Nella tendina, "Post-it per tutto il giorno" ora dice "sulla barra grigia della giornata".
+
+------------------------------------------------------------------------------------------
+VERSIONE 3.0.9 (11/11/2026)
+------------------------------------------------------------------------------------------
 COME AGGIORNARE ALLA 3.0.9 DALLA 3.0.8 (1 minuto, solo 3 file)
 --------------------------------------------------------------
 Serve la 3.0.8 già su GitHub (in alto nell'agenda "v3.0.8"). Se hai una versione più vecchia,
@@ -123,7 +213,7 @@ COME SI ATTACCANO
   lo toglie da tutti.
 DOVE SI VEDONO
 - Barra del mese: un foglietto colorato sul giorno (con il numero, se ce n'è più di uno);
-  fermando il mouse si legge il testo, cliccandoci si riapre.
+  fermando il mouse si legge il testo, cliccandoci si riapre. (Tolto nella 3.0.10.)
 - Vista Giorno: i post-it del giorno sotto la data (dalla 3.0.9 attaccati sulla barra grigia),
   con chi l'ha scritto e quando; quelli dei bus sotto il nome del mezzo.
 - Vista Settimana: post-it del giorno sotto la data, post-it dei bus nella casella.
@@ -410,6 +500,7 @@ NOVITÀ DELLA 3.0.3: PULIZIA DELLE PRENOTAZIONI RIMASTE IN SOSPESO
 -----------------------------------------------------------------
 - Una prenotazione ancora in sospeso (con il «?») dopo l'ultimo giorno del servizio viene
   eliminata da sola. Per i tour conta il giorno di rientro: un tour in corso non si tocca.
+  (Dalla 3.0.11 quelle SENZA cliente già alle 00:00 del giorno del servizio.)
 - Quando: a mezzanotte (se l'agenda è aperta su un computer dell'ufficio) e ogni volta che si
   apre l'agenda (dopo una decina di secondi). Esempio: una prenotazione inserita oggi e
   lasciata in sospeso, con il servizio oggi, sparisce alla mezzanotte.
@@ -1298,6 +1389,11 @@ UTENTI, MASTER E REGISTRO (dalla 1.8)
   dell'azienda può vedere tutti i file (registro compreso). Tieni quella password per te.
 
 STORICO DELLE VERSIONI
+- 3.0.11 (14/11/2026) · Prenotazioni in sospeso senza cliente eliminate alle 00:00 del giorno
+                     del servizio (quelle con il cliente come prima).
+- 3.0.10 (14/11/2026) · Corretto: fogli inviati da Massimo (permesso MAX) che restavano "In
+                     attesa"; quelli già partiti si sistemano da soli.
+                   · Niente foglietto dei post-it sui giorni della barra del mese.
 - 3.0.9 (11/11/2026) · Post-it del giorno attaccati sulla barra grigia (massimo 3, poi "+N");
                      tolto il pulsante "+ Post-it".
 - 3.0.8 (11/11/2026) · Mezzo da fatturare: cambiando il bus con uno di altri posti (dalle 24
