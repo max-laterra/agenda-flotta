@@ -1,8 +1,71 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 4.0 (17/11/2026)
-==================================================
+AGENDA FLOTTA LA TERRA – VERSIONE 4.0.1 (17/11/2026)
+====================================================
 La versione in uso si vede nell'app: in alto accanto a "Sincronizzato", nella schermata di
 accesso e in Impostazioni › Generali. Deve corrispondere a quella di questo file.
 
+COME AGGIORNARE ALLA 4.0.1 (dalla 4.0 o dalla 3.0.11: 3 minuti, 6 file)
+----------------------------------------------------------------------
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   6 file: index.html, app.js, store.js, skin40.css, sw.js, LEGGIMI.txt. Niente config.js.
+   Gli altri file restano quelli di adesso (autisti.js della 3.0.10, fatture.js e
+   fatturato.js della 3.0.4, dropbox.js, accessi.js, le cartelle icons e vendor).
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v4.0.1".
+   Se compare "Aggiornamento in corso (…)" per più di qualche minuto, su GitHub manca il file
+   scritto tra parentesi.
+3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda. Una pagina rimasta aperta con la
+   4.0 avvisa da sola e non salva niente finché non la riapri.
+4. Chi ha già visto il benvenuto della 4.0 non lo rivede. Chi arriva dalla 3.0.11 lo vede una
+   volta, come scritto più sotto.
+5. Niente da fare sull'app degli autisti e sui dati. Il foglio di servizio non cambia.
+
+NOVITÀ DELLA 4.0.1
+------------------
+1) IMPOSTAZIONI PIÙ GRANDI: NIENTE SI TAGLIA PIÙ
+- La finestra delle Impostazioni ora occupa quasi tutto lo schermo (lascia solo un bordo).
+- Clienti, Parcheggi, Hotel, Utenti, Dispositivi collegati: le colonne si adattano alla
+  finestra e il testo lungo va a capo invece di finire con "…". Prima alcune colonne sparivano
+  del tutto (E-mail e Alias dei clienti, l'IVA dei parcheggi, i pulsanti "Modifica" degli
+  utenti, "Disconnetti" e "Blocca" dei dispositivi): ora si vedono sempre.
+- Se la finestra è stretta (Mac piccolo o finestra del browser rimpicciolita), Clienti e
+  Dispositivi passano da soli a righe su due livelli, sempre senza perdere niente.
+- Provato con finestre da 900 a 1728 punti di larghezza.
+
+2) SCORCIATOIE DA TASTIERA PERSONALIZZABILI
+- Nuova sezione Impostazioni › Tastiera (anche da Generali › "Scorciatoie da tastiera" ›
+  "Cambia"; con l'aspetto Classico: premi ? ).
+- Per ogni azione: "Cambia" e poi premi i tasti che vuoi (per esempio ⌘ e G insieme). Si salva
+  da solo. "Togli" lascia l'azione senza tasto. "Ripristina quelle di serie" rimette tutto.
+- Valgono solo per chi le cambia, su tutti i suoi Mac e telefoni (come l'Aspetto).
+- Se i tasti scelti li usava già un'altra azione, l'agenda lo dice e l'altra resta senza tasto.
+- Non si possono usare Esc (chiude sempre le finestre) e le combinazioni del Mac e del browser
+  (⌘C, ⌘V, ⌘X, ⌘A, ⌘Z, ⌘Q, ⌘W, ⌘T, ⌘N, ⌘R…): l'agenda avvisa e aspetta un'altra scelta.
+- L'elenco delle scorciatoie (?), ⌘K e il giro delle novità mostrano sempre i tasti scelti.
+
+3) ⌘P STAMPA IL FOGLIO DI SERVIZIO
+- Con il foglio di servizio aperto, ⌘P fa "Salva e stampa" (stampa quello scelto nella
+  tendina "Stampa": di serie solo il foglio per l'autista, poi gli allegati).
+- Senza foglio aperto ⌘P non stampa niente: compare solo il promemoria "prima aprilo".
+- Anche ⌘P si può cambiare in Impostazioni › Tastiera.
+- Chiusa la stampa, i tasti tornano subito all'agenda (si può ristampare con ⌘P).
+
+Scorciatoie di serie (4.0.1)
+  ← →        giorno prima o dopo (nella Settimana la settimana, nel Mese il mese)
+  ⇧← ⇧→      mese prima o dopo
+  O          oggi
+  G S M      vista Giorno, Settimana, Mese
+  F          Fatturato
+  A          Autisti (pasti e riposi)
+  N          nuova prenotazione
+  I          Invio fogli (con il permesso MAX)
+  ⌘P         stampa il foglio di servizio aperto
+  ⌘K         comandi rapidi
+  ⌘,         Impostazioni (con il Classico: il Menu)
+  ?          elenco delle scorciatoie
+  Esc        chiude la finestra aperta (non si cambia)
+
+------------------------------------------------------------------------------------------
+VERSIONE 4.0 (17/11/2026)
+------------------------------------------------------------------------------------------
 COME AGGIORNARE ALLA 4.0 (dalla 3.0.11: 3 minuti, 6 file)
 --------------------------------------------------------
 Serve la 3.0.11 già su GitHub (in alto nell'agenda "v3.0.11"). Se hai una versione più vecchia,

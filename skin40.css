@@ -3,7 +3,7 @@
    Tutte le regole valgono SOLO con <html data-look="nuovo">: con l'aspetto «Classico» l'agenda resta identica alla 3.0.
    Sul Mac e sull'iPhone il carattere è quello di Apple (San Francisco); altrove Inter / quello di sistema.
    ===================================================================================== */
-:root{--skin40:"4.0"} /* l'app controlla che questo file sia arrivato (stessa versione degli altri) */
+:root{--skin40:"4.0.1"} /* l'app controlla che questo file sia arrivato (stessa versione degli altri) */
 html[data-look="nuovo"]{
   --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F4F4F7; --ink:#1D1D1F; --ink-2:#4A4A4F; --ink-3:#8E8E93;
   --line:#E3E3E8; --accent:#C8102E; --accent-ink:#FFFFFF; --accent-soft:#FCE8EB;
@@ -358,7 +358,7 @@ html.k4-noscroll,html.k4-noscroll body{overflow:hidden}
 }
 
 /* tasti disegnati */
-.k4-cmd kbd,.k4-keys kbd,.k4-card kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;box-sizing:border-box;border-radius:6px;background:var(--surface);border:1px solid var(--line);box-shadow:0 1px 0 var(--line);font:600 12px/1 var(--sans);color:var(--ink-2);white-space:nowrap}
+.k4-cmd kbd,.k4-keys kbd,.k4-card kbd,.k4-ked kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;box-sizing:border-box;border-radius:6px;background:var(--surface);border:1px solid var(--line);box-shadow:0 1px 0 var(--line);font:600 12px/1 var(--sans);color:var(--ink-2);white-space:nowrap}
 
 /* finestrelle della 4.0: sopra le Impostazioni */
 .k4-ov{z-index:60}
@@ -476,4 +476,64 @@ html.k4-noscroll,html.k4-noscroll body{overflow:hidden}
   .k4-spot,.k4-card{transition:none}
   .k4-hl{animation:none;outline:3px solid #C8102E;outline-offset:3px}
   .k4-sl,.k4-sr,.k4-tp i,.k4-pad i,.k4-art-q i{animation:none}
+}
+
+/* =====================================================================================
+   4.0.1 — Impostazioni più grandi (niente si taglia) e scorciatoie personalizzabili
+   ===================================================================================== */
+@media (min-width:701px){
+  .set-ov{padding:16px}
+  .set-win{grid-template-columns:236px 1fr;width:min(1560px,calc(100vw - 32px));height:min(1100px,calc(100vh - 32px));height:min(1100px,calc(100dvh - 32px))}
+}
+.set-main{container-type:inline-size;container-name:setp}
+/* elenchi del Master e clienti: colonne che si adattano alla finestra, il testo lungo va a capo */
+.set-main .u-row{grid-template-columns:minmax(150px,1.5fr) minmax(90px,auto) minmax(96px,auto) minmax(120px,1fr) auto}
+.set-main .dev-row{grid-template-columns:minmax(150px,1.3fr) minmax(140px,1.2fr) minmax(110px,.8fr) 64px auto}
+.set-main .u-row>*,.set-main .dev-row>*{min-width:0;overflow-wrap:anywhere}
+.set-main .row-act{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.set-main .row-act .btn{flex:none;width:auto;white-space:nowrap}
+.set-main .cli-head,.set-main .cli-row{grid-template-columns:52px minmax(150px,2fr) minmax(90px,1fr) minmax(104px,1fr) minmax(96px,.9fr) minmax(130px,1.2fr) minmax(100px,1fr);gap:4px 10px}
+.set-main .cli-row span{white-space:normal;overflow-wrap:anywhere}
+.set-main .reg-row>*{min-width:0}
+.set-main .lg-row>*{min-width:0;overflow-wrap:anywhere}
+@container setp (max-width:860px){
+  .set-main .cli-head{display:none}
+  .set-main .cli-row{grid-template-columns:52px minmax(0,1fr);row-gap:2px}
+  .set-main .cli-row>span:nth-child(n+3){grid-column:2;font-size:13px;color:var(--ink-2)}
+  .set-main .cli-row>span:nth-child(n+3):empty{display:none}
+  .set-main .cli-det{padding-left:14px}
+}
+@container setp (max-width:780px){
+  .set-main .dev-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .set-main .dev-row>.row-act{grid-column:1/-1;justify-content:flex-end}
+  .set-main .fgrid.fgrid4{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@container setp (max-width:640px){
+  .set-main .u-row{grid-template-columns:minmax(0,1fr) auto}
+  .set-main .u-row>*:nth-child(n+2):not(.row-act){grid-column:1}
+  .set-main .u-row>.row-act{grid-column:2;grid-row:1}
+}
+
+/* scorciatoie: elenco con «Cambia» */
+.k4-kr.ed{grid-template-columns:118px minmax(0,1fr) auto}
+.k4-kr.ed small.k4-kdef{color:var(--ink-3);font-size:12px;white-space:nowrap}
+.k4-ka{display:flex;align-items:center;gap:10px;justify-content:flex-end}
+.k4-ka .btn{flex:none;width:auto;padding:5px 12px;font-size:13px;min-height:0}
+.k4-ka .k4-lnk{font-size:13px}
+.k4-knone{font-size:12.5px;color:var(--ink-3)}
+.k4-kr.rec{background:color-mix(in srgb,var(--red,#C8102E) 7%,transparent);border-radius:8px;margin:0 -8px;padding:6px 8px}
+.k4-krec{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:6px;border:1.5px dashed var(--red,#C8102E);color:var(--red,#C8102E);font-size:12.5px;font-weight:600;animation:k4caret 1.1s steps(1) infinite}
+.k4-kfoot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.k4-kfoot .btn{flex:none;width:auto}
+.k4-kmsg{font-size:13px;color:var(--ink-2);line-height:1.4}
+.k4-keys{max-width:680px;max-height:min(86vh,820px);overflow:auto}
+.set-main .k4-ked .k4-kg+.k4-kg{margin-top:10px}
+@media (max-width:560px){.k4-kr.ed{grid-template-columns:96px minmax(0,1fr)}.k4-kr.ed .k4-ka{grid-column:1/-1;justify-content:flex-start}}
+@media (prefers-reduced-motion:reduce){.k4-krec{animation:none}}
+@container setp (max-width:700px){
+  .set-main .reg-row{grid-template-columns:repeat(2,minmax(0,1fr))!important;row-gap:6px}
+  .set-main .reg-row .del{grid-column:2;justify-self:end;width:36px}
+  .set-main .reg-row.hd>span:last-child:empty{display:none}
+  .set-main .lg-head{display:none}
+  .set-main .lg-row{grid-template-columns:minmax(0,1fr)}
 }

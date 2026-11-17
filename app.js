@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="4.0",APP_DATE="17/11/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="4.0.1",APP_DATE="17/11/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
@@ -16,7 +16,7 @@ const APP_VERSION="4.0",APP_DATE="17/11/2026";window.AGENDA_VERSION=APP_VERSION;
 //        store.js e autisti.js restano quelli della 3.0.3.
 // 3.0.6: aggiornamento parziale (solo app.js): nomi di prima degli autisti (un autista rinominato nell'anagrafica
 //        resta una persona sola: servizi già inseriti, telefono, crocette dei pasti). Gli altri file restano della 3.0.5.
-const APP_FAMILY="3.0",APP_PATCH={index:"4.0",store:"4.0",autisti:"3.0.10",fatture:"3.0.4",fatturato:"3.0.4"};
+const APP_FAMILY="3.0",APP_PATCH={index:"4.0.1",store:"4.0.1",autisti:"3.0.10",fatture:"3.0.4",fatturato:"3.0.4"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -42,7 +42,7 @@ if(framed){stopPage("Agenda Flotta La Terra","Per sicurezza l'agenda non si può
   const F=window.AGENDA_FILES||{},FP=window.AGENDA_PATCH||{},bad=[];
   if(document.documentElement.getAttribute("data-v")!==APP_FAMILY||(APP_PATCH.index&&document.documentElement.getAttribute("data-p")!==APP_PATCH.index))bad.push("index.html");
   for(const f of ["dropbox","fatturato","fatture","store","accessi","autisti"])if(F[f]!==APP_FAMILY||(APP_PATCH[f]&&FP[f]!==APP_PATCH[f]))bad.push(f+".js");
-  try{if(getComputedStyle(document.documentElement).getPropertyValue("--skin40").indexOf("4.0")<0)bad.push("skin40.css");}catch(_){} // 4.0: anche la grafica nuova deve essere arrivata
+  try{if(getComputedStyle(document.documentElement).getPropertyValue("--skin40").indexOf("4.0.1")<0)bad.push("skin40.css");}catch(_){} // 4.0: anche la grafica nuova deve essere arrivata
   let n=0;try{n=+sessionStorage.getItem("agenda-upd-try")||0;}catch(_){}
   if(bad.length){
     // ricaricando, ogni file viene richiesto di nuovo al sito (la copia per l'uso offline non si cancella:
@@ -3163,6 +3163,7 @@ async function printSheet(){
   await new Promise(r=>{fr.onload=r;fr.srcdoc=html;});
   try{await Promise.race([fr.contentDocument.fonts.ready,new Promise(r=>setTimeout(r,1500))]);}catch(_){}
   try{fr.contentWindow.focus();fr.contentWindow.print();}catch(_){toast("Non riesco ad aprire la stampa.");}
+  try{if(!$("ovSheet").hidden)$("sheetPrint").focus({preventScroll:true});}catch(_){} // 4.0.1: chiusa la stampa, i tasti tornano all'agenda
   done();
 }
 $("sheetPrint").onclick=printSheet;
@@ -3454,7 +3455,7 @@ async function printWithAtts(b,part,saving){
   fr=document.createElement("iframe");fr.id="printFrame";fr.setAttribute("aria-hidden","true");fr.style.cssText="position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none";
   document.body.appendChild(fr);
   const ok=await new Promise(r=>{const t=setTimeout(()=>r(false),8000);fr.onload=()=>{clearTimeout(t);r(true);};fr.src=u;});
-  try{if(!ok)throw 0;await new Promise(r=>setTimeout(r,300));fr.contentWindow.focus();fr.contentWindow.print();tail("Stampa aperta (foglio e "+nTxt+").").then(say);}
+  try{if(!ok)throw 0;await new Promise(r=>setTimeout(r,300));fr.contentWindow.focus();fr.contentWindow.print();try{if(!$("ovSheet").hidden)$("sheetPrint").focus({preventScroll:true});}catch(_){}tail("Stampa aperta (foglio e "+nTxt+").").then(say);}
   catch(_){inTab();}
 }
 // PDF del foglio con gli allegati in coda (non con «Solo parte contabile»)
@@ -5203,7 +5204,8 @@ function renderReg(){
   const k=regKind;if(!k)return;
   const cols=REG_COLS[k],ro=regRO(),words=norm($("regQ").value).split(/[^a-z0-9]+/).filter(Boolean);
   const all=regList(k),list=regSort(k,all.filter(r=>!words.length||wmatch(cols.map(c=>r[c[0]]).join(" "),words)));
-  const tpl=cols.map(c=>c[0]==="indirizzo"||c[0]==="nome"||c[0]==="cliente"||c[0]==="v"?"minmax(160px,1.6fr)":c[3]==="aliq"?"minmax(150px,1fr)":"minmax(110px,1fr)").join(" ")+(ro?"":" 36px");
+  const inSet=!$("ovSet").hidden; // 4.0.1: dentro le Impostazioni le colonne si stringono un po' (niente si taglia)
+  const tpl=cols.map(c=>c[0]==="indirizzo"||c[0]==="nome"||c[0]==="cliente"||c[0]==="v"?(inSet?"minmax(130px,1.6fr)":"minmax(160px,1.6fr)"):c[3]==="aliq"?(inSet?"minmax(118px,1fr)":"minmax(150px,1fr)"):(inSet?"minmax(84px,1fr)":"minmax(110px,1fr)")).join(" ")+(ro?"":" 36px");
   const cell=(c,r)=>c[3]==="col"?'<select data-c="'+c[0]+'"'+(ro?' disabled':'')+' aria-label="'+esc(c[1])+'"><option value="g"'+(r[c[0]]!=="r"?" selected":"")+'>verde</option><option value="r"'+(r[c[0]]==="r"?" selected":"")+'>rosso</option></select>':c[3]==="aliq"?'<select data-c="'+c[0]+'"'+(ro?' disabled':'')+' aria-label="'+esc(c[1])+'">'+aliqOpts(STORE.contab(),r[c[0]]||"","da scegliere in fattura")+'</select>':'<input data-c="'+c[0]+'" maxlength="'+(c[0]==="v"?60:200)+'" value="'+esc(r[c[0]]||"")+'"'+(c[2]?' list="'+c[2]+'"':'')+(ro?' readonly':'')+(k==="autisti"&&c[0]==="nome"?drvOldTitle(r):"")+' aria-label="'+esc(c[1])+'" autocomplete="off"'+(c[0]==="fatt"?' placeholder="A '+esc(String(r.citta||"città").toUpperCase())+'"':'')+'>';
   const row=(r,isNew)=>'<div class="reg-row'+(isNew?" new":"")+'" data-id="'+esc(r.id)+'" style="grid-template-columns:'+tpl+'">'+cols.map(c=>cell(c,r)).join("")+(ro?'':'<button type="button" class="del" data-regdel="'+esc(r.id)+'" title="Elimina" aria-label="Elimina">×</button>')+'</div>';
   $("regTable").innerHTML='<div class="reg-row hd" style="grid-template-columns:'+tpl+'">'+cols.map(c=>'<span>'+esc(c[1])+'</span>').join("")+(ro?'':'<span></span>')+'</div>'+
@@ -6587,10 +6589,11 @@ const SVGI={
  sync:'<path d="M15.5 8.2A5.8 5.8 0 0 0 5 6.4M4.5 11.8A5.8 5.8 0 0 0 15 13.6"/><path d="M15.8 4.2v4h-4M4.2 15.8v-4h4"/>',
  unlink:'<path d="M8.3 11.7l-1.6 1.6a2.6 2.6 0 0 1-3.7-3.7l2.1-2.1M11.7 8.3l1.6-1.6a2.6 2.6 0 0 1 3.7 3.7l-2.1 2.1M4 4l12 12"/>',
  info:'<circle cx="10" cy="10" r="6.5"/><path d="M10 9v4.5"/><circle cx="10" cy="6.6" r=".6" fill="white"/>',
+ kbd:'<rect x="2.5" y="5.5" width="15" height="9.5" rx="2"/><path d="M5.6 8.6h.01M8.6 8.6h.01M11.4 8.6h.01M14.4 8.6h.01M6.6 11.9h6.8"/>',
 };
 const icoSvg=(k,c)=>'<span class="set-ic" style="background:'+c+'"><svg viewBox="0 0 20 20" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+(SVGI[k]||"")+'</svg></span>';
 const SET_NAV=[
- {g:1,k:"gen",t:"Generali",c:"#8E8E93",ic:"gear"},{g:1,k:"asp",t:"Aspetto",c:"#1D1D1F",ic:"look"},
+ {g:1,k:"gen",t:"Generali",c:"#8E8E93",ic:"gear"},{g:1,k:"asp",t:"Aspetto",c:"#1D1D1F",ic:"look"},{g:1,k:"keys",t:"Tastiera",c:"#8E8E93",ic:"kbd",show:()=>FINE()},
  {g:1,k:"miss",t:"Punto esclamativo «!»",c:"#FF3B30",ic:"excl",show:()=>!isInvio()},{g:1,k:"pw",t:"Password",c:"#FF9500",ic:"key"},
  {g:2,k:"cli",t:"Clienti",c:"#0A84FF",ic:"person2"},{g:2,k:"flo",t:"Flotta",c:"#FF9F0A",ic:"bus"},{g:2,k:"aut",t:"Autisti",c:"#30B556",ic:"person",reg:"autisti"},
  {g:2,k:"ref",t:"Referenti",c:"#64D2FF",ic:"phone",reg:"referenti"},{g:2,k:"gui",t:"Guide",c:"#BF5AF2",ic:"flag",reg:"guide"},{g:2,k:"hot",t:"Hotel",c:"#5E5CE6",ic:"bed",reg:"hotel"},
@@ -6646,9 +6649,9 @@ const HOWTO=[
  {t:"Allegare un file al foglio dell'autista",k:"allegato allegare file pdf foto foglio autista",v:"3.0.2",go:null,
   s:["Apri la prenotazione › «Foglio di servizio per l'autista».","Sotto il Programma premi «📎 Allega file» (oppure trascina il file).","Si possono allegare PDF e foto JPG o PNG, al massimo 8.","Premi «Salva»."],
   n:"Word ed Excel vanno prima salvati come PDF. Attenzione a non allegare documenti con i prezzi."},
- {t:"Stampare il foglio di servizio",k:"stampare stampa foglio servizio pdf salva",v:"3.0.2",go:null,
-  s:["Apri il foglio di servizio.","Scegli cosa stampare in «Stampa» (di serie solo il foglio per l'autista).","Premi «Salva e stampa»: prima il foglio, poi gli allegati."],
-  n:"La copia in Dropbox (Fogli di servizio) si salva da sola a ogni modifica."},
+ {t:"Stampare il foglio di servizio",k:"stampare stampa foglio servizio pdf salva cmd p ⌘p scorciatoia",v:"4.0.1",go:null,
+  s:["Apri il foglio di servizio.","Scegli cosa stampare in «Stampa» (di serie solo il foglio per l'autista).","Premi «Salva e stampa» oppure ⌘P: prima il foglio, poi gli allegati."],
+  n:"⌘P funziona solo con il foglio di servizio aperto e si può cambiare in Impostazioni › Tastiera. La copia in Dropbox (Fogli di servizio) si salva da sola a ogni modifica."},
  {t:"Inviare i fogli del giorno (MAX)",k:"invio fogli max massimo bus autisti elenco giorno",v:"3.0.8",go:{hl:"#btnInvio"},
   s:["Premi «Invio fogli» in alto (c'è solo con il permesso MAX).","Per ogni servizio premi «Scegli bus e autisti e invia».","«‹ Torna all'agenda» per tornare."],
   n:"I fogli inviati da qui hanno sempre targa e ID mezzo."},
@@ -6721,8 +6724,11 @@ const HOWTO=[
  {t:"Mancano le modifiche fatte su un altro computer",k:"aggiornare sincronizzare mancano modifiche altro computer dropbox",v:"2.8",go:"sync",
   s:["Apri Impostazioni › Aggiorna adesso.","Premi «Aggiorna adesso»."],
   n:"L'agenda si aggiorna anche da sola. Se in alto c'è «senza connessione», le modifiche partono appena torna internet."},
- {t:"Scorciatoie da tastiera del Mac",k:"scorciatoie tastiera tasti rapidi comandi mac",v:"4.0",go:{fn:"keys"},
-  s:["← → giorno prima o dopo; ⇧← ⇧→ mese prima o dopo.","O oggi; G, S, M: Giorno, Settimana, Mese; N nuova prenotazione.","⌘K comandi rapidi; ⌘, Impostazioni; ? l'elenco di tutte le scorciatoie."],n:""},
+ {t:"Scorciatoie da tastiera del Mac",k:"scorciatoie tastiera tasti rapidi comandi mac",v:"4.0.1",go:"keys",
+  s:["Di serie: ← → giorno prima o dopo; ⇧← ⇧→ mese prima o dopo; O oggi.","G, S, M: Giorno, Settimana, Mese; F Fatturato; A Autisti; N nuova prenotazione.","⌘P stampa il foglio di servizio aperto; ⌘K comandi rapidi; ⌘, Impostazioni; ? l'elenco di tutte le scorciatoie.","Si cambiano in Impostazioni › Tastiera."],n:"Ognuno può avere le sue: l'elenco in Impostazioni › Tastiera mostra sempre quelle in uso."},
+ {t:"Cambiare una scorciatoia da tastiera",k:"scorciatoia cambiare personalizzare tasto tasti tastiera rapidi",v:"4.0.1",go:"keys",
+  s:["Apri Impostazioni › Tastiera (con l'aspetto Classico: premi ? ).","Sulla riga dell'azione premi «Cambia».","Premi i tasti che vuoi, per esempio ⌘ e G insieme: si salva da solo.","«Togli» lascia l'azione senza tasto; «Ripristina quelle di serie» rimette tutto com'era."],
+  n:"Valgono solo per te, su tutti i tuoi dispositivi. Se quei tasti li usava già un'altra azione, l'agenda te lo dice e l'altra resta senza tasto. Esc e le combinazioni del Mac (⌘C, ⌘V, ⌘W…) non si possono usare."},
  {t:"Cambiare giorno con il trackpad",k:"trackpad gesture dita scorrere giorno mac",v:"4.0",go:null,
   s:["Nella vista Giorno appoggia due dita sul trackpad.","Trascinale verso sinistra: giorno dopo. Verso destra: giorno prima.","Nella Settimana cambia settimana, nel Mese cambia mese."],n:""},
  {t:"Comandi rapidi ⌘K",k:"comandi rapidi cmd k barra cerca vai data",v:"4.0",go:{fn:"cmd"},
@@ -6772,7 +6778,7 @@ async function savePref(key,val,quiet){
 const setRow=()=>{const d=document.createElement("div");d.className="set-row-end";$("setBody").appendChild(d);return d;};
 const setBox=(html,cls)=>{const d=document.createElement("div");d.className="set-box"+(cls?" "+cls:"");if(html)d.innerHTML=html;$("setBody").appendChild(d);return d;};
 function renderSetPane(){
-  setUnhost();const b=$("setBody");b.innerHTML="";b.dataset.sec=setCur;
+  setUnhost();const b=$("setBody");b.innerHTML="";b.dataset.sec=setCur;kRec=null;kMsg="";
   if(/^h\d+$/.test(setCur)){const h=HOWTO[+setCur.slice(1)];$("setTitle").textContent=h.t;
     b.innerHTML='<div class="set-box how"><ol>'+h.s.map(x=>'<li>'+esc(x)+'</li>').join("")+'</ol>'+(h.n?'<p class="set-note">'+esc(h.n)+'</p>':'')+'</div>'+
       '<div class="set-row-end">'+(howGoOk(h.go)?'<button type="button" class="btn primary" data-howgo="'+setCur.slice(1)+'">Portami lì</button>':'')+'</div><p class="set-src">Dal LEGGIMI della versione '+h.v+'.</p>';return;}
@@ -6781,7 +6787,7 @@ function renderSetPane(){
     fillPrefs();const bx=setBox("",null);setHostEl($("prLock").closest(".f"),bx);
     const ff=STORE.fatFiles(),fy=Object.keys(ff).sort();
     setBox('<div class="set-kv"><span>Versione</span><b>'+esc(APP_VERSION)+' del '+esc(APP_DATE)+'</b></div><div class="set-kv"><span>Dati in Dropbox</span><b>'+esc(STORE.BASE)+'</b></div><div class="set-kv"><span>File fatturato</span><b>'+(fy.length?fy.map(y=>esc(ff[y].name)).join(", "):"non collegato")+'</b></div>');
-    setBox('<div class="set-kv"><span>Novità della 4.0</span><button type="button" class="btn" id="setTourGo">Rivedi le novità</button></div>'+(FINE()?'<div class="set-kv"><span>Scorciatoie da tastiera'+(IS_MAC?' e trackpad':'')+'</span><button type="button" class="btn" id="setKeysGo">Mostra</button></div>':''));
+    setBox('<div class="set-kv"><span>Novità della 4.0</span><button type="button" class="btn" id="setTourGo">Rivedi le novità</button></div>'+(FINE()?'<div class="set-kv"><span>Scorciatoie da tastiera'+(IS_MAC?' e trackpad':'')+'</span><button type="button" class="btn" data-sk="keys">Cambia</button></div>':''));
     setHostEl($("menuMsg"));return;}
   if(setCur==="asp"){const lk=document.documentElement.dataset.look,th=themeNow();
     b.innerHTML='<div class="set-box"><div class="set-lbl">Aspetto dell\'agenda</div><div class="th-row">'+
@@ -6791,6 +6797,7 @@ function renderSetPane(){
       '<div class="set-box"><div class="set-lbl">Tema</div><div class="th-row">'+
       [["chiaro","l","Chiaro"],["scuro","d","Scuro"],["auto","a","Automatico"]].map(([v,c,t])=>'<label class="th-opt'+(th===v?" on":"")+'">'+thumb("n",c)+'<span><input type="radio" name="sTh" value="'+v+'"'+(th===v?" checked":"")+'> '+t+'</span></label>').join("")+'</div>'+
       '<p class="set-note">«Automatico» segue il Mac: chiaro di giorno, scuro quando il Mac è in modalità scura.</p></div>';return;}
+  if(setCur==="keys"){b.innerHTML='<div class="set-box">'+kEditorHtml()+'</div><p class="set-note">Valgono solo per te, su tutti i tuoi dispositivi. Funzionano quando non stai scrivendo in un campo e non c\'è una finestra aperta; quella per stampare funziona con il foglio di servizio aperto e fa «Salva e stampa».</p>';return;}
   if(setCur==="miss"){fillPrefs();setHostEl($("prMissBox"));setHostEl($("menuMsg"));return;}
   if(setCur==="pw"){$("mPw").reset();setHostEl($("mPw"));setHostEl($("pwGo"),setRow());setHostEl($("menuMsg"));$("menuMsg").textContent="";return;}
   if(setCur==="cli"){setHostModal("ovClients",()=>openClients());return;}
@@ -6898,25 +6905,103 @@ document.body.insertAdjacentHTML("beforeend",
    '<div class="k4-card-f"><button type="button" class="k4-lnk" id="k4End">Salta il giro</button><span><button type="button" class="k4-btn ghost sm" id="k4Prev">Indietro</button><button type="button" class="k4-btn red sm" id="k4Next">Avanti</button></span></div></div></div>');
 function k4CloseAll(){for(const id of ["ovCmd","ovKeys","k4Tour","k4Intro"])$(id).hidden=true;document.documentElement.classList.remove("k4-noscroll");}
 
-// ---------- scorciatoie ----------
+// ---------- scorciatoie da tastiera (4.0.1: personalizzabili, ognuno le sue, uguali su tutti i suoi dispositivi) ----------
+// Una scorciatoia si scrive "modificatori:tasto": c = Ctrl, a = Alt/⌥, s = ⇧, m = ⌘ (es. "m:K" = ⌘K, ":O" = O, "s:ArrowLeft" = ⇧←).
 const kbd=x=>'<kbd>'+esc(x)+'</kbd>';
-function keysRows(){
-  const C=IS_MAC?"⌘":"Ctrl";
-  return [
-   ["Spostarsi",[[["←","→"],"Giorno prima o dopo (nella Settimana la settimana, nel Mese il mese)"],[["⇧ ←","⇧ →"],"Mese prima o dopo"],[["O"],"Oggi"]]],
-   ["Viste",[[["G"],"Giorno"],[["S"],"Settimana"],[["M"],"Mese"],[["F"],"Fatturato"],[["A"],"Autisti (pasti e riposi)"]]],
-   ["Azioni",[[["N"],"Nuova prenotazione"],[["I"],"Invio fogli (con il permesso MAX)"],[[C+" K"],"Comandi rapidi"],[[C+" ,"],document.documentElement.dataset.look==="nuovo"?"Impostazioni":"Menu"],[["?"],"Questo elenco"],[["esc"],"Chiude la finestra aperta"]]],
-  ];
+const KM0=IS_MAC?"m":"c"; // ⌘ sul Mac, Ctrl sul PC
+const KEY_ACTS=[
+ ["prev","Spostarsi","Giorno prima (nella Settimana la settimana, nel Mese il mese)",":ArrowLeft"],
+ ["next","Spostarsi","Giorno dopo (nella Settimana la settimana, nel Mese il mese)",":ArrowRight"],
+ ["mprev","Spostarsi","Mese prima","s:ArrowLeft"],["mnext","Spostarsi","Mese dopo","s:ArrowRight"],
+ ["today","Spostarsi","Oggi",":O"],
+ ["day","Viste","Vista Giorno",":G"],["week","Viste","Vista Settimana",":S"],["month","Viste","Vista Mese",":M"],
+ ["bill","Viste","Fatturato",":F"],["pasti","Viste","Autisti (pasti e riposi)",":A"],
+ ["new","Azioni","Nuova prenotazione",":N"],["invio","Azioni","Invio fogli (con il permesso MAX)",":I"],
+ ["print","Azioni","Stampa il foglio di servizio aperto («Salva e stampa»)",KM0+":P"],
+ ["cmd","Azioni","Comandi rapidi",KM0+":K"],["set","Azioni","Impostazioni (con il Classico: il Menu)",KM0+":,"],
+ ["keys","Azioni","Elenco delle scorciatoie",":?"],
+];
+const kName=id=>{const a=KEY_ACTS.find(x=>x[0]===id);return a?a[2].replace(/\s*\(.*$/,""):id;};
+function keyMap(){
+  let c=null;try{c="keys" in PREF_NOW?PREF_NOW.keys:(ACC.session()?myPrefs().keys:null);}catch(_){}
+  c=c&&typeof c==="object"?c:{};const m={};for(const [id,,,d] of KEY_ACTS)m[id]=typeof c[id]==="string"?c[id]:d;return m;
 }
-function keysHtml(){
-  let h=keysRows().map(([g,rows])=>'<div class="k4-kg"><h4>'+g+'</h4>'+rows.map(([ks,t])=>'<div class="k4-kr"><span class="k4-kk">'+ks.map(kbd).join("")+'</span><span>'+esc(t)+'</span></div>').join("")+'</div>').join("");
-  if(IS_MAC)h+='<div class="k4-kg"><h4>Trackpad</h4><div class="k4-kr"><span class="k4-kk"><i class="k4-tp" aria-hidden="true"><i></i><i></i></i></span><span>Due dita verso sinistra: avanti. Verso destra: indietro (giorno, settimana o mese).</span></div></div>';
-  return h+'<p class="k4-knote">I tasti funzionano quando non stai scrivendo in un campo e non c\'è una finestra aperta.</p>';
+function kCombo(e){
+  let k=e.key;if(!k||k==="Dead"||k==="Unidentified"||/^(Shift|Control|Alt|AltGraph|Meta|CapsLock|Fn|OS)$/.test(k))return "";
+  const L=/^Key([A-Z])$/.exec(e.code||"");let sh=e.shiftKey;
+  if(L)k=L[1];
+  else if(/^Digit\d$/.test(e.code||"")&&(e.altKey||e.metaKey||e.ctrlKey))k=e.code.slice(5);
+  else if(k===" "||k==="Spacebar")k="Space";
+  else if(k.length===1){k=k.toUpperCase();sh=false;} // simboli («?», «,», «+»…): il ⇧ è già dentro il simbolo
+  return (e.ctrlKey?"c":"")+(e.altKey?"a":"")+(sh?"s":"")+(e.metaKey?"m":"")+":"+k;
 }
-function keysOpen(){$("keysBody").innerHTML=keysHtml();$("ovKeys").hidden=false;setTimeout(()=>$("ovKeys").querySelector(".k4-keys").focus({preventScroll:true}),30);}
-function keysClose(){$("ovKeys").hidden=true;}
+const kParts=c=>{if(!c)return null;const i=c.indexOf(":");return i<0?null:{m:c.slice(0,i),k:c.slice(i+1)};};
+const KNAME={ArrowLeft:"←",ArrowRight:"→",ArrowUp:"↑",ArrowDown:"↓",Enter:"↩",Space:"Spazio",Backspace:"⌫",Delete:"⌦",Tab:"⇥",Escape:"esc",PageUp:"Pag ↑",PageDown:"Pag ↓",Home:"Inizio",End:"Fine"};
+function kLabel(c){
+  const p=kParts(c);if(!p)return "";const k=KNAME[p.k]||p.k,has=x=>p.m.includes(x);
+  if(IS_MAC)return (has("c")?"⌃":"")+(has("a")?"⌥":"")+(has("s")?"⇧":"")+(has("m")?"⌘":"")+k;
+  return (has("c")?"Ctrl+":"")+(has("a")?"Alt+":"")+(has("s")?"Maiusc+":"")+(has("m")?"Win+":"")+k;
+}
+function kBad(c){
+  const p=kParts(c);if(!p)return "Tasto non valido.";
+  if(p.k==="Escape")return "Esc resta per chiudere le finestre: scegli un altro tasto.";
+  if(!p.m&&/^(Tab|Enter|Space|Backspace|Delete)$/.test(p.k))return "Da solo questo tasto serve per scrivere e per i pulsanti: aggiungi "+(IS_MAC?"⌘":"Ctrl")+" o ⇧, oppure scegline un altro.";
+  if(p.m===KM0&&/^(Q|W|T|N|R|L|H|M|C|V|X|A|Z|F|Y|0|-|\+|=|Tab)$/.test(p.k))return "«"+kLabel(c)+"» lo usa già il "+(IS_MAC?"Mac":"computer")+" o il browser (copia, incolla, chiudi, nuova finestra…): scegline un'altra.";
+  return "";
+}
+let kRec=null,kMsg="";
+function kEditorHtml(){
+  const M=keyMap();let h="",g="";
+  for(const [id,gr,t,d] of KEY_ACTS){
+    if(gr!==g){if(g)h+='</div>';g=gr;h+='<div class="k4-kg"><h4>'+esc(gr)+'</h4>';}
+    const rec=!!kRec&&kRec.id===id,c=M[id];
+    h+='<div class="k4-kr ed'+(rec?" rec":"")+'" data-ka="'+id+'"><span class="k4-kk">'+(rec?'<span class="k4-krec">Premi i tasti…</span>':c?kbd(kLabel(c)):'<span class="k4-knone">nessun tasto</span>')+'</span>'+
+      '<span>'+esc(t)+(c!==d&&!rec?' <small class="k4-kdef">di serie: '+esc(kLabel(d))+'</small>':'')+'</span>'+
+      '<span class="k4-ka">'+(rec?'<button type="button" class="btn" data-kcancel>Annulla</button>':'<button type="button" class="btn" data-kch="'+id+'">Cambia</button>'+(c?'<button type="button" class="k4-lnk" data-kno="'+id+'">Togli</button>':''))+'</span></div>';
+  }
+  h+='</div><div class="k4-kg"><h4>Sempre uguali</h4><div class="k4-kr ed"><span class="k4-kk">'+kbd("esc")+'</span><span>Chiude la finestra aperta</span><span></span></div>'+
+    (IS_MAC?'<div class="k4-kr ed"><span class="k4-kk"><i class="k4-tp" aria-hidden="true"><i></i><i></i></i></span><span>Trackpad: due dita verso sinistra avanti, verso destra indietro (giorno, settimana o mese)</span><span></span></div>':'')+'</div>';
+  const def=KEY_ACTS.every(([id,,,d])=>M[id]===d);
+  h+='<div class="k4-kfoot"><span class="k4-kmsg" role="status">'+esc(kMsg)+'</span><button type="button" class="btn" data-kreset'+(def?' disabled':'')+'>Ripristina quelle di serie</button></div>';
+  return '<div class="k4-ked">'+h+'</div>';
+}
+function kRender(){document.querySelectorAll(".k4-ked").forEach(x=>{x.outerHTML=kEditorHtml();});const r=document.querySelector(".k4-ked .rec [data-kcancel]");if(r)r.focus({preventScroll:true});}
+function kSave(M){
+  const diff={};for(const [id,,,d] of KEY_ACTS)if(M[id]!==d)diff[id]=M[id];
+  savePref("keys",diff);kRender(); // savePref mette subito la scelta in PREF_NOW: i tasti nuovi valgono già
+}
+document.addEventListener("click",e=>{
+  if(!e.target.closest||!e.target.closest(".k4-ked"))return;
+  const ch=e.target.closest("[data-kch]"),no=e.target.closest("[data-kno]");
+  if(ch){kRec={id:ch.dataset.kch};kMsg="Premi i tasti per «"+kName(ch.dataset.kch)+"» (Esc per annullare).";kRender();return;}
+  if(e.target.closest("[data-kcancel]")){kRec=null;kMsg="";kRender();return;}
+  if(no){const M=keyMap();M[no.dataset.kno]="";kRec=null;kMsg="«"+kName(no.dataset.kno)+"» ora è senza tasto.";kSave(M);return;}
+  if(e.target.closest("[data-kreset]")){kRec=null;kMsg="Rimesse le scorciatoie di serie.";kSave(Object.fromEntries(KEY_ACTS.map(([id,,,d])=>[id,d])));return;}
+});
+// registrazione del tasto nuovo: prima di tutti gli altri tasti dell'agenda
+document.addEventListener("keydown",e=>{
+  if(!kRec)return;
+  if(!document.querySelector(".k4-ked .rec")){kRec=null;return;}
+  e.preventDefault();e.stopImmediatePropagation();
+  if(e.key==="Escape"&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&!e.shiftKey){kRec=null;kMsg="";kRender();return;}
+  const c=kCombo(e);if(!c)return; // solo ⌘, ⇧, ⌥…: aspetto il tasto
+  const bad=kBad(c);if(bad){kMsg=bad;kRender();return;}
+  const M=keyMap(),id=kRec.id,other=Object.keys(M).find(x=>x!==id&&M[x]===c);
+  M[id]=c;let msg="«"+kName(id)+"»: "+kLabel(c)+".";
+  if(other){M[other]="";msg+=" Lo usava «"+kName(other)+"», che ora è senza tasto.";}
+  kRec=null;kMsg=msg;kSave(M);
+},true);
+function keysHtml(){return kEditorHtml()+'<p class="k4-knote">Valgono solo per te, su tutti i tuoi dispositivi. Funzionano quando non stai scrivendo in un campo e non c\'è una finestra aperta; quella per stampare funziona con il foglio di servizio aperto.</p>';}
+function keysOpen(){kRec=null;kMsg="";$("keysBody").innerHTML=keysHtml();$("ovKeys").hidden=false;setTimeout(()=>$("ovKeys").querySelector(".k4-keys").focus({preventScroll:true}),30);}
+function keysClose(){kRec=null;$("ovKeys").hidden=true;}
 $("keysClose").onclick=keysClose;backdropClose($("ovKeys"),keysClose);
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("ovKeys").hidden){e.preventDefault();keysClose();}},true);
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!kRec&&!$("ovKeys").hidden){e.preventDefault();keysClose();}},true);
+// il foglio di servizio è la finestra in primo piano (niente altro aperto sopra)
+function sheetOnTop(){
+  const sh=$("ovSheet");if(!sh||sh.hidden||k4Busy())return false;
+  const z=el=>+getComputedStyle(el).zIndex||0,zs=z(sh);
+  return ![...document.querySelectorAll(".overlay:not([hidden])")].some(o=>o!==sh&&(z(o)>zs||(z(o)===zs&&(sh.compareDocumentPosition(o)&Node.DOCUMENT_POSITION_FOLLOWING))));
+}
 
 // ---------- comandi rapidi ⌘K ----------
 function k4Date(q){
@@ -6943,15 +7028,16 @@ function cmdItems(){
   const nu=document.documentElement.dataset.look==="nuovo",L=[];
   const add=(t,run,o)=>L.push(Object.assign({t,run,k:"",g:"Comandi"},o||{}));
   const btn=id=>()=>{const b=$(id);if(shown(b))b.click();};
-  if(shown($("btnNew")))add("Nuova prenotazione",btn("btnNew"),{key:"N",k:"aggiungi inserisci servizio gita transfer tour"});
-  if(shown($("btnToday")))add("Vai a oggi",btn("btnToday"),{key:"O",k:"oggi"});
-  add("Vista Giorno",btn("vDay"),{key:"G",k:"giorno"});add("Vista Settimana",btn("vWeek"),{key:"S",k:"settimana"});add("Vista Mese",btn("vMonth"),{key:"M",k:"mese calendario"});
-  if(shown($("vBill")))add("Fatturato",btn("vBill"),{key:"F",k:"fatture fattura buste clienti bozze"});
-  if(shown($("vPasti")))add("Autisti: pasti e riposi",btn("vPasti"),{key:"A",k:"pasti crocette riposo ferie"});
-  if(shown($("btnInvio")))add("Invio fogli",btn("btnInvio"),{key:"I",k:"max invio fogli bus autisti"});
-  add(nu?"Impostazioni":"Menu",btn("btnMenu"),{key:CMDK+",",k:"menu impostazioni preferenze archivio"});
+  const KM=keyMap(),kl=id=>KM[id]?kLabel(KM[id]):"";
+  if(shown($("btnNew")))add("Nuova prenotazione",btn("btnNew"),{key:kl("new"),k:"aggiungi inserisci servizio gita transfer tour"});
+  if(shown($("btnToday")))add("Vai a oggi",btn("btnToday"),{key:kl("today"),k:"oggi"});
+  add("Vista Giorno",btn("vDay"),{key:kl("day"),k:"giorno"});add("Vista Settimana",btn("vWeek"),{key:kl("week"),k:"settimana"});add("Vista Mese",btn("vMonth"),{key:kl("month"),k:"mese calendario"});
+  if(shown($("vBill")))add("Fatturato",btn("vBill"),{key:kl("bill"),k:"fatture fattura buste clienti bozze"});
+  if(shown($("vPasti")))add("Autisti: pasti e riposi",btn("vPasti"),{key:kl("pasti"),k:"pasti crocette riposo ferie"});
+  if(shown($("btnInvio")))add("Invio fogli",btn("btnInvio"),{key:kl("invio"),k:"max invio fogli bus autisti"});
+  add(nu?"Impostazioni":"Menu",btn("btnMenu"),{key:kl("set"),k:"menu impostazioni preferenze archivio"});
   add("Aggiorna adesso",k4Sync,{k:"sincronizza dropbox scarica aggiorna"});
-  if(FINE())add("Scorciatoie da tastiera",keysOpen,{key:"?",k:"tasti tastiera scorciatoie"});
+  if(FINE())add("Scorciatoie da tastiera (cambiale)",nu?()=>openSettings("keys"):keysOpen,{key:kl("keys"),k:"tasti tastiera scorciatoie personalizza cambia"});
   add("Rivedi le novità della 4.0",()=>tourStart(),{k:"novita benvenuto giro tutorial 4.0"});
   add(nu?"Aspetto Classico (come la 3.0)":"Aspetto Nuovo (4.0)",()=>setLook(nu?"classico":"nuovo"),{k:"aspetto grafica look vecchio nuovo classico",g:"Aspetto"});
   for(const [v,t] of [["chiaro","Tema chiaro"],["scuro","Tema scuro"],["auto","Tema automatico"]])if(themeNow()!==v)add(t,()=>setTheme(v),{k:"tema colori notte giorno dark scuro chiaro",g:"Aspetto"});
@@ -6995,21 +7081,24 @@ $("cmdL").addEventListener("click",e=>{const b=e.target.closest("[data-ci]");if(
 $("cmdL").addEventListener("mousemove",e=>{const b=e.target.closest("[data-ci]");if(b&&+b.dataset.ci!==cmdSel){cmdSel=+b.dataset.ci;$("cmdL").querySelectorAll(".k4-co").forEach((x,i)=>{x.classList.toggle("on",i===cmdSel);x.setAttribute("aria-selected",String(i===cmdSel));});}});
 backdropClose($("ovCmd"),cmdClose);
 
-// ---------- tasti ----------
+// ---------- tasti (4.0.1: quelli scelti da ognuno; di serie come nella 4.0, più ⌘P per stampare il foglio di servizio) ----------
 document.addEventListener("keydown",e=>{
-  if(e.isComposing||e.defaultPrevented)return;
-  const k=e.key,mod=e.metaKey||e.ctrlKey;
-  if(mod&&!e.altKey&&!e.shiftKey&&(k==="k"||k==="K")){
-    if(!$("ovCmd").hidden){e.preventDefault();cmdClose();return;}
-    if(appFree()){e.preventDefault();cmdOpen();}return;}
-  if(mod&&!e.altKey&&k===","){if(appFree()){e.preventDefault();$("btnMenu").click();}return;}
-  if(mod||e.altKey)return;
-  const t=e.target;if(t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))return;
+  if(e.isComposing||e.defaultPrevented||kRec)return;
+  const c=kCombo(e);if(!c)return;
+  const M=keyMap(),act=Object.keys(M).find(id=>M[id]&&M[id]===c);if(!act)return;
+  const t=e.target,typing=!!t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)),mod=/[cam]/.test(kParts(c).m);
+  if(typing&&!mod)return; // mentre si scrive in un campo, i tasti senza ⌘/Ctrl/⌥ scrivono e basta
+  if(act==="print"){
+    if(sheetOnTop()){const b=$("sheetPrint");if(shown(b)){e.preventDefault();b.click();}}
+    else if(mod&&appFree()){e.preventDefault();toast(kLabel(c)+" stampa il foglio di servizio: prima aprilo (clic sul servizio › «Salva e apri foglio di servizio»).");}
+    return;}
+  if(act==="cmd"){if(!$("ovCmd").hidden){e.preventDefault();cmdClose();return;}if(appFree()){e.preventDefault();cmdOpen();}return;}
+  if(act==="set"){if(appFree()){e.preventDefault();$("btnMenu").click();}return;}
   if(!appFree())return;
-  if(k==="ArrowLeft"||k==="ArrowRight"){const d=k==="ArrowLeft"?-1:1;if(k4Step(d,e.shiftKey)){e.preventDefault();k4Slide(d);}return;}
-  if(k==="?"){e.preventDefault();keysOpen();return;}
-  if(k.length!==1)return;
-  const id={o:"btnToday",g:"vDay",s:"vWeek",m:"vMonth",n:"btnNew",f:"vBill",a:"vPasti",i:"btnInvio"}[k.toLowerCase()];
+  if(act==="keys"){e.preventDefault();keysOpen();return;}
+  if(act==="prev"||act==="next"){const d=act==="prev"?-1:1;if(k4Step(d,false)){e.preventDefault();k4Slide(d);}return;}
+  if(act==="mprev"||act==="mnext"){const d=act==="mprev"?-1:1;if(k4Step(d,true)){e.preventDefault();k4Slide(d);}return;}
+  const id={today:"btnToday",day:"vDay",week:"vWeek",month:"vMonth",bill:"vBill",pasti:"vPasti",new:"btnNew",invio:"btnInvio"}[act];
   if(id&&shown($(id))){e.preventDefault();$(id).click();}
 });
 
@@ -7058,9 +7147,9 @@ const ART={
   swipe:'<div class="k4-art k4-art-t" aria-hidden="true"><span class="k4-pad"><i></i><i></i></span><span class="k4-art-lbl"><b>‹ giorno prima</b><b>giorno dopo ›</b></span></div>',
 };
 function keysMini(){
-  const C=IS_MAC?"⌘":"Ctrl";
-  return '<div class="k4-mini">'+[[["←","→"],"giorno prima o dopo"],[["⇧ ←","⇧ →"],"mese"],[["O"],"oggi"],[["G","S","M"],"Giorno, Settimana, Mese"],[["N"],"nuova prenotazione"],[[C+" ,"],document.documentElement.dataset.look==="nuovo"?"Impostazioni":"Menu"],[["?"],"tutte le scorciatoie"]]
-    .map(([ks,t])=>'<div class="k4-kr"><span class="k4-kk">'+ks.map(kbd).join("")+'</span><span>'+esc(t)+'</span></div>').join("")+'</div>';
+  const KM=keyMap(),L=id=>KM[id]?kLabel(KM[id]):"";
+  return '<div class="k4-mini">'+[[["prev","next"],"giorno prima o dopo"],[["mprev","mnext"],"mese"],[["today"],"oggi"],[["day","week","month"],"Giorno, Settimana, Mese"],[["new"],"nuova prenotazione"],[["print"],"stampa il foglio di servizio aperto"],[["keys"],"tutte le scorciatoie"]]
+    .filter(([ids])=>ids.some(L)).map(([ids,t])=>'<div class="k4-kr"><span class="k4-kk">'+ids.map(L).filter(Boolean).map(kbd).join("")+'</span><span>'+esc(t)+'</span></div>').join("")+'</div>';
 }
 function tourSteps(){
   const nu=document.documentElement.dataset.look==="nuovo",L=[],C=IS_MAC?"⌘":"Ctrl+";
@@ -7075,9 +7164,9 @@ function tourSteps(){
     st(null,"«Cerca»: come si fa una cosa","Nelle Impostazioni, in alto a sinistra, c'è «Cerca». Scrivi quello che non ricordi, per esempio «targa», «post-it» o «busta»: trovi i passaggi uno per uno e il pulsante «Portami lì».",{art:"search"});
   }
   if(FINE()){
-    st(null,"Scorciatoie da tastiera",null,{html:keysMini()+'<p class="k4-knote">Funzionano quando non stai scrivendo in un campo.</p>'});
+    st(null,"Scorciatoie da tastiera",null,{html:keysMini()+'<p class="k4-knote">Funzionano quando non stai scrivendo in un campo. Si possono cambiare: '+(nu?'Impostazioni › Tastiera':'premi «'+esc(kLabel(keyMap().keys)||"?")+'» e poi «Cambia»')+'.</p>'});
     if(IS_MAC)st(null,"Il trackpad","Appoggia due dita sul trackpad e trascinale verso sinistra: giorno dopo. Verso destra: giorno prima. Nella Settimana cambia settimana, nel Mese cambia mese.",{art:"swipe"});
-    st(null,C+"K: comandi rapidi","Premi "+C+"K e scrivi cosa vuoi fare: una data («15 dicembre», «domani»), una sezione («flotta») o un'azione («nuova prenotazione»). Scegli con le frecce e premi Invio.",{art:"cmd"});
+    st(null,(kLabel(keyMap().cmd)?kLabel(keyMap().cmd)+": ":"")+"comandi rapidi","Premi "+(kLabel(keyMap().cmd)||C+"K")+" e scrivi cosa vuoi fare: una data («15 dicembre», «domani»), una sezione («flotta») o un'azione («nuova prenotazione»). Scegli con le frecce e premi Invio.",{art:"cmd"});
   }
   if(nu)st(null,"Ti piaceva com'era?","In Impostazioni › Aspetto puoi scegliere «Classico»: l'agenda torna identica alla 3.0, Menu compreso. Vale solo per te e puoi cambiare quando vuoi. Lì c'è anche il tema scuro.");
   else st("#btnMenu","Il nuovo aspetto","Stai usando l'aspetto «Classico», identico alla 3.0. Per provare quello nuovo: Menu › Le mie impostazioni › Aspetto dell'agenda › «Nuovo».");
