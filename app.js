@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="3.0.11",APP_DATE="14/11/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="4.0",APP_DATE="17/11/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
@@ -16,7 +16,7 @@ const APP_VERSION="3.0.11",APP_DATE="14/11/2026";window.AGENDA_VERSION=APP_VERSI
 //        store.js e autisti.js restano quelli della 3.0.3.
 // 3.0.6: aggiornamento parziale (solo app.js): nomi di prima degli autisti (un autista rinominato nell'anagrafica
 //        resta una persona sola: servizi già inseriti, telefono, crocette dei pasti). Gli altri file restano della 3.0.5.
-const APP_FAMILY="3.0",APP_PATCH={index:"3.0.9",store:"3.0.11",autisti:"3.0.10",fatture:"3.0.4",fatturato:"3.0.4"};
+const APP_FAMILY="3.0",APP_PATCH={index:"4.0",store:"4.0",autisti:"3.0.10",fatture:"3.0.4",fatturato:"3.0.4"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -42,6 +42,7 @@ if(framed){stopPage("Agenda Flotta La Terra","Per sicurezza l'agenda non si può
   const F=window.AGENDA_FILES||{},FP=window.AGENDA_PATCH||{},bad=[];
   if(document.documentElement.getAttribute("data-v")!==APP_FAMILY||(APP_PATCH.index&&document.documentElement.getAttribute("data-p")!==APP_PATCH.index))bad.push("index.html");
   for(const f of ["dropbox","fatturato","fatture","store","accessi","autisti"])if(F[f]!==APP_FAMILY||(APP_PATCH[f]&&FP[f]!==APP_PATCH[f]))bad.push(f+".js");
+  try{if(getComputedStyle(document.documentElement).getPropertyValue("--skin40").indexOf("4.0")<0)bad.push("skin40.css");}catch(_){} // 4.0: anche la grafica nuova deve essere arrivata
   let n=0;try{n=+sessionStorage.getItem("agenda-upd-try")||0;}catch(_){}
   if(bad.length){
     // ricaricando, ogni file viene richiesto di nuovo al sito (la copia per l'uso offline non si cancella:
@@ -336,7 +337,7 @@ function dayXbus(ds){
 }
 
 // ---------- rendering ----------
-function renderAll(){$("btnInvio").hidden=!(hasMax()&&!isInvio());renderMonthBar();renderStrip();if(S.view==="day")renderDay();else if(S.view==="week")renderWeek();else if(S.view==="bill")renderBill();else if(S.view==="pasti")renderPasti();else renderMonth();}
+function renderAll(){syncLook();$("btnInvio").hidden=!(hasMax()&&!isInvio());renderMonthBar();renderStrip();if(S.view==="day")renderDay();else if(S.view==="week")renderWeek();else if(S.view==="bill")renderBill();else if(S.view==="pasti")renderPasti();else renderMonth();}
 function weekStart(s){return addDays(s,-((wday(s)+6)%7));}
 
 function renderWeek(){
@@ -3684,6 +3685,7 @@ function showGate(mode,o){
   else gateSuper(mode,o);
 }
 function closeOverlays(){
+  try{if(!$("ovSet").hidden){setUnhost();$("ovSet").hidden=true;}k4CloseAll();}catch(_){} // 4.0: Impostazioni, comandi rapidi, giro delle novità
   try{attFormClose();}catch(_){} // 3.0.2: prenotazione chiusa senza salvare (uscita): i file appena caricati non servono
   ["ovBooking","ovFleet","ovMenu","ovSheet","ovClients","ovClientNew","ovMaster","ovArch","ovReg","ovInv","ovInvList","ovCont","ovSpese","ovQr","ovCapo","ovPasto"].forEach(id=>{const x=$(id);if(x)x.hidden=true;});PO=null;try{closeCapo();}catch(_){}try{$("recOut").textContent="";$("recShown").hidden=true;}catch(_){}INV=null;CT=null;ctOrig=null;ctDirty=false;invPending=null;invSel.clear();
   if(typeof spClosePhoto==="function")spClosePhoto();
@@ -3746,6 +3748,7 @@ function unlocked(){
   autAfterRedirect();(STORE.aut?Promise.resolve():STORE.loadAut()).then(()=>AUT.sync()).then(()=>setTimeout(()=>repairSent().catch(()=>{}),4000)).catch(()=>{});
   // versione minima (2.6): questa versione la alza; se su Dropbox ce n'è già una più nuova la pagina smette di scrivere
   STORE.loadMinVer().then(()=>{checkMinVer();if(!S.outdated&&!S.readOnly)return STORE.raiseMinVer(APP_VERSION);}).catch(()=>{});
+  setTimeout(()=>{tourTry=0;tourMaybe();},1500); // 4.0: benvenuto e giro delle novità, una volta sola per account
 }
 function checkMinVer(){
   const mv=STORE.minVer();
@@ -3803,12 +3806,20 @@ function menuPane(name){
   $("pwGo").hidden=name!=="mPw";$("unlinkGo").hidden=name!=="mUnlink";if(name==="mPw")$("mPw").reset();
 }
 $("btnMenu").onclick=()=>{
+  if(document.documentElement.dataset.look==="nuovo"){openSettings();return;}
   const s=STORE.settings||{};
   const ff=STORE.fatFiles(),fy=Object.keys(ff).sort();
   $("menuInfo").innerHTML="Versione <b>"+APP_VERSION+"</b> del "+APP_DATE+". Dati nella cartella Dropbox <b>"+esc(STORE.BASE)+"</b>. Fatturato: "+(fy.length?fy.map(y=>(y==="*"?"":y+" → ")+"<b>"+esc(ff[y].name)+"</b>").join(", "):"<b>non collegato</b>")+".";
   const me=ACC.session();if(me)$("menuInfo").innerHTML="Sei entrato come <b>"+esc(me.name)+"</b>"+(me.role==="super"?" (Super Master)":me.role==="master"?" (Master)":"")+". "+$("menuInfo").innerHTML;
-  applyRole();menuPane("mMain");$("ovMenu").hidden=false;
+  applyRole();menuPane("mMain");$("ovMenu").hidden=false;menuGroups();
 };
+// 4.0: nel Menu nuovo le voci stanno in gruppi (come «Impostazioni» del Mac): prima e ultima voce di ogni gruppo arrotondate
+function menuGroups(){
+  const vis=[...$("mMain").children].filter(b=>b.tagName==="BUTTON"&&getComputedStyle(b).display!=="none");
+  const o=b=>+(getComputedStyle(b).getPropertyValue("--o")||50);vis.sort((a,b)=>o(a)-o(b));
+  vis.forEach((b,i)=>{const g=Math.floor(o(b)/10),pg=i?Math.floor(o(vis[i-1])/10):-1,ng=i<vis.length-1?Math.floor(o(vis[i+1])/10):-1;
+    b.classList.remove("g-first","g-mid","g-last","g-one");b.classList.add(g!==pg&&g!==ng?"g-one":g!==pg?"g-first":g!==ng?"g-last":"g-mid");});
+}
 $("whoAmI").onclick=()=>$("btnMenu").click();
 $("mClose").onclick=()=>{$("ovMenu").hidden=true;};
 document.querySelectorAll("[data-pane]").forEach(b=>{b.onclick=()=>menuPane(b.dataset.pane);});
@@ -3959,6 +3970,7 @@ function fillPrefs(){
   $("prChecks").innerHTML=MISS_CHECKS.map(c=>'<label><input type="checkbox" data-mc="'+c[0]+'"'+(M.checks.includes(c[0])?" checked":"")+'> <span>'+esc(c[1])+'</span></label>').join("");
   $("prChecks").classList.toggle("off",M.mode==="off");
   $("prMissBox").hidden=isInvio();
+  const lk=myPrefs().look||lookWanted();for(const r of document.querySelectorAll('input[name="prLook"]'))r.checked=r.value===lk;
 }
 $("prMode").addEventListener("change",()=>{const v=(document.querySelector('input[name="prMode"]:checked')||{}).value;$("prChecks").classList.toggle("off",v==="off");});
 $("mPrefs").addEventListener("submit",async e=>{
@@ -3968,10 +3980,12 @@ $("mPrefs").addEventListener("submit",async e=>{
   if(S.readOnly){msg.textContent="Questa pagina è in sola lettura: chiudila e riaprila.";return;}
   const lv=$("prLock").value,mode=(document.querySelector('input[name="prMode"]:checked')||{}).value||"both";
   const checks=[...$("prChecks").querySelectorAll("[data-mc]")].filter(x=>x.checked).map(x=>x.dataset.mc);
+  const look=(document.querySelector('input[name="prLook"]:checked')||{}).value||""; // 4.0
   if(mode!=="off"&&!checks.length){msg.textContent="Spunta almeno un controllo, oppure scegli «Spento».";return;}
   $("prGo").disabled=true;
   try{
-    await STORE.updateUsers(J=>{const x=J.users[me.uid];if(!x)return null;const p=Object.assign({},x.prefs||{});if(lv==="")delete p.lock;else p.lock=+lv;p.miss={mode,checks};x.prefs=p;return J;});
+    await STORE.updateUsers(J=>{const x=J.users[me.uid];if(!x)return null;const p=Object.assign({},x.prefs||{});if(lv==="")delete p.lock;else p.lock=+lv;p.miss={mode,checks};if(look)p.look=look;x.prefs=p;return J;});
+    if(look)applyLook(look);
     ACC.log("utenti","Ha cambiato le sue impostazioni: uscita automatica "+(lv===""?"come il Master":lockTxt(+lv).toLowerCase())+"; «!» "+({both:"passati e futuri",past:"mancanze passate",future:"mancanze future",off:"spento"}[mode])+(mode!=="off"?" ("+checks.map(k=>(MISS_CHECKS.find(c=>c[0]===k)||[])[2]).join(", ")+")":""));
     $("ovMenu").hidden=true;toast("Impostazioni salvate");renderAll();
   }catch(err){msg.textContent=err&&err.code==="offline"?"Serve la connessione a internet.":"Non riesco a salvare. Riprova tra poco.";}
@@ -6506,6 +6520,626 @@ document.addEventListener("click",e=>{
     if(l.length===1){piOpen(ds,l[0].vid||"",l[0]);return;}const r=mk.getBoundingClientRect();
     ctxOpen(r.left,r.bottom+4,l.map(p=>({html:'<span class="ctx-pi c-'+esc(p.col)+'"></span>'+esc((p.vid?vehLabel(vehicle(p.vid)||{})+": ":"")+piShort(p.text,48)),run:()=>piOpen(ds,p.vid||"",p)})));return;}
   const n=e.target.closest("[data-pi]");if(n){e.preventDefault();e.stopPropagation();const p=postitsOf(n.dataset.pid).find(x=>x.id===n.dataset.pi);if(p)piOpen(n.dataset.pid,p.vid||"",p);}
+},true);
+
+// =====================================================================================
+// 4.0 — aspetto «Nuovo» (stile Apple, rosso La Terra) oppure «Classico» (come la 3.0). Il nuovo si appoggia sopra il
+// classico: un file di stile a parte (skin40.css, regole valide solo con <html data-look="nuovo">) e i pulsanti in alto
+// in un altro ordine. Con «Classico» tutto torna esattamente com'era. La scelta è nelle impostazioni personali.
+// =====================================================================================
+const LOOK_CACHE="agenda-look";
+// scelte appena fatte: valgono subito, anche prima che il salvataggio nell'account sia finito (qui in alto: serve già all'avvio)
+const PREF_NOW={};
+function lookWanted(){
+  try{const q=new URLSearchParams(location.search).get("look");if(q==="nuovo"||q==="classico")return q;}catch(_){}
+  const p=ACC.session()?("look" in PREF_NOW?PREF_NOW.look:myPrefs().look):null;if(p)return p;
+  try{const c=localStorage.getItem(LOOK_CACHE);if(c==="nuovo"||c==="classico")return c;}catch(_){}
+  return "nuovo";
+}
+let lookHome=null;
+function applyLook(l){
+  l=l==="classico"?"classico":"nuovo";const root=document.documentElement;
+  try{localStorage.setItem(LOOK_CACHE,l);}catch(_){}
+  const top=document.querySelector("header.top");if(!top){root.dataset.look=l;return;}
+  if(!lookHome){const keep=sel=>{const el=top.querySelector(sel);return el?{el,kids:[...el.children]}:null;};lookHome=[keep(".topline"),keep(".bar"),keep(".bar .controls")].filter(Boolean);}
+  let t4=top.querySelector(".t4wrap");
+  if(l==="nuovo"){
+    if(!t4){t4=document.createElement("div");t4.className="t4wrap";
+      t4.innerHTML='<div class="t4 t4a"><div class="t4l"></div><div class="t4r"></div></div><div class="t4 t4b"><div class="t4l"></div><div class="t4c"></div><div class="t4r"></div></div>';top.appendChild(t4);}
+    const put=(box,...els)=>{for(const e of els)if(e)t4.querySelector(box).appendChild(e);};
+    put(".t4a .t4l",top.querySelector(".logo"),top.querySelector(".brand"));
+    put(".t4a .t4r",$("btnInvio"),$("vBill").parentElement,$("vPasti").parentElement,$("btnMenu"));
+    put(".t4b .t4l",top.querySelector(".monthbar"));
+    put(".t4b .t4c",$("vDay").parentElement,$("btnToday"));
+    put(".t4b .t4r",$("btnNew"));
+  }else if(lookHome){for(const h of lookHome)for(const k of h.kids)h.el.appendChild(k);}
+  root.dataset.look=l;
+}
+function syncLook(){const l=lookWanted();if(document.documentElement.dataset.look!==l)applyLook(l);if(ACC.session())applyTheme(themeNow());
+  const lbl=l==="nuovo"?"Impostazioni":"Menu";if($("btnMenu").textContent!==lbl)$("btnMenu").textContent=lbl;}
+applyLook(lookWanted());
+$("mArch").onclick=()=>{$("ovMenu").hidden=true;openArchive();};
+// =====================================================================================
+// 4.0 — Menu come sul Mac: la finestra «Impostazioni» (come Impostazioni di Sistema). A sinistra Cerca («come si fa»),
+// l'account e le sezioni in gruppi; a destra la sezione scelta. Le sezioni usano le finestre di sempre (clienti, flotta,
+// anagrafiche, contabilità, Pannello Master…), «ospitate» nella parte destra: fanno tutto come prima.
+// Solo con l'aspetto «Nuovo»; con il «Classico» resta il Menu della 3.0.
+// =====================================================================================
+const SVGI={
+ gear:'<circle cx="10" cy="10" r="2.6"/><path d="M10 2.8v2.1M10 15.1v2.1M2.8 10h2.1M15.1 10h2.1M4.9 4.9l1.5 1.5M13.6 13.6l1.5 1.5M4.9 15.1l1.5-1.5M13.6 6.4l1.5-1.5"/>',
+ look:'<circle cx="10" cy="10" r="6.5"/><path d="M10 3.5a6.5 6.5 0 0 1 0 13z" fill="white"/>',
+ excl:'<path d="M10 4.5v7"/><circle cx="10" cy="15" r=".6" fill="white"/>',
+ key:'<circle cx="6.5" cy="10" r="3.2"/><path d="M9.7 10H17M14.5 10v2.6M17 10v2"/>',
+ person2:'<circle cx="8" cy="7.5" r="2.5"/><path d="M3.5 15.5c.6-2.6 2.3-3.8 4.5-3.8s3.9 1.2 4.5 3.8M13 5.3a2.4 2.4 0 0 1 0 4.6M14.8 11.9c1 .6 1.6 1.8 1.9 3.6"/>',
+ bus:'<rect x="4" y="3.5" width="12" height="11" rx="2"/><path d="M4 9h12M6.5 14.5v2M13.5 14.5v2"/><circle cx="7" cy="12" r=".5" fill="white"/><circle cx="13" cy="12" r=".5" fill="white"/>',
+ person:'<circle cx="10" cy="7" r="2.8"/><path d="M4.6 16c.7-2.9 2.8-4.4 5.4-4.4s4.7 1.5 5.4 4.4"/>',
+ phone:'<path d="M5 3.5h3l1.2 3.2-1.8 1.2a8 8 0 0 0 3.7 3.7l1.2-1.8 3.2 1.2v3a1.5 1.5 0 0 1-1.6 1.5A12.5 12.5 0 0 1 3.5 5.1 1.5 1.5 0 0 1 5 3.5z"/>',
+ flag:'<path d="M5 17V3.5M5 4h9l-2 3.5 2 3.5H5"/>',
+ bed:'<path d="M3 15V5M3 11h14v4M3 8.5h5.5a2 2 0 0 1 2 2V11"/><circle cx="6" cy="9" r=".6" fill="white"/>',
+ park:'<rect x="3.5" y="3.5" width="13" height="13" rx="3"/><path d="M8 14V6.5h2.7a2.2 2.2 0 0 1 0 4.4H8"/>',
+ list:'<path d="M7.5 6h9M7.5 10h9M7.5 14h9"/><circle cx="4.2" cy="6" r=".7" fill="white"/><circle cx="4.2" cy="10" r=".7" fill="white"/><circle cx="4.2" cy="14" r=".7" fill="white"/>',
+ euro:'<path d="M14.5 5.3A5.5 5.5 0 1 0 14.5 14.7M3.5 8.5h8M3.5 11.5h8"/>',
+ people:'<circle cx="7" cy="7.5" r="2.4"/><circle cx="13.5" cy="8" r="2"/><path d="M2.8 15.5c.6-2.5 2.2-3.7 4.2-3.7s3.6 1.2 4.2 3.7M11.5 12.3c.6-.3 1.3-.4 2-.4 1.7 0 3 1 3.5 3.6"/>',
+ laptop:'<rect x="4.5" y="4.5" width="11" height="8" rx="1"/><path d="M2.5 15.5h15"/>',
+ clock:'<circle cx="10" cy="10" r="6.5"/><path d="M10 6.2V10l2.6 1.6"/>',
+ doc:'<path d="M5 2.8h6.5L15 6.3v10.9H5z"/><path d="M7.8 10.2h4.4M7.8 13.2h4.4"/>',
+ shield:'<path d="M10 2.8l6 2.3v4.4c0 3.6-2.6 6.3-6 7.7-3.4-1.4-6-4.1-6-7.7V5.1z"/><path d="M7.3 10l1.9 1.9 3.6-3.7"/>',
+ sync:'<path d="M15.5 8.2A5.8 5.8 0 0 0 5 6.4M4.5 11.8A5.8 5.8 0 0 0 15 13.6"/><path d="M15.8 4.2v4h-4M4.2 15.8v-4h4"/>',
+ unlink:'<path d="M8.3 11.7l-1.6 1.6a2.6 2.6 0 0 1-3.7-3.7l2.1-2.1M11.7 8.3l1.6-1.6a2.6 2.6 0 0 1 3.7 3.7l-2.1 2.1M4 4l12 12"/>',
+ info:'<circle cx="10" cy="10" r="6.5"/><path d="M10 9v4.5"/><circle cx="10" cy="6.6" r=".6" fill="white"/>',
+};
+const icoSvg=(k,c)=>'<span class="set-ic" style="background:'+c+'"><svg viewBox="0 0 20 20" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+(SVGI[k]||"")+'</svg></span>';
+const SET_NAV=[
+ {g:1,k:"gen",t:"Generali",c:"#8E8E93",ic:"gear"},{g:1,k:"asp",t:"Aspetto",c:"#1D1D1F",ic:"look"},
+ {g:1,k:"miss",t:"Punto esclamativo «!»",c:"#FF3B30",ic:"excl",show:()=>!isInvio()},{g:1,k:"pw",t:"Password",c:"#FF9500",ic:"key"},
+ {g:2,k:"cli",t:"Clienti",c:"#0A84FF",ic:"person2"},{g:2,k:"flo",t:"Flotta",c:"#FF9F0A",ic:"bus"},{g:2,k:"aut",t:"Autisti",c:"#30B556",ic:"person",reg:"autisti"},
+ {g:2,k:"ref",t:"Referenti",c:"#64D2FF",ic:"phone",reg:"referenti"},{g:2,k:"gui",t:"Guide",c:"#BF5AF2",ic:"flag",reg:"guide"},{g:2,k:"hot",t:"Hotel",c:"#5E5CE6",ic:"bed",reg:"hotel"},
+ {g:2,k:"par",t:"Parcheggi",c:"#0A84FF",ic:"park",reg:"parcheggi"},{g:2,k:"ten",t:"Tendine",c:"#8E8E93",ic:"list"},{g:2,k:"con",t:"Contabilità",c:"#14B8A6",ic:"euro",show:()=>canCont()},
+ {g:3,k:"usr",t:"Utenti",c:"#0A84FF",ic:"people",m:1,mt:"users"},{g:3,k:"dev",t:"Dispositivi collegati",c:"#636366",ic:"laptop",m:1,mt:"devs"},
+ {g:3,k:"reg",t:"Registro delle modifiche",c:"#A2845E",ic:"clock",m:1,mt:"log"},{g:3,k:"tlog",t:"Log tecnico",c:"#8E8E93",ic:"list",m:1,mt:"tlog"},
+ {g:3,k:"perm",t:"Permessi e impostazioni",c:"#C8102E",ic:"shield",m:1,mt:"set"},{g:3,k:"autf",t:"Cartella degli autisti",c:"#30B556",ic:"phone",m:1,mt:"aut",show:()=>isSuper()},{g:3,k:"fat",t:"File fatturato",c:"#30B556",ic:"doc",m:1},
+ {g:4,k:"sync",t:"Aggiorna adesso",c:"#0A84FF",ic:"sync"},{g:4,k:"unl",t:"Scollega questo dispositivo",c:"#8E8E93",ic:"unlink",m:1},
+];
+const SET_GT={1:"",2:"Archivio",3:"Master",4:""};
+const TEND=[["note","Note per l'autista"],["ruolo","Ruolo del referente"],["spese","Causale spese"]];
+// «Come si fa» (4.0): le risposte di «Cerca» nelle Impostazioni, prese dal LEGGIMI.
+// go: sezione delle Impostazioni ("flo"…) oppure {view, hl} (apre la schermata e fa lampeggiare il pulsante) o {fn}.
+const HOWTO=[
+ {t:"Inserire una nuova prenotazione",k:"nuova prenotazione servizio inserire aggiungere gita transfer notturno tour",v:"4.0",go:{hl:"#btnNew"},
+  s:["Premi «+ Nuova prenotazione» (in alto, all'altezza del mese) oppure «+ Aggiungi» sulla riga del bus nel giorno giusto.","Scegli il tipo: Gita, Tour, Notturno o Transfer.","Scrivi date, orari, cliente, itinerario e autista.","Premi «Salva» (o «Salva e apri foglio di servizio»)."],
+  n:"Tasto rapido: N."},
+ {t:"Confermare una prenotazione in sospeso",k:"confermare conferma sospeso punto interrogativo ? opzione stato spunta verde",v:"3.0.11",go:{view:"day",hl:"#sheet .stt"},
+  s:["Nella vista Giorno clicca il «?» accanto al servizio.","Diventa la spunta verde ✓: è confermata. Un altro clic la rimette in sospeso."],
+  n:"Quelle in sospeso senza cliente spariscono da sole alle 00:00 del giorno del servizio; quelle con il cliente alle 00:00 del giorno dopo il servizio. Le confermate mai."},
+ {t:"Perché è sparita una prenotazione in sospeso",k:"sparita cancellata eliminata automatica pulizia mezzanotte sospeso senza cliente",v:"3.0.11",go:"reg",
+  s:["Le prenotazioni ancora in sospeso («?») si eliminano da sole: senza cliente alle 00:00 del giorno del servizio, con il cliente alle 00:00 del giorno dopo.","Quando succede compare l'avviso in alto «Eliminata la prenotazione …».","Quelle con il cliente le trovi anche nel Registro delle modifiche («Eliminata automaticamente…»)."],
+  n:"Per non perderla: conferma la prenotazione (✓) prima."},
+ {t:"Spostare un servizio su un altro bus o un altro giorno",k:"spostare cambiare bus mezzo giorno data servizio",v:"3.0",go:null,
+  s:["Clicca il servizio per aprire la prenotazione.","Cambia «Mezzo» oppure la data.","Premi «Salva» e conferma le modifiche."],
+  n:"Se bus e autisti li ha decisi MAX, li può cambiare solo chi ha il permesso MAX. Se il nuovo bus ha altri posti e mancano meno di 24 ore, l'agenda chiede il motivo (vedi «Il cliente chiede un altro bus»)."},
+ {t:"Il cliente chiede un altro bus: che cosa si fattura",k:"cambio bus mezzo posti fattura fatturare 64 79 motivo logistico cliente chiede",v:"3.0.8",go:null,
+  s:["Cambia il mezzo nella prenotazione (oppure MAX dalla sua finestra).","Se mancano meno di 24 ore e il bus nuovo ha altri posti, compare «Perché cambi il mezzo?».","«Motivi logistici – scelta nostra»: si fattura ancora il bus chiesto dal cliente.","«Motivi logistici e contabili – lo chiede il cliente»: si fattura il bus nuovo."],
+  n:"Se poi il cliente cambia idea: nel modulo, sotto «Mezzo», premi «Il cliente ha chiesto il …: fattura questo». Nel file fatturato vanno categoria e targa del bus da fatturare."},
+ {t:"Eliminare una prenotazione",k:"eliminare cancellare togliere prenotazione servizio",v:"2.8",go:null,
+  s:["Clicca il servizio per aprire la prenotazione.","Premi «Elimina» in basso a sinistra.","Premi «Sì, elimina»."],
+  n:"Si svuota la riga del fatturato, il foglio viene ritirato dall'app dell'autista e si cancellano PDF e allegati."},
+ {t:"Tour con mezzo o autista diverso in alcuni giorni",k:"tour giorni mezzo autista diverso cambio giorno per giorno",v:"3.0.3",go:null,
+  s:["Apri la prenotazione del tour.","Sotto «2° autista», nel riquadro «Mezzo e autisti giorno per giorno», premi «Cambia il mezzo o l'autista in alcuni giorni».","Scegli mezzo o autisti solo nei giorni che cambiano.","Premi «Salva»."],
+  n:"Nelle tendine «· impegnato» vuol dire che quel giorno ha già un altro servizio."},
+ {t:"Prenotazione senza cliente (bus tenuto da parte)",k:"senza cliente bloccare bus tenere opzione foglio",v:"3.0.3",go:null,
+  s:["Inserisci la prenotazione lasciando vuoto il cliente.","Resta in agenda sulla riga del bus, ma senza foglio di servizio, senza riga nel fatturato e senza invio all'autista.","Quando scrivi il cliente e salvi, nasce il foglio con il suo numero."],
+  n:"Se resta in sospeso e senza cliente, sparisce alle 00:00 del giorno del servizio."},
+ {t:"Busta per l'autista (anticipo spese)",k:"busta anticipo spese autista acconto numero busta",v:"2.6",go:{view:"bill",hl:"#bsOpen"},
+  s:["Nel modulo spunta «Busta per l'autista» (nei tour c'è sempre).","Scrivi l'anticipo: il n. busta si propone da solo.","Premi «Salva»."],
+  n:"Tutte le buste, con spese e rimanenze: Fatturato › «Buste»."},
+ {t:"Aggiungere un parcheggio a un servizio",k:"parcheggio parcheggi ztl rimborso prenotazione",v:"2.6",go:"par",
+  s:["Nel modulo, accanto a «€ Parcheggi», scegli il parcheggio dalla tendina e scrivi la cifra.","«+ altro parcheggio» ne aggiunge un altro.","Un parcheggio nuovo: «＋ Nuovo parcheggio…» in fondo alla tendina, oppure Impostazioni › Parcheggi."],
+  n:"In fattura va una riga di rimborso per ogni parcheggio, con l'IVA della sua ricevuta."},
+ {t:"Inviare il foglio di servizio all'autista",k:"inviare invio foglio servizio autista telefono app",v:"3.0",go:null,
+  s:["Clicca il servizio e premi «Salva e apri foglio di servizio».","Premi «Invia all'autista» e conferma.","Con il permesso MAX il pulsante è «Scegli bus e autisti e invia»: scegli bus e autisti e premi «Salva e invia»."],
+  n:"All'autista non arrivano mai prezzi e parte contabile. La casella accanto al servizio passa a «Inviato», poi «Aperto» quando l'autista lo apre."},
+ {t:"Il foglio dice «Da reinviare»",k:"da reinviare reinvio foglio cambiato modificato",v:"2.8",go:null,
+  s:["Vuol dire che dopo l'invio è cambiato qualcosa (orari, programma, allegati, autista…).","Apri il foglio di servizio.","Premi di nuovo «Invia all'autista»: parte la versione nuova."],n:""},
+ {t:"Ritirare un foglio già inviato",k:"ritirare ritiro foglio autista annullare invio",v:"2.8",go:null,
+  s:["Apri il foglio di servizio del servizio.","Premi «Ritira dall'autista» e conferma."],
+  n:"Se bus e autisti li ha decisi MAX, il foglio lo ritira solo chi ha il permesso MAX."},
+ {t:"Allegare un file al foglio dell'autista",k:"allegato allegare file pdf foto foglio autista",v:"3.0.2",go:null,
+  s:["Apri la prenotazione › «Foglio di servizio per l'autista».","Sotto il Programma premi «📎 Allega file» (oppure trascina il file).","Si possono allegare PDF e foto JPG o PNG, al massimo 8.","Premi «Salva»."],
+  n:"Word ed Excel vanno prima salvati come PDF. Attenzione a non allegare documenti con i prezzi."},
+ {t:"Stampare il foglio di servizio",k:"stampare stampa foglio servizio pdf salva",v:"3.0.2",go:null,
+  s:["Apri il foglio di servizio.","Scegli cosa stampare in «Stampa» (di serie solo il foglio per l'autista).","Premi «Salva e stampa»: prima il foglio, poi gli allegati."],
+  n:"La copia in Dropbox (Fogli di servizio) si salva da sola a ogni modifica."},
+ {t:"Inviare i fogli del giorno (MAX)",k:"invio fogli max massimo bus autisti elenco giorno",v:"3.0.8",go:{hl:"#btnInvio"},
+  s:["Premi «Invio fogli» in alto (c'è solo con il permesso MAX).","Per ogni servizio premi «Scegli bus e autisti e invia».","«‹ Torna all'agenda» per tornare."],
+  n:"I fogli inviati da qui hanno sempre targa e ID mezzo."},
+ {t:"Attaccare un post-it a un giorno",k:"post-it postit nota promemoria giorno attaccare",v:"3.0.9",go:{view:"day",hl:"#sign"},
+  s:["Tasto destro sul giorno nella barra del mese (oppure sulla barra della giornata).","Scegli «📌 Aggiungi un post-it».","Scrivi, scegli il colore e premi «Attacca»."],
+  n:"«Ripeti fino al» lo attacca a più giorni di fila (massimo 31). I post-it non vanno mai sui fogli degli autisti."},
+ {t:"Attaccare un post-it a un bus",k:"post-it postit nota bus mezzo attaccare",v:"3.0.8",go:null,
+  s:["Tasto destro sulla riga del bus (vista Giorno) o sulla sua casella (vista Settimana).","Scegli «📌 Aggiungi un post-it sul mezzo».","Scrivi e premi «Attacca»."],n:""},
+ {t:"Modificare o staccare un post-it",k:"post-it staccare togliere modificare cancellare",v:"3.0.8",go:null,
+  s:["Clicca il post-it: si apre grande.","Cambia il testo e premi «Salva», oppure premi «Stacca».","Un post-it ripetuto: «Stacca da tutti i giorni» lo toglie ovunque."],n:""},
+ {t:"Cercare tutti i servizi di un cliente",k:"cercare cliente servizi fatturato trovare storico",v:"3.0",go:{view:"bill",hl:"#billQ"},
+  s:["Premi «Fatturato» in alto.","Scrivi nome, codice o alias del cliente in «Cerca cliente».","Compaiono tutti i suoi servizi, di qualunque mese."],n:""},
+ {t:"Preparare la bozza di una fattura",k:"fattura bozza fatturare preparare servizio",v:"2.6",go:{view:"bill",hl:"#invList"},
+  s:["Premi «Fatturato» in alto.","Sulla riga del servizio premi «Bozza Fattura».","Controlla cliente, righe e importi e premi «Salva bozza»."],
+  n:"Fattura unica di più servizi: spunta i servizi e premi «Bozza fattura di più servizi»."},
+ {t:"Emettere la fattura (file XML)",k:"emettere fattura xml file elettronica sdi commercialista",v:"3.0",go:{view:"bill",hl:"#invList"},
+  s:["Apri la bozza (Fatturato › «Bozze fattura»).","Controlla il numero proposto.","Premi «Crea file XML»: la fattura diventa «Emessa»."],
+  n:"Il file va in Dropbox, Fatture XML › anno › mese › giorno del servizio."},
+ {t:"Correggere una fattura già emessa",k:"correggere fattura emessa rifiutata ente modifica xml",v:"3.0",go:{view:"bill",hl:"#invList"},
+  s:["Apri la fattura (Fatturato › «Bozze fattura» › «Emesse»).","Premi «Modifica fattura emessa», scrivi il motivo e premi «Sblocca e modifica».","Correggi, salva e premi di nuovo «Crea file XML»."],
+  n:"Il file di prima va nella cartella «sostituite». Nota di credito o stesso numero: da verificare con il commercialista."},
+ {t:"Fattura a un cliente estero",k:"estero estera nazione cliente straniero partita iva estera",v:"3.0.4",go:"cli",
+  s:["Nella bozza (o nell'anagrafica clienti) scrivi la «Nazione» (es. Malta o MT).","Compaiono «Partita IVA estera», «CAP estero» e «Città».","Il codice destinatario diventa XXXXXXX."],
+  n:"Aliquota o natura IVA per i clienti esteri: da decidere con il commercialista."},
+ {t:"Numero della fattura",k:"numero fattura progressivo numerazione proposto",v:"3.0.5",go:"con",
+  s:["Il numero si propone da solo: l'ultima fattura emessa dell'anno più uno.","Conta anche l'«ultimo numero emesso fuori dall'agenda» (Impostazioni › Contabilità › Opzioni).","Si può sempre cambiare a mano."],n:""},
+ {t:"Archivio delle buste",k:"buste archivio consegnata rimborso rimanenza spese",v:"2.8",go:{view:"bill",hl:"#bsOpen"},
+  s:["Premi «Fatturato» in alto.","Premi «Buste».","Filtra «Da consegnare» o «Consegnate», oppure cerca per cliente, autista o n. busta."],n:""},
+ {t:"Vedere e correggere le crocette dei pasti",k:"pasti crocette autisti offerto libero correggere",v:"2.7",go:{view:"pasti"},
+  s:["Premi «Autisti» in alto.","Clicca la casella del giorno dell'autista.","Scegli i pasti offerti e liberi e premi «Salva la correzione»."],
+  n:"La correzione vale solo nell'agenda: sul telefono dell'autista non cambia niente."},
+ {t:"Segnare un giorno di riposo a un autista",k:"riposo ferie giorno libero autista",v:"2.9",go:{view:"pasti"},
+  s:["Premi «Autisti» in alto.","Premi «Giorno di riposo».","Scegli l'autista e i giorni («Dal» e «Al») e premi «Segna il riposo»."],
+  n:"Il nome dell'autista compare in rosso nella barra della giornata."},
+ {t:"Aggiungere un autista",k:"autista nuovo aggiungere anagrafica autisti",v:"2.5",go:"aut",
+  s:["Apri Impostazioni › Autisti.","Premi «+ Nuovo» e scrivi cognome e nome.","Salva."],n:""},
+ {t:"Correggere il nome di un autista",k:"autista nome rinominare correggere cambiare nome",v:"3.0.6",go:"aut",
+  s:["Apri Impostazioni › Autisti.","Scrivi il nome giusto sopra quello vecchio e salva.","Il nome di prima resta riconosciuto: servizi, crocette e telefono restano della stessa persona."],
+  n:"Vale se il nome nuovo ha una parola in comune con il vecchio. Per una persona diversa: togli la riga e aggiungi quella nuova."},
+ {t:"Collegare il telefono di un autista",k:"telefono autista collegare qr link app autisti",v:"2.5",go:"autf",
+  s:["Apri Impostazioni › Cartella degli autisti (solo Super Master).","In «Telefoni degli autisti» scegli l'autista e scrivi il nome del telefono.","Premi «Collega un telefono» e fai inquadrare il QR (o manda il link)."],
+  n:"L'autista non riceve mai la password di Dropbox."},
+ {t:"Aggiungere un bus nuovo alla flotta",k:"bus nuovo aggiungere mezzo flotta",v:"3.0.5",go:"flo",
+  s:["Apri Impostazioni › Flotta.","Premi «+ Aggiungi mezzo» (sotto l'elenco).","Scrivi posti, targa, ID mezzo e «in agenda dal».","Premi «Salva flotta»."],n:""},
+ {t:"Togliere dall'agenda un bus venduto",k:"bus venduto eliminare mezzo flotta togliere",v:"3.0.5",go:"flo",
+  s:["Apri Impostazioni › Flotta.","Sulla riga del bus premi 🗑.","Scegli da che giorno non compare più (di serie oggi).","Premi «Salva flotta». Nei giorni prima resta, con i suoi servizi."],
+  n:"«Mezzi eliminati» (in fondo) e «Rimetti in flotta» per farlo tornare."},
+ {t:"Cambiare la targa di un bus",k:"targa cambiare bus mezzo nuovo",v:"3.0.5",go:"flo",
+  s:["Apri Impostazioni › Flotta.","Elimina il bus vecchio con 🗑, dal giorno in cui non c'è più.","Premi «+ Aggiungi mezzo» e scrivi posti e targa nuova.","Premi «Salva flotta»."],
+  n:"Non scrivere la targa nuova sopra quella vecchia: cambierebbe anche nelle righe del fatturato dei servizi passati."},
+ {t:"Bus di un'altra azienda (extra bus)",k:"extra bus altra azienda subnoleggio fornitore",v:"2.8",go:{view:"day",hl:"#xbAdd"},
+  s:["Nella vista Giorno, in fondo all'elenco dei mezzi, premi «+ Extra bus».","Scrivi l'azienda e il bus: vale solo per quella giornata.","Poi inserisci il servizio sulla riga dell'extra bus."],n:""},
+ {t:"Aggiungere un cliente",k:"cliente nuovo aggiungere anagrafica clienti",v:"2.5",go:"cli",
+  s:["Apri Impostazioni › Clienti.","Premi «+ Nuovo cliente», compila i dati e salva."],n:"I clienti stanno anche nel foglio «clienti» del file fatturato."},
+ {t:"Cambiare la mia password",k:"password cambiare mia accesso",v:"3.0",go:"pw",
+  s:["Apri Impostazioni › Password.","Scrivi la password attuale e quella nuova due volte.","Premi «Cambia password»."],n:""},
+ {t:"Aggiungere un utente o dare il permesso MAX",k:"utente nuovo account aggiungere permesso max massimo master",v:"3.0.8",go:"usr",
+  s:["Apri Impostazioni › Utenti (Master).","«+ Nuovo utente» per uno nuovo, oppure «Modifica» sulla sua riga.","Per il permesso MAX metti la spunta «MAX» (lo fa il Super Master) e premi «Salva»."],n:""},
+ {t:"Uscita automatica dopo un po' di tempo",k:"uscita automatica blocco tempo password inattività",v:"3.0",go:"gen",
+  s:["Apri Impostazioni › Generali.","In «Uscita automatica» scegli il tempo: si salva da solo."],
+  n:"Il Master fissa il tempo massimo in Impostazioni › Permessi e impostazioni."},
+ {t:"Punto esclamativo rosso «!»",k:"punto esclamativo ! rosso mancanze controlli manca",v:"3.0",go:"miss",
+  s:["Apri Impostazioni › Punto esclamativo «!».","Scegli per quali servizi (passati, futuri, entrambi o spento) e cosa controllare.","Si salva da solo."],n:""},
+ {t:"Tornare al vecchio aspetto (Classico)",k:"aspetto classico vecchio nuovo grafica look tema scuro chiaro",v:"4.0",go:"asp",
+  s:["Apri Impostazioni › Aspetto.","Scegli «Classico» (o «Nuovo»): cambia subito.","Nella stessa pagina il tema: Chiaro, Scuro o Automatico."],
+  n:"Vale solo per te, su tutti i tuoi dispositivi. Con il Classico, per tornare al nuovo: Menu › Le mie impostazioni › Aspetto."},
+ {t:"Collegare il file fatturato del nuovo anno",k:"fatturato file nuovo anno collegare excel",v:"2.9",go:"fat",
+  s:["Apri Impostazioni › File fatturato (Master).","Premi «Collega file fatturato…» e scegli il file del nuovo anno."],
+  n:"Ogni servizio va nel file del suo anno."},
+ {t:"Mancano le modifiche fatte su un altro computer",k:"aggiornare sincronizzare mancano modifiche altro computer dropbox",v:"2.8",go:"sync",
+  s:["Apri Impostazioni › Aggiorna adesso.","Premi «Aggiorna adesso»."],
+  n:"L'agenda si aggiorna anche da sola. Se in alto c'è «senza connessione», le modifiche partono appena torna internet."},
+ {t:"Scorciatoie da tastiera del Mac",k:"scorciatoie tastiera tasti rapidi comandi mac",v:"4.0",go:{fn:"keys"},
+  s:["← → giorno prima o dopo; ⇧← ⇧→ mese prima o dopo.","O oggi; G, S, M: Giorno, Settimana, Mese; N nuova prenotazione.","⌘K comandi rapidi; ⌘, Impostazioni; ? l'elenco di tutte le scorciatoie."],n:""},
+ {t:"Cambiare giorno con il trackpad",k:"trackpad gesture dita scorrere giorno mac",v:"4.0",go:null,
+  s:["Nella vista Giorno appoggia due dita sul trackpad.","Trascinale verso sinistra: giorno dopo. Verso destra: giorno prima.","Nella Settimana cambia settimana, nel Mese cambia mese."],n:""},
+ {t:"Comandi rapidi ⌘K",k:"comandi rapidi cmd k barra cerca vai data",v:"4.0",go:{fn:"cmd"},
+  s:["Premi ⌘ e K insieme.","Scrivi cosa vuoi fare: «nuova prenotazione», «15 dicembre», «flotta», «fatturato»…","Scegli con le frecce e premi Invio."],n:""},
+ {t:"Rivedere le novità della 4.0",k:"novità 4.0 benvenuto giro tutorial rivedere",v:"4.0",go:{fn:"tour"},
+  s:["Apri Impostazioni › Generali.","Premi «Rivedi le novità»."],n:""},
+];
+let setCur="gen",setQv="",setTen="note",setHost=[];
+const setNavOn=it=>!(it.m&&!isMaster())&&!(it.show&&!it.show());
+function initials(n){return String(n||"?").split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0].toUpperCase()).join("");}
+// una parte di un'altra finestra spostata dentro le Impostazioni (e rimessa al suo posto quando si cambia sezione)
+function setHostEl(el,box){if(!el)return;setHost.push({el,parent:el.parentNode,next:el.nextSibling,hid:el.hidden});el.classList.add("in-set");el.hidden=false;(box||$("setBody")).appendChild(el);}
+function setUnhost(){for(const h of setHost.slice().reverse()){if(h.parent)h.parent.insertBefore(h.el,h.next);h.el.classList.remove("in-set");h.el.hidden=h.hid;}setHost=[];}
+function setHostModal(ovId,open){open();const ov=$(ovId),m=ov.querySelector(".modal");ov.hidden=true;setHostEl(m);}
+function openSettings(k){
+  const me=ACC.session()||{};
+  $("setAv").textContent=initials(me.name);$("setName").textContent=me.name||"";
+  $("setRole").textContent=(me.role==="super"?"Super Master":me.role==="master"?"Master":isInvio()?"Solo anteprima e invio":"Utente")+(hasMax()&&!isInvio()?" · MAX":"")+" · Dropbox collegato";
+  if(k)setCur=k;else if(/^h\d+$/.test(setCur))setCur="gen";
+  if(/^h\d+$/.test(setCur)?!HOWTO[+setCur.slice(1)]:!SET_NAV.some(x=>x.k===setCur&&setNavOn(x)))setCur="gen";
+  document.querySelector(".set-win").classList.toggle("pane-on",!!k); // sul telefono: con una sezione scelta si apre subito quella
+  setQv="";$("setQ").value="";$("ovMenu").hidden=true;$("ovSet").hidden=false;renderSetNav();renderSetPane();
+}
+function closeSettings(){setUnhost();$("ovSet").hidden=true;for(const id of ["ovClients","ovFleet","ovReg","ovCont","ovMaster"])$(id).hidden=true;renderAll();}
+function renderSetNav(){
+  if(setQv){
+    const res=howFind(setQv);
+    $("setNav").innerHTML='<div class="set-gt">Come si fa</div>'+(res.length?res.map(i=>'<button type="button" class="set-it'+(setCur==="h"+i?" on":"")+'" data-sk="h'+i+'">'+icoSvg("info","#0A84FF")+'<span>'+esc(HOWTO[i].t)+'</span></button>').join(""):'<p class="set-none">Nessuna risposta per «'+esc(setQv)+'». Prova con un\'altra parola, per esempio «bus», «fattura» o «autista».</p>');
+    return;
+  }
+  let h="",g=0;
+  for(const it of SET_NAV){if(!setNavOn(it))continue;if(it.g!==g){h+=(g?'</div>':'')+(SET_GT[it.g]?'<div class="set-gt">'+SET_GT[it.g]+'</div>':'')+'<div class="set-grp">';g=it.g;}
+    h+='<button type="button" class="set-it'+(setCur===it.k?" on":"")+'" data-sk="'+it.k+'">'+icoSvg(it.ic,it.c)+'<span>'+esc(it.t)+'</span></button>';}
+  $("setNav").innerHTML=h+'</div><button type="button" class="set-out" id="setOut">Esci</button>';
+}
+function thumb(kind,theme){return '<span class="th th-'+kind+' th-'+theme+'"><i class="th-h"></i><i class="th-s"></i><i class="th-b"></i><i class="th-r"></i><i class="th-r"></i><i class="th-r"></i></span>';}
+const prefNow=k=>k in PREF_NOW?PREF_NOW[k]:myPrefs()[k];
+const themeNow=()=>prefNow("theme")||"auto";
+function applyTheme(t){const r=document.documentElement;if(t==="chiaro")r.dataset.theme="light";else if(t==="scuro")r.dataset.theme="dark";else delete r.dataset.theme;}
+async function savePref(key,val,quiet){
+  const me=ACC.session();if(!me||!STORE.users||!STORE.users.users[me.uid])return;
+  PREF_NOW[key]=val;
+  try{await STORE.updateUsers(J=>{const x=J.users[me.uid];if(!x)return null;const p=Object.assign({},x.prefs||{});p[key]=val;x.prefs=p;return J;});if(!quiet)toast("Salvato");}
+  catch(err){if(!quiet)toast(err&&err.code==="offline"?"Serve la connessione a internet":"Non riesco a salvare: riprova tra poco");}
+  finally{if(PREF_NOW[key]===val&&myPrefs()[key]===val)delete PREF_NOW[key];}
+}
+const setRow=()=>{const d=document.createElement("div");d.className="set-row-end";$("setBody").appendChild(d);return d;};
+const setBox=(html,cls)=>{const d=document.createElement("div");d.className="set-box"+(cls?" "+cls:"");if(html)d.innerHTML=html;$("setBody").appendChild(d);return d;};
+function renderSetPane(){
+  setUnhost();const b=$("setBody");b.innerHTML="";b.dataset.sec=setCur;
+  if(/^h\d+$/.test(setCur)){const h=HOWTO[+setCur.slice(1)];$("setTitle").textContent=h.t;
+    b.innerHTML='<div class="set-box how"><ol>'+h.s.map(x=>'<li>'+esc(x)+'</li>').join("")+'</ol>'+(h.n?'<p class="set-note">'+esc(h.n)+'</p>':'')+'</div>'+
+      '<div class="set-row-end">'+(howGoOk(h.go)?'<button type="button" class="btn primary" data-howgo="'+setCur.slice(1)+'">Portami lì</button>':'')+'</div><p class="set-src">Dal LEGGIMI della versione '+h.v+'.</p>';return;}
+  const it=SET_NAV.find(x=>x.k===setCur)||{};$("setTitle").textContent=it.t||"";
+  if(setCur==="gen"){
+    fillPrefs();const bx=setBox("",null);setHostEl($("prLock").closest(".f"),bx);
+    const ff=STORE.fatFiles(),fy=Object.keys(ff).sort();
+    setBox('<div class="set-kv"><span>Versione</span><b>'+esc(APP_VERSION)+' del '+esc(APP_DATE)+'</b></div><div class="set-kv"><span>Dati in Dropbox</span><b>'+esc(STORE.BASE)+'</b></div><div class="set-kv"><span>File fatturato</span><b>'+(fy.length?fy.map(y=>esc(ff[y].name)).join(", "):"non collegato")+'</b></div>');
+    setBox('<div class="set-kv"><span>Novità della 4.0</span><button type="button" class="btn" id="setTourGo">Rivedi le novità</button></div>'+(FINE()?'<div class="set-kv"><span>Scorciatoie da tastiera'+(IS_MAC?' e trackpad':'')+'</span><button type="button" class="btn" id="setKeysGo">Mostra</button></div>':''));
+    setHostEl($("menuMsg"));return;}
+  if(setCur==="asp"){const lk=document.documentElement.dataset.look,th=themeNow();
+    b.innerHTML='<div class="set-box"><div class="set-lbl">Aspetto dell\'agenda</div><div class="th-row">'+
+      '<label class="th-opt'+(lk==="nuovo"?" on":"")+'">'+thumb("n","l")+'<span><input type="radio" name="sLook" value="nuovo"'+(lk==="nuovo"?" checked":"")+'> Nuovo</span></label>'+
+      '<label class="th-opt'+(lk!=="nuovo"?" on":"")+'">'+thumb("c","l")+'<span><input type="radio" name="sLook" value="classico"'+(lk!=="nuovo"?" checked":"")+'> Classico</span></label></div>'+
+      '<p class="set-note">Vale solo per te, su tutti i tuoi dispositivi. Le funzioni sono le stesse: cambia solo la grafica. Con «Classico» torna anche il Menu della 3.0.</p></div>'+
+      '<div class="set-box"><div class="set-lbl">Tema</div><div class="th-row">'+
+      [["chiaro","l","Chiaro"],["scuro","d","Scuro"],["auto","a","Automatico"]].map(([v,c,t])=>'<label class="th-opt'+(th===v?" on":"")+'">'+thumb("n",c)+'<span><input type="radio" name="sTh" value="'+v+'"'+(th===v?" checked":"")+'> '+t+'</span></label>').join("")+'</div>'+
+      '<p class="set-note">«Automatico» segue il Mac: chiaro di giorno, scuro quando il Mac è in modalità scura.</p></div>';return;}
+  if(setCur==="miss"){fillPrefs();setHostEl($("prMissBox"));setHostEl($("menuMsg"));return;}
+  if(setCur==="pw"){$("mPw").reset();setHostEl($("mPw"));setHostEl($("pwGo"),setRow());setHostEl($("menuMsg"));$("menuMsg").textContent="";return;}
+  if(setCur==="cli"){setHostModal("ovClients",()=>openClients());return;}
+  if(setCur==="flo"){setHostModal("ovFleet",()=>openFleet());return;}
+  if(it.reg){setHostModal("ovReg",()=>openReg(it.reg));return;}
+  if(setCur==="ten"){const sg=document.createElement("div");sg.className="seg set-seg";sg.innerHTML=TEND.map(([k,t])=>'<button type="button" data-ten="'+k+'" aria-pressed="'+(setTen===k)+'">'+esc(t)+'</button>').join("");b.appendChild(sg);setHostModal("ovReg",()=>openReg(setTen));return;}
+  if(setCur==="con"){setHostModal("ovCont",()=>openContab());return;}
+  if(it.mt){setHostModal("ovMaster",()=>openMaster(it.mt));return;}
+  if(setCur==="fat"){const ff=STORE.fatFiles(),fy=Object.keys(ff).sort();
+    setBox(fy.length?fy.map(y=>'<div class="set-kv"><span>'+(y==="*"?"Tutti gli anni":esc(y))+'</span><b>'+esc(ff[y].name)+'</b></div>').join(""):'<p class="set-note" style="margin:0">Nessun file fatturato collegato.</p>');
+    b.insertAdjacentHTML("beforeend",'<p class="set-note">A inizio anno collega il file del nuovo anno: ogni servizio va nel file del suo anno.</p><div class="set-row-end"><button type="button" class="btn primary" id="setFatGo">Collega file fatturato…</button></div>');return;}
+  if(setCur==="sync"){setBox('<div class="set-kv"><span>Ultimo aggiornamento</span><b id="setSyncSt">'+(navigator.onLine?"collegato":"senza connessione")+'</b></div><p class="set-note">Scarica le modifiche degli altri dispositivi, invia le tue e aggiorna il file fatturato.</p>');
+    b.insertAdjacentHTML("beforeend",'<div class="set-row-end"><button type="button" class="btn primary" id="setSyncGo">Aggiorna adesso</button></div>');return;}
+  if(setCur==="unl"){menuPane("mUnlink");setHostEl($("mUnlink"));setHostEl($("unlinkGo"),setRow());setHostEl($("menuMsg"));return;}
+}
+$("setNav").addEventListener("click",e=>{if(e.target.closest("#setOut")){closeSettings();doLogout();return;}const x=e.target.closest("[data-sk]");if(x){setCur=x.dataset.sk;renderSetNav();renderSetPane();setPaneOn(true);}});
+function setPaneOn(on){document.querySelector(".set-win").classList.toggle("pane-on",on);if(on)$("setBody").parentElement.scrollTop=0;}
+$("setBack").onclick=()=>setPaneOn(false);
+$("setBody").addEventListener("click",async e=>{
+  const hg=e.target.closest("[data-howgo]");if(hg){howGo((HOWTO[+hg.dataset.howgo]||{}).go);return;}
+  if(e.target.closest("#setTourGo")){tourStart();return;}
+  if(e.target.closest("#setKeysGo")){keysOpen();return;}
+  const x=e.target.closest("[data-sk]");if(x){setCur=x.dataset.sk;setQv="";$("setQ").value="";renderSetNav();renderSetPane();return;}
+  const tn=e.target.closest("[data-ten]");if(tn){setTen=tn.dataset.ten;renderSetPane();return;}
+  if(e.target.closest("#setFatGo")){closeSettings();if(!navigator.onLine){toast("Serve la connessione a internet");return;}showGate("fatturato",{fromMenu:true});return;}
+  if(e.target.closest("#setSyncGo")){const st=$("setSyncSt");st.textContent="Aggiorno…";await STORE.pull();await STORE.flush();await STORE.syncFatturato();await AUT.sync();st.textContent=navigator.onLine?"fatto, adesso":"sei offline: le modifiche partiranno appena torna la connessione";renderAll();return;}
+});
+$("setBody").addEventListener("change",e=>{
+  const t=e.target;
+  if(t.name==="sLook"){applyLook(t.value);savePref("look",t.value);renderSetPane();return;}
+  if(t.name==="sTh"){applyTheme(t.value);savePref("theme",t.value);renderSetPane();return;}
+  if(t.id==="prLock"||t.closest("#prMissBox")){if(t.closest("#prMissBox")&&t.name==="prMode")$("prChecks").classList.toggle("off",t.value==="off");$("mPrefs").requestSubmit();}
+});
+$("setQ").addEventListener("input",()=>{setQv=$("setQ").value.trim();if(setQv){const f=howFind(setQv);if(f.length)setCur="h"+f[0];}else setCur="gen";renderSetNav();if(!setQv||/^h/.test(setCur))renderSetPane();});
+// «Cerca» (come si fa): tutte le parole scritte, anche con finali diversi («cambio targa» trova «Cambiare la targa»), senza badare agli accenti
+function howFind(q){
+  const qn=nrm(q).trim();if(!qn)return [];
+  const ws=qn.split(/[\s,.;:!?"«»()\/]+/).filter(w=>w.length>1).map(w=>w.length>5?w.slice(0,-2):w);if(!ws.length)return [];
+  const R=HOWTO.map((h,i)=>{const tt=nrm(h.t),hay=tt+" "+nrm(h.k),hit=ws.filter(w=>hay.includes(w)).length,inT=ws.filter(w=>tt.includes(w)).length;
+    return {i,all:hit===ws.length,hit,sc:(tt.startsWith(qn)?8:0)+(tt.includes(qn)?4:0)+inT*2+hit};}).filter(x=>x.hit>0);
+  const full=R.filter(x=>x.all);return (full.length?full:R).sort((a,b)=>b.sc-a.sc||a.i-b.i).map(x=>x.i);
+}
+$("setClose").onclick=closeSettings;
+backdropClose($("ovSet"),closeSettings);
+document.querySelector(".set-acc").onclick=()=>{setCur="gen";setQv="";$("setQ").value="";renderSetNav();renderSetPane();setPaneOn(true);};
+// Esc: chiude prima la finestrella aperta sopra (cliente nuovo…), le Impostazioni solo quando non c'è altro
+let escOther=false;
+document.addEventListener("keydown",e=>{if(e.key==="Escape")escOther=[...document.querySelectorAll(".overlay:not([hidden])")].some(o=>o.id!=="ovSet")||!!document.querySelector(".ctx-menu:not([hidden])");},true);
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("ovSet").hidden&&!escOther)closeSettings();});
+// =====================================================================================
+// 4.0 — Tasti rapidi, comandi rapidi ⌘K, gesto del trackpad (solo Mac), «Portami lì» del «Come si fa»,
+// benvenuto e giro delle novità. Tasti e ⌘K valgono con tutti e due gli aspetti; il gesto solo sul Mac.
+// =====================================================================================
+const IS_MAC=/Mac|iPhone|iPad|iPod/i.test(navigator.platform||navigator.userAgent||"");
+const FINE=()=>{try{return matchMedia("(pointer:fine)").matches;}catch(_){return true;}};
+const CMDK=IS_MAC?"⌘":"Ctrl+";
+const RMOT=()=>{try{return matchMedia("(prefers-reduced-motion:reduce)").matches;}catch(_){return false;}};
+const shown=el=>!!el&&!el.disabled&&!el.hidden&&el.getClientRects().length>0&&getComputedStyle(el).visibility!=="hidden";
+const nrm=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+const firstName=()=>{const n=String((ACC.session()||{}).name||"").trim();return n.split(/\s+/)[0]||n;};
+const VIEW_BTN={day:"vDay",week:"vWeek",month:"vMonth",bill:"vBill",pasti:"vPasti"};
+function k4Busy(){return !$("k4Tour").hidden||!$("k4Intro").hidden;}
+// agenda in primo piano, senza finestre aperte sopra
+function appFree(){
+  if($("app").hidden||!ACC.session())return false;
+  return !document.querySelector(".overlay:not([hidden]),.ctx-menu:not([hidden])")&&!k4Busy();
+}
+// un passo avanti o indietro: giorno, settimana o mese (come le frecce ‹ › della vista)
+function k4Step(dir,month){
+  const v=S.view;
+  if(!month&&v==="day"){go(addDays(S.sel,dir));return true;}
+  if(!month&&v==="week"){go(addDays(S.sel,7*dir));return true;}
+  const b=$(dir<0?"mPrev":"mNext");if(shown(b)){b.click();return true;}
+  return false;
+}
+function k4Slide(dir){
+  if(RMOT())return;const el=$(S.view+"View");if(!el)return;
+  el.classList.remove("k4-sl","k4-sr");void el.offsetWidth;el.classList.add(dir>0?"k4-sl":"k4-sr");
+  clearTimeout(k4Slide._t);k4Slide._t=setTimeout(()=>el.classList.remove("k4-sl","k4-sr"),300);
+}
+function k4Pulse(sel){
+  const el=typeof sel==="string"?document.querySelector(sel):sel;if(!shown(el))return false;
+  try{el.scrollIntoView({block:"nearest",inline:"nearest",behavior:RMOT()?"auto":"smooth"});}catch(_){}
+  el.classList.remove("k4-hl");void el.offsetWidth;el.classList.add("k4-hl");setTimeout(()=>el.classList.remove("k4-hl"),3000);return true;
+}
+function k4Sync(){toast("Aggiorno…");Promise.resolve().then(()=>STORE.pull()).then(()=>STORE.flush()).then(()=>STORE.syncFatturato()).then(()=>AUT.sync())
+  .then(()=>{toast(navigator.onLine?"Aggiornato":"Sei offline: le modifiche partiranno appena torna la connessione");renderAll();}).catch(()=>toast("Non riesco ad aggiornare: riprova tra poco"));}
+function setLook(v){applyLook(v);savePref("look",v,true);renderAll();toast(v==="nuovo"?"Aspetto: Nuovo":"Aspetto: Classico (come la 3.0)");}
+function setTheme(v){applyTheme(v);savePref("theme",v,true);toast(v==="chiaro"?"Tema chiaro":v==="scuro"?"Tema scuro":"Tema automatico");}
+
+// ---------- pezzi di pagina della 4.0 (creati qui: index.html resta più semplice) ----------
+document.body.insertAdjacentHTML("beforeend",
+ '<div class="overlay k4-ov" id="ovCmd" hidden><div class="k4-cmd" role="dialog" aria-label="Comandi rapidi">'+
+   '<label class="k4-cmd-q"><input id="cmdQ" type="text" placeholder="Scrivi un comando, una data o «come si fa»…" autocomplete="off" spellcheck="false" aria-controls="cmdL"></label>'+
+   '<div class="k4-cmd-l" id="cmdL" role="listbox" aria-label="Risultati"></div>'+
+   '<div class="k4-cmd-f"><span><kbd>↑</kbd><kbd>↓</kbd> scegli</span><span><kbd>↩</kbd> apri</span><span><kbd>esc</kbd> chiudi</span></div></div></div>'+
+ '<div class="overlay k4-ov" id="ovKeys" hidden><div class="modal k4-keys" role="dialog" aria-labelledby="keysT" tabindex="-1">'+
+   '<div class="k4-keys-h"><h3 id="keysT">Scorciatoie da tastiera</h3><button type="button" class="btn" id="keysClose">Chiudi</button></div><div id="keysBody"></div></div></div>'+
+ '<div class="k4-intro" id="k4Intro" hidden role="dialog" aria-modal="true" aria-labelledby="k4Num"><div class="k4-in-stage">'+
+   '<p class="k4-in-hey" id="k4Hey"></p><div class="k4-in-num"><span class="k4-in-band" aria-hidden="true"></span><b id="k4Num">4.0</b></div>'+
+   '<p class="k4-in-txt">questo è il più grande aggiornamento che abbiamo mai pubblicato per la nostra agenda.</p>'+
+   '<div class="k4-in-btns"><button type="button" class="k4-btn wh" id="k4Go">Scopri le novità</button><button type="button" class="k4-btn ghost" id="k4Skip">Salta</button></div></div></div>'+
+ '<div class="k4-tour" id="k4Tour" hidden><div class="k4-spot" id="k4Spot"></div>'+
+   '<div class="k4-card" id="k4Card" role="dialog" aria-modal="true" aria-labelledby="k4T"><div class="k4-card-n" id="k4N"></div><h3 id="k4T"></h3><div class="k4-card-b" id="k4B"></div>'+
+   '<div class="k4-card-f"><button type="button" class="k4-lnk" id="k4End">Salta il giro</button><span><button type="button" class="k4-btn ghost sm" id="k4Prev">Indietro</button><button type="button" class="k4-btn red sm" id="k4Next">Avanti</button></span></div></div></div>');
+function k4CloseAll(){for(const id of ["ovCmd","ovKeys","k4Tour","k4Intro"])$(id).hidden=true;document.documentElement.classList.remove("k4-noscroll");}
+
+// ---------- scorciatoie ----------
+const kbd=x=>'<kbd>'+esc(x)+'</kbd>';
+function keysRows(){
+  const C=IS_MAC?"⌘":"Ctrl";
+  return [
+   ["Spostarsi",[[["←","→"],"Giorno prima o dopo (nella Settimana la settimana, nel Mese il mese)"],[["⇧ ←","⇧ →"],"Mese prima o dopo"],[["O"],"Oggi"]]],
+   ["Viste",[[["G"],"Giorno"],[["S"],"Settimana"],[["M"],"Mese"],[["F"],"Fatturato"],[["A"],"Autisti (pasti e riposi)"]]],
+   ["Azioni",[[["N"],"Nuova prenotazione"],[["I"],"Invio fogli (con il permesso MAX)"],[[C+" K"],"Comandi rapidi"],[[C+" ,"],document.documentElement.dataset.look==="nuovo"?"Impostazioni":"Menu"],[["?"],"Questo elenco"],[["esc"],"Chiude la finestra aperta"]]],
+  ];
+}
+function keysHtml(){
+  let h=keysRows().map(([g,rows])=>'<div class="k4-kg"><h4>'+g+'</h4>'+rows.map(([ks,t])=>'<div class="k4-kr"><span class="k4-kk">'+ks.map(kbd).join("")+'</span><span>'+esc(t)+'</span></div>').join("")+'</div>').join("");
+  if(IS_MAC)h+='<div class="k4-kg"><h4>Trackpad</h4><div class="k4-kr"><span class="k4-kk"><i class="k4-tp" aria-hidden="true"><i></i><i></i></i></span><span>Due dita verso sinistra: avanti. Verso destra: indietro (giorno, settimana o mese).</span></div></div>';
+  return h+'<p class="k4-knote">I tasti funzionano quando non stai scrivendo in un campo e non c\'è una finestra aperta.</p>';
+}
+function keysOpen(){$("keysBody").innerHTML=keysHtml();$("ovKeys").hidden=false;setTimeout(()=>$("ovKeys").querySelector(".k4-keys").focus({preventScroll:true}),30);}
+function keysClose(){$("ovKeys").hidden=true;}
+$("keysClose").onclick=keysClose;backdropClose($("ovKeys"),keysClose);
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("ovKeys").hidden){e.preventDefault();keysClose();}},true);
+
+// ---------- comandi rapidi ⌘K ----------
+function k4Date(q){
+  q=nrm(q).trim().replace(/^(vai|apri|mostra)\s+/,"").replace(/^(a|al|alla|allo|il|ad)\s+/,"").replace(/\s+/g," ");if(!q)return null;
+  const t=todayISO(),Y=+t.slice(0,4),wd0=new Date(t+"T12:00:00Z").getUTCDay();
+  const rel={oggi:0,domani:1,dopodomani:2,ieri:-1,"l'altro ieri":-2,altroieri:-2};
+  if(q in rel)return {d:addDays(t,rel[q])};
+  const near=(mo,d)=>{let best=null,bd=Infinity;for(const y of [Y-1,Y,Y+1]){const s=iso(y,mo,d);if(!validDate(s))continue;const df=Math.abs(Date.parse(s)-Date.parse(t));if(df<bd){bd=df;best=s;}}return best;};
+  const mk=(d,mo,y)=>{if(!(mo>=1&&mo<=12&&d>=1&&d<=31))return null;if(y){y=+y;if(y<100)y+=2000;const s=iso(y,mo,d);return validDate(s)?{d:s}:null;}const s=near(mo,d);return s?{d:s}:null;};
+  const WDN=["domenica","lunedi","martedi","mercoledi","giovedi","venerdi","sabato"];
+  let m=q.match(/^([a-z]{3,})(\s+prossim[oa])?$/);
+  if(m){const i=WDN.findIndex(w=>w.startsWith(m[1]));if(i>=0){let n=(i-wd0+7)%7;if(m[2]&&n===0)n=7;return {d:addDays(t,n)};}}
+  m=q.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2}|\d{4}))?$/);if(m)return mk(+m[1],+m[2],m[3]);
+  const mon=w=>w&&w.length>=3?MN.findIndex(x=>x.startsWith(w)):-1;
+  m=q.match(/^(\d{1,2})\s+([a-z]+)(?:\s+(\d{4}))?$/);if(m){const mo=mon(m[2]);if(mo>=0)return mk(+m[1],mo+1,m[3]);}
+  m=q.match(/^([a-z]+)(?:\s+(\d{4}))?$/);
+  if(m&&(m[1].length>=4||m[2])){const mo=mon(m[1]);if(mo>=0){let y=m[2]?+m[2]:Y;
+    if(!m[2]){const cm=Y*12+(+t.slice(5,7)-1);y=[Y-1,Y,Y+1].sort((a,b)=>Math.abs(a*12+mo-cm)-Math.abs(b*12+mo-cm))[0];}
+    return {d:iso(y,mo+1,1),month:true};}}
+  return null;
+}
+const itLong=d=>WDL[new Date(d+"T12:00:00Z").getUTCDay()]+" "+(+d.slice(8,10))+" "+MN[+d.slice(5,7)-1]+" "+d.slice(0,4);
+function cmdItems(){
+  const nu=document.documentElement.dataset.look==="nuovo",L=[];
+  const add=(t,run,o)=>L.push(Object.assign({t,run,k:"",g:"Comandi"},o||{}));
+  const btn=id=>()=>{const b=$(id);if(shown(b))b.click();};
+  if(shown($("btnNew")))add("Nuova prenotazione",btn("btnNew"),{key:"N",k:"aggiungi inserisci servizio gita transfer tour"});
+  if(shown($("btnToday")))add("Vai a oggi",btn("btnToday"),{key:"O",k:"oggi"});
+  add("Vista Giorno",btn("vDay"),{key:"G",k:"giorno"});add("Vista Settimana",btn("vWeek"),{key:"S",k:"settimana"});add("Vista Mese",btn("vMonth"),{key:"M",k:"mese calendario"});
+  if(shown($("vBill")))add("Fatturato",btn("vBill"),{key:"F",k:"fatture fattura buste clienti bozze"});
+  if(shown($("vPasti")))add("Autisti: pasti e riposi",btn("vPasti"),{key:"A",k:"pasti crocette riposo ferie"});
+  if(shown($("btnInvio")))add("Invio fogli",btn("btnInvio"),{key:"I",k:"max invio fogli bus autisti"});
+  add(nu?"Impostazioni":"Menu",btn("btnMenu"),{key:CMDK+",",k:"menu impostazioni preferenze archivio"});
+  add("Aggiorna adesso",k4Sync,{k:"sincronizza dropbox scarica aggiorna"});
+  if(FINE())add("Scorciatoie da tastiera",keysOpen,{key:"?",k:"tasti tastiera scorciatoie"});
+  add("Rivedi le novità della 4.0",()=>tourStart(),{k:"novita benvenuto giro tutorial 4.0"});
+  add(nu?"Aspetto Classico (come la 3.0)":"Aspetto Nuovo (4.0)",()=>setLook(nu?"classico":"nuovo"),{k:"aspetto grafica look vecchio nuovo classico",g:"Aspetto"});
+  for(const [v,t] of [["chiaro","Tema chiaro"],["scuro","Tema scuro"],["auto","Tema automatico"]])if(themeNow()!==v)add(t,()=>setTheme(v),{k:"tema colori notte giorno dark scuro chiaro",g:"Aspetto"});
+  if(nu)for(const it of SET_NAV)if(setNavOn(it))add(it.t,()=>openSettings(it.k),{k:"impostazioni "+it.k+" "+(it.reg||""),g:"Impostazioni",it});
+  if(nu)HOWTO.forEach((h,i)=>add(h.t,()=>openSettings("h"+i),{k:h.k,g:"Come si fa"}));
+  return L;
+}
+const CMD_G=["Data","Comandi","Impostazioni","Aspetto","Come si fa"];
+let cmdRes=[],cmdSel=0;
+function cmdFilter(q){
+  const all=cmdItems(),qn=nrm(q).trim();
+  if(!qn)return all.filter(x=>x.g==="Comandi");
+  const ws=qn.split(/\s+/).filter(Boolean).map(w=>w.length>5?w.slice(0,-2):w),out=[];
+  for(const x of all){const tt=nrm(x.t),hay=tt+" "+nrm(x.k);
+    if(!ws.every(w=>hay.includes(w)))continue;
+    x.sc=(tt.startsWith(qn)?4:0)+(tt.includes(qn)?2:0)+(ws.every(w=>tt.includes(w))?1:0);out.push(x);}
+  const d=k4Date(q);
+  if(d)out.unshift({g:"Data",t:d.month?"Vai a "+MN[+d.d.slice(5,7)-1]+" "+d.d.slice(0,4)+" (vista Mese)":"Vai a "+itLong(d.d),sc:9,run:()=>{go(d.d);if(d.month){if(S.view!=="month")setView("month");}else if(S.view!=="day"&&S.view!=="week")setView("day");}});
+  return out.sort((a,b)=>CMD_G.indexOf(a.g)-CMD_G.indexOf(b.g)||(b.sc||0)-(a.sc||0)).slice(0,40);
+}
+function cmdRender(){
+  cmdRes=cmdFilter($("cmdQ").value);if(cmdSel>=cmdRes.length)cmdSel=Math.max(0,cmdRes.length-1);
+  let h="",g="";
+  cmdRes.forEach((x,i)=>{if(x.g!==g){g=x.g;h+='<div class="k4-cg">'+esc(g)+'</div>';}
+    const ic=x.it?icoSvg(x.it.ic,x.it.c):'<span class="k4-ci k4-ci-'+(x.g==="Data"?"d":x.g==="Come si fa"?"h":x.g==="Aspetto"?"a":"c")+'" aria-hidden="true"></span>';
+    h+='<button type="button" class="k4-co'+(i===cmdSel?" on":"")+'" role="option" aria-selected="'+(i===cmdSel)+'" data-ci="'+i+'">'+ic+'<span class="k4-ct">'+esc(x.t)+'</span>'+(x.key?'<kbd>'+esc(x.key)+'</kbd>':'')+'</button>';});
+  $("cmdL").innerHTML=h||'<p class="k4-cnone">Nessun risultato per «'+esc($("cmdQ").value)+'». Prova con una data («15/12», «domani») o una parola («flotta», «busta»).</p>';
+  const on=$("cmdL").querySelector(".k4-co.on");if(on)on.scrollIntoView({block:"nearest"});
+}
+function cmdOpen(){if(!appFree())return;$("cmdQ").value="";cmdSel=0;cmdRender();$("ovCmd").hidden=false;setTimeout(()=>$("cmdQ").focus(),20);}
+function cmdClose(){$("ovCmd").hidden=true;}
+function cmdRun(i){const x=cmdRes[i];if(!x)return;cmdClose();setTimeout(()=>{try{x.run();}catch(err){try{console.warn(err);}catch(_){}}},10);}
+$("cmdQ").addEventListener("input",()=>{cmdSel=0;cmdRender();});
+$("cmdQ").addEventListener("keydown",e=>{
+  if(e.key==="ArrowDown"){e.preventDefault();cmdSel=Math.min(cmdRes.length-1,cmdSel+1);cmdRender();}
+  else if(e.key==="ArrowUp"){e.preventDefault();cmdSel=Math.max(0,cmdSel-1);cmdRender();}
+  else if(e.key==="Enter"){e.preventDefault();cmdRun(cmdSel);}
+  else if(e.key==="Escape"){e.preventDefault();e.stopPropagation();cmdClose();}
+});
+$("cmdL").addEventListener("click",e=>{const b=e.target.closest("[data-ci]");if(b)cmdRun(+b.dataset.ci);});
+$("cmdL").addEventListener("mousemove",e=>{const b=e.target.closest("[data-ci]");if(b&&+b.dataset.ci!==cmdSel){cmdSel=+b.dataset.ci;$("cmdL").querySelectorAll(".k4-co").forEach((x,i)=>{x.classList.toggle("on",i===cmdSel);x.setAttribute("aria-selected",String(i===cmdSel));});}});
+backdropClose($("ovCmd"),cmdClose);
+
+// ---------- tasti ----------
+document.addEventListener("keydown",e=>{
+  if(e.isComposing||e.defaultPrevented)return;
+  const k=e.key,mod=e.metaKey||e.ctrlKey;
+  if(mod&&!e.altKey&&!e.shiftKey&&(k==="k"||k==="K")){
+    if(!$("ovCmd").hidden){e.preventDefault();cmdClose();return;}
+    if(appFree()){e.preventDefault();cmdOpen();}return;}
+  if(mod&&!e.altKey&&k===","){if(appFree()){e.preventDefault();$("btnMenu").click();}return;}
+  if(mod||e.altKey)return;
+  const t=e.target;if(t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))return;
+  if(!appFree())return;
+  if(k==="ArrowLeft"||k==="ArrowRight"){const d=k==="ArrowLeft"?-1:1;if(k4Step(d,e.shiftKey)){e.preventDefault();k4Slide(d);}return;}
+  if(k==="?"){e.preventDefault();keysOpen();return;}
+  if(k.length!==1)return;
+  const id={o:"btnToday",g:"vDay",s:"vWeek",m:"vMonth",n:"btnNew",f:"vBill",a:"vPasti",i:"btnInvio"}[k.toLowerCase()];
+  if(id&&shown($(id))){e.preventDefault();$(id).click();}
+});
+
+// ---------- trackpad del Mac: due dita a sinistra o a destra ----------
+if(IS_MAC){
+  let acc=0,lock=false,idle=null;
+  const hscroll=el=>{for(;el&&el!==document.body&&el.nodeType===1;el=el.parentElement){if(el.scrollWidth>el.clientWidth+2){const o=getComputedStyle(el).overflowX;if(o==="auto"||o==="scroll")return true;}}return false;};
+  document.addEventListener("wheel",e=>{
+    if(e.ctrlKey)return; // pizzico per lo zoom
+    const dx=e.deltaX*(e.deltaMode===1?16:1),dy=e.deltaY*(e.deltaMode===1?16:1);
+    if(Math.abs(dx)<=Math.abs(dy)*1.3)return;
+    const v=S.view;if(v!=="day"&&v!=="week"&&v!=="month")return;
+    if(!e.target||!e.target.closest||!e.target.closest("#app")||!appFree()||hscroll(e.target))return;
+    e.preventDefault();
+    clearTimeout(idle);idle=setTimeout(()=>{acc=0;lock=false;},450);
+    if(lock)return;acc+=dx;
+    if(Math.abs(acc)>=110){const d=acc>0?1:-1;lock=true;acc=0;if(k4Step(d,false))k4Slide(d);}
+  },{passive:false});
+}
+
+// ---------- «Portami lì» (Come si fa) ----------
+function howGoOk(g){
+  if(!g)return false;
+  if(typeof g==="string"){const it=SET_NAV.find(x=>x.k===g);return !!it&&setNavOn(it);}
+  if(g.fn)return g.fn==="tour"||FINE();
+  if(g.view)return shown($(VIEW_BTN[g.view]));
+  if(g.hl)return shown(document.querySelector(g.hl));
+  return false;
+}
+function howGo(g){
+  if(!howGoOk(g))return;
+  if(typeof g==="string"){setCur=g;setQv="";$("setQ").value="";renderSetNav();renderSetPane();return;}
+  if(g.fn==="keys"){keysOpen();return;}
+  closeSettings();
+  if(g.fn==="tour"){tourStart();return;}
+  if(g.fn==="cmd"){setTimeout(cmdOpen,60);return;}
+  if(g.view&&S.view!==g.view)$(VIEW_BTN[g.view]).click();
+  if(g.hl)setTimeout(()=>k4Pulse(g.hl),g.view?320:60);
+}
+
+// ---------- benvenuto e giro delle novità ----------
+let tourL=[],tourI=0,tourTry=0;
+const ART={
+  search:'<div class="k4-art k4-art-s" aria-hidden="true"><span class="k4-art-q">targa<i></i></span><span class="k4-art-r"><b>Cambiare la targa di un bus</b><em>Portami lì</em></span></div>',
+  cmd:'<div class="k4-art k4-art-c" aria-hidden="true"><span class="k4-art-q">15 dicembre<i></i></span><span class="k4-art-r on"><b>Vai al 15 dicembre</b><kbd>↩</kbd></span><span class="k4-art-r"><b>Nuova prenotazione</b><kbd>N</kbd></span></div>',
+  swipe:'<div class="k4-art k4-art-t" aria-hidden="true"><span class="k4-pad"><i></i><i></i></span><span class="k4-art-lbl"><b>‹ giorno prima</b><b>giorno dopo ›</b></span></div>',
+};
+function keysMini(){
+  const C=IS_MAC?"⌘":"Ctrl";
+  return '<div class="k4-mini">'+[[["←","→"],"giorno prima o dopo"],[["⇧ ←","⇧ →"],"mese"],[["O"],"oggi"],[["G","S","M"],"Giorno, Settimana, Mese"],[["N"],"nuova prenotazione"],[[C+" ,"],document.documentElement.dataset.look==="nuovo"?"Impostazioni":"Menu"],[["?"],"tutte le scorciatoie"]]
+    .map(([ks,t])=>'<div class="k4-kr"><span class="k4-kk">'+ks.map(kbd).join("")+'</span><span>'+esc(t)+'</span></div>').join("")+'</div>';
+}
+function tourSteps(){
+  const nu=document.documentElement.dataset.look==="nuovo",L=[],C=IS_MAC?"⌘":"Ctrl+";
+  const st=(sel,t,b,o)=>L.push(Object.assign({sel,t,b},o||{}));
+  if(nu){
+    st(".t4b .monthbar","Il mese, con le frecce ai lati","‹ e › stanno ai due lati del nome del mese: a sinistra il mese prima, a destra il mese dopo.");
+    st(".t4b .t4c","Giorno, Settimana, Mese e Oggi","Sono scesi all'altezza del mese. «Oggi», in rosso, ti riporta sempre al giorno di oggi.");
+    st("#btnNew","Nuova prenotazione","Sempre a portata di mano, all'altezza del mese, nel rosso La Terra.");
+    st("#vBill","Fatturato, in nero","In alto a destra, in nero, per trovarlo subito.");
+    st("#btnInvio","Invio fogli","Con il permesso MAX: tutti i fogli del giorno, con bus e autisti, in un'unica pagina.");
+    st("#btnMenu","Il Menu ora si chiama «Impostazioni»","Si apre come le Impostazioni del Mac: a sinistra le sezioni in gruppi, a destra quella scelta. Anche l'Archivio (clienti, flotta, autisti, hotel…) adesso è qui dentro.");
+    st(null,"«Cerca»: come si fa una cosa","Nelle Impostazioni, in alto a sinistra, c'è «Cerca». Scrivi quello che non ricordi, per esempio «targa», «post-it» o «busta»: trovi i passaggi uno per uno e il pulsante «Portami lì».",{art:"search"});
+  }
+  if(FINE()){
+    st(null,"Scorciatoie da tastiera",null,{html:keysMini()+'<p class="k4-knote">Funzionano quando non stai scrivendo in un campo.</p>'});
+    if(IS_MAC)st(null,"Il trackpad","Appoggia due dita sul trackpad e trascinale verso sinistra: giorno dopo. Verso destra: giorno prima. Nella Settimana cambia settimana, nel Mese cambia mese.",{art:"swipe"});
+    st(null,C+"K: comandi rapidi","Premi "+C+"K e scrivi cosa vuoi fare: una data («15 dicembre», «domani»), una sezione («flotta») o un'azione («nuova prenotazione»). Scegli con le frecce e premi Invio.",{art:"cmd"});
+  }
+  if(nu)st(null,"Ti piaceva com'era?","In Impostazioni › Aspetto puoi scegliere «Classico»: l'agenda torna identica alla 3.0, Menu compreso. Vale solo per te e puoi cambiare quando vuoi. Lì c'è anche il tema scuro.");
+  else st("#btnMenu","Il nuovo aspetto","Stai usando l'aspetto «Classico», identico alla 3.0. Per provare quello nuovo: Menu › Le mie impostazioni › Aspetto dell'agenda › «Nuovo».");
+  st(null,"Buon lavoro, "+firstName()+"!","Puoi rivedere queste novità quando vuoi: "+(nu?"Impostazioni › Generali › «Rivedi le novità»":FINE()?"premi "+C+"K e scrivi «novità»":"dal nuovo aspetto, in Impostazioni › Generali")+".",{end:true});
+  return L;
+}
+function tourSeen(){
+  const me=ACC.session();if(!me)return;const v=new Date().toISOString();
+  try{localStorage.setItem("agenda-tour40:"+me.uid,v);}catch(_){}
+  if(!prefNow("tour40"))savePref("tour40",v,true);
+}
+function tourMaybe(){
+  const me=ACC.session();if(!me||isInvio()||S.outdated)return;
+  try{if(localStorage.getItem("agenda-tour40-off")==="1"||localStorage.getItem("agenda-tour40:"+me.uid))return;}catch(_){}
+  if(!STORE.users||!STORE.users.users[me.uid]||prefNow("tour40"))return;
+  if(!appFree()){if(++tourTry<40)setTimeout(tourMaybe,3000);return;}
+  introOpen();
+}
+function introOpen(){
+  $("k4Hey").textContent="Ehi "+firstName()+",";
+  const I=$("k4Intro");I.classList.remove("play");void I.offsetWidth;I.classList.add("play");I.hidden=false;
+  document.documentElement.classList.add("k4-noscroll");setTimeout(()=>$("k4Go").focus({preventScroll:true}),RMOT()?20:2600);
+}
+function introClose(){$("k4Intro").hidden=true;document.documentElement.classList.remove("k4-noscroll");}
+$("k4Go").onclick=()=>{introClose();tourStart();};
+$("k4Skip").onclick=()=>{introClose();tourSeen();};
+function tourStart(){
+  if($("app").hidden)return;
+  if(!$("ovSet").hidden)closeSettings();cmdClose();keysClose();
+  tourL=tourSteps().filter(s=>!s.sel||shown(document.querySelector(s.sel)));tourI=0;
+  $("k4Tour").hidden=false;document.documentElement.classList.add("k4-noscroll");tourShow();
+}
+function tourEnd(){$("k4Tour").hidden=true;document.documentElement.classList.remove("k4-noscroll");tourSeen();}
+function tourShow(){
+  const s=tourL[tourI];if(!s){tourEnd();return;}
+  $("k4N").textContent=(tourI+1)+" di "+tourL.length;$("k4T").textContent=s.t;
+  $("k4B").innerHTML=(s.b?'<p>'+esc(s.b)+'</p>':'')+(s.html||"")+(s.art?ART[s.art]:"");
+  $("k4Prev").hidden=tourI===0;$("k4Next").textContent=s.end?"Inizia":"Avanti";$("k4End").hidden=!!s.end;
+  const el=s.sel&&document.querySelector(s.sel);if(el)try{el.scrollIntoView({block:"nearest"});}catch(_){}
+  tourPlace();setTimeout(()=>$("k4Next").focus({preventScroll:true}),40);
+}
+function tourPlace(){
+  if($("k4Tour").hidden)return;
+  const s=tourL[tourI]||{},el=s.sel&&document.querySelector(s.sel),sp=$("k4Spot"),cd=$("k4Card"),W=innerWidth,H=innerHeight,pad=8;
+  cd.classList.toggle("mid",!el);
+  if(!el){Object.assign(sp.style,{left:W/2+"px",top:H/2+"px",width:"0px",height:"0px"});sp.classList.add("none");
+    cd.style.left=Math.max(16,(W-cd.offsetWidth)/2)+"px";cd.style.top=Math.max(16,(H-cd.offsetHeight)/2)+"px";return;}
+  sp.classList.remove("none");const r=el.getBoundingClientRect();
+  Object.assign(sp.style,{left:(r.left-pad)+"px",top:(r.top-pad)+"px",width:(r.width+pad*2)+"px",height:(r.height+pad*2)+"px"});
+  const cw=cd.offsetWidth,ch=cd.offsetHeight;let top=r.bottom+pad+14;if(top+ch>H-12)top=Math.max(12,r.top-pad-14-ch);
+  let left=Math.min(Math.max(16,r.left+r.width/2-cw/2),W-cw-16);cd.style.left=left+"px";cd.style.top=top+"px";
+}
+$("k4Next").onclick=()=>{if(tourL[tourI]&&tourL[tourI].end){tourEnd();return;}tourI++;tourShow();};
+$("k4Prev").onclick=()=>{if(tourI>0){tourI--;tourShow();}};
+$("k4End").onclick=tourEnd;
+window.addEventListener("resize",()=>{if(!$("k4Tour").hidden)tourPlace();});
+document.addEventListener("keydown",e=>{
+  if(!$("k4Intro").hidden){if(e.key==="Escape"){e.preventDefault();e.stopImmediatePropagation();$("k4Skip").click();}return;}
+  if($("k4Tour").hidden)return;
+  if(e.key==="Escape"){e.preventDefault();e.stopImmediatePropagation();tourEnd();}
+  else if(e.key==="ArrowRight"){e.preventDefault();e.stopImmediatePropagation();$("k4Next").click();}
+  else if(e.key==="ArrowLeft"){e.preventDefault();e.stopImmediatePropagation();$("k4Prev").click();}
 },true);
 const fvLogRow=fv=>["Mezzo da fatturare",seatsLbl(fv.billed),fv.why==="log"?seatsLbl(fv.billed)+" (cambio per motivi logistici: scelta nostra)":seatsLbl(fv.nv)+" (cambio chiesto dal cliente)"];
 $("cpCancel").onclick=()=>{if(!cpBusy)closeCapo();};

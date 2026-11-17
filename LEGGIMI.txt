@@ -1,8 +1,114 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 3.0.11 (14/11/2026)
-====================================================
-La versione in uso si vede nell'app: in alto accanto a "Sincronizzato",
-nella schermata di accesso e nel Menu. Deve corrispondere a quella di questo file.
+AGENDA FLOTTA LA TERRA – VERSIONE 4.0 (17/11/2026)
+==================================================
+La versione in uso si vede nell'app: in alto accanto a "Sincronizzato", nella schermata di
+accesso e in Impostazioni › Generali. Deve corrispondere a quella di questo file.
 
+COME AGGIORNARE ALLA 4.0 (dalla 3.0.11: 3 minuti, 6 file)
+--------------------------------------------------------
+Serve la 3.0.11 già su GitHub (in alto nell'agenda "v3.0.11"). Se hai una versione più vecchia,
+carica il pacchetto completo della 4.0.
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   6 file: index.html, app.js, store.js, skin40.css, sw.js, LEGGIMI.txt. Niente config.js.
+   skin40.css è un file NUOVO (la grafica della 4.0): va caricato anche lui.
+   Gli altri file restano quelli di adesso: autisti.js della 3.0.10, fatture.js e fatturato.js
+   della 3.0.4, dropbox.js, accessi.js, le cartelle icons e vendor.
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v4.0".
+   Se compare "Aggiornamento in corso (…)" per più di qualche minuto, su GitHub manca il file
+   scritto tra parentesi (per esempio "skin40.css").
+3. Alla prima apertura compare il benvenuto della 4.0 con il giro delle novità: una volta sola
+   per ogni account (su qualunque dispositivo). Si può saltare e rivedere quando si vuole.
+4. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda. Una pagina rimasta aperta con la
+   3.0.11 avvisa da sola e non salva niente finché non la riapri.
+5. Niente da fare sull'app degli autisti e niente da fare sui dati. Il foglio di servizio non
+   cambia. Prezzi e parte contabile, come sempre, non vanno mai all'autista.
+
+NOVITÀ DELLA 4.0: IL PIÙ GRANDE AGGIORNAMENTO DELL'AGENDA
+---------------------------------------------------------
+1) ASPETTO NUOVO (stile Apple, rosso La Terra)
+- Riga in alto: a sinistra il logo; a destra "Fatturato" (nero, per trovarlo subito), "Autisti"
+  e "Impostazioni" (con il permesso MAX anche "Invio fogli").
+- Riga del mese: le frecce ‹ › ai due lati del nome del mese; al centro Giorno, Settimana, Mese
+  con attaccato "Oggi" in rosso; a destra "+ Nuova prenotazione" nel rosso La Terra.
+- L'Archivio non è più un pulsante: sta dentro le Impostazioni.
+- Barra della giornata rossa, con i post-it attaccati sopra (come nella 3.0.9).
+- Tema Chiaro, Scuro o Automatico (segue il Mac): Impostazioni › Aspetto.
+
+2) IMPOSTAZIONI COME SUL MAC (al posto del Menu, con l'aspetto Nuovo)
+- Il pulsante "Menu" diventa "Impostazioni" e si apre come le Impostazioni di Sistema del Mac:
+  a sinistra "Cerca", il tuo account e le sezioni in gruppi, a destra la sezione scelta.
+    · Generali (uscita automatica, versione, "Rivedi le novità", scorciatoie), Aspetto,
+      Punto esclamativo «!», Password
+    · Archivio: Clienti, Flotta, Autisti, Referenti, Guide, Hotel, Parcheggi, Tendine,
+      Contabilità
+    · Master: Utenti, Dispositivi collegati, Registro delle modifiche, Log tecnico, Permessi e
+      impostazioni, Cartella degli autisti (solo Super Master), File fatturato
+    · Aggiorna adesso, Scollega questo dispositivo; "Esci" in fondo.
+- Ogni sezione funziona esattamente come prima (stessi pulsanti, stessi salvataggi).
+- Sul telefono si apre a tutta pagina: prima l'elenco, poi la sezione con "‹ Impostazioni" per
+  tornare indietro; "Fine" in alto chiude.
+- Esc chiude le Impostazioni (se sopra c'è una finestrella, chiude prima quella).
+
+3) CERCA: "COME SI FA"
+- In Impostazioni, in alto a sinistra: scrivi quello che non ricordi ("targa", "post-it",
+  "busta", "fattura estero", "riposo"…). Escono le risposte, prese da questo LEGGIMI, con i
+  passaggi numerati uno per uno.
+- "Portami lì" apre la sezione giusta oppure la schermata giusta e fa lampeggiare il pulsante
+  da premere. Se la cosa la può fare solo il Master o il Super Master, per gli altri il pulsante
+  non c'è.
+
+4) SCORCIATOIE DA TASTIERA (pensate per il Mac)
+  ← →        giorno prima o dopo (nella Settimana la settimana, nel Mese il mese)
+  ⇧← ⇧→      mese prima o dopo
+  O          oggi
+  G S M      vista Giorno, Settimana, Mese
+  F          Fatturato
+  A          Autisti (pasti e riposi)
+  N          nuova prenotazione
+  I          Invio fogli (con il permesso MAX)
+  ⌘K         comandi rapidi
+  ⌘,         Impostazioni (con il Classico: il Menu)
+  ?          elenco di tutte le scorciatoie
+  Esc        chiude la finestra aperta
+- Funzionano solo quando non stai scrivendo in un campo e non c'è una finestra aperta, così non
+  si cambia niente per sbaglio.
+- Se in un browser ⌘, apre le impostazioni del browser invece di quelle dell'agenda, usa il
+  pulsante "Impostazioni" in alto (o ⌘K e scrivi "impostazioni").
+
+5) COMANDI RAPIDI ⌘K
+- Premi ⌘ e K insieme e scrivi: una data ("15/12", "15 dicembre", "domani", "venerdì",
+  "marzo"), un'azione ("nuova prenotazione", "fatturato", "aggiorna"), una sezione ("flotta",
+  "clienti"), il tema o l'aspetto ("scuro", "classico") oppure una domanda del "come si fa".
+- Frecce per scegliere, Invio per aprire, Esc per chiudere. Una data senza anno va a quella più
+  vicina a oggi.
+
+6) TRACKPAD (solo sul Mac)
+- Due dita verso sinistra: giorno dopo; verso destra: giorno prima. Nella Settimana cambia
+  settimana, nel Mese cambia mese. Un gesto = un passo.
+- Non scatta mentre scorri in su e in giù, né dentro le tabelle che scorrono di lato, né con
+  una finestra aperta. Il gesto "pagina indietro" del browser dentro l'agenda è spento.
+
+7) BENVENUTO E GIRO DELLE NOVITÀ
+- Alla prima apertura della 4.0: "Ehi Massimo, 4.0 – questo è il più grande aggiornamento che
+  abbiamo mai pubblicato per la nostra agenda." (con il nome di chi è entrato), poi "Scopri le
+  novità" mostra passo passo tutto quello che è cambiato, indicando i pulsanti veri.
+- Si vede una volta sola per account, su qualunque Mac o telefono. Si rivede da
+  Impostazioni › Generali › "Rivedi le novità" oppure con ⌘K scrivendo "novità".
+
+8) A CHI PIACE COM'ERA: ASPETTO "CLASSICO"
+- Impostazioni › Aspetto › "Classico": l'agenda torna identica alla 3.0, Menu compreso. Vale solo
+  per te, su tutti i tuoi dispositivi; le funzioni sono le stesse.
+- Per tornare al Nuovo: Menu › Le mie impostazioni › Aspetto dell'agenda › "Nuovo".
+- Scorciatoie e ⌘K funzionano anche con il Classico.
+
+Note tecniche
+- Nuovo file skin40.css (la grafica del Nuovo): se dopo l'aggiornamento non è ancora arrivato,
+  l'agenda aspetta e riprova da sola, come per gli altri file.
+- Nelle impostazioni personali di ogni utente (config/utenti.json) si salvano anche aspetto,
+  tema e la data in cui ha visto il benvenuto.
+
+------------------------------------------------------------------------------------------
+VERSIONE 3.0.11 (14/11/2026)
+------------------------------------------------------------------------------------------
 COME AGGIORNARE ALLA 3.0.11 (dalla 3.0.9 o dalla 3.0.10: 2 minuti, solo 4 file)
 -------------------------------------------------------------------------------
 Serve la 3.0.9 o la 3.0.10 già su GitHub (in alto nell'agenda "v3.0.9" o "v3.0.10"). Se hai una

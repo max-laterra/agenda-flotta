@@ -1,6 +1,6 @@
 // Rende l'app utilizzabile senza connessione. Aumenta il numero quando pubblichi una nuova versione.
-const VERSION = "agenda-laterra-3.0";
-const SHELL = ["./", "./index.html", "./app.js", "./config.js", "./dropbox.js", "./store.js", "./accessi.js", "./autisti.js", "./fatturato.js", "./fatture.js",
+const VERSION = "agenda-laterra-4.0";
+const SHELL = ["./", "./index.html", "./skin40.css", "./app.js", "./config.js", "./dropbox.js", "./store.js", "./accessi.js", "./autisti.js", "./fatturato.js", "./fatture.js",
   "./vendor/jszip.min.js", "./vendor/pdf-lib.min.js", "./vendor/font-pdf.js", "./vendor/qrcode.js", "./logo.jpg", "./manifest.webmanifest",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./icons/favicon-64.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });

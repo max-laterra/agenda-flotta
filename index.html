@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="3.0" data-p="3.0.9">
+<html lang="it" data-v="3.0" data-p="4.0">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -1342,6 +1342,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
 .vw-opt:hover{background:var(--surface-2)}.vw-opt:focus-visible{outline:3px solid var(--accent-soft)}
 .u-max{background:var(--accent-soft);border-radius:8px;padding:7px 10px}
 </style>
+<link rel="stylesheet" href="skin40.css">
 </head>
 <body>
 <div class="gate" id="gate">
@@ -1919,11 +1920,23 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
 <div class="toast" id="toast" hidden></div>
 
 
+<div class="overlay set-ov" id="ovSet" hidden>
+  <div class="set-win" role="dialog" aria-label="Impostazioni">
+    <aside class="set-side">
+      <div class="set-tl"><button type="button" class="tl r" id="setClose" aria-label="Chiudi le impostazioni" title="Chiudi"></button><i class="tl y"></i><i class="tl g"></i></div>
+      <label class="set-search"><input id="setQ" type="search" placeholder="Cerca" aria-label="Cerca come si fa una cosa" autocomplete="off"></label>
+      <button type="button" class="set-acc" data-sk="gen"><span class="av" id="setAv"></span><span><b id="setName"></b><small id="setRole"></small></span></button>
+      <nav class="set-nav" id="setNav"></nav>
+    </aside>
+    <section class="set-main"><button type="button" class="set-back" id="setBack">‹ Impostazioni</button><h2 id="setTitle"></h2><div id="setBody"></div></section>
+  </div>
+</div>
 <div class="overlay" id="ovMenu" hidden>
   <div class="modal">
     <h3>Menu</h3>
     <p class="menu-note" id="menuInfo"></p>
     <div class="menu-list" id="mMain">
+      <button type="button" id="mArch" class="look-new"><b>Archivio</b><span>Anagrafica clienti, flotta, autisti, referenti, hotel e contabilità</span></button>
       <button type="button" id="mMaster" class="mst-only"><b>Pannello Master</b><span>Utenti, dispositivi collegati, registro delle modifiche e impostazioni</span></button>
       <button type="button" id="mLock"><b>Esci</b><span>Torna alla schermata di accesso, per esempio per cambiare utente</span></button>
       <button type="button" id="mSync"><b>Aggiorna adesso</b><span>Scarica le modifiche degli altri dispositivi e aggiorna il fatturato</span></button>
@@ -1949,6 +1962,13 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
           <label><input type="radio" name="prMode" value="off"> <span><b>Spento</b> nessun «!»</span></label>
         </div>
         <div class="pr-checks" id="prChecks"></div>
+      </fieldset>
+      <fieldset class="pr-look" id="prLookBox"><legend>Aspetto dell'agenda</legend>
+        <p class="menu-note">Vale solo per te, su tutti i tuoi dispositivi. Le funzioni sono le stesse: cambia solo la grafica.</p>
+        <div class="pr-mode pr-look-opts" role="radiogroup" aria-label="Aspetto">
+          <label><input type="radio" name="prLook" value="nuovo"> <span><b>Nuovo</b> stile 4.0</span></label>
+          <label><input type="radio" name="prLook" value="classico"> <span><b>Classico</b> come la 3.0</span></label>
+        </div>
       </fieldset>
     </form>
     <div class="menu-list" id="mUnlink" hidden>

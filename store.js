@@ -466,6 +466,9 @@
       m.checks = Array.isArray(p.miss.checks) ? [...new Set(p.miss.checks.filter((k) => MISS_KEYS.includes(k)))] : ["price", "time", "code"];
       o.miss = m;
     }
+    if (p.look === "nuovo" || p.look === "classico") o.look = p.look; // 4.0: aspetto scelto
+    if (p.theme === "chiaro" || p.theme === "scuro" || p.theme === "auto") o.theme = p.theme; // 4.0: tema
+    if (typeof p.tour40 === "string" && p.tour40.length <= 40) o.tour40 = p.tour40; // 4.0: benvenuto già visto (quando)
     return Object.keys(o).length ? o : null;
   }
   function cleanUsers(j) {
@@ -1436,7 +1439,7 @@
   }
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "3.0";
-  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "3.0.11"; // 3.0.11: pulizia di quelle senza cliente alle 00:00 del giorno del servizio; 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "4.0"; // 4.0: aspetto, tema e benvenuto nelle impostazioni personali; 3.0.11: pulizia di quelle senza cliente alle 00:00 del giorno del servizio; 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
   window.STORE = {
     BASE, P,
     saveAttachment, readAttachment, removeAttachment, cleanAtt, ATT_MAX,
