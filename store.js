@@ -594,6 +594,7 @@
     // extra (2.8): fino a 3 voci con causale e cifra; exOwn: l'agenda gestisce le colonne «varie» del fatturato
     if ("extras" in b) b.extras = Array.isArray(b.extras) ? b.extras.filter(isObj).slice(0, 3).map((e) => { const a = typeof e.amt === "number" ? e.amt : typeof e.amt === "string" && e.amt.trim() !== "" ? Number(e.amt) : NaN; return { c: txt(e.c, 60), amt: isFinite(a) ? Math.round(a * 100) / 100 : "" }; }) : [];
     if ("exOwn" in b) b.exOwn = b.exOwn === true;
+    if ("hPax" in b) b.hPax = b.hPax === true; // 4.0.3: passeggero H a bordo (bus 33)
     if ("xbus" in b) { if (isObj(b.xbus) && typeof b.xbus.id === "string") b.xbus = cleanXbus(b.xbus); else delete b.xbus; }
     if ("att" in b) b.att = cleanAtt(b.att); // 3.0.2: allegati per l'autista
     if ("dayv" in b) b.dayv = cleanDayv(b.dayv); // 3.0.3: tour, mezzo e autisti giorno per giorno
@@ -1440,7 +1441,7 @@
   }
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "3.0";
-  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "4.0.1"; // 4.0.1: scorciatoie da tastiera nelle impostazioni personali; 4.0: aspetto, tema e benvenuto nelle impostazioni personali; 3.0.11: pulizia di quelle senza cliente alle 00:00 del giorno del servizio; 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "4.0.3"; // 4.0.3: passeggero H a bordo; // 4.0.1: scorciatoie da tastiera nelle impostazioni personali; 4.0: aspetto, tema e benvenuto nelle impostazioni personali; 3.0.11: pulizia di quelle senza cliente alle 00:00 del giorno del servizio; 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
   window.STORE = {
     BASE, P,
     saveAttachment, readAttachment, removeAttachment, cleanAtt, ATT_MAX,

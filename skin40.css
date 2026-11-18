@@ -3,7 +3,7 @@
    Tutte le regole valgono SOLO con <html data-look="nuovo">: con l'aspetto «Classico» l'agenda resta identica alla 3.0.
    Sul Mac e sull'iPhone il carattere è quello di Apple (San Francisco); altrove Inter / quello di sistema.
    ===================================================================================== */
-:root{--skin40:"4.0.1"} /* l'app controlla che questo file sia arrivato (stessa versione degli altri) */
+:root{--skin40:"4.0.3"} /* l'app controlla che questo file sia arrivato (stessa versione degli altri) */
 html[data-look="nuovo"]{
   --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F4F4F7; --ink:#1D1D1F; --ink-2:#4A4A4F; --ink-3:#8E8E93;
   --line:#E3E3E8; --accent:#C8102E; --accent-ink:#FFFFFF; --accent-soft:#FCE8EB;
@@ -531,9 +531,135 @@ html.k4-noscroll,html.k4-noscroll body{overflow:hidden}
 @media (max-width:560px){.k4-kr.ed{grid-template-columns:96px minmax(0,1fr)}.k4-kr.ed .k4-ka{grid-column:1/-1;justify-content:flex-start}}
 @media (prefers-reduced-motion:reduce){.k4-krec{animation:none}}
 @container setp (max-width:700px){
-  .set-main .reg-row{grid-template-columns:repeat(2,minmax(0,1fr))!important;row-gap:6px}
-  .set-main .reg-row .del{grid-column:2;justify-self:end;width:36px}
+  .set-main .reg-row:has(>:nth-child(4)){grid-template-columns:repeat(2,minmax(0,1fr))!important;row-gap:6px} /* solo gli elenchi con 3 o più colonne */
+  .set-main .reg-row:has(>:nth-child(4)) .del{grid-column:2;justify-self:end;width:36px}
   .set-main .reg-row.hd>span:last-child:empty{display:none}
   .set-main .lg-head{display:none}
   .set-main .lg-row{grid-template-columns:minmax(0,1fr)}
 }
+
+/* =====================================================================================
+   4.0.2 — Pagine delle Impostazioni: tutt'uno con la finestra (niente ombra da finestrella,
+   niente elenco che scorre in un riquadro più piccolo con l'ultima riga tagliata)
+   ===================================================================================== */
+html[data-look] .set-main .in-set.modal{box-shadow:none;border-radius:0;background:transparent}
+.set-main .in-set .reg-table,.set-main .in-set .lg-list{max-height:none;overflow:clip}
+.set-main .in-set .cli-list{flex:none;min-height:0;max-height:none;overflow:clip}
+/* la riga dei titoli resta ferma in alto mentre scorre la pagina */
+.set-main .in-set .reg-row.hd{top:0;z-index:3}
+.set-main .in-set .cli-head{position:sticky;top:0;z-index:3;background:var(--surface);padding-top:8px;padding-bottom:8px}
+.set-main .in-set .lg-head{position:sticky;top:0;z-index:3;background:var(--surface)}
+/* tendine dentro gli elenchi (colore degli autisti, IVA dei parcheggi…): come i campi accanto */
+.set-main .reg-row select{-webkit-appearance:none;appearance:none;width:100%;min-width:0;border:1px solid transparent;border-radius:7px;padding:6px 26px 6px 8px;font:inherit;font-size:14px;color:var(--ink);cursor:pointer;
+  background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6' fill='none' stroke='%238E8E93' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E") no-repeat right 9px center/10px 6px}
+.set-main .reg-row select:hover{border-color:var(--line)}
+.set-main .reg-row select:focus{border-color:var(--accent);background-color:var(--surface);outline:none}
+.set-main .in-set .fleet-list{max-height:none;overflow:visible}
+.set-main .in-set .fleet-head{position:sticky;top:0;z-index:3;background:var(--surface);padding:8px 0}
+/* la riga dei titoli si ferma proprio sul bordo in alto (senza righe che spuntano sopra) */
+.set-main{--setpt:22px}
+@media (max-width:700px){.set-main{--setpt:max(8px,env(safe-area-inset-top))}}
+.set-main .in-set .reg-row.hd,.set-main .in-set .cli-head,.set-main .in-set .lg-head,.set-main .in-set .fleet-head{top:calc(0px - var(--setpt))}
+.set-main .in-set .cli-head,.set-main .in-set .fleet-head{box-shadow:0 1px 0 var(--line)}
+/* Tendine: «+ Nuovo» all'altezza del titolo, come nelle altre pagine */
+@media (min-width:701px){
+  .set-main #setBody[data-sec="ten"] .in-set.modal{position:relative}
+  .set-main #setBody[data-sec="ten"] .in-set .reg-top{position:absolute;top:-52px;right:0;margin:0}
+}
+/* testi diversi per i due aspetti */
+html:not([data-look="nuovo"]) .only-new,html[data-look="nuovo"] .only-old{display:none}
+.set-main .in-set .mst-sec{overflow:visible}
+
+/* =====================================================================================
+   4.0.2 — «Su questo telefono»: pannello e vista compatta (solo telefono, tutti e due gli aspetti)
+   ===================================================================================== */
+.tel-box .set-lbl{font-size:13px;font-weight:700;color:var(--ink);margin:0 0 8px}
+.tel-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.tel-box .set-lbl+.tel-row{border-top:0;padding-top:2px}
+.tel-t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.tel-t b{font-size:15px;font-weight:600;color:var(--ink)}
+.tel-t small{font-size:12.5px;color:var(--ink-3);line-height:1.35}
+.tel-seg{display:flex;flex:none;background:var(--fill,rgba(118,118,128,.12));border-radius:9px;padding:2px}
+.tel-seg button{border:0;background:transparent;color:var(--ink);font:600 14px/1 var(--sans);padding:8px 10px;border-radius:7px;min-width:48px;cursor:pointer}
+.tel-seg button[aria-checked="true"]{background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.14);color:var(--ink)}
+.tel-sw{cursor:pointer}
+.tel-sw input{flex:none;-webkit-appearance:none;appearance:none;width:51px;height:31px;border-radius:999px;background:var(--fill,rgba(120,120,128,.24));position:relative;cursor:pointer;margin:0;transition:background .2s}
+.tel-sw input::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:transform .2s}
+.tel-sw input:checked{background:#34C759}
+.tel-sw input:checked::after{transform:translateX(20px)}
+.tel-sw input:focus-visible{outline:3px solid color-mix(in srgb,#34C759 45%,transparent);outline-offset:2px}
+.tel-box .set-note{margin:8px 0 0}
+#prTelBox .tel-box{margin-top:12px;padding-top:4px}
+@media (max-width:380px){.tel-row:not(.tel-sw){flex-direction:column;align-items:stretch}.tel-seg button{flex:1}}
+
+@media (max-width:700px){
+  /* --- Nuovo --- */
+  html.tel-compact[data-look="nuovo"] header.top{padding-top:max(8px,env(safe-area-inset-top));padding-bottom:10px}
+  html.tel-compact[data-look="nuovo"] .t4wrap{gap:8px}
+  html.tel-compact[data-look="nuovo"] .t4a{flex-direction:row;align-items:center;gap:8px}
+  html.tel-compact[data-look="nuovo"] .t4a .t4l{flex:1 1 auto;min-width:0;flex-wrap:nowrap;gap:6px}
+  html.tel-compact[data-look="nuovo"] .t4a .logo,html.tel-compact[data-look="nuovo"] .brand h1,html.tel-compact[data-look="nuovo"] #fleetCount,html.tel-compact[data-look="nuovo"] #appVer,html.tel-compact[data-look="nuovo"] .brand .whoami{display:none}
+  html.tel-compact[data-look="nuovo"] .brand{min-width:0;flex-wrap:nowrap}
+  html.tel-compact[data-look="nuovo"] .t4a .t4r{display:flex;margin-left:auto;gap:6px;flex:none}
+  html.tel-compact[data-look="nuovo"] .t4a .t4r>*{width:auto}
+  html.tel-compact[data-look="nuovo"] #vBill,html.tel-compact[data-look="nuovo"] #vPasti,html.tel-compact[data-look="nuovo"] #btnMenu{font-size:0;gap:0;width:42px;height:36px;padding:0;justify-content:center}
+  html.tel-compact[data-look="nuovo"] #vBill::before,html.tel-compact[data-look="nuovo"] #vPasti::before,html.tel-compact[data-look="nuovo"] #btnMenu::before{width:18px;height:18px}
+  html.tel-compact[data-look="nuovo"] #btnInvio{font-size:13px;padding:0 10px;height:36px}
+  html.tel-compact[data-look="nuovo"] .t4b{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
+  html.tel-compact[data-look="nuovo"] .t4b .t4l{grid-column:1/-1}
+  html.tel-compact[data-look="nuovo"] .t4b .t4c{grid-column:1;min-width:0}
+  html.tel-compact[data-look="nuovo"] .t4b .t4r{grid-column:2;justify-self:end}
+  html.tel-compact[data-look="nuovo"] .monthbar h2{font-size:20px}
+  html.tel-compact[data-look="nuovo"] .t4b .seg button{font-size:14px;padding-left:4px;padding-right:4px}
+  html.tel-compact[data-look="nuovo"] #btnNew{width:42px;height:36px;padding:0;font-size:0;display:inline-flex;align-items:center;justify-content:center}
+  html.tel-compact[data-look="nuovo"] #btnNew::before{content:"+";font-size:26px;font-weight:500;line-height:1;margin-top:-2px}
+  html.tel-compact[data-look="nuovo"] .strip-wrap{padding:6px 6px 4px;border-radius:14px}
+  html.tel-compact[data-look="nuovo"] .sign{position:relative;padding:10px 12px;border-radius:14px;gap:6px 10px}
+  html.tel-compact[data-look="nuovo"] .sign .date{font-size:19px;gap:0 8px;padding-right:76px}
+  html.tel-compact[data-look="nuovo"] .sign .date>span:first-child{font-size:12.5px}
+  html.tel-compact[data-look="nuovo"] .sign .today-tag{font-size:11px;padding:2px 8px}
+  html.tel-compact[data-look="nuovo"] .sign .sright{margin-left:0;justify-content:flex-start;width:100%}
+  html.tel-compact[data-look="nuovo"] .sign .stats,html.tel-compact[data-look="nuovo"] .sign .stats .grp{gap:6px}
+  html.tel-compact[data-look="nuovo"] .sign .stats .grp+.grp{margin-left:0}
+  html.tel-compact[data-look="nuovo"] .sign .stat{flex-direction:row;align-items:baseline;gap:5px;min-width:0;padding:4px 9px;border-radius:9px}
+  html.tel-compact[data-look="nuovo"] .sign .stat b{font-size:15px}
+  html.tel-compact[data-look="nuovo"] .sign .stat span{font-size:11.5px}
+  html.tel-compact[data-look="nuovo"] .sign .nav{position:absolute;top:9px;right:10px}
+  html.tel-compact[data-look="nuovo"] .sign .nav button{width:32px;height:32px;font-size:18px}
+  /* --- Classico --- */
+  html.tel-compact[data-look="classico"] header.top{padding-top:max(8px,env(safe-area-inset-top));padding-bottom:10px}
+  html.tel-compact[data-look="classico"] .topline .logo,html.tel-compact[data-look="classico"] .brand h1,html.tel-compact[data-look="classico"] #fleetCount,html.tel-compact[data-look="classico"] #appVer,html.tel-compact[data-look="classico"] .brand .whoami{display:none}
+  html.tel-compact[data-look="classico"] .topline{margin:0 0 6px;min-height:0}
+  html.tel-compact[data-look="classico"] .bar{gap:8px}
+  html.tel-compact[data-look="classico"] .monthbar h2{font-size:22px}
+  html.tel-compact[data-look="classico"] .controls{gap:6px}
+  html.tel-compact[data-look="classico"] .controls .btn,html.tel-compact[data-look="classico"] .controls .seg button{padding:7px 10px;font-size:14px}
+  html.tel-compact[data-look="classico"] .sign{position:relative;padding:10px 12px;gap:6px 12px}
+  html.tel-compact[data-look="classico"] .sign .date{font-size:20px;padding-right:84px}
+  html.tel-compact[data-look="classico"] .sign .sright{margin-left:0;justify-content:flex-start;width:100%}
+  html.tel-compact[data-look="classico"] .sign .stats .grp{gap:12px}
+  html.tel-compact[data-look="classico"] .sign .stats .grp+.grp{padding-left:12px;margin-left:6px}
+  html.tel-compact[data-look="classico"] .stat b{font-size:18px}
+  html.tel-compact[data-look="classico"] .sign .nav{position:absolute;top:8px;right:10px}
+}
+@media (max-width:380px){
+  html.tel-compact[data-look="nuovo"] #btnToday{font-size:0;gap:0;width:42px;height:36px;padding:0;justify-content:center}
+  html.tel-compact[data-look="nuovo"] #btnToday::before{width:17px;height:17px}
+  html.tel-compact[data-look="nuovo"] .t4b .seg button{font-size:13px;padding-left:2px;padding-right:2px}
+}
+
+/* 4.0.3 — «dal Programma» accanto a Ora partenza (tutti e due gli aspetti) */
+.f-src{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:color-mix(in srgb,var(--accent,#C8102E) 12%,transparent);color:var(--accent,#C8102E);font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;vertical-align:1px}
+.f-src[hidden]{display:none}
+
+/* 4.0.3 — stato «Stampabile»: fucsia con la stampantina (tutti e due gli aspetti) */
+.stt.pr{border-color:#B8156F;background:#D81B8C;color:#fff}
+.stt{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.stt.pr .prn{display:block;width:18px;height:18px}
+html[data-look="nuovo"] .stt.pr .prn{width:14px;height:14px}
+html[data-look="nuovo"] .stt.pr{background:#D81B8C;color:#fff;box-shadow:none}
+.wb .stm.pr{background:#D81B8C;color:#fff}
+.wb .stm.pr .prn{width:10px;height:10px}
+#f-status.st-pr{background:#FCE4F2;border-color:#D81B8C;color:#9C0F63;font-weight:700}
+html[data-theme="dark"] #f-status.st-pr{background:#4A1236;color:#FF9ED2}
+@media (prefers-color-scheme:dark){html:not([data-theme="light"]) #f-status.st-pr{background:#4A1236;color:#FF9ED2}}

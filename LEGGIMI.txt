@@ -1,8 +1,151 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 4.0.1 (17/11/2026)
+AGENDA FLOTTA LA TERRA – VERSIONE 4.0.3 (18/11/2026)
 ====================================================
 La versione in uso si vede nell'app: in alto accanto a "Sincronizzato", nella schermata di
 accesso e in Impostazioni › Generali. Deve corrispondere a quella di questo file.
 
+COME AGGIORNARE ALLA 4.0.3 (dalla 4.0.2, 4.0.1, 4.0 o 3.0.11: 3 minuti, 6 file)
+------------------------------------------------------------------------------
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   6 file: index.html, app.js, store.js, skin40.css, sw.js, LEGGIMI.txt. Niente config.js.
+   Gli altri file restano quelli di adesso.
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v4.0.3".
+   Se compare "Aggiornamento in corso (…)" per più di qualche minuto, su GitHub manca il file
+   scritto tra parentesi.
+3. Sui telefoni chiudi e riapri l'agenda (se è sulla schermata Home: chiudila dal multitasking
+   e riaprila). Sugli altri Mac ricarica.
+4. Niente da fare sull'app degli autisti e sui dati. Il modello del foglio di servizio non cambia
+   (cambia solo la H del bus 33, punto 4).
+
+NOVITÀ DELLA 4.0.3
+------------------
+1) L'AGENDA SUL TELEFONO: "SU QUESTO TELEFONO"
+- Sul telefono, in Impostazioni › Aspetto (con l'aspetto Classico: Menu › Le mie impostazioni ›
+  Aspetto dell'agenda) c'è il nuovo riquadro "Su questo telefono":
+    · Dimensione: 100%, 90%, 80% o 70%. Più piccola = ci sta più roba nello schermo (come
+      allontanare il telefono). Si vede subito.
+    · Vista compatta (acceso/spento).
+- Vale solo per il telefono dove la scegli: il Mac, gli altri telefoni e gli altri account
+  restano come sono. Sul Mac il riquadro non compare.
+- Di serie: dimensione 100% e vista compatta accesa.
+
+2) VISTA COMPATTA (solo telefono)
+- Aspetto Nuovo: la parte in alto passa da circa metà schermo a tre righe sottili:
+    · in alto "Sincronizzato" e i pulsanti Fatturato, Autisti e Impostazioni (solo l'icona);
+    · il mese con le frecce;
+    · Giorno / Settimana / Mese, "Oggi" e "+" (nuova prenotazione).
+  Spariscono dal telefono solo il logo, la scritta "Agenda Flotta" e il nome dell'account
+  (che restano nelle Impostazioni).
+- La barra rossa del giorno è più bassa: data su una riga, conteggi piccoli, frecce in alto a
+  destra.
+- I conteggi sotto i giorni (autisti, servizi, mezzi) partono chiusi: si aprono toccando
+  "G giorno" (e l'agenda ricorda la scelta su quel telefono).
+- Aspetto Classico: niente logo e titolo grande, pulsanti più piccoli, barra del giorno più
+  bassa.
+- Risultato: aprendo l'agenda sul telefono i servizi del giorno si vedono subito, senza
+  scorrere.
+- Provato su iPhone piccolo (SE) e normale (13), con tutti e due gli aspetti.
+
+3) ORA PARTENZA PRESA DAL PROGRAMMA DEL FOGLIO DI SERVIZIO
+- Nel modulo della prenotazione, quando nel "Programma" del foglio di servizio scrivi un orario
+  (es. "Ore 06:45 PORTO DI POZZALLO"), appena smetti di scrivere l'"Ora partenza" diventa
+  quella (06:45). Accanto a "Ora partenza" compare "dal Programma" e l'avviso in basso lo
+  conferma (con l'ora di prima, se c'era).
+- Vale il primo orario scritto; nei tour il primo orario del primo giorno.
+- Vince il Programma: se cambi il primo orario, l'Ora partenza lo segue. Se poi correggi l'Ora
+  partenza a mano, la tua correzione resta finché non cambi di nuovo il primo orario.
+- Aprendo una prenotazione già salvata l'ora non cambia da sola.
+- Riconosce: 06:45, ore 7.30, h 7,30, ore 7 (= 07:00), alle 9. Non scambia per orari le date
+  ("il 18.11"), i prezzi ("€ 12,50") e i numeri di telefono.
+- L'Ora rientro resta quella che scrivi tu.
+- Vale con tutti e due gli aspetti.
+
+4) BUS 33 (H): SPUNTA "PASSEGGERO H A BORDO"
+- Nel modulo della prenotazione, quando il mezzo è il 33 (52 posti H, DL621AZ), sotto "Mezzo"
+  compare la spunta "Passeggero H a bordo". Si mette solo quando il cliente H c'è davvero.
+- Con la spunta: sul foglio di servizio (stampa, PDF, copia in Dropbox e app degli autisti)
+  accanto al mezzo c'è la H ("Bus 52 posti H"), così l'autista sa che vanno tolte le panche.
+- Senza la spunta il 33 va come un bus normale: sul foglio "52 posti", senza H.
+- Se il foglio era già stato inviato, mettendo o togliendo la spunta diventa "Da reinviare".
+- Spostando il servizio su un altro mezzo la spunta sparisce e si toglie da sola.
+- Il cambio compare nell'elenco delle modifiche e nel Registro ("Passeggero H a bordo: no → sì").
+- Nell'agenda il 33 continua ad avere la H accanto al nome (vuol dire che è attrezzato).
+- store.js cambia (salva la spunta): va caricato anche lui.
+
+5) FATTURATO: VIA TARGHE E ID DEL MEZZO
+- Nella pagina Fatturato, colonna "Mezzo", resta solo il mezzo come lo vuole la contabilità
+  (es. "_64_posti"): niente più targa con l'ID tra parentesi sotto, e niente più "manca targa".
+- Quando va un mezzo diverso da quello chiesto dal cliente, la nota dice solo i posti:
+  "va il 54 posti · scelta nostra".
+- Il file fatturato in Dropbox non cambia: la colonna della targa resta com'è (come prima).
+
+6) NUOVO STATO "STAMPABILE" (PALLINO FUCSIA CON LA STAMPANTINA)
+- Vuol dire: prenotazione confermata, foglio di servizio completo, si può stampare.
+- Come si mette:
+    · vista Giorno: tasto destro sul pallino dello stato (sul telefono e sull'iPad: tieni
+      premuto il pallino). Un altro tasto destro la rimette "Confermata";
+    · nella prenotazione: tendina "Stato" › "Stampabile", poi "Salva";
+    · scorciatoia ⌥P (Alt+P su Windows) con la prenotazione o il foglio di servizio aperti, oppure
+      con il mouse sopra il servizio nella vista Giorno o Settimana. Premuta di nuovo: torna
+      "Confermata". Si può cambiare in Impostazioni › Tastiera (lì trovi anche il tasto destro
+      e il clic sul pallino, sotto "Sempre uguali");
+    · da solo: se la prenotazione è confermata e nel foglio di servizio premi "Salva e stampa"
+      (o ⌘P), diventa "Stampabile". Una prenotazione in sospeso stampata resta in sospeso.
+- Il clic normale sul pallino resta come prima: in sospeso ↔ confermata.
+- Si vede anche nella vista Settimana (quadratino fucsia), nel fumetto della vista Mese (🖨) e
+  nel Registro delle modifiche ("Stato: confermato → stampabile").
+- Stampabile vale come confermata: non si cancella mai da sola e va nel fatturato come prima.
+- Importante: aggiorna tutti i Mac e i telefoni. Una versione vecchia vede le stampabili come
+  confermate e, se le si salva da lì, le rimette "Confermate".
+
+------------------------------------------------------------------------------------------
+VERSIONE 4.0.2 (18/11/2026)
+------------------------------------------------------------------------------------------
+COME AGGIORNARE ALLA 4.0.2 (dalla 4.0.1, dalla 4.0 o dalla 3.0.11: 3 minuti, 6 file)
+-----------------------------------------------------------------------------------
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   6 file: index.html, app.js, store.js, skin40.css, sw.js, LEGGIMI.txt. Niente config.js.
+   Gli altri file restano quelli di adesso.
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v4.0.2".
+   Se compare "Aggiornamento in corso (…)" per più di qualche minuto, su GitHub manca il file
+   scritto tra parentesi.
+3. Sugli altri Mac e sui telefoni chiudi e riapri l'agenda.
+4. Niente da fare sull'app degli autisti e sui dati. Il foglio di servizio non cambia.
+
+NOVITÀ DELLA 4.0.2
+------------------
+1) IMPOSTAZIONI: VIA L'EFFETTO "FINESTRELLA DENTRO LA FINESTRA"
+- Clienti, Flotta, Autisti, Referenti, Guide, Hotel, Parcheggi, Tendine, Contabilità, Registro
+  delle modifiche, Permessi: niente più ombra grigia sotto la pagina (sembrava un foglio che
+  galleggiava) e niente più elenco che scorre in un riquadro più piccolo con l'ultima riga
+  tagliata a metà e uno spazio vuoto sotto.
+- Ora l'elenco è lungo quanto serve e scorre con tutta la pagina. La riga dei titoli (Cliente,
+  Città, Nome…, Cod., Ragione sociale…, Quando, Chi…) resta ferma in alto mentre scorri.
+- Le tendine dentro gli elenchi (colore degli autisti, IVA dei parcheggi…) hanno lo stesso
+  aspetto dei campi accanto, con la freccetta grigia, invece di quello grezzo del browser.
+- Tendine: "+ Nuovo" sta sulla riga delle schede, a destra, come nelle altre pagine.
+- Permessi e impostazioni: il testo dell'uscita automatica indica "Impostazioni › Generali"
+  (con l'aspetto Classico resta "Menu › Le mie impostazioni").
+- Controllate una per una tutte le pagine delle Impostazioni, con il tema chiaro e scuro.
+- L'aspetto Classico non cambia.
+
+2) CODICE UNIVOCO: DALLA FATTURA ALL'ANAGRAFICA, DA SOLO
+- Quando nella bozza fattura scrivi (o correggi) il "Codice destinatario" del cliente, appena
+  passi al campo dopo l'agenda lo salva anche nell'anagrafica del cliente, nel file fatturato
+  (colonna "Codice univoco"; se il foglio clienti non ce l'ha, la aggiunge). La prossima
+  fattura per quel cliente lo propone già compilato.
+- L'avviso in basso lo conferma: "Codice univoco di «…» salvato anche in anagrafica". Se in
+  anagrafica ce n'era un altro, viene sostituito e l'avviso mostra il vecchio e il nuovo
+  (es. "M5UXCR1 → KRRH6B9"). Il cambio resta nel Registro delle modifiche.
+- Vale per i codici completi: 7 caratteri, oppure 6 per la pubblica amministrazione (codice
+  ufficio). Non vale per XXXXXXX dei clienti esteri e per i clienti scritti a mano senza
+  codice dell'anagrafica.
+- Serve il permesso "Anagrafica clienti" (Permessi e impostazioni): senza, il codice vale solo
+  per quella fattura e l'avviso lo spiega.
+- Vale con tutti e due gli aspetti (Nuovo e Classico).
+
+------------------------------------------------------------------------------------------
+VERSIONE 4.0.1 (17/11/2026)
+------------------------------------------------------------------------------------------
 COME AGGIORNARE ALLA 4.0.1 (dalla 4.0 o dalla 3.0.11: 3 minuti, 6 file)
 ----------------------------------------------------------------------
 1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi

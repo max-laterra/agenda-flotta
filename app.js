@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="4.0.1",APP_DATE="17/11/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="4.0.3",APP_DATE="18/11/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
@@ -16,7 +16,7 @@ const APP_VERSION="4.0.1",APP_DATE="17/11/2026";window.AGENDA_VERSION=APP_VERSIO
 //        store.js e autisti.js restano quelli della 3.0.3.
 // 3.0.6: aggiornamento parziale (solo app.js): nomi di prima degli autisti (un autista rinominato nell'anagrafica
 //        resta una persona sola: servizi già inseriti, telefono, crocette dei pasti). Gli altri file restano della 3.0.5.
-const APP_FAMILY="3.0",APP_PATCH={index:"4.0.1",store:"4.0.1",autisti:"3.0.10",fatture:"3.0.4",fatturato:"3.0.4"};
+const APP_FAMILY="3.0",APP_PATCH={index:"4.0.3",store:"4.0.3",autisti:"3.0.10",fatture:"3.0.4",fatturato:"3.0.4"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -42,7 +42,7 @@ if(framed){stopPage("Agenda Flotta La Terra","Per sicurezza l'agenda non si può
   const F=window.AGENDA_FILES||{},FP=window.AGENDA_PATCH||{},bad=[];
   if(document.documentElement.getAttribute("data-v")!==APP_FAMILY||(APP_PATCH.index&&document.documentElement.getAttribute("data-p")!==APP_PATCH.index))bad.push("index.html");
   for(const f of ["dropbox","fatturato","fatture","store","accessi","autisti"])if(F[f]!==APP_FAMILY||(APP_PATCH[f]&&FP[f]!==APP_PATCH[f]))bad.push(f+".js");
-  try{if(getComputedStyle(document.documentElement).getPropertyValue("--skin40").indexOf("4.0.1")<0)bad.push("skin40.css");}catch(_){} // 4.0: anche la grafica nuova deve essere arrivata
+  try{if(getComputedStyle(document.documentElement).getPropertyValue("--skin40").indexOf("4.0.3")<0)bad.push("skin40.css");}catch(_){} // 4.0: anche la grafica nuova deve essere arrivata
   let n=0;try{n=+sessionStorage.getItem("agenda-upd-try")||0;}catch(_){}
   if(bad.length){
     // ricaricando, ogni file viene richiesto di nuovo al sito (la copia per l'uso offline non si cancella:
@@ -187,6 +187,10 @@ const seatsLbl=v=>v&&v.seats?v.seats+" posti"+(v.h?" H":""):(v&&v.name)||"mezzo"
 function fvOn(b){return !!(b&&b.fveh&&b.fveh.v&&!sameCat(billVeh(b),vehicle(b.vehicle)||{}));}
 function fvTitle(b){const f=billVeh(b),v=vehicle(b.vehicle)||{},x=b.fveh||{};return "Si fattura il "+seatsLbl(f)+" chiesto dal cliente: il "+seatsLbl(v)+" è una scelta nostra (motivi logistici)"+(x.by?" – "+x.by:"")+(x.at?" "+fmtTime(x.at):"");}
 const fvChip=b=>fvOn(b)?'<i class="fv-m" title="'+esc(fvTitle(b))+'">fatt. '+esc(String(billVeh(b).seats||"")+(billVeh(b).seats?" p.":""))+'</i>':"";
+// 4.0.3: il 33 (bus attrezzato H) va come bus normale; la H sul foglio di servizio solo con la spunta «Passeggero H a bordo»
+const isH33=v=>!!v&&!v.xbus&&String(v.num==null?"":v.num).trim()==="33";
+const hPaxOn=b=>!!b&&b.hPax===true&&isH33(vehicle(b.vehicle));
+function sheetVehName(v,b){const n=v.name||xcatOf(v);if(!isH33(v))return n;const base=String(n).replace(/\s*H\s*$/i,"");return hPaxOn(b)?base+" H":base;}
 function xcatOf(v){if(v.xcat)return v.xcat;const n=v.seats;if(!n)return "_3_posti";if(n<=7)return "_7_posti";if(n<=20)return "_20_posti";if(n<=28)return "_28_posti";if(n<=42)return "_42_posti";if(n<=54)return "_54_posti";if(n<=58)return "_58_posti";if(n<=79)return "_64_posti";return "_81_posti";}
 function statsHTML(list){const tot='<div class="stat"><b>'+list.length+'</b><span>Servizi</span></div>';return tot+Object.keys(STAT_LABELS).map(k=>{const n=list.filter(b=>b.type===k).length;return n?'<div class="stat"><b>'+n+'</b><span>'+STAT_LABELS[k]+'</span></div>':"";}).join("");}
 const GROUPS={auto:"Auto e van",van:"Auto e van",bus:"Bus"};
@@ -239,6 +243,11 @@ function vehColW(px){
 // nome con cui il cliente compare nelle viste: l'alias, quando c'è
 function dispClient(b){const c=b.clientCode!==""&&b.clientCode!=null?clientByCode(b.clientCode):null;return (c&&c[2]?String(c[2]):"")||b.client||"Senza cliente";}
 const pending=b=>b.status==="opzione"; // prenotazione in sospeso (da confermare)
+// 4.0.3: «Stampabile» = confermata, con il foglio di servizio completo e pronto da stampare (pallino fucsia con la stampantina)
+const printable=b=>b.status==="stampabile";
+const stCls=b=>pending(b)?"q":printable(b)?"pr":"ok";
+const PRN_SVG='<svg class="prn" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M4.6 6V2.4h6.8V6"/><rect x="1.9" y="6" width="12.2" height="5.4" rx="1.4"/><path d="M4.6 9.4h6.8v4.2H4.6z" fill="currentColor" stroke-width="1.2"/></svg>';
+const stMark=b=>pending(b)?"?":printable(b)?PRN_SVG:"✓";
 function vehLabel(v){if(v&&v.xbus)return "Extra bus "+[v.az||"altra azienda",v.seats?v.seats+" posti":"",v.plate].filter(Boolean).join(" - ");return (v.seats?v.seats+" posti"+(v.h?" H":""):"Auto")+(v.plate?" - "+v.plate:"")+(v.num?" ("+v.num+")":"");}
 const S={fleet:sortFleet(DEFAULT_FLEET),fleetStored:false,days:{},sel:todayISO(),view:"day",readOnly:false,clients:[],regole:{autisti:[],targhe:{},numeri:{}},allDays:null};
 let db=null, unsubDays=null, subMonth=null;
@@ -369,8 +378,8 @@ function renderWeek(){
       for(const b of list){
         let tp=TYPES[b.type]||"",tm=b.time||"";
         if(spans(b)){const tot=diff(b.start,endOf(b))+1,i=diff(b.start,ds)+1;tp+=" "+i+"/"+tot;if(i>1)tm=i===tot&&b.time2?b.time2:"";}
-        inner+='<button class="wb '+esc(b.type)+(pending(b)?" opzione":"")+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc((pending(b)?"IN SOSPESO · ":"Confermata · ")+(b.foglio?"n. "+b.foglio+" · ":"")+(b.client||"")+(b.event?" – "+b.event:"")+(whatToday(b,ds)?" – "+whatToday(b,ds):"")+(b.driver?" · Autista: "+b.driver:"")+(b.escort?" · Accompagnatore: "+b.escort:"")+(dvNote(b)?" · "+dvNote(b):""))+'">'+
-          '<span class="l1">'+missBadge(b,ds)+(tm?'<span class="tm">'+esc(tm)+'</span>':"")+'<span class="tp">'+tp+'</span><span class="stm '+(pending(b)?"q":"ok")+'" aria-hidden="true">'+(pending(b)?"?":"✓")+'</span></span>'+
+        inner+='<button class="wb '+esc(b.type)+(pending(b)?" opzione":"")+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc((pending(b)?"IN SOSPESO · ":printable(b)?"Stampabile · ":"Confermata · ")+(b.foglio?"n. "+b.foglio+" · ":"")+(b.client||"")+(b.event?" – "+b.event:"")+(whatToday(b,ds)?" – "+whatToday(b,ds):"")+(b.driver?" · Autista: "+b.driver:"")+(b.escort?" · Accompagnatore: "+b.escort:"")+(dvNote(b)?" · "+dvNote(b):""))+'">'+
+          '<span class="l1">'+missBadge(b,ds)+(tm?'<span class="tm">'+esc(tm)+'</span>':"")+'<span class="tp">'+tp+'</span><span class="stm '+stCls(b)+'" aria-hidden="true">'+stMark(b)+'</span></span>'+
           '<span class="cl">'+fvChip(b)+esc(dispClient(b))+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(whatToday(b,ds)?'<span class="rt'+(dayProgram(b,ds)?" pg":"")+'">'+esc(whatToday(b,ds))+'</span>':"")+'</button>';
       }
       const canAdd=!S.readOnly&&(!xb||xb.days.has(ds));
@@ -417,7 +426,25 @@ function renderMonthBar(){
   const k=mkey(S.sel);$("mTitle").textContent=MN[+k.slice(5,7)-1]+" "+k.slice(0,4);
   $("fleetCount").textContent=fleetOn(S.sel).length+" mezzi";
 }
-let cntOpen=true;try{cntOpen=localStorage.getItem("agenda-conteggi")!=="0";}catch(_){}
+// 4.0.2 — Impostazione «Su questo telefono»: dimensione dell'agenda e vista compatta. Vale solo sul telefono dove si sceglie
+// (localStorage), non tocca il Mac né gli altri dispositivi. Di serie: dimensione 100% e vista compatta accesa.
+const TEL_KEY="agenda-tel",TEL_Z=[[0.7,"70%"],[0.8,"80%"],[0.9,"90%"],[1,"100%"]];
+function isPhone(){try{return Math.min(screen.width,screen.height)<=500&&matchMedia("(pointer:coarse)").matches;}catch(_){return false;}}
+function telPrefs(){let t={};try{t=JSON.parse(localStorage.getItem(TEL_KEY)||"{}")||{};}catch(_){}
+  const z=TEL_Z.some(x=>x[0]===t.z)?t.z:1;return {z,c:t.c===0?0:1};}
+function telApply(){
+  const T=telPrefs(),ph=isPhone(),mv=document.querySelector('meta[name="viewport"]');
+  if(mv){if(!mv.dataset.base)mv.dataset.base=mv.getAttribute("content")||"width=device-width, initial-scale=1, viewport-fit=cover";
+    let want=mv.dataset.base;
+    if(ph&&T.z<1){let land=false;try{land=matchMedia("(orientation: landscape)").matches;}catch(_){}
+      const sw=land?Math.max(screen.width,screen.height):Math.min(screen.width,screen.height);
+      // più punti di larghezza = tutto più piccolo; su iPhone il tetto allo zoom evita l'ingrandimento quando si tocca un campo
+      want="width="+Math.round(sw/T.z)+", initial-scale="+T.z+(/iPhone|iPod/.test(navigator.userAgent)?", maximum-scale="+T.z:"")+", viewport-fit=cover";}
+    if(mv.getAttribute("content")!==want)mv.setAttribute("content",want);}
+  document.documentElement.classList.toggle("tel-compact",ph&&!!T.c);
+}
+telApply();
+let cntOpen=true;try{const k=localStorage.getItem("agenda-conteggi");cntOpen=k===null?!(isPhone()&&telPrefs().c):k!=="0";}catch(_){} // 4.0.2: nella vista compatta del telefono i conteggi partono chiusi
 function renderStrip(){
   const k=mkey(S.sel),n=dim(k),all=bookingsAll(),t=todayISO();
   const wkA=S.view==="week"?weekStart(S.sel):"",wkZ=wkA?addDays(wkA,6):"";
@@ -473,10 +500,10 @@ function bookingHTML(b,date){
   const what=[hasEvent(b.type)&&b.event?b.event:"",whatToday(b,date)||""].filter(Boolean),name=dispClient(b),drv=driversHTML(b);
   if(b.capo)det.push(capoTitle(b));
   const dvT=dvNote(b);if(dvT)det.push(dvT); // 3.0.3
-  const tip=[(pending(b)?"IN SOSPESO":"Confermata")+" · "+tp,(b.client||"")+(name!==(b.client||"Senza cliente")?" ("+name+")":""),what.join(" – ")].filter(Boolean).join(" · ")+(det.length?"\n"+det.join(" · "):"");
+  const tip=[(pending(b)?"IN SOSPESO":printable(b)?"Stampabile":"Confermata")+" · "+tp,(b.client||"")+(name!==(b.client||"Senza cliente")?" ("+name+")":""),what.join(" – ")].filter(Boolean).join(" · ")+(det.length?"\n"+det.join(" · "):"");
   const over=v&&v.seats&&/^\d+$/.test(String(b.pax||""))&&+b.pax>v.seats;
   return '<div class="bkw '+esc(b.type)+(pending(b)?" opzione":"")+'">'+
-    '<button type="button" class="stt '+(pending(b)?"q":"ok")+'" data-conf="'+esc(b.id)+'" data-start="'+esc(b.start)+'"'+(S.readOnly?" disabled":"")+' title="'+(pending(b)?"In sospeso: clic per confermare":"Confermata: clic per rimetterla in sospeso")+'" aria-label="'+(pending(b)?"In sospeso: conferma la prenotazione":"Confermata: rimetti in sospeso")+'">'+(pending(b)?"?":"✓")+'</button>'+
+    '<button type="button" class="stt '+stCls(b)+'" data-conf="'+esc(b.id)+'" data-start="'+esc(b.start)+'"'+(S.readOnly?" disabled":"")+' title="'+(pending(b)?"In sospeso: clic per confermare · tasto destro: stampabile":printable(b)?"Stampabile: il foglio è completo e si può stampare · clic: rimetti in sospeso · tasto destro: torna confermata":"Confermata: clic per rimetterla in sospeso · tasto destro: stampabile")+'" aria-label="'+(pending(b)?"In sospeso: conferma la prenotazione":printable(b)?"Stampabile: rimetti in sospeso":"Confermata: rimetti in sospeso")+'">'+stMark(b)+'</button>'+
     '<button type="button" class="bk '+esc(b.type)+'" data-edit="'+esc(b.id)+'" data-start="'+esc(b.start)+'" title="'+esc(tip)+'">'+
     '<span class="c-t1">'+esc(t1||(multi&&i>1?"":"—"))+'</span>'+
     '<span class="c-t2">'+esc(t2)+'</span>'+
@@ -558,7 +585,7 @@ function renderMonth(){
         if(list.every(pending))cls+=" opz";
         const lab=list.length>1?list.length:(sg?(sg.s?MONTH_LAB[b.type]:""):(MONTH_LAB[b.type]||""));
         inner='<div class="'+cls+'">'+lab+'</div>';
-        tip=list.map(x=>(pending(x)?"? ":"✓ ")+(TYPES[x.type]||"")+(x.time?" "+x.time:"")+" – "+dispClient(x)+(x.event?" · "+x.event:"")+(whatToday(x,ds)?" ("+whatToday(x,ds)+")":""));
+        tip=list.map(x=>(pending(x)?"? ":printable(x)?"🖨 ":"✓ ")+(TYPES[x.type]||"")+(x.time?" "+x.time:"")+" – "+dispClient(x)+(x.event?" · "+x.event:"")+(whatToday(x,ds)?" ("+whatToday(x,ds)+")":""));
       }
       const pv=postitsOf(ds,v.id);if(pv.length)inner+='<i class="pi-cn c-'+esc(pv[0].col)+'"></i>';
       h+='<td class="c'+(w===0?" sun":"")+(ds===S.sel?" sel":"")+'" data-day="'+ds+'" title="'+esc(ds.split("-").reverse().join("/")+(tip.length?"\n"+tip.join("\n"):" – libero")+(pv.length?"\n"+piTip(pv):""))+'">'+inner+'</td>';
@@ -618,7 +645,7 @@ function openForm(opts){
   $("f-vehicle").value=b.vehicle;if(!$("f-vehicle").value&&$("f-vehicle").options[0])$("f-vehicle").value=$("f-vehicle").options[0].value;$("f-start").value=b.start;$("f-end").value=(b.end&&b.end>=b.start)?b.end:b.start;$("f-end").min=b.start||"";formStart=b.start;
   $("f-time").value=b.time||"";$("f-time2").value=b.time2||"";$("f-client").value=b.client||"";$("f-route").value=b.route||"";
   $("f-pax").value=b.pax==null?"":b.pax;$("f-event").value=b.event||"";$("f-escort").value=b.escort||"";$("f-driver").value=b.driver||"";$("f-contact").value=b.contact||"";$("f-contactname").value=b.contactName||"";$("f-contactnote").value=b.contactNote||"";$("f-contactrole").innerHTML=tendinaOpts("ruolo",b.contactRole||"");drvPaint("f-driver");drvPaint("f-driver2");
-  $("f-status").value=b.status==="opzione"?"opzione":"confermato";paintStatus();
+  $("f-status").value=b.status==="opzione"?"opzione":b.status==="stampabile"?"stampabile":"confermato";paintStatus();
   // la casella Note non c'è più nel modulo: resta visibile solo nelle prenotazioni che hanno già un testo lì
   $("f-notes").value=b.notes||"";$("w-notes").hidden=!String(b.notes||"").trim();
   renderClientInfo();syncDrvQ();
@@ -639,10 +666,12 @@ function openForm(opts){
     if(lock){["f-vehicle","f-driver","f-driver2"].forEach(id=>{$(id).disabled=true;});document.querySelectorAll('#fBooking [data-gen],#fBooking [data-drvopen]').forEach(x=>{x.disabled=true;});}
     $("fCapo").hidden=!dec;if(dec)$("fCapo").textContent=capoTitle(b)+(lock?": da qui non si cambiano più. Per cambiarli serve MAX, che invia di nuovo il foglio.":": tu puoi ancora cambiarli.");}
   formLoading=true;syncType();formLoading=false;checkWarns();
+  $("f-hpax").checked=!!(editing&&b.hPax===true);hPaxRow(); // 4.0.3
   formOrig=readForm(); // per sapere se l'utente ha cambiato qualcosa e quali campi
   // parcheggi scelti che superano «€ Parcheggi» (cifra abbassata da un dispositivo non aggiornato): il cambio si vede
   if(editing&&pkMismatch!=null)formOrig.park=pkMismatch;
   $("ovBooking").hidden=false;setTimeout(()=>$("f-client").focus(),30);growAll($("progWrap"));
+  progT0=progFirstTime(($("prog-0")||{}).value||"");progTimeNote(false); // 4.0.3: aprendo una prenotazione l'ora non cambia
 }
 let formOrig=null,saving=false,editConfirmed=false;
 let formDayv=[],dvOpen=false; // 3.0.3: mezzi e autisti del tour giorno per giorno (modulo aperto)
@@ -694,7 +723,7 @@ function drvPick(id,name){$(id).value=name;drvRender(id,false);drvPaint(id);sync
   box.addEventListener("mousedown",e=>{const b=e.target.closest("[data-drv]");if(b){e.preventDefault();drvPick(id,b.dataset.drv);}});
 });
 document.querySelectorAll("[data-drvopen]").forEach(b=>b.addEventListener("mousedown",e=>{e.preventDefault();const id=b.dataset.drvopen,box=$("dl-"+id);if(box.hidden){$(id).focus();drvIdx=-1;drvRender(id,true);}else drvRender(id,false);}));
-function paintStatus(){const el=$("f-status");el.classList.toggle("st-q",el.value==="opzione");el.classList.toggle("st-ok",el.value!=="opzione");}
+function paintStatus(){const el=$("f-status");el.classList.toggle("st-q",el.value==="opzione");el.classList.toggle("st-ok",el.value==="confermato");el.classList.toggle("st-pr",el.value==="stampabile");}
 function syncDrvQ(){$("q-driver").hidden=!!$("f-driver").value.trim()||S.readOnly;}
 ["f-driver","f-driver2"].forEach(id=>$(id).addEventListener("input",syncDrvQ));
 fillDrivers();
@@ -850,7 +879,7 @@ function readForm(){
     contactRole:$("f-contactrole").value,contactNote:T("f-contactnote"),
     saldo:$("f-saldo").value,saldoAmt:eur("f-saldoamt"),
     refs:readRep("refs"),hotels:readRep("hotels"),guides:readRep("guides"),program:readProgram(),dnotes:readRep("dnotes"),
-    att:attFormList(),dayv:readDayv(),updatedAt:new Date().toISOString()};
+    att:attFormList(),dayv:readDayv(),hPax:isH33(vehicle($("f-vehicle").value))&&$("f-hpax").checked,updatedAt:new Date().toISOString()};
 }
 // per i dispositivi con versioni precedenti: le 4 note del foglio anche nei campi di prima
 function withOldNotes(b){return Object.assign(b,noteCells(b));}
@@ -995,6 +1024,9 @@ $("dvRows").addEventListener("change",e=>{
   const g=formDvRange();$("dvSum").innerHTML=dvSummary(g?dvTrim(formDayv,g.n):[]);
 });
 ["f-start","f-end","f-vehicle","f-driver","f-driver2"].forEach(id=>$(id).addEventListener("change",()=>{if(!$("ovBooking").hidden)renderDayv();}));
+// 4.0.3: spunta «Passeggero H a bordo» solo con il 33
+function hPaxRow(){const on=isH33(vehicle($("f-vehicle").value));$("fHpaxRow").hidden=!on;if(!on)$("f-hpax").checked=false;}
+$("f-vehicle").addEventListener("change",hPaxRow);
 // passeggeri oltre la capienza dei mezzi scelti per i singoli giorni del tour
 function dvSeatsWarn(b){
   const out=[],pax=String(b.pax||"");if(!/^\d+$/.test(pax))return out;
@@ -1282,6 +1314,32 @@ function renderProgram(){
   growAll($("progWrap")); // 3.0: il riquadro si allunga con il testo (niente barra di scorrimento)
 }
 $("progWrap").addEventListener("input",e=>autoGrow(e.target));
+// 4.0.3 — L'«Ora partenza» si prende dal Programma del foglio di servizio, appena ci si scrive un orario: il primo orario
+// scritto (nei tour: il primo del primo giorno). Vince il Programma, ma solo quando il suo primo orario cambia: se poi si
+// corregge l'Ora partenza a mano e si scrive altrove nel Programma, la correzione resta.
+let progT0="",progTT=null;
+function progFirstTime(txt){
+  const s=String(txt||""),cand=[],pad=h=>String(+h).padStart(2,"0");let m;
+  // 06:45, ore 7.30, h 7,30, 7.30 a inizio riga; non «il 18.11» (data), non «1.500», non «12,50» senza «ore»
+  const re=/(^|[^\d:.,\/])(ore\s*|h\s*|alle\s*|dalle\s*)?([01]?\d|2[0-3])\s?([:.,])\s?([0-5]\d)(?!\d|[.\/:]\d)/gi;
+  while((m=re.exec(s))){const at=m.index+m[1].length,pre=!!m[2],sep=m[4],mm=+m[5],ls=/(^|\n)[ \t]*$/.test(s.slice(0,at));
+    if(sep===":"||pre||ls||(sep==="."&&mm%5===0))cand.push([at,pad(m[3])+":"+m[5]]);}
+  // «ore 7», «alle 9» senza minuti
+  const re2=/(^|[^a-zà-ù])(ore|alle|dalle)\s+([01]?\d|2[0-3])(?!\d|\s*[:.,]\s*\d)/gi;
+  while((m=re2.exec(s)))cand.push([m.index+m[1].length,pad(m[3])+":00"]);
+  cand.sort((a,b)=>a[0]-b[0]);return cand.length?cand[0][1]:"";
+}
+function progTimeNote(on){const n=$("fTimeSrc");if(n)n.hidden=!on;}
+function progTimeSync(){
+  const ta=$("prog-0");if(!ta||$("ovBooking").hidden||$("f-time").disabled)return;
+  const t=progFirstTime(ta.value);if(!t||t===progT0)return;
+  progT0=t;const f=$("f-time"),was=f.value;progTimeNote(true);if(was===t)return;
+  f.value=t;f.dispatchEvent(new Event("change",{bubbles:true}));
+  toast("Ora partenza "+t+", presa dal Programma"+(was?" (prima era "+was+")":"")+".");
+}
+$("progWrap").addEventListener("input",()=>{clearTimeout(progTT);progTT=setTimeout(progTimeSync,600);});
+$("progWrap").addEventListener("change",()=>{clearTimeout(progTT);progTimeSync();});
+$("f-time").addEventListener("input",()=>progTimeNote(false)); // corretta a mano
 // la data di rientro segue la partenza finché non la cambi tu
 let formStart="";
 $("f-start").addEventListener("change",()=>{fillVehOpts($("f-vehicle").value,$("f-start").value);const st=$("f-start").value,en=$("f-end").value;if(st&&(!en||en<st||en===formStart||(endAuto&&en===addDays(formStart,1))))$("f-end").value=st;syncEndNextDay();$("f-end").min=st||"";formStart=st;checkWarns();if(isMulti(curType()))renderProgram();});
@@ -2234,7 +2292,7 @@ function billRow(b){
     A:Number(b.foglio),B:TYPE_XL[type],C:b.clientCode===""||b.clientCode==null?"":b.clientCode,
     D:b.client||"",G:xcatOf(fv),H:(fv.plate||"").trim(),I:b.start,J:endOf(b),
     M:billItin(b),O:billNote(b),P:num(b.price),Q:num(b.park),R:num(b.meals),EX:cleanExtras(b.extras),ex:!!(b.exOwn||cleanExtras(b.extras).length),AH:cashOn(b)?num(b.advance):"",AI:cashOn(b)?(b.envelope||""):"",AJ:cashOn(b)?(b.envno||""):"",Z:realDriver(b.driver),AA:realDriver(b.driver2),dz:!realDriver(b.driver),daa:isGen(b.driver2),
-    vehicleName:fv.name||"",vReal:fvOn(b)?vehLabel(v):"",fvSeats:fvOn(b)?seatsLbl(fv):"",tm:String(b.time||"")};
+    vehicleName:fv.name||"",vReal:fvOn(b)?seatsLbl(v):"",fvSeats:fvOn(b)?seatsLbl(fv):"",tm:String(b.time||"")};
 }
 function billRows(days){
   const out=[];
@@ -2342,7 +2400,7 @@ async function renderBill(){
       (inv?'<td><span class="fst fst-'+s.k+'"'+(s.title?' title="'+esc(s.title)+'"':"")+'>'+esc(s.t)+'</span>'+(s.sub?'<span class="sub">'+esc(s.sub)+'</span>':"")+'</td>':"")+
       '<td><span class="tip" style="border-color:var(--'+esc(r.type)+'-fill)">'+esc(r.B)+'</span></td>'+
       '<td class="cli">'+esc(r.D||"—")+(r.C!==""?'<span class="sub">Cod. '+esc(r.C)+(c&&c[2]?' · '+esc(c[2]):'')+'</span>':'<span class="sub miss">senza codice cliente</span>')+'</td>'+
-      '<td>'+esc(r.G)+'<span class="sub">'+(r.H?esc(r.H):'<span class="miss">manca targa</span>')+'</span>'+(r.vReal?'<span class="sub fv-sub" title="Il cliente ha chiesto il '+esc(r.fvSeats)+': si fattura quello">va il '+esc(r.vReal)+' · scelta nostra</span>':'')+'</td>'+
+      '<td>'+esc(r.G)+(r.vReal?'<span class="sub fv-sub" title="Il cliente ha chiesto il '+esc(r.fvSeats)+': si fattura quello">va il '+esc(r.vReal)+' · scelta nostra</span>':'')+'</td>'+
       '<td class="num">'+dates(r)+'</td>'+
       '<td class="iti">'+esc(r.M)+(r.O?'<span class="sub">'+esc(r.O)+'</span>':'')+'</td>'+
       '<td>'+drv(r)+'</td>'+
@@ -2718,7 +2776,7 @@ function tplValues(b,measure,opt){
   const nr=v.num!=null&&String(v.num).trim()!==""?v.num:(S.regole.numeri||{})[plate],numero=nr==null?"":(/^\d+$/.test(String(nr).trim())?Number(nr):String(nr).trim());
   const nd=diff(b.start,endOf(b))+1,pr=numOrE(b.price),pk=numOrE(b.park),ml=numOrE(b.meals);
   const name=cl?cl[1]:(b.client||""),tel=cl&&cl[4]?String(cl[4]):"",alias=cl&&cl[2]?String(cl[2]):"";
-  const busName=v.name||xcatOf(v),plateShown=SHO_.noPlate?"":plate;
+  const busName=sheetVehName(v,b),plateShown=SHO_.noPlate?"":plate; // 4.0.3: per il 33 la H solo con il passeggero H
   const pax=String(b.pax==null?"":b.pax).trim(),kind=v.kind==="van"?"Van":v.kind==="auto"?"Auto":"Bus";
   const drv=realDriver(b.driver),fg=b.provisional?String(b.foglio||"")+" PROVV.":/^\d+$/.test(String(b.foglio||""))?Number(b.foglio):(b.foglio||"");
   const any=pr!==""||pk!==""||ml!=="",hm=durHours(b);
@@ -3138,6 +3196,7 @@ async function printSheet(){
   const b=sheetBooking,full=sheetPart(),ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
   sheetsOut[b.id]=String(b.foglio);
   ACC.log("foglio",(isInvio()?"Stampa":"Salva e stampa")+" del foglio di servizio n. "+(b.foglio||"")+" «"+(b.client||"")+"»"+PART_LOG[full],{id:b.id});
+  if(b.status==="confermato"&&!isInvio()&&!S.readOnly)setTimeout(()=>setStatus(b.id,b.start,"stampabile","Stampato: la prenotazione ora è «Stampabile»"),0); // 4.0.3
   const saving=sheetCopyToDropbox(b),done=()=>saving.then(t=>{if(sheetBooking&&sheetBooking.id===b.id)$("sheetMsg").textContent=t?"Stampa aperta. "+t:"";});
   $("sheetMsg").textContent=isInvio()||S.readOnly?"":"Preparo la stampa e salvo la copia in Dropbox…";
   // 3.0.2: con gli allegati si stampa un PDF unico (foglio + allegati); la copia in Dropbox resta solo il foglio
@@ -3621,18 +3680,23 @@ function onNotice(n){
   else if(n.kind==="badcfg")notify("Il file "+(n.path||"di configurazione")+" in Dropbox non è valido (forse è stato modificato a mano): continuo con l'ultima versione buona. Per sistemarlo: su dropbox.com apri il file › Cronologia delle versioni e ripristina una versione precedente.",true);
 }
 // extra: per le prenotazioni {edit, base, patch, move}; per le eliminazioni {move: nuova data}
-// Conferma (o rimette in sospeso) una prenotazione con un clic sul riquadro della vista Giorno.
-// Si scrive solo lo stato: le modifiche fatte intanto da altri sugli altri campi restano.
-function toggleConfirm(id,start){
-  if(S.readOnly){toast("Accesso in sola lettura");return;}
-  const doc=S.days[start],cur=doc&&doc.bookings&&doc.bookings[id];if(!cur){toast("La prenotazione non c'è più (eliminata o spostata).");return;}
-  const was=pending(cur),b=Object.assign({},cur,{status:was?"confermato":"opzione",updatedAt:new Date().toISOString(),updBy:meName()});
+// Conferma (o rimette in sospeso) una prenotazione con un clic sul riquadro della vista Giorno; 4.0.3: «Stampabile» con il
+// tasto destro sul pallino, la scorciatoia o «Salva e stampa». Si scrive solo lo stato: le modifiche fatte intanto da altri restano.
+const ST_LBL={opzione:"in sospeso",confermato:"confermato",stampabile:"stampabile"};
+function setStatus(id,start,st,msg){
+  if(S.readOnly){toast("Accesso in sola lettura");return false;}
+  const doc=S.days[start],cur=doc&&doc.bookings&&doc.bookings[id];if(!cur){toast("La prenotazione non c'è più (eliminata o spostata).");return false;}
+  const was=pending(cur)?"opzione":printable(cur)?"stampabile":"confermato";if(was===st)return true;
+  const b=Object.assign({},cur,{status:st,updatedAt:new Date().toISOString(),updBy:meName()});
   try{
     writeDayOps(start,{bookings:{[id]:b}},{edit:true,only:true,base:cur.updatedAt||null,patch:["status","updBy"]});
-    if(!noCli(b))ACC.log("prenotazione",(was?"Confermata":"Rimessa in sospeso")+" la prenotazione "+bookingLabel(Object.assign({start},b)),{id,ch:[["Stato",was?"in sospeso":"confermato",was?"confermato":"in sospeso"]]});
-    renderAll();toast(was?"Prenotazione confermata":"Prenotazione rimessa in sospeso");
-  }catch(err){handleErr(err);}
+    if(!noCli(b))ACC.log("prenotazione",(st==="stampabile"?"Segnata come stampabile":st==="confermato"?"Confermata":"Rimessa in sospeso")+" la prenotazione "+bookingLabel(Object.assign({start},b)),{id,ch:[["Stato",ST_LBL[was],ST_LBL[st]]]});
+    if(editing&&editing.id===id&&!$("ovBooking").hidden){$("f-status").value=st;paintStatus();if(formOrig)formOrig.status=st;} // modulo aperto sulla stessa prenotazione: la tendina segue
+    renderAll();toast(msg||(st==="stampabile"?"Stampabile: il foglio è completo e si può stampare":st==="confermato"?"Prenotazione confermata":"Prenotazione rimessa in sospeso"));return true;
+  }catch(err){handleErr(err);return false;}
 }
+function toggleConfirm(id,start){const doc=S.days[start],cur=doc&&doc.bookings&&doc.bookings[id];if(!cur){setStatus(id,start,"opzione");return;}setStatus(id,start,pending(cur)?"confermato":"opzione");}
+function togglePrintable(id,start){const doc=S.days[start],cur=doc&&doc.bookings&&doc.bookings[id];if(!cur){setStatus(id,start,"stampabile");return;}setStatus(id,start,printable(cur)?"confermato":"stampabile",printable(cur)?"Tolto «Stampabile»: la prenotazione resta confermata":"");}
 // quello che questo dispositivo sa della scelta del capo e dell'invio di una prenotazione (per spostamenti ed eliminazioni)
 function knowOf(b){return {c:(b&&b.capo&&b.capo.at)||"",s:b&&b.sent?(b.sent.at||"")+"|"+((b.sent.off&&b.sent.off.at)||""):""};}
 function writeDayOps(date,patch,extra){
@@ -3972,6 +4036,7 @@ function fillPrefs(){
   $("prChecks").classList.toggle("off",M.mode==="off");
   $("prMissBox").hidden=isInvio();
   const lk=myPrefs().look||lookWanted();for(const r of document.querySelectorAll('input[name="prLook"]'))r.checked=r.value===lk;
+  {const tb=$("prTelBox");if(tb)tb.innerHTML=isPhone()?telBoxHtml():"";} // 4.0.2: solo sul telefono
 }
 $("prMode").addEventListener("change",()=>{const v=(document.querySelector('input[name="prMode"]:checked')||{}).value;$("prChecks").classList.toggle("off",v==="off");});
 $("mPrefs").addEventListener("submit",async e=>{
@@ -4010,12 +4075,13 @@ document.addEventListener("visibilitychange",()=>{if(document.visibilityState===
 window.addEventListener("pageshow",checkIdle);window.addEventListener("focus",checkIdle);window.addEventListener("pagehide",()=>saveAct(true));
 
 // ---------- registro: cosa è cambiato in una prenotazione ----------
-const FIELD_LBL={type:"Categoria",vehicle:"Mezzo",start:"Data partenza",end:"Data rientro",time:"Ora partenza",time2:"Ora rientro",client:"Cliente",clientCode:"Codice cliente",route:"Itinerario",event:"Evento",escort:"Accompagnatore",pax:"Passeggeri",price:"Prezzo",park:"Parcheggi",parks:"Parcheggi scelti",meals:"Pasti",extras:"Extra",advance:"Acconto",envelope:"Busta",envno:"N. busta",driver:"1° autista",driver2:"2° autista",contact:"Telefono referente 1",contactName:"Referente 1",contactRole:"Ruolo referente 1",contactNote:"Note referente 1",dnotes:"Note per l'autista",status:"Stato",notes:"Note",saldo:"Saldo da ricevere",saldoAmt:"€ Saldo",npark:"Note 1° park",ndriver:"Note 2° autista",n3h:"Note 3° 3 ore",nextra:"Note 4° extra",refs:"Altri referenti",hotels:"Hotel",guides:"Guide",program:"Programma",att:"Allegati per l'autista",dayv:"Mezzi e autisti giorno per giorno"};
+const FIELD_LBL={hPax:"Passeggero H a bordo",type:"Categoria",vehicle:"Mezzo",start:"Data partenza",end:"Data rientro",time:"Ora partenza",time2:"Ora rientro",client:"Cliente",clientCode:"Codice cliente",route:"Itinerario",event:"Evento",escort:"Accompagnatore",pax:"Passeggeri",price:"Prezzo",park:"Parcheggi",parks:"Parcheggi scelti",meals:"Pasti",extras:"Extra",advance:"Acconto",envelope:"Busta",envno:"N. busta",driver:"1° autista",driver2:"2° autista",contact:"Telefono referente 1",contactName:"Referente 1",contactRole:"Ruolo referente 1",contactNote:"Note referente 1",dnotes:"Note per l'autista",status:"Stato",notes:"Note",saldo:"Saldo da ricevere",saldoAmt:"€ Saldo",npark:"Note 1° park",ndriver:"Note 2° autista",n3h:"Note 3° 3 ore",nextra:"Note 4° extra",refs:"Altri referenti",hotels:"Hotel",guides:"Guide",program:"Programma",att:"Allegati per l'autista",dayv:"Mezzi e autisti giorno per giorno"};
 function logVal(k,v){
+  if(k==="hPax")return v===true?"sì (H sul foglio)":"no";
   if(v===""||v==null||(Array.isArray(v)&&!v.filter(Boolean).length))return "—";
   if(k==="vehicle"){const vv=vehicle(v);return vv?vehLabel(vv):String(v);}
   if(k==="type")return TYPES[normType(v)]||v;
-  if(k==="status")return v==="opzione"?"in sospeso":"confermato";
+  if(k==="status")return v==="opzione"?"in sospeso":v==="stampabile"?"stampabile":"confermato";
   if(k==="start"||k==="end")return itD(v);
   if(["price","park","meals","advance","saldoAmt"].includes(k))return "€ "+money(v);
   if(k==="refs"||k==="hotels"||k==="guides")return v.map(x=>[x.name,x.role?"("+x.role+")":"",x.addr,x.city,x.tel,x.note].filter(Boolean).join(" ")).join("; ").slice(0,200);
@@ -4693,7 +4759,7 @@ function invInput(e){
   if(p==="data"&&INV.scadAuto&&FT.okDate(d.data)){d.pagamento.scad=FT.addDays(d.data,d.cliente.pa?C.opzioni.giorniPA:C.opzioni.giorni);const sc=$("iv-scad");if(sc)sc.value=d.pagamento.scad;}
   if(e.type==="change"){
     let redraw=false;
-    if(p==="cliente.sdi"){const pa=FT.isPA(d.cliente);if(pa!==d.cliente.pa){d.cliente.pa=pa;invPaChanged();redraw=true;}}
+    if(p==="cliente.sdi"){const pa=FT.isPA(d.cliente);if(pa!==d.cliente.pa){d.cliente.pa=pa;invPaChanged();redraw=true;}invSdiToAnag(d);}
     if(p==="cliente.pa"){invPaChanged();redraw=true;}
     if(p==="modo"){if(invRegen(true)!==true){d.modo=d.modo==="riepilogo"?"singole":"riepilogo";redraw=true;}else{const n=$("ivRiepNote");if(n)n.textContent=invRiepNote(d);}}
     if(p==="bollo"){if(!d.bollo&&d.bolloAddebita){d.bolloAddebita=false;d.righe=d.righe.filter(r=>r.tipo!=="bollo");}redraw=true;}
@@ -4705,6 +4771,20 @@ function invInput(e){
     if(redraw){const keep=el.id;renderInvForm();const again=keep&&$(keep);if(again)again.focus();}
   }
   invTouch();
+}
+// 4.0.2: il codice univoco scritto (o corretto) nella bozza fattura va da solo nell'anagrafica del cliente
+function invSdiToAnag(d){
+  const c=d&&d.cliente;if(!c||!c.code||S.readOnly)return;
+  const v=String(c.sdi||"").toUpperCase().replace(/\s/g,"");
+  if(!/^[A-Z0-9]{6,7}$/.test(v)||v==="XXXXXXX")return; // XXXXXXX = cliente estero: non serve in anagrafica
+  const cl=clientByCode(c.code);if(!cl)return;
+  const was=String(cliField(cl,"sdi")||"").toUpperCase().replace(/\s/g,"");if(was===v)return;
+  const nm=cl[1]||c.nome||"";
+  if(!canEdit("clients")){toast("Il codice univoco vale per questa fattura; in anagrafica non l'ho salvato perché il Master non ha abilitato le modifiche ai clienti.");return;}
+  const cols=cliCols(),i=cols.findIndex(x=>cliKind(x.h)==="sdi"),col=i>=0?cols[i].c:"_SDI";
+  STORE.editClient(String(c.code),{[col]:{t:v}},{[col]:was},nm);
+  ACC.log("cliente","Codice univoco di «"+nm+"» (codice "+c.code+") salvato in anagrafica dalla bozza fattura",{ch:[["Codice univoco (SDI)",was||"(vuoto)",v]]});
+  toast(was?"Codice univoco di «"+nm+"» aggiornato anche in anagrafica ("+was+" → "+v+").":"Codice univoco di «"+nm+"» salvato anche in anagrafica.");
 }
 $("invForm").addEventListener("input",invInput);$("invForm").addEventListener("change",invInput);
 $("invForm").addEventListener("submit",e=>e.preventDefault());
@@ -5486,7 +5566,7 @@ function sendOpts(b,o){
   o=o||{};
   const v=vehicle(b.vehicle)||{},cl=shClient(b),alias=cl&&cl[2]?String(cl[2]):"",al=!!(o.alias&&alias);
   return {alias:al,noPlate:!!o.noPlate,cliente:al?alias:(cl?String(cl[1]):(b.client||"")),
-    mezzo:{nome:v.name||"",posti:v.seats?String(v.seats)+(v.h?" H":""):"",targa:(v.plate||"").trim()},
+    mezzo:{nome:isH33(v)?sheetVehName(v,b):(v.name||""),posti:v.seats?String(v.seats)+((isH33(v)?hPaxOn(b):v.h)?" H":""):"",targa:(v.plate||"").trim()},
     autisti:allDriversOf(b),by:meName()}; // 3.0.3: anche gli autisti dei singoli giorni del tour
 }
 // stato dell'invio: null se il foglio non è mai stato inviato
@@ -6399,6 +6479,7 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("ctxMenu").hidde
 window.addEventListener("scroll",()=>{if(!$("ctxMenu").hidden)ctxClose();},true);
 function piCtxTarget(el){
   if(!el||!el.closest)return null;
+  if(el.closest("[data-conf]"))return null; // 4.0.3: sul pallino il tasto destro fa «Stampabile»
   const d=el.closest("#strip .dbtn,#strip .cc");if(d&&d.dataset.day)return {ds:d.dataset.day,vid:""};
   const th=el.closest("#wgrid thead th[data-goday]");if(th)return {ds:th.dataset.goday,vid:""};
   const mh=el.closest("#mgrid thead th[data-day]");if(mh)return {ds:mh.dataset.day,vid:""};
@@ -6418,6 +6499,19 @@ function piMenu(t){
   return items;
 }
 let piLP=null;
+// 4.0.3: tasto destro sul pallino dello stato = «Stampabile» (un'altra volta: torna confermata)
+{ // con il dito (telefono e iPad) il pallino premuto 0,6 secondi; il «tasto destro» che Android manda insieme non conta due volte
+  let lp=null,touchAt=0;
+  document.addEventListener("contextmenu",e=>{
+    const cf=e.target&&e.target.closest&&e.target.closest("#sheet [data-conf]");if(!cf)return;
+    e.preventDefault();e.stopImmediatePropagation();if(cf.disabled||isInvio()||Date.now()-touchAt<1500)return;togglePrintable(cf.dataset.conf,cf.dataset.start);
+  },true);
+  document.addEventListener("pointerdown",e=>{if(e.pointerType!=="mouse")touchAt=Date.now();const cf=e.pointerType!=="mouse"&&e.target.closest&&e.target.closest("#sheet [data-conf]");if(!cf||cf.disabled||isInvio()){lp=null;return;}
+    lp={x:e.clientX,y:e.clientY,done:false};lp.tm=setTimeout(()=>{lp.done=true;try{navigator.vibrate&&navigator.vibrate(12);}catch(_){}togglePrintable(cf.dataset.conf,cf.dataset.start);},600);});
+  document.addEventListener("pointermove",e=>{if(lp&&!lp.done&&Math.hypot(e.clientX-lp.x,e.clientY-lp.y)>10){clearTimeout(lp.tm);lp=null;}});
+  for(const ev of ["pointerup","pointercancel"])document.addEventListener(ev,()=>{if(lp&&!lp.done){clearTimeout(lp.tm);lp=null;}});
+  document.addEventListener("click",e=>{if(lp&&lp.done&&e.target.closest&&e.target.closest("[data-conf]")){e.preventDefault();e.stopImmediatePropagation();}lp=null;},true);
+}
 document.addEventListener("contextmenu",e=>{
   if(piLP&&piLP.done){e.preventDefault();return;}
   if(S.readOnly||isInvio()||$("app").hidden)return;
@@ -6617,6 +6711,15 @@ const HOWTO=[
  {t:"Perché è sparita una prenotazione in sospeso",k:"sparita cancellata eliminata automatica pulizia mezzanotte sospeso senza cliente",v:"3.0.11",go:"reg",
   s:["Le prenotazioni ancora in sospeso («?») si eliminano da sole: senza cliente alle 00:00 del giorno del servizio, con il cliente alle 00:00 del giorno dopo.","Quando succede compare l'avviso in alto «Eliminata la prenotazione …».","Quelle con il cliente le trovi anche nel Registro delle modifiche («Eliminata automaticamente…»)."],
   n:"Per non perderla: conferma la prenotazione (✓) prima."},
+ {t:"Segnare un servizio come «Stampabile»",k:"stampabile stampa pronto foglio completo fucsia pallino stato stampantina",v:"4.0.3",go:{view:"day",hl:"#sheet .stt"},
+  s:["Nella vista Giorno: tasto destro sul pallino dello stato (sul telefono: tieni premuto il pallino). Diventa fucsia con la stampantina.","Oppure nella prenotazione: tendina «Stato» › «Stampabile», poi «Salva».","Oppure premi ⌥P con la prenotazione o il foglio aperti, o con il mouse sopra il servizio."],
+  n:"Una prenotazione confermata diventa «Stampabile» da sola quando premi «Salva e stampa» (o ⌘P) nel foglio di servizio. Un altro tasto destro (o ⌥P) la rimette «Confermata»; il clic sul pallino la rimette «In sospeso». Stampabile vale come confermata: non si cancella mai da sola."},
+ {t:"Passeggero disabile sul 33 (bus H)",k:"h disabile carrozzina pedana panche 33 bus h passeggero accessibile",v:"4.0.3",go:null,
+  s:["Nella prenotazione scegli il mezzo 33 (52 posti H).","Sotto «Mezzo» compare la spunta «Passeggero H a bordo»: mettila solo se il cliente H c'è davvero.","Salva: sul foglio di servizio (stampa, PDF e app degli autisti) accanto al mezzo compare la H, così l'autista sa che vanno tolte le panche."],
+  n:"Senza la spunta il 33 va come un bus normale: sul foglio niente H. Se il foglio era già stato inviato, mettendo o togliendo la spunta diventa «Da reinviare»."},
+ {t:"Ora partenza presa dal Programma",k:"ora partenza orario programma foglio servizio automatico inizio",v:"4.0.3",go:null,
+  s:["Nel modulo della prenotazione, in «Foglio di servizio per l'autista» › Programma, scrivi la prima tappa con l'orario (es. «Ore 06:45 PORTO DI POZZALLO»).","Appena smetti di scrivere, l'«Ora partenza» diventa quella (06:45) e accanto compare «dal Programma».","Se cambi il primo orario del Programma, l'Ora partenza lo segue; l'avviso in basso dice anche l'ora di prima."],
+  n:"Nei tour vale il primo orario del primo giorno. Se correggi l'Ora partenza a mano, resta la tua finché non cambi il primo orario del Programma. Aprendo una prenotazione già salvata non cambia niente. L'ora di rientro resta quella che scrivi tu."},
  {t:"Spostare un servizio su un altro bus o un altro giorno",k:"spostare cambiare bus mezzo giorno data servizio",v:"3.0",go:null,
   s:["Clicca il servizio per aprire la prenotazione.","Cambia «Mezzo» oppure la data.","Premi «Salva» e conferma le modifiche."],
   n:"Se bus e autisti li ha decisi MAX, li può cambiare solo chi ha il permesso MAX. Se il nuovo bus ha altri posti e mancano meno di 24 ore, l'agenda chiede il motivo (vedi «Il cliente chiede un altro bus»)."},
@@ -6673,6 +6776,9 @@ const HOWTO=[
  {t:"Correggere una fattura già emessa",k:"correggere fattura emessa rifiutata ente modifica xml",v:"3.0",go:{view:"bill",hl:"#invList"},
   s:["Apri la fattura (Fatturato › «Bozze fattura» › «Emesse»).","Premi «Modifica fattura emessa», scrivi il motivo e premi «Sblocca e modifica».","Correggi, salva e premi di nuovo «Crea file XML»."],
   n:"Il file di prima va nella cartella «sostituite». Nota di credito o stesso numero: da verificare con il commercialista."},
+ {t:"Codice univoco del cliente: si salva da solo in anagrafica",k:"codice univoco destinatario sdi fattura anagrafica cliente salvare registrare",v:"4.0.2",go:{view:"bill",hl:"#invList"},
+  s:["Nella bozza fattura scrivi il «Codice destinatario» (7 caratteri; 6 per la pubblica amministrazione).","Appena passi al campo dopo, l'agenda lo salva anche nell'anagrafica del cliente (file fatturato, colonna «Codice univoco»): la prossima fattura lo propone già.","Se in anagrafica ce n'era un altro, viene sostituito: l'avviso in basso mostra quello di prima e quello nuovo."],
+  n:"Non vale per XXXXXXX dei clienti esteri, per i codici incompleti e per i clienti scritti a mano senza codice dell'anagrafica. Serve il permesso «Anagrafica clienti». Il cambio resta nel Registro delle modifiche."},
  {t:"Fattura a un cliente estero",k:"estero estera nazione cliente straniero partita iva estera",v:"3.0.4",go:"cli",
   s:["Nella bozza (o nell'anagrafica clienti) scrivi la «Nazione» (es. Malta o MT).","Compaiono «Partita IVA estera», «CAP estero» e «Città».","Il codice destinatario diventa XXXXXXX."],
   n:"Aliquota o natura IVA per i clienti esteri: da decidere con il commercialista."},
@@ -6715,6 +6821,9 @@ const HOWTO=[
   n:"Il Master fissa il tempo massimo in Impostazioni › Permessi e impostazioni."},
  {t:"Punto esclamativo rosso «!»",k:"punto esclamativo ! rosso mancanze controlli manca",v:"3.0",go:"miss",
   s:["Apri Impostazioni › Punto esclamativo «!».","Scegli per quali servizi (passati, futuri, entrambi o spento) e cosa controllare.","Si salva da solo."],n:""},
+ {t:"L'agenda sul telefono: più piccola o compatta",k:"telefono smartphone iphone dimensione zoom piccola grande compatta schermo leggere risoluzione",v:"4.0.2",go:"asp",
+  s:["Sul telefono apri Impostazioni › Aspetto (con il Classico: Menu › Le mie impostazioni › Aspetto dell'agenda).","In «Su questo telefono» scegli la dimensione: 100%, 90%, 80% o 70% (più piccola = ci sta più roba).","«Vista compatta» riduce la parte in alto e chiude i conteggi: i servizi del giorno si vedono subito."],
+  n:"Vale solo per quel telefono: il Mac e gli altri dispositivi non cambiano. I conteggi (autisti, servizi, mezzi) si riaprono toccando «G giorno» nella barra dei giorni."},
  {t:"Tornare al vecchio aspetto (Classico)",k:"aspetto classico vecchio nuovo grafica look tema scuro chiaro",v:"4.0",go:"asp",
   s:["Apri Impostazioni › Aspetto.","Scegli «Classico» (o «Nuovo»): cambia subito.","Nella stessa pagina il tema: Chiaro, Scuro o Automatico."],
   n:"Vale solo per te, su tutti i tuoi dispositivi. Con il Classico, per tornare al nuovo: Menu › Le mie impostazioni › Aspetto."},
@@ -6790,7 +6899,7 @@ function renderSetPane(){
     setBox('<div class="set-kv"><span>Novità della 4.0</span><button type="button" class="btn" id="setTourGo">Rivedi le novità</button></div>'+(FINE()?'<div class="set-kv"><span>Scorciatoie da tastiera'+(IS_MAC?' e trackpad':'')+'</span><button type="button" class="btn" data-sk="keys">Cambia</button></div>':''));
     setHostEl($("menuMsg"));return;}
   if(setCur==="asp"){const lk=document.documentElement.dataset.look,th=themeNow();
-    b.innerHTML='<div class="set-box"><div class="set-lbl">Aspetto dell\'agenda</div><div class="th-row">'+
+    b.innerHTML=(isPhone()?'<div class="set-box">'+telBoxHtml()+'</div>':'')+'<div class="set-box"><div class="set-lbl">Aspetto dell\'agenda</div><div class="th-row">'+
       '<label class="th-opt'+(lk==="nuovo"?" on":"")+'">'+thumb("n","l")+'<span><input type="radio" name="sLook" value="nuovo"'+(lk==="nuovo"?" checked":"")+'> Nuovo</span></label>'+
       '<label class="th-opt'+(lk!=="nuovo"?" on":"")+'">'+thumb("c","l")+'<span><input type="radio" name="sLook" value="classico"'+(lk!=="nuovo"?" checked":"")+'> Classico</span></label></div>'+
       '<p class="set-note">Vale solo per te, su tutti i tuoi dispositivi. Le funzioni sono le stesse: cambia solo la grafica. Con «Classico» torna anche il Menu della 3.0.</p></div>'+
@@ -6918,6 +7027,7 @@ const KEY_ACTS=[
  ["bill","Viste","Fatturato",":F"],["pasti","Viste","Autisti (pasti e riposi)",":A"],
  ["new","Azioni","Nuova prenotazione",":N"],["invio","Azioni","Invio fogli (con il permesso MAX)",":I"],
  ["print","Azioni","Stampa il foglio di servizio aperto («Salva e stampa»)",KM0+":P"],
+ ["printable","Azioni","Segna come stampabile la prenotazione aperta o quella sotto il mouse (un'altra volta: torna confermata)","a:P"],
  ["cmd","Azioni","Comandi rapidi",KM0+":K"],["set","Azioni","Impostazioni (con il Classico: il Menu)",KM0+":,"],
  ["keys","Azioni","Elenco delle scorciatoie",":?"],
 ];
@@ -6960,6 +7070,8 @@ function kEditorHtml(){
       '<span class="k4-ka">'+(rec?'<button type="button" class="btn" data-kcancel>Annulla</button>':'<button type="button" class="btn" data-kch="'+id+'">Cambia</button>'+(c?'<button type="button" class="k4-lnk" data-kno="'+id+'">Togli</button>':''))+'</span></div>';
   }
   h+='</div><div class="k4-kg"><h4>Sempre uguali</h4><div class="k4-kr ed"><span class="k4-kk">'+kbd("esc")+'</span><span>Chiude la finestra aperta</span><span></span></div>'+
+    '<div class="k4-kr ed"><span class="k4-kk">'+kbd("clic")+'</span><span>Sul pallino dello stato (vista Giorno): in sospeso ↔ confermata</span><span></span></div>'+
+    '<div class="k4-kr ed"><span class="k4-kk">'+kbd("tasto destro")+'</span><span>Sul pallino dello stato: «Stampabile», fucsia con la stampantina (un\'altra volta: torna confermata). Sul telefono e sull\'iPad: tieni premuto il pallino</span><span></span></div>'+
     (IS_MAC?'<div class="k4-kr ed"><span class="k4-kk"><i class="k4-tp" aria-hidden="true"><i></i><i></i></i></span><span>Trackpad: due dita verso sinistra avanti, verso destra indietro (giorno, settimana o mese)</span><span></span></div>':'')+'</div>';
   const def=KEY_ACTS.every(([id,,,d])=>M[id]===d);
   h+='<div class="k4-kfoot"><span class="k4-kmsg" role="status">'+esc(kMsg)+'</span><button type="button" class="btn" data-kreset'+(def?' disabled':'')+'>Ripristina quelle di serie</button></div>';
@@ -6997,11 +7109,17 @@ function keysClose(){kRec=null;$("ovKeys").hidden=true;}
 $("keysClose").onclick=keysClose;backdropClose($("ovKeys"),keysClose);
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!kRec&&!$("ovKeys").hidden){e.preventDefault();keysClose();}},true);
 // il foglio di servizio è la finestra in primo piano (niente altro aperto sopra)
-function sheetOnTop(){
-  const sh=$("ovSheet");if(!sh||sh.hidden||k4Busy())return false;
+function ovOnTop(id){
+  const sh=$(id);if(!sh||sh.hidden||k4Busy())return false;
   const z=el=>+getComputedStyle(el).zIndex||0,zs=z(sh);
   return ![...document.querySelectorAll(".overlay:not([hidden])")].some(o=>o!==sh&&(z(o)>zs||(z(o)===zs&&(sh.compareDocumentPosition(o)&Node.DOCUMENT_POSITION_FOLLOWING))));
 }
+const sheetOnTop=()=>ovOnTop("ovSheet");
+// 4.0.3: il servizio sotto il mouse nella vista Giorno (o Settimana), per la scorciatoia «Stampabile»
+let hovBk=null;
+document.addEventListener("mouseover",e=>{const t=e.target;if(!t||!t.closest){hovBk=null;return;}
+  const r=t.closest("#sheet .bkw");if(r){const c=r.querySelector("[data-conf]");hovBk=c?{id:c.dataset.conf,start:c.dataset.start}:null;return;}
+  const w=t.closest("#wgrid .wb[data-edit]");hovBk=w?{id:w.dataset.edit,start:w.dataset.start}:null;});
 
 // ---------- comandi rapidi ⌘K ----------
 function k4Date(q){
@@ -7091,6 +7209,13 @@ document.addEventListener("keydown",e=>{
   if(act==="print"){
     if(sheetOnTop()){const b=$("sheetPrint");if(shown(b)){e.preventDefault();b.click();}}
     else if(mod&&appFree()){e.preventDefault();toast(kLabel(c)+" stampa il foglio di servizio: prima aprilo (clic sul servizio › «Salva e apri foglio di servizio»).");}
+    return;}
+  if(act==="printable"){
+    if(ovOnTop("ovBooking")&&!$("f-status").disabled){e.preventDefault();const st=$("f-status");st.value=st.value==="stampabile"?"confermato":"stampabile";paintStatus();st.dispatchEvent(new Event("change",{bubbles:true}));
+      toast(st.value==="stampabile"?"Stato: Stampabile (si salva con «Salva»)":"Stato: Confermato (si salva con «Salva»)");return;}
+    if(sheetOnTop()&&sheetBooking){e.preventDefault();refreshSheetBooking();togglePrintable(sheetBooking.id,sheetBooking.start);return;}
+    if(appFree()&&hovBk){e.preventDefault();togglePrintable(hovBk.id,hovBk.start);return;}
+    if(mod&&appFree()){e.preventDefault();toast("«Stampabile»: apri la prenotazione o il foglio di servizio, oppure tieni il mouse sul servizio.");}
     return;}
   if(act==="cmd"){if(!$("ovCmd").hidden){e.preventDefault();cmdClose();return;}if(appFree()){e.preventDefault();cmdOpen();}return;}
   if(act==="set"){if(appFree()){e.preventDefault();$("btnMenu").click();}return;}
@@ -7230,6 +7355,24 @@ document.addEventListener("keydown",e=>{
   else if(e.key==="ArrowRight"){e.preventDefault();e.stopImmediatePropagation();$("k4Next").click();}
   else if(e.key==="ArrowLeft"){e.preventDefault();e.stopImmediatePropagation();$("k4Prev").click();}
 },true);
+// ---------- 4.0.2: «Su questo telefono» ----------
+function telBoxHtml(){const T=telPrefs();
+  return '<div class="tel-box"><div class="set-lbl">Su questo telefono</div>'+
+    '<div class="tel-row"><span class="tel-t"><b>Dimensione</b><small>Più piccola = ci sta più roba nello schermo.</small></span><div class="tel-seg" role="radiogroup" aria-label="Dimensione dell\'agenda su questo telefono">'+
+      TEL_Z.map(([z,t])=>'<button type="button" role="radio" aria-checked="'+(T.z===z)+'" data-telz="'+z+'">'+t+'</button>').join("")+'</div></div>'+
+    '<label class="tel-row tel-sw"><span class="tel-t"><b>Vista compatta</b><small>La parte in alto si riduce e i conteggi partono chiusi: i servizi del giorno si vedono subito.</small></span><input type="checkbox" role="switch" data-telc'+(T.c?" checked":"")+'></label>'+
+    '<p class="set-note">Vale solo per questo telefono: il Mac e gli altri dispositivi restano come sono.</p></div>';}
+function telSet(ch){
+  const T=Object.assign(telPrefs(),ch);try{localStorage.setItem(TEL_KEY,JSON.stringify(T));}catch(_){}
+  telApply();
+  try{if(localStorage.getItem("agenda-conteggi")===null)cntOpen=!(isPhone()&&T.c);}catch(_){}
+  document.querySelectorAll(".tel-box [data-telz]").forEach(x=>x.setAttribute("aria-checked",String(+x.dataset.telz===T.z)));
+  setTimeout(()=>{try{renderAll();}catch(_){}},60);
+  toast("Su questo telefono: "+Math.round(T.z*100)+"%"+(T.c?", vista compatta":""));
+}
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest(".tel-box [data-telz]");if(b)telSet({z:+b.dataset.telz});});
+document.addEventListener("change",e=>{const c=e.target.closest&&e.target.closest(".tel-box [data-telc]");if(c)telSet({c:c.checked?1:0});});
+window.addEventListener("orientationchange",()=>setTimeout(telApply,150));
 const fvLogRow=fv=>["Mezzo da fatturare",seatsLbl(fv.billed),fv.why==="log"?seatsLbl(fv.billed)+" (cambio per motivi logistici: scelta nostra)":seatsLbl(fv.nv)+" (cambio chiesto dal cliente)"];
 $("cpCancel").onclick=()=>{if(!cpBusy)closeCapo();};
 backdropClose($("ovCapo"),()=>$("cpCancel").click());

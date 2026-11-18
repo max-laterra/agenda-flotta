@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="3.0" data-p="4.0.1">
+<html lang="it" data-v="3.0" data-p="4.0.3">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -1584,11 +1584,11 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       <label class="transfer"><input type="radio" name="type" id="t-transfer" value="transfer"><b>Transfer</b><span>Trasferimento</span></label>
     </div>
     <div class="fgrid fgrid4">
-      <div class="f c2"><label for="f-vehicle">Mezzo</label><select id="f-vehicle"></select><div class="fv-note" id="fFv" hidden></div></div>
+      <div class="f c2"><label for="f-vehicle">Mezzo</label><select id="f-vehicle"></select><div class="fv-note" id="fFv" hidden></div><label class="perm hpax" id="fHpaxRow" hidden><input type="checkbox" id="f-hpax"> <span><b>Passeggero H a bordo</b> – sul foglio di servizio compare la H: vanno tolte le panche</span></label></div>
       <div class="f c1"><label for="f-pax">Passeggeri</label><input id="f-pax" inputmode="numeric" autocomplete="off" placeholder="Es. 45 oppure 180/4"></div>
-      <div class="f c1"><label for="f-status">Stato</label><select id="f-status"><option value="opzione">? In sospeso</option><option value="confermato">✓ Confermato</option></select></div>
+      <div class="f c1"><label for="f-status">Stato</label><select id="f-status"><option value="opzione">? In sospeso</option><option value="confermato">✓ Confermato</option><option value="stampabile">🖨 Stampabile</option></select></div>
       <div class="f c1"><label for="f-start" id="l-start">Data partenza</label><input type="date" id="f-start" min="2000-01-01" max="2099-12-31" required></div>
-      <div class="f c1"><label for="f-time">Ora partenza</label><input type="time" id="f-time" step="900"></div>
+      <div class="f c1"><label for="f-time">Ora partenza <span class="f-src" id="fTimeSrc" hidden>dal Programma</span></label><input type="time" id="f-time" step="900"></div>
       <div class="f c1" id="w-end"><label for="f-end">Data rientro <span class="next-day" id="endNext" hidden>giorno dopo</span></label><input type="date" id="f-end" min="2000-01-01" max="2099-12-31"></div>
       <div class="f c1" id="w-time2"><label for="f-time2">Ora rientro</label><input type="time" id="f-time2" step="900"></div>
       <div class="f full" id="w-event"><label for="f-event">Evento</label><input id="f-event" data-mem="evento" autocomplete="off" placeholder="Es. concerto, artista e luogo"></div>
@@ -1969,6 +1969,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
           <label><input type="radio" name="prLook" value="nuovo"> <span><b>Nuovo</b> stile 4.0</span></label>
           <label><input type="radio" name="prLook" value="classico"> <span><b>Classico</b> come la 3.0</span></label>
         </div>
+        <div id="prTelBox"></div>
       </fieldset>
     </form>
     <div class="menu-list" id="mUnlink" hidden>
@@ -2141,7 +2142,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       </div>
       <div class="set-card">
         <h4>Uscita automatica: tempo massimo</h4>
-        <p class="mst-sub">Se nessuno usa l'agenda per questo tempo, il dispositivo torna alla schermata di accesso. Vale anche se nel frattempo l'agenda è stata chiusa e riaperta (o il telefono l'ha tolta dalla memoria). Ognuno può scegliere un tempo più breve in Menu › Le mie impostazioni; con «Mai» non c'è limite e ognuno sceglie liberamente.</p>
+        <p class="mst-sub">Se nessuno usa l'agenda per questo tempo, il dispositivo torna alla schermata di accesso. Vale anche se nel frattempo l'agenda è stata chiusa e riaperta (o il telefono l'ha tolta dalla memoria). Ognuno può scegliere un tempo più breve in <span class="only-old">Menu › Le mie impostazioni</span><span class="only-new">Impostazioni › Generali</span>; con «Mai» non c'è limite e ognuno sceglie liberamente.</p>
         <div class="set-row"><select id="setLock"><option value="0">Mai</option><option value="15">Dopo 15 minuti</option><option value="30">Dopo 30 minuti</option><option value="60">Dopo 1 ora</option><option value="120">Dopo 2 ore</option><option value="240">Dopo 4 ore</option></select></div>
       </div>
       <div class="set-card">
