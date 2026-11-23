@@ -1,20 +1,177 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 4.0.3 (18/11/2026)
+AGENDA FLOTTA LA TERRA – VERSIONE 4.0.4 (23/11/2026)
 ====================================================
 La versione in uso si vede nell'app: in alto accanto a "Sincronizzato", nella schermata di
 accesso e in Impostazioni › Generali. Deve corrispondere a quella di questo file.
 
-COME AGGIORNARE ALLA 4.0.3 (dalla 4.0.2, 4.0.1, 4.0 o 3.0.11: 3 minuti, 6 file)
-------------------------------------------------------------------------------
+COME AGGIORNARE ALLA 4.0.4 (dalla 4.0.3 o precedenti: 3 minuti, 11 file)
+----------------------------------------------------------------------
 1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
-   6 file: index.html, app.js, store.js, skin40.css, sw.js, LEGGIMI.txt. Niente config.js.
-   Gli altri file restano quelli di adesso.
-2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v4.0.3".
+   11 file: index.html, app.js, store.js, accessi.js, dropbox.js, autisti.js, fatture.js,
+   fatturato.js, skin40.css, sw.js, LEGGIMI.txt. Niente config.js.
+   Gli altri file (logo, icone, cartella vendor, manifest) restano quelli di adesso.
+2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v4.0.4".
    Se compare "Aggiornamento in corso (…)" per più di qualche minuto, su GitHub manca il file
    scritto tra parentesi.
 3. Sui telefoni chiudi e riapri l'agenda (se è sulla schermata Home: chiudila dal multitasking
-   e riaprila). Sugli altri Mac ricarica.
-4. Niente da fare sull'app degli autisti e sui dati. Il modello del foglio di servizio non cambia
-   (cambia solo la H del bus 33, punto 4).
+   e riaprila). Sugli altri Mac ricarica. Il server dell'ufficio copia la nuova versione da
+   GitHub da solo, come sempre.
+4. Niente da fare sui dati e sull'app per Mac (nessun file nuovo, nessun tipo di download nuovo,
+   stampa come prima). Il foglio di servizio non cambia. L'app degli autisti non cambia: dalla
+   4.0.4 il foglio inviato contiene in più l'«impronta» (serve all'agenda, il telefono la ignora).
+5. Dopo l'aggiornamento: il primo accesso di ognuno dura un secondo in più (la password viene
+   protetta meglio, una volta sola). Un Master che apre l'agenda salva da solo l'account Dropbox
+   dell'agenda (vedi punto 5 delle novità).
+
+NOVITÀ DELLA 4.0.4
+------------------
+1) VIA LE DESCRIZIONI (TRANNE NELLE IMPOSTAZIONI)
+- Le scritte grigie di spiegazione sotto i campi e accanto alle spunte non si vedono più: nella
+  prenotazione, nelle viste Giorno, Settimana e Mese, nel foglio di servizio, nel modello spese
+  della busta, nelle finestre Extra bus, Giorno di riposo, Crocette, Bus e autisti (MAX),
+  "Perché cambi il mezzo?", Nuovo cliente, nella pagina Autisti, nel Fatturato, nella bozza
+  fattura, nell'elenco delle bozze e nelle buste. Sul telefono il modulo è molto più corto.
+- Via anche:
+    · i sottotitoli dei tipi di servizio (Gita "Andata e rientro", Tour "Più giorni"…);
+    · gli avvisi che spiegano cosa succede, come "Senza cliente non si crea il foglio di
+      servizio…" (il pulsante "Salva e apri foglio di servizio" resta spento senza cliente,
+      come prima);
+    · gli esempi dentro i campi vuoti ("Es. Rossi Marco…", "Es. Autolinee Rossi"…). Dove
+      serviva resta solo "Cerca" (Cliente, Referente, Guida, Hotel, bozze, buste).
+- Restano come prima: le IMPOSTAZIONI (tutte le loro spiegazioni), i messaggi che compaiono
+  dopo un'azione (salvato, errore…), gli avvisi di problemi (bus già impegnato, autista a
+  riposo, oltre capienza, cartella degli autisti non collegata, "Da reinviare"…), i dati
+  (cliente, chi ha scelto bus e autisti, che cosa si fattura), le richieste di conferma, le
+  schermate di accesso e i fumetti che compaiono tenendo il mouse sopra.
+
+2) AIUTO: IL PULSANTE "?" IN ALTO
+- In alto, accanto a "Impostazioni" (con il Classico: accanto a "Menu"), c'è "?". Anche sul
+  telefono. Tasto rapido: H (si può cambiare in Impostazioni › Tastiera).
+- Si apre l'Aiuto: a sinistra tutti gli argomenti, in alto "Cerca". Scrivi una parola (per
+  esempio "allegati", "extra bus", "busta", "panche", "provvisorio") e scegli l'argomento:
+  trovi la descrizione che prima stava nel modulo, i passi da seguire e "Portami lì".
+- Tutte le descrizioni tolte sono nell'Aiuto. Argomenti nuovi: "I campi della prenotazione",
+  "Scrivere il Programma del foglio di servizio", "Autisti extra della giornata", "Il
+  fatturato si aggiorna da solo", "N. foglio provvisorio (PROVV.)", "Modello spese della
+  busta", "Bus e autisti scelti dal capo (MAX)", "Bozza fattura: i campi", "Aiuto: le
+  spiegazioni dei campi".
+- La ricerca trova anche le parole scritte dentro le descrizioni e i passi. Lo stesso vale per
+  "Cerca" nelle Impostazioni.
+- Sul telefono: elenco a tutta pagina, poi "‹ Aiuto" per tornare all'elenco; "Fine" chiude.
+
+3) AGGIORNAMENTO DELL'AGENDA: RIQUADRO IN BASSO A SINISTRA E FINESTRA A TUTTO SCHERMO
+- Da questa versione in poi non serve più ricaricare a mano dopo un aggiornamento. Ogni computer
+  e telefono con l'agenda aperta controlla da solo se su GitHub c'è una versione nuova: ogni 2
+  minuti, quando si torna sull'agenda e quando torna internet.
+- SE STAI LAVORANDO (mouse, tastiera o dita negli ultimi 2 minuti, oppure una finestra aperta)
+  non ti interrompe: in basso a sinistra compare il riquadro nero "Nuova versione 4.0.5 · Clicca
+  per aggiornare l'agenda" (sul telefono "Tocca…").
+    1. Quando lo premi si ingrandisce a tutto schermo: "C'è una nuova versione dell'agenda"
+       (4.0.4 → 4.0.5), con "Più tardi" (torna nel riquadro) e "Scarica l'aggiornamento".
+    2. "Scarico l'aggiornamento": barra rossa con la percentuale, il file che sta scaricando,
+       quanti file mancano e i MB.
+    3. Controlla che su GitHub siano arrivati TUTTI i file e finisce di salvare su Dropbox le
+       ultime modifiche.
+    4. "Agenda aggiornata" (barra verde) e si riapre da sola. Dopo il riavvio compare "Agenda
+       aggiornata alla versione …".
+- Se hai una prenotazione aperta (o un'altra finestra di modifica: bozza fattura, extra bus,
+  riposo, foglio di servizio…), la finestra dice "Prima salva o chiudi la finestra aperta" e il
+  pulsante resta spento: premi "Più tardi", salva o chiudi, poi premi di nuovo il riquadro.
+- SE NESSUNO LA STA USANDO (all'avvio, nella schermata di accesso, o con il riquadro in basso da
+  3 minuti senza che nessuno tocchi l'agenda) si aggiorna da sola: compare la finestra con il conto
+  alla rovescia di 5 secondi ("Più tardi" la rimanda nel riquadro).
+- Se su GitHub l'aggiornamento è a metà (per esempio manca app.js), la finestra lo dice
+  ("manca: app.js") e riprova da sola ogni 30 secondi. Senza internet aspetta che torni.
+- Funziona anche sui telefoni e nell'app per Mac (che prende le pagine dal server dell'ufficio).
+- Questa versione (4.0.4) va caricata e aperta una volta come sempre: il riquadro comparirà dai
+  prossimi aggiornamenti.
+
+4) AUTISTA A RIPOSO: SI LEGGE ANCHE SULLA FASCIA ROSSA
+- Nell'intestazione del giorno (aspetto Nuovo) il nome dell'autista a riposo non è più rosso su
+  rosso: ora è una pastiglia bianca con il nome in bordeaux e una lunetta davanti. Vale anche con
+  il tema scuro e sul telefono.
+- Con l'aspetto Classico non cambia nulla (resta rosso sulla fascia grigia).
+
+5) CORREZIONI DI SICUREZZA E BUG (analisi del 23/11/2026)
+Priorità 1 – perdita di dati o dati fiscali sbagliati
+- Pulizia di mezzanotte (prenotazioni in sospeso): la data di oggi si prende da Dropbox. Se
+  l'orologio di un dispositivo è avanti o indietro di più di 10 minuti non si cancella niente (riga
+  nel Log tecnico). Solo prenotazioni finite negli ultimi 14 giorni, mai quelle inviate all'autista o
+  decise da MAX, e solo se nel frattempo nessuno le ha cambiate. Ritiro del foglio, PDF, allegati e
+  avviso solo dopo che Dropbox ha davvero cancellato. Più di 5 in una volta: lo decide un Master
+  (gli altri non cancellano niente). Ogni cancellazione automatica va nel Registro, anche senza
+  cliente. Rimettere «in sospeso» un servizio passato, inviato o deciso da MAX chiede conferma.
+- Fattura: «Crea file XML» non funziona senza internet. Prima si salva la bozza come emessa (numero,
+  data, progressivo, nome del file), poi si crea il file. Se il salvataggio non riesce il file non
+  nasce e il pulsante «Salva bozza» resta: niente più numeri o XML doppi.
+- Ora partenza dal Programma: date («il 18.10»), prezzi («€ 12.50 a persona», «quota 15.00») e durate
+  non sono più presi per orari; il punto vale solo dopo «ore / h / alle / dalle» (o a inizio riga se
+  nella riga non c'è un orario scritto per bene); «ore7» va bene. Se l'Ora partenza è già scritta e
+  cambierebbe, l'agenda chiede prima (quando esci dal Programma).
+- Fatturato: le celle rimesse vecchie da un Excel salvato con dati vecchi si riparano da sole; le
+  celle che l'ufficio ha corretto a mano non vengono più sovrascritte: compaiono in Fatturato in un
+  riquadro giallo con il pulsante «Usa i valori dell'agenda». Le righe scritte prima della 4.0.4
+  diverse dall'agenda compaiono lì da controllare. Stesso n. foglio su due righe: segnalato.
+  Servizio annullato già fatturato: gli importi restano scritti nella nota «ANNULLATO».
+- Numero di fattura: «Dell'anno» vuoto non fa più ignorare l'ultimo numero esterno; il contatore è
+  il gruppo di cifre giusto («2026/0015» → «2026/0016», «FT-2026-15» → «FT-2026-16», «496/00» →
+  «497/00»); numero e progressivo d'invio si prenotano in Dropbox (due dispositivi nello stesso
+  minuto non prendono lo stesso numero). «Modifica fattura emessa» chiede se lo SdI l'ha SCARTATA:
+  se no, indica nota di credito + fattura nuova. Avviso per il bollo da 2 € sulle righe senza IVA
+  oltre 77,47 € (N1, N2, N3.5, N3.6, N4; fonte: DPR 642/1972, Tariffa All. A, parte I, art. 13 n. 1 e
+  DM 17/06/2014 art. 6 – DA FAR CONFERMARE AL COMMERCIALISTA: per ora è solo un avviso). Le fatture
+  emesse si mostrano e si rifanno con le aliquote, nature, bollo e arrotondamento dell'emissione.
+- Sincronizzazione: un file di Dropbox troppo grande (più di 2 MB) o illeggibile non blocca più gli
+  altri dispositivi (si salta e si riprova); con una giornata rovinata non si fa la pulizia del
+  fatturato. Le modifiche fatte offline partono solo dopo aver ricontrollato l'utente: quelle di un
+  utente disattivato/rimosso o con la password cambiata restano trattenute; su un dispositivo
+  bloccato si buttano.
+Priorità 2 – sicurezza
+- Dispositivo bloccato: si cancella tutto quello che l'agenda aveva sul dispositivo (memoria del
+  browser, copia dei dati, copia per l'uso offline).
+- Uscita automatica: di serie dopo 30 minuti (il Master può cambiarla, anche «Mai»). Con una
+  prenotazione o una bozza aperta e modificata compare «Sessione scaduta»: si continua scrivendo la
+  password, il modulo resta com'era. Toccare lo schermo dopo la scadenza non la rinnova più.
+- «Disconnetti» funziona anche se l'orologio del dispositivo è avanti.
+- Un Master non può bloccare né disconnettere i dispositivi del Super Master, di un altro Master o di
+  chi invia i fogli («Questo dispositivo è protetto»).
+- Password: almeno 10 caratteri per Master e Super Master, 8 per gli altri, anche quando si
+  cambiano. Protezione più forte (600.000 passaggi), rifatta da sola al primo accesso. Il codice di
+  recupero del Super Master non vale più dopo l'uso: creane subito uno nuovo.
+- Controlli in più sui file che arrivano da Dropbox (nomi dei dispositivi, Registro e Log tecnico,
+  caratteri invisibili o che rovesciano il testo). L'agenda ricorda l'account Dropbox dell'azienda:
+  un «Ricollega» fatto con un altro account viene rifiutato. Se il browser non riesce a salvare le
+  modifiche non ancora inviate compare un avviso fisso.
+- «Copia righe»: ogni valore tra virgolette e protetto anche quando inizia con " (niente formule).
+- Autisti: revoca dei telefoni confermata da Dropbox (le revoche non riuscite si riprovano);
+  eliminando un autista con telefoni collegati compare un avviso; il 5° autista di un tour riceve il
+  foglio; il ritiro non riuscito (anche da eliminazione offline) si riprova da solo; orari
+  confrontati correttamente; un foglio ricostruito o con il telefono del cliente cambiato diventa
+  «da reinviare»; le chiavi Dropbox dei telefoni restano sul dispositivo solo per il Super Master.
+Priorità 3 – bug minori
+- Tour: spostando la partenza il rientro si sposta della stessa durata; il programma dei giorni
+  tolti torna se rimetti la data. «Perché cambi il mezzo?»: Esc annulla (e non salva). Arrivata una
+  versione nuova con il modulo aperto: «Salva» spiega perché non salva ed Esc chiede prima.
+  Scorciatoia «Stampabile» nel profilo invio: messaggio chiaro. Mezzo che sulla flotta di questo
+  dispositivo non c'è: resta quello (prima diventava l'81 posti). Editor della flotta: Esc e clic
+  fuori chiedono prima di buttare le modifiche. «Mezzo già impegnato» guarda gli orari quando ci
+  sono (transfer alle 6 e gita alle 9; notturno che rientra alle 2).
+- Fatture: numeri all'italiana («10.000», «€ 12,50»); lettere straniere traslitterate con avviso
+  («Łódź» → «Lódz»); nota di credito con totale negativo e data nel futuro bloccate. N. busta
+  «12/2026» letto come 12. Tolto codice non più usato. Browser vecchi: una sola finestra aperta.
+
+DISPOSITIVO PERSO O RUBATO (cosa fare)
+1. Impostazioni › Dispositivi: premi «Blocca» sulla riga del dispositivo (vale appena si collega).
+2. Cambia la password di chi lo usava (Impostazioni › Utenti).
+3. Se c'erano dati importanti: su dropbox.com › Impostazioni › App collegate scollega «Agenda La
+   Terra», poi ricollega gli altri dispositivi (pulsante «Ricollega Dropbox»).
+
+LIMITI DI FONDO (si risolvono solo con il server La Terra, «fase 2»)
+Finché ogni dispositivo ha la chiave Dropbox completa, chi sa usare gli strumenti per sviluppatori
+del browser può farsi passare per un altro utente o cambiare i file in Dropbox: i permessi
+dell'agenda sono un aiuto organizzativo, non una barriera. Lo stesso vale per il link/QR dei
+telefoni degli autisti (contiene una chiave permanente della cartella degli autisti: va mandato
+solo all'autista, mai inoltrato) e per il fatto che agenda, app autisti e diagnostica stanno sullo
+stesso indirizzo. Per ora: dispositivi solo dell'azienda, password personali, «Blocca» subito.
 
 NOVITÀ DELLA 4.0.3
 ------------------

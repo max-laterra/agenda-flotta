@@ -8,7 +8,16 @@
   const isObj = (x) => !!x && typeof x === "object" && !Array.isArray(x);
   const str = (v, max) => (typeof v === "string" ? v : typeof v === "number" && isFinite(v) ? String(v) : "").slice(0, max || 2000);
   // numeri: solo numeri veri o testi ("12,5", "1.250,50"); qualsiasi altra cosa (oggetti, vero/falso) vale il valore di riserva
-  const numOr = (v, d) => { const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v.indexOf(",") >= 0 ? v.replace(/\./g, "").replace(",", ".") : v) : NaN; return isFinite(n) ? n : d; };
+  // 4.0.4: numeri all'italiana: «€ 12,50» → 12.5, «1.234,50» → 1234.5, «10.000» e «1.234» (punto e gruppi di 3 cifre) → migliaia
+  const numOr = (v, d) => {
+    if (typeof v === "number") return isFinite(v) ? v : d;
+    if (typeof v !== "string") return d;
+    let s = v.replace(/[€\s\u00A0]/g, "").replace(/^eur(o)?/i, "").replace(/eur(o)?$/i, "");
+    if (!s) return d;
+    if (s.indexOf(",") >= 0) s = s.replace(/\./g, "").replace(",", ".");
+    else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
+    const n = Number(s); return isFinite(n) ? n : d;
+  };
   // una voce è nell'elenco solo se c'è davvero (non "constructor", "toString" e simili)
   const has = (T, k) => typeof k === "string" && Object.prototype.hasOwnProperty.call(T, k);
   const BAD_ID = ["__proto__", "constructor", "prototype"];
@@ -148,6 +157,13 @@
     o.note = str(j.note, 1000);
     // 3.0: fattura già emessa riaperta per correggerla (motivo) e storico dei file XML creati prima
     if (isObj(j.reopen) && str(j.reopen.at, 40)) o.reopen = { at: str(j.reopen.at, 40), by: str(j.reopen.by, 80), why: str(j.reopen.why, 300) };
+    // 4.0.4: impostazioni della Contabilità usate all'emissione (aliquote, nature, riferimenti, arrotondamento, bollo) e
+    // totali: le fatture emesse si mostrano e si rifanno con queste, anche se poi la Contabilità cambia
+    if (isObj(j.snap) && Array.isArray(j.snap.aliquote)) {
+      const S = j.snap, al = S.aliquote.filter(isObj).slice(0, 40).map((x) => { let perc = numOr(x.perc, 0); perc = perc >= 0 && perc <= 100 ? Math.round(perc * 100) / 100 : 0; return { id: str(x.id, 40), nome: str(x.nome, 80), perc, natura: perc === 0 && has(NATURE, str(x.natura, 6)) ? str(x.natura, 6) : "", rif: str(x.rif, 100) }; }).filter((x) => x.id);
+      const bi = numOr(S.bolloImporto, 2);
+      o.snap = { at: str(S.at, 40), aliquote: al, arrot: has(ARROT, str(S.arrot, 6)) ? str(S.arrot, 6) : "no", arrotVerso: has(VERSI, S.arrotVerso) ? S.arrotVerso : "vicino", bolloImporto: bi >= 0 && bi <= 100 ? r2(bi) : 2, totale: r2(numOr(S.totale, 0)), imponibile: r2(numOr(S.imponibile, 0)), imposta: r2(numOr(S.imposta, 0)) };
+    }
     const hist = (Array.isArray(j.xmlHist) ? j.xmlHist : []).filter(isObj).slice(-50).map((h) => ({ name: str(h.name, 160), path: str(h.path, 300), at: str(h.at, 40), by: str(h.by, 80), why: str(h.why, 300), prog: str(h.prog, 10) })).filter((h) => h.at || h.name);
     if (hist.length) o.xmlHist = hist;
     return o;
@@ -264,7 +280,18 @@
   // l'imponibile si divide poi tra le righe al centesimo (3.045,45 e 54,55, come nelle vostre fatture).
   // Tutti i conti sono in centesimi interi.
   const DOC_SC = ["noleggio", "libera"];
+  // 4.0.4: le impostazioni da usare per una bozza: per una fattura emessa (non riaperta) quelle salvate all'emissione
+  function contabOf(d, C) {
+    const S = d && d.snap; if (!S || !d.xmlAt || d.reopen || !Array.isArray(S.aliquote)) return C;
+    const ids = new Set(S.aliquote.map((x) => x.id));
+    return Object.assign({}, C, { aliquote: S.aliquote.concat((C.aliquote || []).filter((x) => !ids.has(x.id))), opzioni: Object.assign({}, C.opzioni, { arrot: S.arrot, arrotVerso: S.arrotVerso, bolloImporto: S.bolloImporto }) });
+  }
+  function snapOf(d, C) {
+    const used = new Set((d.righe || []).map((r) => r.aliq)), k = calc(Object.assign({}, d, { snap: null }), C);
+    return { at: new Date().toISOString(), aliquote: (C.aliquote || []).filter((x) => used.has(x.id)).map((x) => ({ id: x.id, nome: x.nome, perc: x.perc, natura: x.natura, rif: x.rif })), arrot: C.opzioni.arrot, arrotVerso: C.opzioni.arrotVerso, bolloImporto: C.opzioni.bolloImporto, totale: k.totale, imponibile: k.imponibile, imposta: k.imposta };
+  }
   function calc(d, C) {
+    C = contabOf(d, C);
     const lordi = d.lordi !== false, docAll = Math.round(Math.min(100, Math.max(0, numOr(d.scontoPerc, 0))) * 100) / 100;
     const split = !!(d.pa && d.pa.split), groups = new Map(), lines = [];
     for (const r of d.righe || []) {
@@ -318,6 +345,7 @@
 
   // ---------- controlli prima di creare il file ----------
   function validate(d, C) {
+    C = contabOf(d, C); // 4.0.4
     const out = [], err = (m) => out.push({ lv: "err", msg: m }), warn = (m) => out.push({ lv: "warn", msg: m });
     const A = C.azienda, c = d.cliente || {};
     const two = (v) => typeof v === "string" && /^[A-Z]{2}$/.test(v);
@@ -371,7 +399,20 @@
     const sd = numOr(d.scontoPerc, 0); if (sd < 0 || sd > 100) err("Lo sconto sulla fattura è una percentuale tra 0 e 100.");
     if (Math.abs(numOr(d.arrot, 0)) > 1000) err("L'arrotondamento non può superare i 1.000 euro.");
     const k = calc(d, C);
+    // 4.0.4: nota di credito con totale negativo (aumenterebbe il dovuto invece di stornarlo)
+    if (d.tipo === "TD04" && k.totale < 0) err("Nota di credito: scrivi gli importi positivi (è il tipo «Nota di credito» a stornarli).");
+    // 4.0.4: data nel futuro (lo SdI la scarta, codice 00403)
+    { const n = new Date(), today = n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0") + "-" + String(n.getDate()).padStart(2, "0"); if (okDate(d.data) && d.data > today) err("La data della fattura è nel futuro: il Sistema di Interscambio la scarta (codice 00403)."); }
+    // 4.0.4: lettere non ammesse nella fattura elettronica: si cambiano, ma si avvisa
+    { const plain = (x) => latin0(x);
+      const ch = [c.nome, c.indirizzo, c.comune, d.causale].concat((d.righe || []).map((r) => r.desc)).filter((x) => x && plain(x) !== latin(x));
+      if (ch.length) warn("Alcune lettere non sono ammesse nella fattura elettronica e vengono cambiate: «" + plain(ch[0]).slice(0, 40) + "» diventa «" + latin(ch[0]).slice(0, 40) + "»" + (ch.length > 1 ? " (e in altri " + (ch.length - 1) + " campi)" : "") + "."); }
     if (d.tipo !== "TD04" && k.totale < 0) err("Il totale è negativo: per stornare usa il tipo «Nota di credito» con importi positivi.");
+    // 4.0.4: imposta di bollo (2 €) sulle operazioni senza IVA oltre 77,47 €: DPR 642/1972, Tariffa All. A, parte I, art. 13
+    // n. 1 e DM 17/06/2014 art. 6 (bollo virtuale). Di regola N1, N2.x, N3.5, N3.6, N4; non N3.1–N3.4 né N6.x.
+    // Solo un avviso: la lista delle nature va confermata dal commercialista.
+    if (!d.bollo) { const BN = /^(N1|N2(\.\d)?|N3\.5|N3\.6|N4)$/, nb = k.riepilogo.filter((r) => BN.test(r.natura || "")).reduce((t, r) => t + r.imponibile, 0);
+      if (nb > 77.47) warn("Le righe senza IVA (" + k.riepilogo.filter((r) => BN.test(r.natura || "")).map((r) => r.natura).join(", ") + ") superano 77,47 €: di regola serve il bollo da 2 € (spunta «Bollo»). Controlla con il commercialista."); }
     if (k.split && k.riepilogo.some((r) => r.natura)) warn("Scissione dei pagamenti: vale solo per le righe con IVA; le altre restano senza imposta.");
     if (Math.abs(k.arrot) > 1) warn("L'arrotondamento è più di un euro: controlla.");
     return out;
@@ -381,8 +422,11 @@
   // I campi della fattura elettronica accettano solo i caratteri latini di base (lettere accentate comprese):
   // virgolette curve, trattini lunghi e simili diventano i loro equivalenti semplici, il resto si toglie.
   const MAP = { "‘": "'", "’": "'", "‚": "'", "“": "\"", "”": "\"", "„": "\"", "–": "-", "—": "-", "−": "-", "…": "...", "€": "EUR", "•": "-", "→": ">", " ": " ", "Œ": "OE", "œ": "oe", "★": "*" };
+  // 4.0.4: lettere che la decomposizione non riduce (prima sparivano: «Łódź» → «ódz»)
+  const TRANS = { "Ł": "L", "ł": "l", "Đ": "D", "đ": "d", "Ħ": "H", "ħ": "h", "ı": "i", "ĸ": "k", "Ŋ": "N", "ŋ": "n", "Ŧ": "T", "ŧ": "t", "Ə": "E", "ə": "e", "Ŀ": "L", "ŀ": "l", "ſ": "s" };
+  function latin0(s) { return String(s == null ? "" : s).replace(/[‘’‚“”„–—−…€•→ Œœ★]/g, (c) => MAP[c]).replace(/[\u0000-\u001F\u007F-\u009F]+/g, " ").replace(/\s+/g, " ").trim(); }
   function latin(s, max) {
-    let t = String(s == null ? "" : s).replace(/[‘’‚“”„–—−…€•→ Œœ★]/g, (c) => MAP[c]);
+    let t = String(s == null ? "" : s).replace(/[‘’‚“”„–—−…€•→ Œœ★]/g, (c) => MAP[c]).replace(/[ŁłĐđĦħıĸŊŋŦŧƏəĿŀſ]/g, (c) => TRANS[c]);
     try { t = t.replace(/[^\u0000-ÿ]/g, (c) => { const b = c.normalize("NFD").replace(/[̀-ͯ]/g, ""); return /^[ -ÿ]+$/.test(b) ? b : ""; }); } catch (_) { t = t.replace(/[^\u0000-ÿ]/g, ""); }
     t = t.replace(/[\u0000-\u001F\u007F-\u009F]+/g, " ").replace(/\s+/g, " ").trim();
     return max ? t.slice(0, max).trim() : t;
@@ -401,7 +445,16 @@
   const destOf = (c) => (c.pa ? c.sdi : c.nazione !== "IT" ? (/^[A-Z0-9]{7}$/.test(c.sdi) ? c.sdi : "XXXXXXX") : /^[A-Z0-9]{7}$/.test(c.sdi) ? c.sdi : "0000000");
   // 3.0.4: numero della fattura proposto. Il più alto dell'anno tra le fatture dell'agenda e l'ultimo numero emesso fuori
   // (Contabilità), più uno, con la stessa forma: «496/00» → «497/00», «0099» → «0100». Anno nuovo: da 1, stessa forma.
-  function parseNumero(s) { const m = /^(\D*?)(\d+)(.*)$/.exec(String(s == null ? "" : s).trim()); return m ? { pre: m[1], n: Number(m[2]), w: m[2].length, suf: m[3] } : null; }
+  // 4.0.4: il contatore è il primo gruppo di cifre che non è un anno (19xx/20xx): «2026/0015» → 0015, «FT-2026-15» → 15,
+  // «496/00» → 496 (come prima); se ci sono solo anni, l'ultimo gruppo. L'anno scritto nel numero si tiene a parte (yr).
+  function parseNumero(s) {
+    s = String(s == null ? "" : s).trim();
+    const g = []; const re = /\d+/g; let m; while ((m = re.exec(s))) g.push({ at: m.index, t: m[0] });
+    if (!g.length) return null;
+    const isY = (t) => /^(19|20)\d\d$/.test(t);
+    const c = g.find((x) => !isY(x.t)) || g[g.length - 1], yr = g.find((x) => x !== c && isY(x.t));
+    return { pre: s.slice(0, c.at), n: Number(c.t), w: c.t.length, suf: s.slice(c.at + c.t.length), yr: yr ? yr.t : "" };
+  }
   function nextNumero(list, year, extra) {
     year = String(year || ""); let best = null, last = null;
     const look = (num, y, when) => {
@@ -412,7 +465,10 @@
     for (const x of Array.isArray(list) ? list : []) if (x && okDate(x.data)) look(x.numero, x.data.slice(0, 4), x.data);
     if (extra && extra.numero && extra.anno) look(extra.numero, extra.anno, String(extra.anno) + "-12-31");
     const shape = best || (last && last.p) || { pre: "", n: 0, w: 1, suf: "" }, n = best ? best.n + 1 : 1;
-    return (shape.pre + String(n).padStart(best ? shape.w : 1, "0") + shape.suf).slice(0, 20);
+    // anno nuovo: l'anno scritto nel numero diventa quello nuovo («FT-2026-15» → «FT-2027-1»)
+    let pre = shape.pre, suf = shape.suf;
+    if (!best && shape.yr && /^\d{4}$/.test(year) && shape.yr !== year) { const rx = new RegExp("(^|\\D)" + shape.yr + "(?!\\d)"); pre = pre.replace(rx, "$1" + year); suf = suf.replace(rx, "$1" + year); }
+    return (pre + String(n).padStart(best ? shape.w : 1, "0") + suf).slice(0, 20);
   }
   const numeroDoc = (d) => { const n = latin(d.numero, 20); if (n) return n; const f = (d.servizi && d.servizi[0] && d.servizi[0].foglio) || ""; return ("BOZZA " + (String(f).replace(/\D/g, "") || "0")).slice(0, 20); };
   // solo le cifre del telefono, senza il prefisso dell'Italia scritto come +39 o 0039
@@ -424,6 +480,7 @@
     return el("Indirizzo", o.indirizzo, 60) + el("NumeroCivico", o.civico, 8) + "<CAP>" + (it && /^\d{5}$/.test(o.cap) ? o.cap : "00000") + "</CAP>" + el("Comune", o.comune, 60) + (it && /^[A-Z]{2}$/.test(o.prov) ? "<Provincia>" + o.prov + "</Provincia>" : "") + "<Nazione>" + o.nazione + "</Nazione>";
   }
   function xml(d, C, o) {
+    C = contabOf(d, C); // 4.0.4
     o = o || {}; const A = C.azienda, c = d.cliente, k = calc(d, C), pa = !!c.pa, fmt = pa ? "FPA12" : "FPR12";
     const foreign = c.nazione !== "IT";
     const dest = destOf(c);
@@ -468,7 +525,7 @@
     return { xml: x, name: A.paese + latin(A.piva, 28).replace(/[^A-Za-z0-9]/g, "") + "_" + prog + ".xml", prog, formato: fmt, calc: k };
   }
 
-  const API = { VERSION: "3.0.4", REGIMI, NATURE, TIPI_DOC, TIPI_SCELTA, causaleRow, causaleApart, parkLines, extraLines, MOD_PAG, COND_PAG, USI, ARROT, VERSI, defaults, cleanContab, cleanDraft, cleanCliente, newDraft, linesFor, lineFromService, fill, mezzo, periodo, mesi, calc, validate, xml, latin, isPA, okDate, addDays, itLong, itShort, newId, r2, amt, numOr, progressivo, nextProg, progOf, numeroDoc, destOf, parseNumero, nextNumero };
+  const API = { VERSION: "4.0.4", REGIMI, NATURE, TIPI_DOC, TIPI_SCELTA, causaleRow, causaleApart, parkLines, extraLines, MOD_PAG, COND_PAG, USI, ARROT, VERSI, defaults, cleanContab, cleanDraft, contabOf, snapOf, cleanCliente, newDraft, linesFor, lineFromService, fill, mezzo, periodo, mesi, calc, validate, xml, latin, isPA, okDate, addDays, itLong, itShort, newId, r2, amt, numOr, progressivo, nextProg, progOf, numeroDoc, destOf, parseNumero, nextNumero };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
-  if (root) { root.FATTURE = API; if (root.document) { (root.AGENDA_FILES = root.AGENDA_FILES || {}).fatture = "3.0"; (root.AGENDA_PATCH = root.AGENDA_PATCH || {}).fatture = "3.0.4"; } } // 3.0.4: clienti esteri, numero proposto
+  if (root) { root.FATTURE = API; if (root.document) { (root.AGENDA_FILES = root.AGENDA_FILES || {}).fatture = "3.0"; (root.AGENDA_PATCH = root.AGENDA_PATCH || {}).fatture = "4.0.4"; } } // 3.0.4: clienti esteri, numero proposto; 4.0.4: numero (contatore e anno), bollo, impostazioni salvate all'emissione
 })(typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null);

@@ -14,7 +14,7 @@
   const DK = "agenda-device-v1", SK = "agenda-session-v1", LK = "agenda-log-v1", FK = "agenda-login-fails";
   const enc = new TextEncoder(), dec = new TextDecoder();
   const REG = () => STORE.BASE + " - registro";
-  const ITER = 150000;
+  const ITER = 600000; // 4.0.4: era 150.000; le impronte vecchie si rifanno al primo accesso riuscito (rehash)
 
   function lsGet(k, d) { try { const v = JSON.parse(localStorage.getItem(k) || "null"); return v == null ? d : v; } catch (_) { return d; } }
   function lsSet(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} }
@@ -44,6 +44,8 @@
     const k = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveBits"]);
     return hex(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(salt), iterations: iter }, k, 256));
   }
+  async function rehash(pw) { const salt = hex(crypto.getRandomValues(new Uint8Array(16))); return { salt, iter: ITER, hash: await pbkdf2(pw, salt, ITER) }; } // 4.0.4: stessa password, pwAt non cambia
+  const needRehash = (u) => !!u && Number(u.iter == null ? 150000 : u.iter) < ITER;
   async function makeSecret(pw) { const salt = hex(crypto.getRandomValues(new Uint8Array(16))); return { salt, iter: ITER, hash: await pbkdf2(pw, salt, ITER), pwAt: new Date().toISOString() }; }
   // Prima del calcolo si controlla che l'utente abbia la forma giusta: un numero di passaggi enorme
   // scritto apposta nel file bloccherebbe il pulsante «Entra» per ore.
@@ -79,7 +81,10 @@
     if (!u) return "removed";
     if (u.active === false) return "disabled";
     if ((u.pwAt || "") !== (s.pwAt || "")) return "password";
-    const k = (U.kicks || {})[device.id]; if (k && k > s.at) return "kicked";
+    // 4.0.4: «Disconnetti» scrive un codice casuale (non più un'ora da confrontare con l'orologio del dispositivo):
+    // se è diverso da quello che c'era all'ingresso, il dispositivo è stato disconnesso
+    const k = (U.kicks || {})[device.id];
+    if (k) { if (s.kick != null) { if (k !== s.kick) return "kicked"; } else if (/^k[a-z0-9]{6,}/.test(k) || k > s.at) return "kicked"; }
     return null;
   }
   function refreshSession(U) {
@@ -88,7 +93,8 @@
     if (u.name !== s.name || u.role !== s.role) { s.name = u.name; s.role = u.role; setSession(s); }
     return s;
   }
-  function login(u, uid) { const s = { uid, name: u.name, role: u.role, pwAt: u.pwAt || "", at: new Date().toISOString(), dev: device.id }; setSession(s); return s; }
+  function login(u, uid, U) { const s = { uid, name: u.name, role: u.role, pwAt: u.pwAt || "", at: new Date().toISOString(), dev: device.id, kick: String((U && U.kicks && U.kicks[device.id]) || "") }; setSession(s); return s; }
+  const kickCode = () => "k" + hex(crypto.getRandomValues(new Uint8Array(6))) + ":" + new Date().toISOString(); // 4.0.4 (38 caratteri)
   function logout() { setSession(null); }
 
   // tentativi sbagliati: dopo 5 errori si aspetta 30 secondi
@@ -166,7 +172,10 @@
     // il Super Master non compare tra i dispositivi collegati: il dispositivo risulta senza utente
     const hid = !!s && s.role === "super";
     const o = { dev: device.id, auto: device.auto, ua: navigator.userAgent, ver: window.AGENDA_VERSION || "", uid: s && !hid ? s.uid : "", user: s && !hid ? s.name : "", role: s && !hid ? s.role : "", loginAt: s && !hid ? s.at : "", last: new Date().toISOString(), state: state || (s && !hid ? "attivo" : "uscito") };
-    try { await DBX.upload(REG() + "/dispositivi/" + device.id + ".json", enc.encode(JSON.stringify(o)), "overwrite"); } catch (_) {}
+    // 4.0.4: torna anche l'ora di Dropbox (server_modified del file appena scritto) e la differenza con l'orologio del
+    // dispositivo, per le operazioni automatiche che non devono fidarsi della data del dispositivo (pulizia notturna)
+    const t0 = Date.now();
+    try { const m = await DBX.upload(REG() + "/dispositivi/" + device.id + ".json", enc.encode(JSON.stringify(o)), "overwrite"); const t1 = Date.now(), srv = Date.parse((m && m.server_modified) || ""); return isFinite(srv) ? { srv, skew: Math.round((t0 + t1) / 2) - srv, at: t1 } : null; } catch (_) { return null; }
   }
   function startBeat() {
     clearInterval(beatTimer);
@@ -200,13 +209,15 @@
     } catch (_) {}
   }
   // un evento letto da un file: solo oggetti, con testi dove servono testi
-  const str = (v, max) => (typeof v === "string" ? v : typeof v === "number" && isFinite(v) ? String(v) : "").slice(0, max || 2000);
+  // 4.0.4: senza caratteri invisibili e di inversione del testo (un evento scritto apposta non deve «girare» le scritte)
+  const INVIS = /[\u200B-\u200F\u202A-\u202E\u2066-\u2069\u2060\uFEFF]/g;
+  const str = (v, max) => (typeof v === "string" ? v : typeof v === "number" && isFinite(v) ? String(v) : "").replace(INVIS, "").slice(0, max || 2000);
   function cleanEv(e) {
     if (!e || typeof e !== "object" || Array.isArray(e)) return null;
     const o = {};
     for (const k of ["id", "t", "u", "n", "dv", "k", "x", "l", "m", "v", "s"]) if (k in e) o[k] = str(e[k]);
     if (!o.id || !o.t) return null;
-    if (typeof e.d === "string") o.d = e.d.slice(0, 2000);
+    if (typeof e.d === "string") o.d = e.d.replace(INVIS, "").slice(0, 2000);
     else if (e.d && typeof e.d === "object" && !Array.isArray(e.d)) {
       o.d = {};
       for (const k of Object.keys(e.d)) { const v = e.d[k]; if (k === "__proto__" || k === "ch") continue; if (typeof v === "string") o.d[k] = v.slice(0, 2000); else if (typeof v === "number" || typeof v === "boolean") o.d[k] = v; }
@@ -290,11 +301,12 @@
   window.addEventListener("unhandledrejection", (e) => { try { const r = e.reason || {}; tlog("errore", "Operazione non riuscita: " + (r.message || r.code || r.summary || String(r)).slice(0, 200), r.stack ? String(r.stack).slice(0, 600) : null); } catch (_) {} });
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).accessi = "3.0";
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).accessi = "4.0.4"; // 4.0.4: ora di Dropbox (beat), correzioni di sicurezza
   window.ACC = {
     get device() { return device; }, devLabel, uaLabel, localDate,
-    makeSecret, checkPw, genPassword, pbkdf2, genRecovery, makeRecovery, checkRecovery,
+    makeSecret, checkPw, rehash, needRehash, genPassword, pbkdf2, genRecovery, makeRecovery, checkRecovery,
     session, setSession, sessionProblem, refreshSession, login, logout,
-    failWait, failAdd, failReset,
+    failWait, failAdd, failReset, kickCode,
     log, amend, flushLog, pendingLog, beat, startBeat, forgetDevice,
     devices, readLog, REG, tlog, flushT, readTlog,
   };

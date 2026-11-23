@@ -89,7 +89,8 @@
         try {
           r = await fetch(API + "/oauth2/token", { method: "POST", body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: tok.refresh, client_id: KEY() }) });
         } catch (_) { throw { code: "network" }; }
-        if (r.status === 400 || r.status === 401) { save(null); throw { code: "no_auth" }; }
+        // 4.0.4: solo «invalid_grant» vuol dire collegamento revocato/scaduto (grant:true); altri 400/401 (app sbagliata…) no
+        if (r.status === 400 || r.status === 401) { let t = ""; try { t = await r.text(); } catch (_) {} save(null); throw { code: "no_auth", grant: /invalid_grant/.test(t), summary: t.slice(0, 200) }; }
         if (!r.ok) throw { code: "busy", status: r.status };
         const j = await r.json();
         save(Object.assign({}, tok, { access: j.access_token, exp: Date.now() + ((j.expires_in || 14400) - 120) * 1000 }));
@@ -205,6 +206,7 @@
 
   return {
     isLinked: () => !!(tok && tok.refresh),
+    accountId: () => (tok && typeof tok.account === "string" ? tok.account : ""), // 4.0.4: account Dropbox collegato
     hasKey: () => !!KEY(),
     startLogin, finishLogin, isMine, takeCode, download, upload, listFolder, longpoll, createFolder, remove, search, account, metadata, move,
     unlink() { save(null); },
@@ -219,6 +221,7 @@
   }
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).dropbox = "3.0";
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).dropbox = "4.0.4"; // 4.0.4: account collegato (accountId)
   const main = make({
     key: () => C.dropboxAppKey,
     read() { try { return JSON.parse(localStorage.getItem(TK) || "null"); } catch (_) { return null; } },

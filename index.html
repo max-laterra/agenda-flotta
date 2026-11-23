@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="3.0" data-p="4.0.3">
+<html lang="it" data-v="3.0" data-p="4.0.4">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -1341,6 +1341,8 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
 .vw-opt.cli{border-color:var(--accent)}.vw-opt.cli b{color:var(--accent)}
 .vw-opt:hover{background:var(--surface-2)}.vw-opt:focus-visible{outline:3px solid var(--accent-soft)}
 .u-max{background:var(--accent-soft);border-radius:8px;padding:7px 10px}
+/* 4.0.4: le descrizioni sotto i campi non si vedono più (restano nell'Aiuto «?»; nelle Impostazioni restano visibili) */
+.dsc{display:none!important}
 </style>
 <link rel="stylesheet" href="skin40.css">
 </head>
@@ -1490,6 +1492,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       <button class="btn" id="btnToday">Oggi</button>
       <button class="btn" id="btnArch">Archivio</button>
       <button class="btn" id="btnMenu">Menu</button>
+      <button type="button" class="btn icon help-btn" id="btnHelp" aria-label="Aiuto" title="Aiuto: cerca come si fa una cosa">?</button>
       <button class="btn primary" id="btnNew">+ Nuova prenotazione</button>
     </div>
     </div>
@@ -1507,9 +1510,9 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       <div class="extra">
         <div class="hd">
           <h3>Autisti extra</h3>
-          <span class="hint" id="extraHint">Nomi, orari e servizio assegnato per questa giornata</span>
+          <span class="hint dsc" id="extraHint">Nomi, orari e servizio assegnato per questa giornata</span>
         </div>
-        <textarea id="extraText" placeholder="Es. Rossi Marco – 07:00–15:00 – transfer aeroporto&#10;Bianchi Luca – disponibile dalle 14:00"></textarea>
+        <textarea id="extraText"></textarea>
         <div class="saved" id="extraSaved"></div>
       </div>
     </div>
@@ -1527,22 +1530,23 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       <div class="bill-head">
         <div>
           <h2 id="billTitle">Fatturato</h2>
-          <p>Ogni prenotazione salvata finisce da sola nel tuo file fatturato in Dropbox, con il n. foglio assegnato sulla data del servizio. Se la modifichi o la elimini, la riga si aggiorna o si svuota.</p>
+          <p class="dsc">Ogni prenotazione salvata finisce da sola nel tuo file fatturato in Dropbox, con il n. foglio assegnato sulla data del servizio. Se la modifichi o la elimini, la riga si aggiorna o si svuota.</p>
         </div>
         <div class="bill-tools">
           <label class="bill-range">Servizi
             <select id="billRange"><option value="day">del giorno selezionato</option><option value="week">della settimana</option><option value="month" selected>del mese selezionato</option><option value="all">tutti</option></select>
           </label>
           <label class="bill-range bill-q">Cerca cliente
-            <input id="billQ" type="search" placeholder="Nome, codice o alias" title="Cerca in tutti i servizi, di qualunque mese" autocomplete="off">
+            <input id="billQ" type="search" title="Cerca in tutti i servizi, di qualunque mese" autocomplete="off">
           </label>
         </div>
       </div>
       <div class="bill-status" id="fatStatus"></div>
       <div class="bill-status warn" id="tipiWarn" hidden></div>
+      <div class="bill-status warn" id="fatOffice" hidden></div>
       <div class="bill-actions">
-        <button class="bill-act" id="billSync"><b>Aggiorna il fatturato adesso</b><span>Il file in Dropbox si aggiorna da solo a ogni prenotazione salvata e ogni 5 minuti; se in Excel manca qualche servizio, viene rimesso. Usa questo pulsante solo per forzarlo.</span></button>
-        <button class="bill-act" id="billCopy"><b>Copia righe</b><span>Per incollarle a mano in un altro file Excel, nella colonna A della prima riga vuota.</span></button>
+        <button class="bill-act" id="billSync"><b>Aggiorna il fatturato adesso</b><span class="dsc">Il file in Dropbox si aggiorna da solo a ogni prenotazione salvata e ogni 5 minuti; se in Excel manca qualche servizio, viene rimesso. Usa questo pulsante solo per forzarlo.</span></button>
+        <button class="bill-act" id="billCopy"><b>Copia righe</b><span class="dsc">Per incollarle a mano in un altro file Excel, nella colonna A della prima riga vuota.</span></button>
       </div>
       <div class="bill-msg" id="billMsg" role="status"></div>
       <div class="bill-inv" id="billInv" hidden>
@@ -1551,7 +1555,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
         <button type="button" class="btn inv-ctl" id="invSelClear" hidden>Togli la selezione</button>
         <button type="button" class="btn inv-ctl" id="invList">Bozze fattura</button>
         <button type="button" class="btn" id="bsOpen" title="Archivio delle buste per l'autista: anticipo, spese, rimanenza e consegna">Buste</button>
-        <span class="hint inv-ctl">Per un solo servizio usa «Bozza Fattura» sulla sua riga. Per una fattura unica di più servizi dello stesso cliente spunta le caselle a sinistra. «Buste»: tutte le buste per l'autista con spese e rimanenza.</span>
+        <span class="hint inv-ctl dsc">Per un solo servizio usa «Bozza Fattura» sulla sua riga. Per una fattura unica di più servizi dello stesso cliente spunta le caselle a sinistra. «Buste»: tutte le buste per l'autista con spese e rimanenza.</span>
       </div>
       <div class="bill-filter" id="billFilter" hidden></div>
     </div>
@@ -1578,39 +1582,39 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
     <p class="f-who" id="fWho" hidden></p>
     <p class="capo-note" id="fCapo" hidden></p>
     <div class="types" role="radiogroup" aria-label="Tipo di servizio">
-      <label class="gita"><input type="radio" name="type" id="t-gita" value="gita"><b>Gita</b><span>Andata e rientro</span></label>
-      <label class="tour"><input type="radio" name="type" id="t-tour" value="tour"><b>Tour</b><span>Più giorni</span></label>
-      <label class="notturno"><input type="radio" name="type" id="t-notturno" value="notturno"><b>Notturno</b><span>Concerti, serate</span></label>
-      <label class="transfer"><input type="radio" name="type" id="t-transfer" value="transfer"><b>Transfer</b><span>Trasferimento</span></label>
+      <label class="gita"><input type="radio" name="type" id="t-gita" value="gita"><b>Gita</b><span class="dsc">Andata e rientro</span></label>
+      <label class="tour"><input type="radio" name="type" id="t-tour" value="tour"><b>Tour</b><span class="dsc">Più giorni</span></label>
+      <label class="notturno"><input type="radio" name="type" id="t-notturno" value="notturno"><b>Notturno</b><span class="dsc">Concerti, serate</span></label>
+      <label class="transfer"><input type="radio" name="type" id="t-transfer" value="transfer"><b>Transfer</b><span class="dsc">Trasferimento</span></label>
     </div>
     <div class="fgrid fgrid4">
-      <div class="f c2"><label for="f-vehicle">Mezzo</label><select id="f-vehicle"></select><div class="fv-note" id="fFv" hidden></div><label class="perm hpax" id="fHpaxRow" hidden><input type="checkbox" id="f-hpax"> <span><b>Passeggero H a bordo</b> – sul foglio di servizio compare la H: vanno tolte le panche</span></label></div>
-      <div class="f c1"><label for="f-pax">Passeggeri</label><input id="f-pax" inputmode="numeric" autocomplete="off" placeholder="Es. 45 oppure 180/4"></div>
+      <div class="f c2"><label for="f-vehicle">Mezzo</label><select id="f-vehicle"></select><div class="fv-note" id="fFv" hidden></div><label class="perm hpax" id="fHpaxRow" hidden><input type="checkbox" id="f-hpax"> <span><b>Passeggero H a bordo</b></span></label></div>
+      <div class="f c1"><label for="f-pax">Passeggeri</label><input id="f-pax" inputmode="numeric" autocomplete="off"></div>
       <div class="f c1"><label for="f-status">Stato</label><select id="f-status"><option value="opzione">? In sospeso</option><option value="confermato">✓ Confermato</option><option value="stampabile">🖨 Stampabile</option></select></div>
       <div class="f c1"><label for="f-start" id="l-start">Data partenza</label><input type="date" id="f-start" min="2000-01-01" max="2099-12-31" required></div>
       <div class="f c1"><label for="f-time">Ora partenza <span class="f-src" id="fTimeSrc" hidden>dal Programma</span></label><input type="time" id="f-time" step="900"></div>
       <div class="f c1" id="w-end"><label for="f-end">Data rientro <span class="next-day" id="endNext" hidden>giorno dopo</span></label><input type="date" id="f-end" min="2000-01-01" max="2099-12-31"></div>
       <div class="f c1" id="w-time2"><label for="f-time2">Ora rientro</label><input type="time" id="f-time2" step="900"></div>
-      <div class="f full" id="w-event"><label for="f-event">Evento</label><input id="f-event" data-mem="evento" autocomplete="off" placeholder="Es. concerto, artista e luogo"></div>
-      <div class="f full csearch"><label for="f-client">Cliente</label><input id="f-client" autocomplete="off" placeholder="Cerca per nome, alias, città o codice" role="combobox" aria-expanded="false" aria-controls="cSug"><div class="csug" id="cSug" role="listbox" hidden></div><div class="cinfo" id="cInfo"></div></div>
-      <div class="f full"><label for="f-route">Anteprima itinerario</label><input id="f-route" data-mem="itinerario" autocomplete="off" placeholder="Es. Ragusa → Aeroporto Catania"></div>
+      <div class="f full" id="w-event"><label for="f-event">Evento</label><input id="f-event" data-mem="evento" autocomplete="off"></div>
+      <div class="f full csearch"><label for="f-client">Cliente</label><input id="f-client" autocomplete="off" placeholder="Cerca" role="combobox" aria-expanded="false" aria-controls="cSug"><div class="csug" id="cSug" role="listbox" hidden></div><div class="cinfo" id="cInfo"></div></div>
+      <div class="f full"><label for="f-route">Anteprima itinerario</label><input id="f-route" data-mem="itinerario" autocomplete="off"></div>
       <div class="f full money3 pkgrid">
         <div class="f"><label for="f-price">€ Noleggio</label><input id="f-price" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
         <div class="f fpark"><label for="pk-sel-0">€ Parcheggi <span class="pk-tot" id="pkTot" hidden></span></label><input type="hidden" id="f-park"><div class="pk-rows" id="pkRows"></div>
-          <div class="pk-new" id="pkNew" hidden><b>Nuovo parcheggio in anagrafica</b><input id="pkNome" placeholder="Nome (es. Parcheggio bus Molo Sant'Antonio)" autocomplete="off"><input id="pkCitta" placeholder="Città" list="dlCities" autocomplete="off"><input id="pkFatt" placeholder="In fattura (es. A SIRACUSA)" autocomplete="off"><select id="pkAliq" aria-label="IVA della ricevuta"></select><span class="pk-new-b"><button type="button" class="btn primary" id="pkNewSave">Aggiungi</button><button type="button" class="btn" id="pkNewCancel">Annulla</button></span><span class="pk-new-msg" id="pkNewMsg" role="status"></span></div>
+          <div class="pk-new" id="pkNew" hidden><b>Nuovo parcheggio in anagrafica</b><input id="pkNome" placeholder="Nome" autocomplete="off"><input id="pkCitta" placeholder="Città" list="dlCities" autocomplete="off"><input id="pkFatt" placeholder="In fattura" autocomplete="off"><select id="pkAliq" aria-label="IVA della ricevuta"></select><span class="pk-new-b"><button type="button" class="btn primary" id="pkNewSave">Aggiungi</button><button type="button" class="btn" id="pkNewCancel">Annulla</button></span><span class="pk-new-msg" id="pkNewMsg" role="status"></span></div>
           <button type="button" class="linkbtn" id="pkAdd">+ altro parcheggio</button></div>
         <div class="f"><label for="f-meals">€ Pasti</label><input id="f-meals" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"><div class="pst-f" id="fPasti" hidden></div></div>
         <div class="f fextra"><label for="ex-sel-0">€ Extra <span class="pk-tot" id="exTot" hidden></span></label><div class="pk-rows" id="exRows"></div>
           <button type="button" class="linkbtn" id="exAdd">+ altro extra</button></div>
       </div>
-      <label class="perm bustaon" id="w-bustaon" hidden><input type="checkbox" id="f-bustaon"> <span><b>Busta per l'autista</b> – anticipo spese e busta numerata anche per questo servizio (come nei tour)</span></label>
+      <label class="perm bustaon" id="w-bustaon" hidden><input type="checkbox" id="f-bustaon"> <span><b>Busta per l'autista</b></span></label>
       <div class="f full money3 tourcash" id="w-tourcash">
         <div class="f"><label for="f-advance">€ Anticipo spese</label><input id="f-advance" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
         <div class="f" id="w-envsel"><label for="f-envelope">Busta autista</label><select id="f-envelope"><option value="">—</option><option value="SI">SI</option><option value="NO">NO</option></select></div>
-        <div class="f"><label for="f-envno">N. busta</label><input id="f-envno" autocomplete="off" inputmode="numeric" placeholder="automatico con SI"></div>
+        <div class="f"><label for="f-envno">N. busta</label><input id="f-envno" autocomplete="off" inputmode="numeric"></div>
       </div>
-      <div class="f c2 drvf"><label for="f-driver">1° Autista</label><div class="drvbox"><input id="f-driver" autocomplete="off" placeholder="Scegli dall'elenco" role="combobox" aria-expanded="false" aria-controls="dl-f-driver"><button type="button" class="drvopen" data-drvopen="f-driver" tabindex="-1" aria-label="Apri elenco autisti">▾</button><div class="drvlist" id="dl-f-driver" role="listbox" hidden></div></div><div class="drvq" id="q-driver" hidden><button type="button" data-gen="f-driver">Autista Generico 1</button></div></div>
-      <div class="f c2 drvf"><label for="f-driver2">2° Autista</label><div class="drvbox"><input id="f-driver2" autocomplete="off" placeholder="Solo se serve" role="combobox" aria-expanded="false" aria-controls="dl-f-driver2"><button type="button" class="drvopen" data-drvopen="f-driver2" tabindex="-1" aria-label="Apri elenco autisti">▾</button><div class="drvlist" id="dl-f-driver2" role="listbox" hidden></div></div></div>
+      <div class="f c2 drvf"><label for="f-driver">1° Autista</label><div class="drvbox"><input id="f-driver" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="dl-f-driver"><button type="button" class="drvopen" data-drvopen="f-driver" tabindex="-1" aria-label="Apri elenco autisti">▾</button><div class="drvlist" id="dl-f-driver" role="listbox" hidden></div></div><div class="drvq" id="q-driver" hidden><button type="button" data-gen="f-driver">Autista Generico 1</button></div></div>
+      <div class="f c2 drvf"><label for="f-driver2">2° Autista</label><div class="drvbox"><input id="f-driver2" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="dl-f-driver2"><button type="button" class="drvopen" data-drvopen="f-driver2" tabindex="-1" aria-label="Apri elenco autisti">▾</button><div class="drvlist" id="dl-f-driver2" role="listbox" hidden></div></div></div>
       <div class="f full dvbox" id="w-dayv" hidden>
         <div class="dv-top"><span class="lbl" id="l-dayv">Mezzo e autisti giorno per giorno</span><span class="dv-sum" id="dvSum"></span><button type="button" class="linkbtn" id="dvToggle" aria-expanded="false" aria-controls="dvRows">Cambia il mezzo o l'autista in alcuni giorni</button></div>
         <div class="dv-rows" id="dvRows" role="group" aria-labelledby="l-dayv" hidden></div>
@@ -1618,7 +1622,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       <input type="hidden" id="f-escort">
       <div class="f full pblock" id="pb-refs">
         <div class="prow p-ref" id="ref1row">
-          <div class="f pf-name"><label for="f-contactname"><b>Nome referente 1</b></label><input id="f-contactname" data-f="name" data-combo="ref" autocomplete="off" role="combobox" aria-expanded="false" placeholder="Cerca in anagrafica o scrivi"></div>
+          <div class="f pf-name"><label for="f-contactname"><b>Nome referente 1</b></label><input id="f-contactname" data-f="name" data-combo="ref" autocomplete="off" role="combobox" aria-expanded="false" placeholder="Cerca"></div>
           <div class="f"><label for="f-contactrole">Ruolo</label><select id="f-contactrole" data-f="role" data-tendina="ruolo"></select></div>
           <div class="f"><label for="f-contact">Telefono</label><input id="f-contact" data-f="tel" type="tel" inputmode="tel" autocomplete="off"></div>
           <div class="f"><label for="f-contactnote">Note</label><input id="f-contactnote" data-f="note" data-mem="refnote" autocomplete="off"></div>
@@ -1637,15 +1641,15 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       <details class="f full sheetbox" id="sheetBox" open>
         <summary>Foglio di servizio per l'autista</summary>
         <div class="sheetbox-in">
-          <div class="f"><span class="lbl" id="l-prog">Programma</span><p class="hint" id="progHint">Una riga per ogni tappa, con orario e luogo. Le righe vengono numerate da sole.</p><div id="progWrap"></div></div>
+          <div class="f"><span class="lbl" id="l-prog">Programma</span><p class="hint dsc" id="progHint">Una riga per ogni tappa, con orario e luogo. Le righe vengono numerate da sole.</p><div id="progWrap"></div></div>
           <div class="f att-box" id="attBox">
             <span class="lbl" id="l-att">Allegati per l'autista</span>
-            <p class="hint">PDF e foto (JPG, PNG), al massimo 8. Si stampano dopo il foglio di servizio e partono per l'autista insieme al foglio. I file Word ed Excel vanno prima salvati come PDF.</p>
+            <p class="hint dsc">PDF e foto (JPG, PNG), al massimo 8. Si stampano dopo il foglio di servizio e partono per l'autista insieme al foglio. I file Word ed Excel vanno prima salvati come PDF.</p>
             <ul class="att-list" id="attList" aria-labelledby="l-att" hidden></ul>
             <div class="att-act">
               <button type="button" class="btn att-add" id="attAdd"><span aria-hidden="true">📎</span> Allega file</button>
               <input type="file" id="attFile" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple hidden>
-              <span class="att-drop" id="attDropHint">oppure trascina qui i file</span>
+              <span class="att-drop dsc" id="attDropHint">oppure trascina qui i file</span>
             </div>
             <p class="att-msg" id="attMsg" role="status"></p>
           </div>
@@ -1688,8 +1692,8 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
         <label class="sheet-opt sel"><span>Stampa</span><select id="sheetPart"><option value="driver">Solo foglio per l'autista</option><option value="full">Con la parte contabile</option><option value="office">Solo parte contabile</option></select></label>
       </div>
     </div>
-    <p class="sheet-prov" id="sheetProv" hidden>N. foglio <b>provvisorio</b>: la prenotazione non è ancora arrivata in Dropbox, quindi il numero potrebbe cambiare. Il foglio lo riporta (PROVV.); appena torna la connessione il numero viene confermato e il foglio si aggiorna.</p>
-    <p class="sheet-hint">Impaginato del modello <b>automatico_2026_neutro</b>. «Salva e stampa» stampa il foglio così come lo vedi (una pagina A4). La copia in Dropbox (Fogli di servizio) si aggiorna da sola a ogni modifica della prenotazione: è sempre completa, con la copia ufficio, e senza targa e ID mezzo; le scelte di questa finestra valgono solo per la stampa e per il PDF scaricato. Gli allegati della prenotazione si stampano dopo il foglio e partono per l'autista insieme al foglio; «Salva PDF» e la copia in Dropbox restano solo il foglio.</p>
+    <p class="sheet-prov dsc" id="sheetProv" hidden>N. foglio <b>provvisorio</b>: la prenotazione non è ancora arrivata in Dropbox, quindi il numero potrebbe cambiare. Il foglio lo riporta (PROVV.); appena torna la connessione il numero viene confermato e il foglio si aggiorna.</p>
+    <p class="sheet-hint dsc">Impaginato del modello <b>automatico_2026_neutro</b>. «Salva e stampa» stampa il foglio così come lo vedi (una pagina A4). La copia in Dropbox (Fogli di servizio) si aggiorna da sola a ogni modifica della prenotazione: è sempre completa, con la copia ufficio, e senza targa e ID mezzo; le scelte di questa finestra valgono solo per la stampa e per il PDF scaricato. Gli allegati della prenotazione si stampano dopo il foglio e partono per l'autista insieme al foglio; «Salva PDF» e la copia in Dropbox restano solo il foglio.</p>
     <div class="sheet-scroll"><div id="sheetView"></div></div>
     <div class="sh-att" id="sheetAtt" hidden></div>
     <div class="sent-bar" id="sheetSent" hidden></div>
@@ -1727,7 +1731,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
 <div class="overlay" id="ovBusta" hidden>
   <div class="modal sheet-modal bm-modal" role="dialog" aria-labelledby="bmTitle">
     <div class="sheet-top"><h3 id="bmTitle">Modello spese della busta</h3><span class="bm-info" id="bmInfo"></span></div>
-    <p class="sheet-hint">Impaginato del modello <b>00_neutro</b>. Le tabelle delle spese restano vuote: le compila l'autista a penna. Qui sotto puoi correggere i dati prima di stampare: le correzioni valgono solo per questo modello, la prenotazione non cambia.</p>
+    <p class="sheet-hint dsc">Impaginato del modello <b>00_neutro</b>. Le tabelle delle spese restano vuote: le compila l'autista a penna. Qui sotto puoi correggere i dati prima di stampare: le correzioni valgono solo per questo modello, la prenotazione non cambia.</p>
     <div class="bm-form" id="bmForm">
       <label class="w2"><span>Cliente</span><input data-bm="cliente" maxlength="120" autocomplete="off"></label>
       <label><span>Contatto cliente</span><input data-bm="telCliente" maxlength="60" autocomplete="off"></label>
@@ -1740,8 +1744,8 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       <label><span>Targa</span><input data-bm="targa" maxlength="20" autocomplete="off"></label>
       <label class="w2"><span>1° autista</span><input data-bm="aut1" maxlength="60" autocomplete="off"></label>
       <label class="w2"><span>2° autista</span><input data-bm="aut2" maxlength="60" autocomplete="off"></label>
-      <label class="w2"><span>Acconto in contanti (€) <small>— già scritto dall'anticipo della busta</small></span><input data-bm="contanti" maxlength="20" inputmode="decimal" autocomplete="off"></label>
-      <label class="wall"><span>Note e segnalazioni <small>— facoltative, sul foglio al massimo 2 righe</small></span><input data-bm="note" maxlength="300" autocomplete="off"></label>
+      <label class="w2"><span>Acconto in contanti (€)</span><input data-bm="contanti" maxlength="20" inputmode="decimal" autocomplete="off"></label>
+      <label class="wall"><span>Note e segnalazioni</span><input data-bm="note" maxlength="300" autocomplete="off"></label>
     </div>
     <div class="sheet-scroll"><div id="bmView"></div></div>
     <div class="sheet-msg" id="bmMsg" role="status"></div>
@@ -1757,11 +1761,11 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
 <div class="overlay" id="ovXbus" hidden>
   <div class="modal xb-modal" role="dialog" aria-labelledby="xbTitle">
     <h3 id="xbTitle">Extra bus</h3>
-    <p class="mst-sub" id="xbInfo"></p>
+    <p class="mst-sub dsc" id="xbInfo"></p>
     <div class="xb-grid">
-      <div class="f xb-az"><label for="xbAz">Azienda</label><input id="xbAz" maxlength="80" autocomplete="off" list="dlXbAz" placeholder="Es. Autolinee Rossi"></div>
-      <div class="f"><label for="xbPosti">Posti</label><input id="xbPosti" maxlength="3" inputmode="numeric" autocomplete="off" placeholder="54"></div>
-      <div class="f"><label for="xbTarga">Targa <small>(se la sai)</small></label><input id="xbTarga" maxlength="12" autocomplete="off"></div>
+      <div class="f xb-az"><label for="xbAz">Azienda</label><input id="xbAz" maxlength="80" autocomplete="off" list="dlXbAz"></div>
+      <div class="f"><label for="xbPosti">Posti</label><input id="xbPosti" maxlength="3" inputmode="numeric" autocomplete="off"></div>
+      <div class="f"><label for="xbTarga">Targa</label><input id="xbTarga" maxlength="12" autocomplete="off"></div>
     </div>
     <datalist id="dlXbAz"></datalist>
     <div class="sheet-msg" id="xbMsg" role="status"></div>
@@ -1771,12 +1775,12 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
 <div class="overlay" id="ovRiposo" hidden>
   <div class="modal xb-modal" role="dialog" aria-labelledby="rpTitle">
     <h3 id="rpTitle">Giorno di riposo</h3>
-    <p class="mst-sub">L'autista ha chiesto un giorno (o più giorni) di riposo. In agenda il suo nome compare in rosso nella barra grigia della vista Giorno e, nella vista Settimana, c'è un numerino rosso sotto la data. Se lo metti in un servizio di quei giorni, il modulo ti avvisa. Per un giorno solo lascia «Al» uguale a «Dal».</p>
+    <p class="mst-sub dsc">L'autista ha chiesto un giorno (o più giorni) di riposo. In agenda il suo nome compare accanto a «Riposo» nella barra della data della vista Giorno e, nella vista Settimana, c'è un numerino rosso sotto la data. Se lo metti in un servizio di quei giorni, il modulo ti avvisa. Per un giorno solo lascia «Al» uguale a «Dal».</p>
     <div class="xb-grid rp-grid">
       <div class="f xb-az"><label for="rpDrv">Autista</label><select id="rpDrv"></select></div>
       <div class="f"><label for="rpDal">Dal</label><input type="date" id="rpDal" min="2000-01-01" max="2099-12-31"></div>
       <div class="f"><label for="rpAl">Al</label><input type="date" id="rpAl" min="2000-01-01" max="2099-12-31"></div>
-      <div class="f rp-nota"><label for="rpNota">Nota <small>(facoltativa)</small></label><input id="rpNota" maxlength="120" autocomplete="off" placeholder="Es. visita medica, matrimonio"></div>
+      <div class="f rp-nota"><label for="rpNota">Nota</label><input id="rpNota" maxlength="120" autocomplete="off"></div>
     </div>
     <div class="sheet-msg" id="rpMsg" role="status"></div>
     <div class="mfoot"><span class="spacer"></span><button type="button" class="btn" id="rpCancel">Annulla</button><button type="button" class="btn primary" id="rpSave">Segna il riposo</button></div>
@@ -1802,7 +1806,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
     <div class="po-edit" id="poEdit">
       <div class="po-q"><span><b>Pasti offerti</b></span><div class="seg" data-pq="po" role="group" aria-label="Pasti offerti"><button type="button" data-v="0">0</button><button type="button" data-v="1">1</button><button type="button" data-v="2">2</button></div></div>
       <div class="po-q"><span><b>Pasti liberi</b></span><div class="seg" data-pq="pl" role="group" aria-label="Pasti liberi"><button type="button" data-v="0">0</button><button type="button" data-v="1">1</button><button type="button" data-v="2">2</button></div></div>
-      <p class="mst-sub">Al massimo 2 pasti al giorno in tutto. La correzione resta nell'Agenda con il tuo nome e prende il posto di quello che ha segnato l'autista; sul suo telefono non cambia niente.</p>
+      <p class="mst-sub dsc">Al massimo 2 pasti al giorno in tutto. La correzione resta nell'Agenda con il tuo nome e prende il posto di quello che ha segnato l'autista; sul suo telefono non cambia niente.</p>
     </div>
     <div class="sheet-msg" id="poMsg" role="status"></div>
     <div class="mfoot">
@@ -1821,13 +1825,13 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
     <div class="cp-grid">
       <div class="f"><label for="cpVeh">Bus</label><select id="cpVeh"></select></div>
       <div class="f"><label for="cpDrv">Autista</label><select id="cpDrv"></select></div>
-      <div class="f"><label for="cpDrv2">Secondo autista <small>(solo se serve)</small></label><select id="cpDrv2"></select></div>
+      <div class="f"><label for="cpDrv2">Secondo autista</label><select id="cpDrv2"></select></div>
     </div>
-    <div id="cpDaysBox" hidden><p class="mst-sub"><b>Giorno per giorno</b> – lascia «Come il tour» nei giorni in cui non cambia niente.</p><div class="dv-rows" id="cpDays"></div></div>
+    <div id="cpDaysBox" hidden><p class="mst-sub"><b>Giorno per giorno</b></p><div class="dv-rows" id="cpDays"></div></div>
     <div class="warns" id="cpWarn" hidden></div>
     <p class="mst-sub cp-req" id="cpReq"></p>
     <p class="mst-sub" id="cpWas"></p>
-    <p class="mst-sub">La tua scelta vale in tutta l'Agenda: dopo, l'ufficio non può più cambiare bus e autisti di questo servizio.</p>
+    <p class="mst-sub dsc">La tua scelta vale in tutta l'Agenda: dopo, l'ufficio non può più cambiare bus e autisti di questo servizio.</p>
     <div class="sheet-msg" id="cpMsg" role="status"></div>
     <div class="mfoot">
       <button type="button" class="btn" id="cpCancel">Annulla</button>
@@ -1870,8 +1874,8 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
     <h3 id="vwTitle">Perché cambi il mezzo?</h3>
     <p class="mst-sub" id="vwInfo"></p>
     <div class="vw-ch">
-      <button type="button" class="vw-opt log" data-why="log"><b>Motivi logistici – scelta nostra</b><span id="vwLog"></span></button>
-      <button type="button" class="vw-opt cli" data-why="cli"><b>Motivi logistici e contabili – lo chiede il cliente</b><span id="vwCli"></span></button>
+      <button type="button" class="vw-opt log" data-why="log"><b>Motivi logistici – scelta nostra</b><span class="dsc" id="vwLog"></span></button>
+      <button type="button" class="vw-opt cli" data-why="cli"><b>Motivi logistici e contabili – lo chiede il cliente</b><span class="dsc" id="vwCli"></span></button>
     </div>
     <div class="mfoot"><span class="spacer"></span><button type="button" class="btn" id="vwCancel">Annulla</button></div>
   </div>
@@ -1918,6 +1922,22 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
 </div>
 
 <div class="toast" id="toast" hidden></div>
+<div class="upd-ov" id="ovUpd" hidden role="dialog" aria-modal="true" aria-labelledby="updTitle" aria-describedby="updTxt">
+  <div class="upd-card" id="updCard">
+    <div class="upd-ico"><img src="icons/icon-192.png" alt="" width="76" height="76"><span class="upd-badge" id="updBadge" aria-hidden="true"></span></div>
+    <h2 class="upd-tit" id="updTitle">Aggiornamento dell'agenda</h2>
+    <p class="upd-ver" aria-label="Versione"><span id="updFrom"></span><span class="upd-arr" aria-hidden="true">→</span><span class="upd-new" id="updTo"></span></p>
+    <p class="upd-txt" id="updTxt"></p>
+    <div class="upd-bar" id="updBar" hidden><i id="updFill"></i></div>
+    <p class="upd-meta" id="updMeta" aria-live="polite"></p>
+    <div class="upd-act" id="updAct"></div>
+  </div>
+</div>
+<button type="button" class="upd-corner" id="updCorner" hidden aria-label="C'è una nuova versione dell'agenda: apri per aggiornare">
+  <span class="upd-cico" aria-hidden="true"><img src="icons/icon-192.png" alt="" width="42" height="42"><span class="upd-cbadge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg></span></span>
+  <span class="upd-ctx"><b id="updCTit">Nuova versione</b><small id="updCSub">Clicca per aggiornare l'agenda</small></span>
+  <span class="upd-cgo" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 16L16 8M9 8h7v7"/></svg></span>
+</button>
 
 
 <div class="overlay set-ov" id="ovSet" hidden>
@@ -1929,6 +1949,16 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       <nav class="set-nav" id="setNav"></nav>
     </aside>
     <section class="set-main"><button type="button" class="set-back" id="setBack">‹ Impostazioni</button><h2 id="setTitle"></h2><div id="setBody"></div></section>
+  </div>
+</div>
+<div class="overlay set-ov hlp-ov" id="ovHelp" hidden>
+  <div class="set-win hlp-win" role="dialog" aria-label="Aiuto">
+    <aside class="set-side">
+      <div class="set-tl"><button type="button" class="tl r" id="hlpClose" aria-label="Chiudi l'aiuto" title="Chiudi"></button><i class="tl y"></i><i class="tl g"></i></div>
+      <label class="set-search"><input id="hlpQ" type="search" placeholder="Cerca" aria-label="Cerca nell'aiuto" autocomplete="off"></label>
+      <nav class="set-nav" id="hlpNav"></nav>
+    </aside>
+    <section class="set-main"><button type="button" class="set-back" id="hlpBack">‹ Aiuto</button><h2 id="hlpTitle"></h2><div id="hlpBody"></div></section>
   </div>
 </div>
 <div class="overlay" id="ovMenu" hidden>
@@ -2011,7 +2041,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
   <div class="modal reg-modal" role="dialog" aria-labelledby="invListTitle">
     <div class="reg-top"><h3 id="invListTitle">Bozze fattura</h3><span class="reg-count" id="invListCount"></span><span class="spacer"></span><button type="button" class="btn primary" id="invListNew" hidden>+ Nuova bozza per questi servizi</button><button type="button" class="btn" id="invListAll" hidden>Tutte le bozze</button><button type="button" class="btn" id="invListClose">Chiudi</button></div>
     <div class="il-filter" id="invLF"></div>
-    <input id="invQ" type="search" class="cli-q" placeholder="Cerca per cliente, n. foglio, numero, nome del file XML…" autocomplete="off" aria-label="Cerca tra le bozze">
+    <input id="invQ" type="search" class="cli-q" placeholder="Cerca" autocomplete="off" aria-label="Cerca tra le bozze">
     <div class="grid-wrap inv-list" id="invListBody"></div>
   </div>
 </div>
@@ -2020,7 +2050,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
     <div class="reg-top"><h3 id="bsTitle">Buste per l'autista</h3><span class="reg-count" id="bsCount"></span><span class="spacer"></span><button type="button" class="btn" id="bsCsv">Scarica Excel</button><button type="button" class="btn" id="bsClose">Chiudi</button></div>
     <p class="mst-sub" id="bsSub"></p>
     <div class="bill-filter" id="bsFilter"></div>
-    <input id="bsQ" type="search" class="cli-q" placeholder="Cerca per cliente, autista, n. busta, n. foglio…" autocomplete="off" aria-label="Cerca tra le buste">
+    <input id="bsQ" type="search" class="cli-q" placeholder="Cerca" autocomplete="off" aria-label="Cerca tra le buste">
     <div class="grid-wrap inv-list" id="bsBody"></div>
   </div>
 </div>
@@ -2031,7 +2061,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
     <div class="inv-lock" id="invLock" hidden></div>
     <div class="inv-grid" id="invGrid" data-tab="dati">
       <form class="inv-form" id="invForm" novalidate autocomplete="off"></form>
-      <div class="inv-prev"><p class="inv-prev-h">Anteprima – come la vedrà il cliente nella fattura dell'Agenzia delle Entrate</p><div class="inv-paper" id="invPaper"></div></div>
+      <div class="inv-prev"><p class="inv-prev-h">Anteprima</p><div class="inv-paper" id="invPaper"></div></div>
     </div>
     <div class="inv-totals" id="invTotals"></div>
     <div class="inv-issues" id="invIssues" role="status"></div>

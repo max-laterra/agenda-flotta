@@ -32,7 +32,7 @@
   if (!Array.isArray(queue.clients)) queue.clients = [];
   function loadLS(k, d) { try { const v = JSON.parse(localStorage.getItem(k) || "null"); return v && typeof v === "object" ? Object.assign(d || {}, v) : d; } catch (_) { return d; } }
 
-  const hooks = { onChange() {}, onStatus() {}, onAccessChanged() {}, onUsersChanged() {}, onNotice() {}, rowFor: null, actor: () => null };
+  const hooks = { onChange() {}, onStatus() {}, onAccessChanged() {}, onUsersChanged() {}, onNotice() {}, rowFor: null, actor: () => null, sessionWhy: null };
   // Chi sta lavorando su questo dispositivo: il ruolo si legge dall'elenco utenti di Dropbox, non dalla
   // sessione salvata nel browser (che si potrebbe ritoccare a mano).
   function actorRole() {
@@ -107,13 +107,14 @@
         const old = loadLS(CK, null); if (old) cache = Object.assign(emptyCache(), old);
       }
       try { cleanCache(); } catch (_) { cache = emptyCache(); }
+      if (cache.aut && !(cache.aut.office && cache.aut.office.refresh)) { cache.aut = null; cache.autRev = ""; } // 4.0.4: senza chiavi: si rilegge da Dropbox
       status.lastSync = cache.lastSync || null;
     })());
   }
   function saveQueue() {
     if (writesBlocked) return;
     try { localStorage.setItem(QK, JSON.stringify(queue)); if (status.storage === "queue") status.storage = null; }
-    catch (_) { status.storage = "queue"; }
+    catch (_) { status.storage = "queue"; emitStatus(); } // 4.0.4: l'app mostra un avviso fisso
   }
   // dates: giornate cambiate ("all" = tutte). La coda si salva subito, la copia delle giornate poco dopo.
   function persist(dates) {
@@ -123,12 +124,15 @@
     dirtyMeta = true;
     clearTimeout(saveTimer); saveTimer = setTimeout(writeNow, 250);
   }
-  function metaObj() { const m = Object.assign({}, cache); delete m.days; return m; }
+  // 4.0.4 (sicurezza): le chiavi Dropbox dei telefoni degli autisti e quella dell'ufficio restano nella copia sul
+  // dispositivo solo per il Super Master; sugli altri dispositivi (e dopo l'uscita) si leggono da Dropbox a ogni avvio
+  function noKeys(a) { if (!isObj(a)) return a; const o = clone(a); if (o.office) o.office.refresh = ""; for (const k of Object.keys(o.phones || {})) o.phones[k].refresh = ""; delete o.revq; return o; }
+  function metaObj() { const m = Object.assign({}, cache); delete m.days; if (m.aut && actorRole() !== "super") { m.aut = noKeys(m.aut); m.autRev = ""; } return m; }
   async function writeNow() {
     clearTimeout(saveTimer); saveTimer = null;
     if (writesBlocked || (!dirtyMeta && !dirtyDays.size && !dirtyAll)) return;
     if (!idb) {
-      try { localStorage.setItem(CK, JSON.stringify(cache)); if (status.storage === "full") status.storage = "noidb"; }
+      try { localStorage.setItem(CK, JSON.stringify(Object.assign(metaObj(), { days: cache.days }))); if (status.storage === "full") status.storage = "noidb"; }
       catch (_) { status.storage = "full"; emitStatus(); }
       dirtyMeta = dirtyAll = false; dirtyDays.clear(); return;
     }
@@ -246,6 +250,10 @@
         // 3.0.3: pulizia notturna delle prenotazioni rimaste in sospeso: si elimina solo se è ancora in sospeso
         // (nel frattempo qualcuno potrebbe averla confermata)
         if (op.ifOpz && prev.status !== "opzione") continue;
+        // 4.0.4: e solo se nel frattempo nessuno l'ha modificata (cliente aggiunto, conferma fatta offline e poi rimessa
+        // in sospeso…), non è stata inviata all'autista e MAX non ha deciso bus e autisti
+        if (op.ifOpz && op.base != null && txt(prev.updatedAt || prev.byAt, 40) !== txt(op.base, 40)) continue;
+        if (op.ifOpz && (isObj(prev.capo) || (isObj(prev.sent) && prev.sent.at && !prev.sent.off))) continue;
         // 3.0.11: quelle senza cliente si eliminano già alle 00:00 del giorno del servizio: se intanto qualcuno ha
         // scritto il cliente, resta (e segue la regola di quelle con il cliente)
         if (op.ifNoCli && String(prev.client || "").trim()) continue;
@@ -260,6 +268,9 @@
           }
         }
         if (prev.foglio) fat.push({ act: "clear", foglio: prev.foglio, moved: op.move || null, b: Object.assign({ id: op.id }, prev, { start: prev.start || doc.date }) });
+        // 4.0.4: pulizia notturna davvero fatta in Dropbox: solo adesso l'app ritira il foglio, cancella PDF e allegati,
+        // scrive il Registro e avvisa (prima lo faceva subito, anche quando Dropbox poi la saltava)
+        if (strict && op.ifOpz) notes.push({ kind: "purged", id: op.id, date: doc.date, b: Object.assign({ id: op.id }, clone(prev), { start: prev.start || doc.date }) });
         delete doc.bookings[op.id];
       } else if (op.t === "extra") {
         const cur = doc.extra || "";
@@ -310,9 +321,20 @@
       const cur = view()[date];
       for (const op of ops) if (sentOnly([op]) && cur && cur.bookings && cur.bookings[op.id] && cur.bookings[op.id].capo) throw { code: "capo" };
     }
-    queue.days.push({ qid: newQid(), date, ops: clone(ops), at: Date.now() });
+    // 4.0.4: ogni modifica ricorda chi l'ha fatta (utente e versione della sua password): al ritorno della connessione
+    // quelle di un utente disattivato o rimosso, o fatte con una password vecchia, restano trattenute
+    let a = null; try { a = hooks.actor(); } catch (_) {}
+    queue.days.push(Object.assign({ qid: newQid(), date, ops: clone(ops), at: Date.now() }, a && a.uid ? { uid: String(a.uid), pw: String(a.pw || "") } : {}));
     persist(); changed(); kick();
   }
+  // 4.0.4: modifica in coda di un utente che non può più scrivere (rimosso, disattivato, password cambiata)?
+  function heldItem(item) {
+    if (!item.uid || !cache.users || !cache.users.users) return false;
+    const u = cache.users.users[item.uid];
+    return !u || u.active === false || (item.pw != null && (u.pwAt || "") !== item.pw);
+  }
+  let heldSaid = 0;
+  let needUsers = true; // dopo l'avvio e al ritorno della connessione: prima si rilegge l'elenco utenti, poi si invia
   const newQid = () => "q" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   // la prenotazione ha ancora modifiche da inviare (quindi il n. foglio non è ancora confermato)
   function isPending(id) { return queue.days.some((it) => it.ops.some((op) => op.id === id)); }
@@ -362,13 +384,20 @@
   }
   async function flush() {
     if (!enabled || flushing || outdated || !navigator.onLine || !DBX.isLinked()) return;
+    if (wrongAccount()) return;
+    // 4.0.4 (sicurezza): prima di inviare le modifiche fatte offline si ricontrolla l'utente con l'elenco di Dropbox
+    if (needUsers && queue.days.length) { const okp = await pull(); if (!okp || flushing) return; needUsers = false; }
+    let why = null; try { why = hooks.sessionWhy ? hooks.sessionWhy() : null; } catch (_) {}
+    if (why === "blocked") { if (queue.days.length || queue.clients.length) { queue.days = []; queue.clients = []; persist(); changed(); } return; } // dispositivo bloccato: la coda si butta
+    if (why && why !== "none" && queue.days.length) return; // sessione non più valida: l'app chiede di entrare di nuovo
     flushing = true; status.syncing = true; emitStatus();
-    const skip = new Set(); let failed = null;
+    const skip = new Set(); let failed = null; status.held = 0;
     try {
       let i = 0;
       while (i < queue.days.length) {
         const item = queue.days[i];
         if (skip.has(item.date)) { i++; continue; }
+        if (heldItem(item)) { item.held = true; status.held++; skip.add(item.date); i++; continue; } // trattenuta (e quelle dopo dello stesso giorno)
         let r;
         try { r = await sendItem(item); }
         catch (e) {
@@ -390,6 +419,7 @@
         persist([item.date]); changed();
         for (const n of r.notes) notice(n);
       }
+      if (status.held && status.held !== heldSaid) notice({ kind: "held", n: status.held }); heldSaid = status.held; // 4.0.4
       status.error = failed ? "day" : null; status.errorDetail = failed ? failed.date + ": " + String(failed.detail).slice(0, 200) : ""; retryN = 0;
       if (failed) retrySoon();
     } catch (e) {
@@ -425,7 +455,9 @@
   // eseguire codice: di ogni file si tiene solo quello che ha la forma giusta, il resto si scarta.
   const isObj = (x) => !!x && typeof x === "object" && !Array.isArray(x);
   const badKey = (k) => k === "__proto__" || k === "constructor" || k === "prototype";
-  const txt = (v, max) => (typeof v === "string" ? v : typeof v === "number" && isFinite(v) ? String(v) : "").slice(0, max || 20000);
+  // 4.0.4: via i caratteri invisibili e di inversione del testo (U+200B–200F, U+202A–202E, U+2066–2069), come cleanText dei moduli
+  const INVIS = /[\u200B-\u200F\u202A-\u202E\u2066-\u2069\u2060\uFEFF]/g;
+  const txt = (v, max) => (typeof v === "string" ? v : typeof v === "number" && isFinite(v) ? String(v) : "").replace(INVIS, "").slice(0, max || 20000);
   // flotta: solo mezzi veri, con un id semplice (lettere, numeri, - _ .) e i campi del tipo giusto
   function cleanFleet(list) {
     if (!Array.isArray(list)) return null;
@@ -490,6 +522,8 @@
       if (lvl) users[id].lvl = lvl; else delete users[id].lvl;
       if (u.max === true && !lvl) users[id].max = true; else delete users[id].max; // 3.0.7: permesso MAX
       if ("prefs" in u) { const pf = cleanPrefs(u.prefs); if (pf) users[id].prefs = pf; else delete users[id].prefs; }
+      // 4.0.4: dispositivi dove entra questo account (Super Master, Master, invio): un Master non li blocca né li disconnette
+      if ("devs" in u) { const dv = Array.isArray(u.devs) ? u.devs.filter((x) => typeof x === "string" && /^d[a-z0-9]{8,20}$/.test(x)).slice(-10) : []; if (dv.length) users[id].devs = dv; else delete users[id].devs; }
       // codice di recupero del Super Master: solo se ha la forma di un'impronta
       if ("rec" in u) { const r = u.rec; if (isObj(r) && /^[0-9a-f]{16,128}$/i.test(txt(r.salt, 200)) && /^[0-9a-f]{64}$/i.test(txt(r.hash, 200)) && Number.isInteger(Number(r.iter)) && Number(r.iter) >= ITER_MIN && Number(r.iter) <= ITER_MAX) users[id].rec = { salt: r.salt, hash: r.hash, iter: Number(r.iter) }; else delete users[id].rec; }
     }
@@ -512,7 +546,7 @@
     o.fatturato = okPath(j.fatturato) ? j.fatturato : "";
     o.fatturatoNome = txt(j.fatturatoNome, 200);
     o.perms = isObj(j.perms) ? j.perms : {};
-    const al = Number(j.autoLock); o.autoLock = isFinite(al) && al >= 0 && al <= 1440 ? al : 0;
+    const al = Number(j.autoLock); o.autoLock = isFinite(al) && al >= 0 && al <= 1440 ? al : 30; // 4.0.4: di serie 30 minuti (il Master può cambiarlo, anche «Mai»)
     o.googleKey = txt(j.googleKey, 200);
     return o;
   }
@@ -527,7 +561,7 @@
   const SECRET = ["salt", "iter", "hash", "pwAt"];
   function onlySecret(b, a) { const x = Object.assign({}, b), y = Object.assign({}, a); for (const k of SECRET) { delete x[k]; delete y[k]; } return same(x, y); }
   // 3.0: sul proprio account ognuno cambia anche le sue impostazioni personali (prefs)
-  function onlyOwn(b, a) { const x = Object.assign({}, b), y = Object.assign({}, a); for (const k of SECRET.concat(["prefs"])) { delete x[k]; delete y[k]; } return same(x, y); }
+  function onlyOwn(b, a) { const x = Object.assign({}, b), y = Object.assign({}, a); for (const k of SECRET.concat(["prefs", "devs"])) { delete x[k]; delete y[k]; } return same(x, y); }
   function usersGuard(before, after, actor) {
     actor = actor || {};
     const B = (before && before.users) || {}, A = (after && after.users) || {};
@@ -538,7 +572,8 @@
       const b = B[id], a = A[id];
       if (same(b, a)) continue;
       if (actor.boot === "super") { if (!b && a && a.role === "super" && !Object.values(B).some((u) => u.role === "super")) continue; return "forbidden"; }
-      if (actor.recover) { if (id === actor.recover && b && a && b.role === "super" && a.role === "super" && onlySecret(b, a)) continue; return "forbidden"; }
+      // 4.0.4: con il codice di recupero cambia la password e il codice usato si cancella (rec tolto)
+      if (actor.recover) { if (id === actor.recover && b && a && b.role === "super" && a.role === "super" && onlySecret(b, b.rec && !a.rec ? Object.assign({}, a, { rec: b.rec }) : a)) continue; return "forbidden"; }
       if (role === "super") continue;
       if (id === actor.uid && b && a && onlyOwn(b, a)) continue;
       if (role === "master" && !prot(b) && !prot(a)) continue;
@@ -546,11 +581,17 @@
     }
     // dispositivi (disconnetti, blocca, nomi): solo Master e Super Master
     if (role !== "super" && role !== "master" && !actor.boot && !actor.recover) for (const k of ["kicks", "blocked", "devices"]) if (!same((before && before[k]) || {}, (after && after[k]) || {})) return "forbidden";
+    // 4.0.4: un Master non blocca né disconnette i dispositivi del Super Master, di un altro Master o di chi invia i fogli
+    if (role === "master") {
+      const prot = new Set(); for (const [id, u] of Object.entries(B)) if (id !== actor.uid && u && u.role !== "utente") for (const d of u.devs || []) prot.add(d);
+      for (const k of ["kicks", "blocked"]) { const b0 = (before && before[k]) || {}, a0 = (after && after[k]) || {}; for (const d of Object.keys(a0)) if (prot.has(d) && !same(b0[d], a0[d])) return "protected"; }
+    }
     return "";
   }
   // ---------- invio all'autista (2.5): segno sulla prenotazione ----------
   function cleanSent(x) {
-    const n = Number(x.n), o = { at: txt(x.at, 40), by: txt(x.by, 80), n: Number.isFinite(n) && n >= 1 && n < 100000 ? Math.floor(n) : 1, to: Array.isArray(x.to) ? x.to.filter((v) => typeof v === "string" && v.trim()).slice(0, 4).map((v) => v.slice(0, 80)) : [], dir: /^\d{4}\/[\w-]{1,80}$/.test(txt(x.dir, 100)) ? x.dir : "", h: txt(x.h, 40), alias: !!x.alias, noPlate: !!x.noPlate };
+    const n = Number(x.n), o = { at: txt(x.at, 40), by: txt(x.by, 80), n: Number.isFinite(n) && n >= 1 && n < 100000 ? Math.floor(n) : 1, to: Array.isArray(x.to) ? x.to.filter((v) => typeof v === "string" && v.trim()).slice(0, 20).map((v) => v.slice(0, 80)) : [], dir: /^\d{4}\/[\w-]{1,80}$/.test(txt(x.dir, 100)) ? x.dir : "", h: txt(x.h, 40), alias: !!x.alias, noPlate: !!x.noPlate };
+    if (Number(x.hv) === 2) o.hv = 2; // 4.0.4: impronta con il telefono del cliente
     if (isObj(x.off)) o.off = { at: txt(x.off.at, 40), by: txt(x.off.by, 80) };
     return o;
   }
@@ -567,6 +608,9 @@
       if (badKey(id) || !/^[a-z0-9]{6,24}$/.test(id) || !isObj(f) || !txt(f.driver, 80).trim()) continue;
       o.phones[id] = { driver: txt(f.driver, 80).trim(), label: txt(f.label, 60), refresh: tk(f.refresh), created: when(f.created), by: txt(f.by, 80), blocked: isObj(f.blocked) ? { at: when(f.blocked.at), by: txt(f.blocked.by, 80) } : null };
     }
+    // 4.0.4: collegamenti da revocare (telefoni dell'app di prima, collegamenti sostituiti): si tolgono solo quando
+    // Dropbox conferma la revoca
+    if (Array.isArray(j.revq)) { const q = j.revq.filter(isObj).map((x) => ({ refresh: tk(x.refresh), key: /^[A-Za-z0-9]{6,40}$/.test(txt(x.key, 60)) ? x.key : "", at: when(x.at), what: txt(x.what, 80) })).filter((x) => x.refresh && x.key).slice(0, 200); if (q.length) o.revq = q; }
     return o;
   }
   // giornate: ogni prenotazione deve essere un oggetto, con testi, numeri ed elenchi del tipo giusto
@@ -671,6 +715,8 @@
     if (cache.fatShared && !isObj(cache.fatShared)) cache.fatShared = {};
     if (cache.fatGone && !isObj(cache.fatGone)) cache.fatGone = {};
     if (cache.fatWritten && !isObj(cache.fatWritten)) cache.fatWritten = null;
+    if (cache.retry && !isObj(cache.retry)) cache.retry = {}; // 4.0.4
+    if (cache.numRes && !isObj(cache.numRes)) cache.numRes = null; // 4.0.4
     if (cache.lists && !isObj(cache.lists)) cache.lists = null;
     if (cache.regs) { const g = {}; if (isObj(cache.regs)) for (const k of Object.keys(REGF)) { const c = cache.regs[k] ? cleanReg(k, cache.regs[k]) : null; if (c) g[k] = c; } cache.regs = Object.keys(g).length ? g : null; }
     if (cache.contab) cache.contab = isObj(cache.contab) && window.FATTURE ? window.FATTURE.cleanContab(cache.contab) : null;
@@ -687,8 +733,18 @@
     pullP = pullOnce().finally(() => { pullP = null; });
     return pullP;
   }
+  // 4.0.4 (sicurezza): l'account Dropbox collegato deve essere quello dell'agenda (salvato in impostazioni.json): con
+  // «Ricollega» fatto con un altro account non si legge e non si scrive niente (le modifiche in coda restano)
+  function wrongAccount() {
+    const want = cache.settings && typeof cache.settings.account === "string" ? cache.settings.account : "", have = DBX.accountId ? DBX.accountId() : "";
+    if (!want || !have || want === have) return false;
+    status.error = "account"; status.errorDetail = "account Dropbox diverso"; emitStatus();
+    try { hooks.onWrongAccount && hooks.onWrongAccount(); } catch (_) {}
+    return true;
+  }
   async function pullOnce() {
     if (!enabled || !navigator.onLine || !DBX.isLinked()) return false;
+    if (wrongAccount()) return false;
     pulling = true;
     let touched = false, ok = false;
     const changedDays = [];
@@ -703,6 +759,11 @@
         next = res.cursor;
         res = res.has_more ? await DBX.listFolder(BASE, res.cursor) : null;
       }
+      // 4.0.4: i file che l'ultima volta non si sono potuti leggere (errore su quel file solo) si riprovano adesso
+      const retry = isObj(cache.retry) ? cache.retry : {};
+      for (const [p, r] of Object.entries(retry)) if (!seen.has(p) && isObj(r)) seen.set(p, { ".tag": "file", path_lower: p, path_display: r.disp || p, rev: "", size: 0, _retry: 1 });
+      const failed = {};
+      const BIG = 2 * 1024 * 1024; // un file dell'agenda di più di 2 MB è rovinato (o scritto apposta): non si scarica
       const jobs = [];
       for (const [p, e] of seen) {
         const m = /\/giorni\/\d{4}\/(\d{4}-\d{2}-\d{2})\.json$/.exec(p);
@@ -711,6 +772,7 @@
           if (!validDate(date)) continue; // nome di file che non è una data vera (es. 9999-99-99.json)
           if (e[".tag"] === "deleted") { if (cache.days[date]) { delete cache.days[date]; changedDays.push(date); touched = true; } continue; }
           if (e[".tag"] !== "file" || (cache.days[date] && cache.days[date].rev === e.rev)) continue;
+          if (e.size > BIG) { cache.bad = Object.assign({}, cache.bad, { [date]: e.rev }); notice({ kind: "badfile", date }); continue; }
           jobs.push({ date, e });
         }
       }
@@ -721,25 +783,33 @@
         const id = Object.keys(cache.drafts || {}).find((k) => k.toLowerCase() === m[1]) || m[1];
         if (e[".tag"] === "deleted") { if (cache.drafts && cache.drafts[id]) { delete cache.drafts[id]; touched = true; } continue; }
         if (e[".tag"] !== "file" || (cache.drafts && cache.drafts[id] && cache.drafts[id].rev === e.rev)) continue;
+        if (e.size > BIG) { notice({ kind: "badcfg", path: e.path_display || p }); continue; }
         jobs.push({ draft: m[1], e });
       }
       // giornate: 4 download alla volta
-      await pool(jobs, 4, async ({ date, e, draft }) => {
+      // 4.0.4: un errore su un file non ferma più la lettura degli altri (prima il cursore non avanzava e tutti i
+      // dispositivi restavano con dati vecchi): il file va nella lista da riprovare e il cursore avanza
+      const oneFail = (e, err) => { if (err && err.code === "no_auth") throw err; failed[(e.path_lower || "").toLowerCase()] = { disp: e.path_display || e.path_lower, n: ((retry[(e.path_lower || "").toLowerCase()] || {}).n || 0) + 1, err: String((err && (err.code || err.message)) || err).slice(0, 60) }; };
+      await pool(jobs, 4, async (job) => { try { await pullJob(job); } catch (err) { oneFail(job.e, err); } });
+      async function pullJob({ date, e, draft }) {
         const f = await DBX.download(e.path_lower);
-        if (!f) return;
+        if (!f) { if (e._retry && date && cache.days[date]) { delete cache.days[date]; changedDays.push(date); touched = true; } return; }
+        if (f.buf && f.buf.byteLength > BIG) { if (date) { cache.bad = Object.assign({}, cache.bad, { [date]: f.meta.rev || e.rev }); notice({ kind: "badfile", date }); } else notice({ kind: "badcfg", path: e.path_display || e.path_lower }); return; }
         if (draft) { let okd = false; try { okd = takeDraft(parseJSON(f.buf), f.meta.rev || e.rev, draft); } catch (_) {} if (okd) touched = true; else notice({ kind: "badcfg", path: e.path_display || e.path_lower }); return; }
         let doc = null; try { doc = cleanDoc(parseJSON(f.buf), date); } catch (_) {} // un file che manda in errore i controlli vale come file rovinato
         if (!doc) { cache.bad = Object.assign({}, cache.bad, { [date]: e.rev }); notice({ kind: "badfile", date }); return; } // si tiene l'ultima versione buona
         if (cache.bad && cache.bad[date]) { delete cache.bad[date]; }
         cache.days[date] = { doc, rev: f.meta.rev || e.rev }; changedDays.push(date); touched = true;
-      });
+      }
       for (const [p, e] of seen) {
         if (e[".tag"] === "deleted" && p === (P.cfg + "/autisti.json").toLowerCase() && cache.aut) { cache.aut = null; cache.autRev = ""; touched = true; continue; }
         if (e[".tag"] !== "file") continue;
         const isCfg = (n) => p === (P.cfg + "/" + n).toLowerCase();
         const regKind = Object.keys(REGF).find((k) => isCfg(REGF[k]));
         if (!(regKind || isCfg(VER_FILE) || isCfg("contabilita.json") || isCfg("flotta.json") || isCfg("righe-fatturato.json") || isCfg("impostazioni.json") || isCfg("accesso.json") || isCfg("utenti.json") || isCfg("autisti.json"))) continue;
-        const f = await DBX.download(e.path_lower); if (!f) continue;
+        if (e.size > BIG) { notice({ kind: "badcfg", path: e.path_display || p }); continue; } // 4.0.4
+        let f; try { f = await DBX.download(e.path_lower); } catch (err) { oneFail(e, err); continue; } if (!f) continue;
+        if (f.buf && f.buf.byteLength > BIG) { notice({ kind: "badcfg", path: e.path_display || p }); continue; }
         const j = parseJSON(f.buf); if (!j) { notice({ kind: "badcfg", path: e.path_display || p }); continue; }
         // ogni file per conto suo: se uno manda in errore i controlli si segnala e si passa al successivo
         try {
@@ -754,7 +824,10 @@
           else if (isCfg("utenti.json")) { const cu = cleanUsers(j); if (cu) { cache.users = cu; usersSeen = true; try { hooks.onUsersChanged(cu); } catch (_) {} touched = true; } else notice({ kind: "badcfg", path: e.path_display || p }); } // elenco non valido: resta l'ultimo buono
         } catch (_) { notice({ kind: "badcfg", path: e.path_display || p }); }
       }
-      cache.cursor = next; // solo adesso: tutte le voci sono state lette davvero
+      // 4.0.4: il cursore avanza; i file non letti restano nella lista da riprovare (dopo 20 tentativi si lasciano perdere)
+      cache.retry = Object.fromEntries(Object.entries(failed).filter(([, r]) => r.n <= 20));
+      if (Object.keys(failed).length) console.warn("Dropbox: file da riprovare", JSON.stringify(failed).slice(0, 400));
+      cache.cursor = next; // solo adesso: tutte le voci sono state lette (o messe tra quelle da riprovare)
       cache.lastSync = status.lastSync = Date.now(); status.error = null; status.errorDetail = ""; retryN = 0;
       persist(changedDays); ok = true; lastPullOk = Date.now();
     } catch (e) {
@@ -798,8 +871,8 @@
 
   let kickTimer = null;
   function kick() { clearTimeout(kickTimer); kickTimer = setTimeout(() => { flush(); }, 50); }
-  window.addEventListener("online", () => { status.online = true; emitStatus(); flush().then(pull); });
-  window.addEventListener("offline", () => { status.online = false; emitStatus(); });
+  window.addEventListener("online", () => { status.online = true; needUsers = true; emitStatus(); pull().then(() => flush()); }); // 4.0.4: prima l'elenco utenti, poi le modifiche
+  window.addEventListener("offline", () => { status.online = false; needUsers = true; emitStatus(); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { pull(); flush(); } else writeNow(); });
   window.addEventListener("pagehide", () => { writeNow(); });
   setInterval(() => { if (!document.hidden) { pull(); flush(); } }, 60000);
@@ -824,6 +897,10 @@
   // n. foglio valido: AAMMGG + progressivo, con data vera
   const validFoglio = (fg) => /^\d{8,9}$/.test(String(fg || "")) && validDate("20" + String(fg).slice(0, 2) + "-" + String(fg).slice(2, 4) + "-" + String(fg).slice(4, 6));
   let fatRun = null, fatAgain = false;
+  // 4.0.4: celle del fatturato corrette a mano dall'ufficio (per anno) e righe da riscrivere con i valori dell'agenda
+  const fatOfficeY = {}, fatForceSet = new Set();
+  function fatOffice() { return [].concat(...Object.values(fatOfficeY)); }
+  function fatForce(list) { for (const k of list || []) fatForceSet.add(String(k)); return syncFatturato(); }
   // Scrive nei file fatturato le righe in attesa e rimette quelle mancanti. Legge anche clienti e regole.
   // Restituisce una promessa che si risolve quando l'aggiornamento (compreso un eventuale secondo giro) è finito.
   function syncFatturato() {
@@ -862,10 +939,13 @@
         for (const [k, x] of Object.entries(pendingNow)) if (fileFor(yOfFoglio(k)) === y && (x.act === "clear" || mine(x.b))) pend[k] = x;
         // pulizia: righe scritte dall'agenda (elenco condiviso) di servizi che non esistono più, per esempio
         // rimesse da un file Excel salvato con dati vecchi. Solo con dati appena aggiornati.
-        const gone = fresh && cache.cursor ? Object.keys(Object.assign({}, cache.fatShared || {}, cache.fatGone || {})).filter((k) => !current[k] && !pend[k] && validFoglio(k) && fileFor(yOfFoglio(k)) === y)
+        // 4.0.4: niente pulizia finché qualche giornata è rovinata o da rileggere (i suoi fogli sembrerebbero eliminati)
+        const holes = Object.keys(cache.bad || {}).length > 0 || Object.keys(cache.retry || {}).length > 0;
+        const gone = fresh && cache.cursor && !holes ? Object.keys(Object.assign({}, cache.fatShared || {}, cache.fatGone || {})).filter((k) => !current[k] && !pend[k] && validFoglio(k) && fileFor(yOfFoglio(k)) === y)
           .map((k) => ({ foglio: k, sig: cache.fatGone && cache.fatGone[k] && typeof cache.fatGone[k] === "object" ? cache.fatGone[k] : null })) : [];
         try {
           const r = await syncOne(files[y].path, pend, fresh ? all.filter(mine) : [], y === clientYear(files) ? queue.clients.filter((c) => !c.failed) : [], gone);
+          if (r && fresh) { fatOfficeY[y] = (r.office || []).slice(0, 300); } // 4.0.4: celle corrette a mano dall'ufficio
           if (r && r.lists && r.lists.bustaMax != null) { cache.bustaMax = cache.bustaMax || {}; cache.bustaMax[y] = r.lists.bustaMax; }
           report[y] = r ? { ok: true, name: files[y].name, at: Date.now() } : { ok: false, error: "missing", name: files[y].name };
           if (!r && !firstErr) firstErr = "missing";
@@ -891,16 +971,19 @@
         gone: gone || [],
         ensure: ensureList.map(hooks.rowFor),
         known: Object.assign({}, cache.fatShared || {}, cache.fatWritten || {}),
+        prints: Object.fromEntries(Object.entries(cache.fatShared || {}).filter(([, v]) => typeof v === "string")), // 4.0.4
+        force: Array.from(fatForceSet),
         newClients: (newClients || []).filter((x) => x.kind !== "edit").map((x) => ({ tmp: x.tmp, vals: x.vals })),
         editClients: (newClients || []).filter((x) => x.kind === "edit").map((x) => ({ tmp: x.tmp, code: x.code, vals: x.vals, base: x.base })),
       });
       if (res.skipped && res.skipped.some((x) => x.why === "non riconosciuta")) console.warn("Fatturato: righe non svuotate", JSON.stringify(res.skipped));
       if (res.collisions && res.collisions.length) renumberCollisions(res.collisions);
       if (res.lists) cache.lists = Object.assign({}, cache.lists || {}, res.lists, { fogli: Array.from(new Set(((cache.lists && cache.lists.fogli) || []).concat(res.lists.fogli || []))), at: Date.now() });
-      if (!res.changed) { finishFat(pend, res); finishClients(res); return res; }
+      if (!res.changed) { finishFat(pend, res); finishClients(res); if (res.prints && Object.keys(res.prints).length) await shareRows(res, []); for (const k of Object.keys(res.prints || {})) fatForceSet.delete(k); return res; }
       try {
         await DBX.upload(path, res.buf, { update: f.meta.rev }); finishFat(pend, res); finishClients(res);
         await shareRows(res, Object.keys(pend).filter((k) => pend[k].act === "upsert" && !(res.collisions || []).includes(k)));
+        for (const k of Object.keys(res.prints || {})) fatForceSet.delete(k);
         return res;
       }
       catch (e) { if (e.code !== "conflict") throw e; if (attempt === 4) throw { code: "busy" }; }
@@ -928,7 +1011,9 @@
         const f = await DBX.download(path);
         const j = f ? (parseJSON(f.buf) || {}) : {}, cur = isObj(j.fogli) ? j.fogli : {}, gone = isObj(j.tolti) ? j.tolti : {};
         const before = JSON.stringify([cur, gone]);
-        for (const k of add) { cur[k] = 1; }
+        for (const k of add) { if (typeof cur[k] !== "string") cur[k] = 1; }
+        for (const [k, v] of Object.entries(res.prints || {})) if (typeof v === "string" && (cur[k] || add.includes(k))) cur[k] = v; // 4.0.4: impronta
+        { const lim = new Date(Date.now() - 400 * 864e5).toISOString().slice(2, 10).replace(/-/g, ""); for (const k of Object.keys(cur)) if (typeof cur[k] === "string" && String(k).slice(0, 6) < lim) cur[k] = 1; } // impronte dei servizi di più di 13 mesi fa: non servono più
         for (const k of del) { delete cur[k]; gone[k] = (res.clearedSig && res.clearedSig[k]) || 1; }
         cache.fatShared = cur; cache.fatGone = gone;
         if (JSON.stringify([cur, gone]) === before) return;
@@ -1387,10 +1472,49 @@
   }
   // taken: percorsi (minuscoli) dei file delle altre bozze: non si sovrascrivono e non si eliminano.
   // Restituisce { path, oldLeft }: oldLeft = il file di prima della stessa bozza non si è potuto eliminare.
-  async function saveInvoiceXml(name, text, again, date, taken, keepOld) {
+  // 4.0.4: numero di fattura prenotato all'emissione, con una scrittura condizionata (rev) di un file in Dropbox: due
+  // dispositivi che emettono nello stesso minuto non prendono lo stesso numero. key = anno + numero normalizzato.
+  async function reserveNumero(key, id, num, year, force) {
+    noRO();
+    if (!navigator.onLine) throw { code: "offline" };
+    const path = P.cfg + "/numeri-fattura.json";
+    for (let i = 0; i < 6; i++) {
+      const f = await DBX.download(path);
+      if (f && !f.meta.rev) f.meta = await DBX.metadata(path);
+      const j = f ? parseJSON(f.buf) || {} : {}, m = isObj(j.n) ? j.n : {};
+      for (const k of Object.keys(m)) if (badKey(k) || !isObj(m[k])) delete m[k];
+      cache.numRes = m;
+      const cur = m[key];
+      if (cur && cur.id === id) return m;
+      if (cur && !force) throw { code: "taken", by: cur };
+      m[key] = { id: txt(id, 40), at: new Date().toISOString(), num: txt(num, 20), y: txt(year, 4) };
+      { const lim = new Date(Date.now() - 800 * 864e5).toISOString(); for (const k of Object.keys(m)) if (k !== key && String(m[k].at || "") < lim) delete m[k]; } // prenotazioni di più di 2 anni fa: non servono più
+      try { await DBX.upload(path, enc.encode(JSON.stringify({ n: m })), f ? { update: f.meta.rev } : "add"); cache.numRes = m; persist(); return m; }
+      catch (e) { if (e.code !== "conflict") throw e; }
+    }
+    throw { code: "busy" };
+  }
+  function numReserved() { return Object.values(isObj(cache.numRes) ? cache.numRes : {}).filter(isObj); }
+  // 4.0.4: percorso libero per il file XML di una fattura, scelto PRIMA di salvare la bozza (che lo tiene come percorso
+  // previsto): non è di un'altra bozza e in Dropbox non c'è ancora (o è il file di prima di questa stessa bozza)
+  async function xmlFreePath(base, date, taken, mine) {
+    const folder = xmlFolder(String(date || "")), tk = taken instanceof Set ? taken : new Set();
+    for (let i = 0; i < 40; i++) {
+      let name = safeFileName(base + (i ? "_" + (i + 1) : "")); if (!/\.xml$/i.test(name)) name += ".xml";
+      const path = folder + "/" + name, low = path.toLowerCase();
+      if (tk.has(low)) continue;
+      if (mine && String(mine).toLowerCase() === low) return path;
+      const m = await DBX.metadata(path).catch((e) => { if (e && e.code === "conflict" && /not_found/.test(e.summary || "")) return null; throw e; });
+      if (!m) return path;
+    }
+    throw { code: "conflict" };
+  }
+  async function saveInvoiceXml(name, text, again, date, taken, keepOld, planned) {
     noRO();
     name = safeFileName(name); if (!/\.xml$/i.test(name)) name += ".xml";
-    const folder = xmlFolder(String(date || "")), path = folder + "/" + name, tk = taken instanceof Set ? taken : new Set();
+    const folder = xmlFolder(String(date || "")), tk = taken instanceof Set ? taken : new Set();
+    // 4.0.4: percorso già scelto e salvato nella bozza: si scrive lì (sovrascrivendo un tentativo di prima di questa fattura)
+    const plan = inXml(planned) && !tk.has(String(planned).toLowerCase()) ? planned : "", path = plan || folder + "/" + name;
     if (tk.has(path.toLowerCase())) throw { code: "conflict" }; // è il file di un'altra fattura
     const mine = inXml(again) && !tk.has(again.toLowerCase()) ? again : "";
     // 3.0: fattura già emessa e corretta: il file di prima non si cancella, va nella sottocartella «sostituite» della
@@ -1403,13 +1527,13 @@
       catch (e) { if (!(e && e.code === "conflict" && /not_found/.test(e.summary || ""))) throw { code: "move", detail: e }; }
       let p = "";
       for (const part of folder.split("/").filter(Boolean)) { p += "/" + part; await DBX.createFolder(p).catch(() => {}); }
-      await DBX.upload(path, enc.encode(text), "add");
+      await DBX.upload(path, enc.encode(text), plan ? "overwrite" : "add");
       return { path, oldLeft: false, moved };
     }
     if (mine && mine.toLowerCase() === path.toLowerCase()) { await DBX.upload(mine, enc.encode(text), "overwrite"); return { path: mine, oldLeft: false }; }
     let p = "";
-    for (const part of folder.split("/").filter(Boolean)) { p += "/" + part; await DBX.createFolder(p).catch(() => {}); }
-    await DBX.upload(path, enc.encode(text), "add");
+    for (const part of path.replace(/\/[^/]*$/, "").split("/").filter(Boolean)) { p += "/" + part; await DBX.createFolder(p).catch(() => {}); }
+    await DBX.upload(path, enc.encode(text), plan ? "overwrite" : "add");
     let oldLeft = false;
     if (mine) { try { await DBX.remove(mine); } catch (e) { oldLeft = !(e && e.code === "not_found"); } }
     return { path, oldLeft };
@@ -1441,7 +1565,7 @@
   }
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "3.0";
-  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "4.0.3"; // 4.0.3: passeggero H a bordo; // 4.0.1: scorciatoie da tastiera nelle impostazioni personali; 4.0: aspetto, tema e benvenuto nelle impostazioni personali; 3.0.11: pulizia di quelle senza cliente alle 00:00 del giorno del servizio; 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "4.0.4"; // 4.0.4: correzioni di sicurezza (pulizia notturna, fatture, fatturato, sincronizzazione); 4.0.3: passeggero H a bordo; // 4.0.1: scorciatoie da tastiera nelle impostazioni personali; 4.0: aspetto, tema e benvenuto nelle impostazioni personali; 3.0.11: pulizia di quelle senza cliente alle 00:00 del giorno del servizio; 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
   window.STORE = {
     BASE, P,
     saveAttachment, readAttachment, removeAttachment, cleanAtt, ATT_MAX,
@@ -1452,7 +1576,7 @@
     disable() { enabled = false; writesBlocked = true; clearTimeout(saveTimer); },
     fileFogli, validDate,
     view, mutateDay, pull, flush, watch, setupFolders, syncFatturato, isPending, whenSent, saveNow: writeNow,
-    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, updateAut, loadAut, loadMinVer, raiseMinVer, setOutdated, verCmp, minVer: () => cache.minVer || "", actorRole, _usersGuard: usersGuard, _cleanUsers: cleanUsers, _cleanAut: cleanAut, _cleanBooking: cleanBooking, saveSheetFile, saveSheetCopy, sheetFiles, removeSheetFile, sheetsRoot: () => P.sheets, deleteSheetFiles, sheetFolder, safeFileName, ITER_MIN, ITER_MAX, reg, regLoaded, updateReg, loadRegs, REGF, contab, updateContab, drafts, draft, draftRev, saveDraft, deleteDraft, saveInvoiceXml, loadInvoices, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
+    patchFleet, setSettings, linkFatturato, fatFiles, fetchAccess, createAccess, setAccess, fetchUsers, createUsers, updateUsers, updateAut, loadAut, loadMinVer, raiseMinVer, setOutdated, verCmp, minVer: () => cache.minVer || "", actorRole, _usersGuard: usersGuard, _cleanUsers: cleanUsers, _cleanAut: cleanAut, _cleanBooking: cleanBooking, saveSheetFile, saveSheetCopy, sheetFiles, removeSheetFile, sheetsRoot: () => P.sheets, deleteSheetFiles, sheetFolder, safeFileName, ITER_MIN, ITER_MAX, reg, regLoaded, updateReg, loadRegs, REGF, contab, updateContab, drafts, draft, draftRev, saveDraft, deleteDraft, saveInvoiceXml, xmlFreePath, fatOffice, fatForce, reserveNumero, numReserved, loadInvoices, reset, addClient, editClient, cancelClient, retryClient, dropClient: cancelClient,
     bustaMax: (y) => { const m = cache.bustaMax || {}; return m[y] != null ? m[y] : m["*"] || 0; },
     get pendingClients() { return queue.clients.slice(); },
     clientDone: (tmp) => (cache.clientDone || {})[tmp] || null,

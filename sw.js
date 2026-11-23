@@ -1,5 +1,5 @@
 // Rende l'app utilizzabile senza connessione. Aumenta il numero quando pubblichi una nuova versione.
-const VERSION = "agenda-laterra-4.0.3";
+const VERSION = "agenda-laterra-4.0.4";
 const SHELL = ["./", "./index.html", "./skin40.css", "./app.js", "./config.js", "./dropbox.js", "./store.js", "./accessi.js", "./autisti.js", "./fatturato.js", "./fatture.js",
   "./vendor/jszip.min.js", "./vendor/pdf-lib.min.js", "./vendor/font-pdf.js", "./vendor/qrcode.js", "./logo.jpg", "./manifest.webmanifest",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./icons/favicon-64.png"];
@@ -12,6 +12,13 @@ self.addEventListener("fetch", (e) => {
   const same = url.origin === self.location.origin;
   const fonts = url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com";
   if (!same && !fonts) return; // Dropbox passa sempre dalla rete
+  if (same && url.searchParams.has("vcheck")) return; // 4.0.4: il controllo degli aggiornamenti va sempre al sito e non tocca la copia offline
+  // 4.0.4: i file della versione nuova scaricati dalla finestra «Aggiornamento»: sempre dal sito, senza limite di tempo
+  // (anche con la rete lenta), e vanno subito anche nella copia offline
+  if (same && req.headers.get("x-agenda-upd") === "1") {
+    e.respondWith((async () => { const r = await fetch(req, { cache: "no-cache" }); if (r.ok) { try { (await caches.open(VERSION)).put(req, r.clone()); } catch (_) {} } return r; })());
+    return;
+  }
   e.respondWith((async () => {
     const c = await caches.open(VERSION);
     if (fonts) { const hit = await c.match(req); if (hit) return hit; try { const r = await fetch(req); if (r.ok || r.type === "opaque") c.put(req, r.clone()); return r; } catch (_) { return Response.error(); } }

@@ -182,6 +182,28 @@
   }
   const EXC = [["S", "T"], ["U", "V"], ["W", "X"]];
   const OWN = ["A", "B", "C", "D", "G", "H", "I", "J", "M", "O", "P", "Q", "R", "Z", "AA", "AH", "AI", "AJ"];
+  // 4.0.4 — Impronta di quello che l'agenda ha scritto l'ultima volta in ogni colonna di una riga (4 caratteri per
+  // colonna, "----" = colonna non dell'agenda). Serve a distinguere una cella rimasta vecchia (Excel salvato con dati
+  // vecchi: si ripara) da una cella corretta a mano dall'ufficio (diversa sia dall'impronta sia dal valore nuovo: non si
+  // sovrascrive e si segnala nella vista Fatturato).
+  // L'impronta tiene anche il valore precedente di ogni colonna («attuale.precedente»): così una cella rimessa da un
+  // Excel aperto prima dell'ultima modifica (valore vecchio dell'agenda) si riconosce e si ripara.
+  const PC = OWN.concat(EXC.flat()), KEEP = { keep: 1 }, PL = PC.length * 4;
+  const numStr = (x) => (/^-?\d+(?:\.\d+)?(?:E[+-]?\d+)?$/i.test(x) ? String(Number(x)) : x);
+  const vNorm = (v) => (v === "formula" ? "=" : v == null ? "" : numStr(String(v.n != null ? v.n : v.t).trim()));
+  const hash4 = (x) => { let h = 0x811c9dc5; for (let i = 0; i < x.length; i++) { h ^= x.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return (h % 1679616).toString(36).padStart(4, "0"); };
+  const parsePrint = (p) => (typeof p !== "string" ? null : p.length === PL ? { cur: p, prev: "-".repeat(PL) } : p.length === PL * 2 + 1 && p[PL] === "." ? { cur: p.slice(0, PL), prev: p.slice(PL + 1) } : null);
+  const colOf = (str, i) => str.slice(i * 4, i * 4 + 4);
+  function printOf(vals, old) {
+    const o = parsePrint(old) || { cur: "-".repeat(PL), prev: "-".repeat(PL) };
+    let cur = "", prev = "";
+    PC.forEach((c, i) => {
+      const oc = colOf(o.cur, i), op = colOf(o.prev, i);
+      const nc = !(c in vals) ? "----" : vals[c] === KEEP ? oc : hash4(vNorm(vals[c]));
+      cur += nc; prev += nc !== oc && oc !== "----" ? oc : op;
+    });
+    return cur + "." + prev;
+  }
 
   // sposta i riferimenti relativi di una formula (A1, $A1, A$1) di dr righe e dc colonne, come quando Excel
   // copia una formula; le parti tra virgolette e i nomi di funzione (es. LOG10) non si toccano
@@ -222,13 +244,13 @@
     while ((m = rowRe.exec(body))) { const n = +attr(m[0].slice(0, m[0].indexOf(">") + 1), "r"); byNum[n] = rows.length; rows.push({ n, xml: m[0] }); }
     // righe usate e n. foglio presenti. Una riga è usata se ha almeno una cella scritta (non una formula):
     // così una riga dove l'ufficio ha scritto qualcosa (fattura, spese…) non viene mai riusata per un altro servizio.
-    const where = {}; let lastUsed = 1;
+    const where = {}, dupRows = []; let lastUsed = 1;
     const scan = /<c r="([A-Z]+)(\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
     while ((m = scan.exec(body))) {
       const r = +m[2]; if (r < 2 || !m[4] || /<f[\s>\/]/.test(m[4])) continue;
       const v = cellValue(m[3], m[4], sst); if (String(v).trim() === "") continue;
       if (r > lastUsed) lastUsed = r;
-      if (m[1] === "A") where[String(v).trim().replace(/\.0+$/, "")] = r;
+      if (m[1] === "A") { const k = String(v).trim().replace(/\.0+$/, ""); if (where[k] && where[k] !== r && /^\d{8,9}$/.test(k)) dupRows.push({ foglio: k, rows: [where[k], r] }); where[k] = r; } // 4.0.4: stesso n. foglio su due righe
     }
     const tplRow = rows.find((x) => x.n === 2) || rows.find((x) => x.n > 1);
     const tpl = tplRow ? rowCells(tplRow.xml) : {};
@@ -267,11 +289,12 @@
       const styleOf = (c) => (cells[c] ? cells[c].s : tpl[c] && tpl[c].s);
       for (const c of Object.keys(fx)) {
         const cur = cells[c];
+        if (vals[c] === KEEP) continue; // 4.0.4: cella corretta dall'ufficio: non si tocca
         const wantFormula = !(c in vals) || vals[c] === "formula";
         if (wantFormula && (!cur || !/<f[\s>]/.test(cur.inner))) cells[c] = { xml: makeCell(c + r, styleOf(c), fx[c]), s: styleOf(c), inner: "<f>" };
       }
       for (const c of Object.keys(vals)) {
-        if (vals[c] === "formula") continue;
+        if (vals[c] === "formula" || vals[c] === KEEP) continue;
         cells[c] = { xml: makeCell(c + r, styleOf(c), vals[c]), s: styleOf(c), inner: "" };
       }
       const x = open + Object.keys(cells).sort((p, q) => colIdx(p) - colIdx(q)).map((k) => cells[k].xml).join("") + "</row>";
@@ -315,20 +338,53 @@
     }
     // una riga con lo stesso n. foglio non scritta dall'agenda (es. inserita a mano) non si tocca mai
     const foreign = (key, row) => known && where[key] && !known[key] && !(row && matches(where[key], row));
+    // 4.0.4: valore attuale (normalizzato) delle celle di una riga, per il confronto con l'impronta
+    function rowNorm(r) {
+      const o = {}; if (byNum[r] == null) return o;
+      const cells = rowCells(rows[byNum[r]].xml);
+      for (const c in cells) { const x = cells[c]; if (!x.inner) { o[c] = ""; continue; } if (/<f[\s>\/]/.test(x.inner)) { o[c] = "="; continue; } const am = /<c r="[A-Z]+\d+"([^>]*?)(?:\/>|>)/.exec(x.xml); o[c] = numStr(String(cellValue(am ? am[1] : "", x.inner, sst)).trim()); }
+      return o;
+    }
+    const prints = job.prints || {}, force = new Set((job.force || []).map(String)), newPrints = {}, office = [];
+    // confronta la riga in Excel con i valori dell'agenda: le celle rimaste vecchie (uguali all'impronta) si riscrivono,
+    // quelle corrette dall'ufficio (diverse da impronta e valore nuovo) restano (KEEP) e si segnalano.
+    // repair=false (aggiornamento dopo una modifica nell'agenda): senza impronta si scrive tutto, come prima.
+    function guard(key, r, vals, repair) {
+      const p = !force.has(key) ? parsePrint(prints[key]) : null, now = rowNorm(r), diff = [], keep = [];
+      for (const c of Object.keys(vals)) {
+        if (c === "A") continue;
+        const e = now[c] == null ? "" : now[c], n = vNorm(vals[c]);
+        if (e === n || (n === "=" && e === "")) continue;
+        const i = PC.indexOf(c), pc = p && i >= 0 ? colOf(p.cur, i) : "", pp = p && i >= 0 ? colOf(p.prev, i) : "", he = hash4(e);
+        // diversa dal valore nuovo e da quelli scritti dall'agenda (attuale e precedente): l'ha corretta l'ufficio
+        if (p && pc !== "----" && he !== pc && he !== pp) { keep.push(c); vals[c] = KEEP; office.push({ foglio: key, col: c, excel: e, agenda: n }); continue; }
+        if (!p && repair && !force.has(key)) { office.push({ foglio: key, col: c, excel: e, agenda: n, noPrint: 1 }); vals[c] = KEEP; continue; }
+        diff.push(c);
+      }
+      return { diff, keep, p };
+    }
     for (const row of job.upserts || []) {
       if (!okRow(row)) { invalid.push(row && row.foglio); continue; }
       const key = String(row.foglio); upKeys.add(key);
       if (foreign(key, row)) { collisions.push(key); continue; }
       const vals = valuesFor(row);
-      if (where[key]) { if (writeRow(where[key], vals)) updated++; }
-      else { const r = ++lastUsed; writeRow(r, vals); where[key] = r; added++; addedFogli.push(key); }
+      if (where[key]) { guard(key, where[key], vals, false); if (writeRow(where[key], vals)) updated++; newPrints[key] = printOf(vals, prints[key]); }
+      else { const r = ++lastUsed; writeRow(r, vals); where[key] = r; added++; addedFogli.push(key); newPrints[key] = printOf(vals); }
     }
     for (const row of job.ensure || []) {
       if (!okRow(row)) continue;
       const key = String(row.foglio);
       if (upKeys.has(key)) continue;
-      if (where[key]) { if (foreign(key, row) && !collisions.includes(key)) collisions.push(key); continue; }
-      const r = ++lastUsed; writeRow(r, valuesFor(row)); where[key] = r; added++; addedFogli.push(key);
+      if (where[key]) {
+        if (foreign(key, row)) { if (!collisions.includes(key)) collisions.push(key); continue; }
+        // 4.0.4: riga dell'agenda già presente: si riparano le celle rimaste vecchie (Excel salvato con dati vecchi)
+        if (known && !known[key] && !matches(where[key], row)) continue;
+        const vals = valuesFor(row), g = guard(key, where[key], vals, true);
+        if (g.diff.length) { if (writeRow(where[key], vals)) updated++; }
+        if (g.diff.length || force.has(key)) newPrints[key] = printOf(vals, prints[key]);
+        continue;
+      }
+      const r = ++lastUsed, vals = valuesFor(row); writeRow(r, vals); where[key] = r; added++; addedFogli.push(key); newPrints[key] = printOf(vals);
     }
     const skipped = [];
     const it = (d) => (d ? d.slice(8, 10) + "/" + d.slice(5, 7) + "/" + d.slice(0, 4) : "");
@@ -346,7 +402,9 @@
         for (const col of OWN) if (col !== "A") vals[col] = col === "D" ? "formula" : null;
         const now = new Date(), today = pad2(now.getDate()) + "/" + pad2(now.getMonth() + 1) + "/" + now.getFullYear();
         const cur = rowNow(r), was = c && c.row ? [c.row.D, it(c.row.I)].filter(Boolean).join(", ") : String(cur.D || "");
-        vals.O = { t: (c && c.moved ? "SPOSTATO in agenda il " + today + " al " + it(c.moved) + " (nuovo n. foglio)" : "ANNULLATO in agenda il " + today) + (was ? " – era: " + was : "") };
+        // 4.0.4: gli importi che c'erano (noleggio, park, pasti) restano scritti nella nota
+        const nw = rowNorm(r), money = [["P", "noleggio"], ["Q", "park"], ["R", "pasti"]].filter(([k]) => nw[k] && nw[k] !== "=" && isFinite(Number(nw[k])) && Number(nw[k]) !== 0).map(([k, l]) => l + " € " + Number(nw[k]).toFixed(2).replace(".", ","));
+        vals.O = { t: (c && c.moved ? "SPOSTATO in agenda il " + today + " al " + it(c.moved) + " (nuovo n. foglio)" : "ANNULLATO in agenda il " + today) + (was ? " – era: " + was : "") + (money.length ? " – importi: " + money.join(", ") : "") };
         vals.K = null;
       } else {
         // riga senza dati dell'ufficio: si svuota del tutto, formule comprese (niente "1 giorno" su righe vuote)
@@ -376,6 +434,7 @@
       if (g.sig && !matches(where[key], g.sig)) continue;
       clearRow(key, null); healed++;
     }
+    for (const d of dupRows) office.push({ foglio: d.foglio, col: "A", excel: "righe " + d.rows.join(" e "), agenda: "una riga", dup: 1 });
     lists.fogli = Object.keys(where);
     const agendaChanged = added + updated + cleared > 0;
     // clienti nuovi dal pulsante "Nuovo cliente": righe in fondo al foglio "clienti"
@@ -387,7 +446,7 @@
     const editClientsRes = ed ? ed.results : [];
     if (ed && ed.changed) zip.file(ed.path, ed.xml);
     const changed = agendaChanged || !!(cli && cli.added) || !!(ed && ed.changed);
-    if (!changed) return { changed: false, added, updated, cleared, lists, collisions, addedFogli, clearedFogli, clearedSig, newClients, editClients: editClientsRes, invalid, skipped };
+    if (!changed) return { changed: false, added, updated, cleared, lists, collisions, addedFogli, clearedFogli, clearedSig, newClients, editClients: editClientsRes, invalid, skipped, prints: newPrints, office };
 
     if (agendaChanged) {
       rows.sort((x, y) => x.n - y.n);
@@ -408,7 +467,7 @@
       zip.file("xl/_rels/workbook.xml.rels", wr.replace(/<Relationship\b[^>]*calcChain[^>]*\/>/g, ""));
     }
     const out = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE", compressionOptions: { level: 6 } });
-    return { changed: true, buf: out, added, updated, cleared, lists, collisions, addedFogli, clearedFogli, clearedSig, newClients, editClients: editClientsRes, invalid, skipped };
+    return { changed: true, buf: out, added, updated, cleared, lists, collisions, addedFogli, clearedFogli, clearedSig, newClients, editClients: editClientsRes, invalid, skipped, prints: newPrints, office };
   }
 
   // la tabella (e il suo filtro) si allarga se servono righe nuove
@@ -651,7 +710,7 @@
     const out = {};
     try {
       const g = await readGrid(zip, "agenda", ["AJ"], sst);
-      if (g) { let mx = 0; for (const r in g) { if (+r < 2) continue; const n = parseInt(String(g[r].AJ).replace(/\D/g, ""), 10); if (n > mx && n < 1e7) mx = n; } out.bustaMax = mx; }
+      if (g) { let mx = 0; for (const r in g) { if (+r < 2) continue; const n = parseInt((/\d+/.exec(String(g[r].AJ)) || [""])[0], 10); /* 4.0.4: primo gruppo di cifre («12/2026» → 12) */ if (n > mx && n < 1e7) mx = n; } out.bustaMax = mx; }
     } catch (_) {}
     try {
       const g = await readGrid(zip, "clienti", COLS.slice(0, 26), sst);
@@ -687,6 +746,6 @@
   async function lists(buf) { const zip = await openZip(buf); const sstF = zip.file("xl/sharedStrings.xml"); const sst = sstF ? parseSST(await readText(zip, "xl/sharedStrings.xml")) : []; const out = await readLists(zip, sst); if (zip._agendaTooBig) throw { code: "toobig" }; return out; }
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).fatturato = "3.0";
-  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).fatturato = "3.0.4"; // 3.0.4: colonna «Nazione» nel foglio clienti
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).fatturato = "4.0.4"; // 3.0.4: colonna «Nazione» nel foglio clienti; 4.0.4: impronta delle righe (celle vecchie riparate, correzioni dell'ufficio tenute)
   window.FAT = { apply, lists, COLS, colIdx, xEsc, openZip, readText, wholeSheet, balanced };
 })();

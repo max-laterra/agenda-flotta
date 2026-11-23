@@ -34,7 +34,7 @@
   function payload(b, o) {
     o = o || {};
     const busta = String(b.envelope || "") === "SI"; // dalla 2.6 anche gite, notturni e transfer con la busta
-    const drivers = (o.autisti || []).map((x) => txt(x, 80).trim()).filter(Boolean).slice(0, 4);
+    const drivers = (o.autisti || []).map((x) => txt(x, 80).trim()).filter(Boolean).slice(0, 20); // 4.0.4: era 4 (nei tour il quinto autista non riceveva il foglio)
     const m = o.mezzo || {};
     const out = {
       v: 1,
@@ -72,6 +72,9 @@
     if (Array.isArray(b.att) && b.att.length) extra.att = b.att.map((a) => (isObj(a) ? [txt(a.id, 24), txt(a.path, 200), Number(a.size) || 0] : null));
     // 3.0.3: tour con mezzo o autisti diversi in alcuni giorni (sul foglio, nelle righe dei giorni)
     if (Array.isArray(b.dayv) && b.dayv.some((e) => isObj(e))) extra.dayv = b.dayv.map((e) => (isObj(e) ? [txt(e.v, 60), txt(e.d1, 80), txt(e.d2, 80)] : null));
+    // 4.0.4: anche il telefono del cliente stampato sul PDF dell'autista (solo per i fogli inviati dalla 4.0.4: hv 2,
+    // così quelli già inviati non diventano tutti «da reinviare»)
+    if (o && o.hv >= 2 && o.telCli) extra.telCli = txt(o.telCli, 40);
     return hash([payload(b, o), extra]);
   }
 
@@ -199,7 +202,7 @@
   async function revoke(refresh, key) {
     if (!refresh) return true;
     try { await oneOff(refresh, key).revokeStrict(); return true; }
-    catch (e) { if (e && e.code === "no_auth") return true; throw e; } // già revocato
+    catch (e) { if (e && e.code === "no_auth" && e.grant) return true; throw e; } // già revocato (4.0.4: solo con invalid_grant)
   }
   // la cartella è raggiungibile con questo collegamento? (e si creano le due cartelle di base)
   // probeId: identificativo Dropbox di un file dell'Agenda. Un'app «App folder» non lo può vedere; un'app
@@ -222,15 +225,16 @@
     const c = client(), base = baseOf(b), at = new Date().toISOString(), n = ((b.sent && b.sent.n) || 0) + 1;
     const data = payload(b, o);
     if (!data.autisti.length) throw { code: "nodriver" };
-    const h = sheetHash(b, o);
+    const h = sheetHash(b, Object.assign({}, o, { hv: 2 }));
     const buf = new Uint8Array(await blob.arrayBuffer());
     if (!(buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46)) throw { code: "nopdf" };
     const m = await c.upload(base + "/foglio.pdf", buf, "overwrite");
     data.inviato = { at, da: txt(o.by, 80), n };
     data.pdf = { file: "foglio.pdf", rev: (m && m.rev) || "", size: buf.length };
     data.ritirato = null;
+    data.h = h; data.hv = 2; data.alias = !!o.alias; data.noPlate = !!o.noPlate; // 4.0.4: per ricostruire il segno di invio (sentFromFolder)
     await c.upload(base + "/foglio.json", enc.encode(JSON.stringify(data, null, 1)), "overwrite");
-    return { at, by: txt(o.by, 80), n, to: data.autisti.slice(), dir: dirOf(b), h, alias: !!o.alias, noPlate: !!o.noPlate };
+    return { at, by: txt(o.by, 80), n, to: data.autisti.slice(), dir: dirOf(b), h, hv: 2, alias: !!o.alias, noPlate: !!o.noPlate };
   }
   // 3.0.10: com'è il foglio nella cartella degli autisti (per rimettere il segno «inviato» perso con la 3.0.7–3.0.9):
   // null se non c'è, se è stato ritirato o se non è di questa prenotazione
@@ -238,9 +242,11 @@
     const f = await client().download(baseOf(b) + "/foglio.json"); if (!f) return null;
     let d = null; try { d = JSON.parse(dec.decode(f.buf)); } catch (_) { return null; }
     if (!d || d.ritirato || !d.inviato || !d.inviato.at || (d.id && d.id !== safeId(b.id))) return null;
-    const to = Array.isArray(d.autisti) ? d.autisti.filter((v) => typeof v === "string" && v.trim()).slice(0, 4) : [];
+    const to = Array.isArray(d.autisti) ? d.autisti.filter((v) => typeof v === "string" && v.trim()).slice(0, 20) : [];
     if (!to.length) return null;
-    return { at: txt(d.inviato.at, 40), by: txt(d.inviato.da, 80), n: Number(d.inviato.n) >= 1 ? Math.floor(Number(d.inviato.n)) : 1, to, dir: dirOf(b), h: "", alias: false, noPlate: false };
+    // 4.0.4: impronta del foglio inviato (se scritta dalla 4.0.4): così un foglio ricostruito può diventare «da reinviare»
+    const h = /^[0-9a-z]{4,40}$/i.test(txt(d.h, 40)) ? d.h : "";
+    return Object.assign({ at: txt(d.inviato.at, 40), by: txt(d.inviato.da, 80), n: Number(d.inviato.n) >= 1 ? Math.floor(Number(d.inviato.n)) : 1, to, dir: dirOf(b), h, alias: !!d.alias, noPlate: !!d.noPlate }, h && Number(d.hv) === 2 ? { hv: 2 } : {});
   }
   async function withdraw(b, by) {
     const c = client(), base = baseOf(b), at = new Date().toISOString();
@@ -358,8 +364,10 @@
     const it = st.items[safeId(b.id)] || {}, sp = it.sp || null;
     const busta = String(b.envelope || "") === "SI";
     const dAt = sp && sp.delivAt && Date.parse(sp.delivAt) <= Date.now() + 600000 ? sp.delivAt : "";
-    const deliv = !!(busta && sp && sp.deliv && !(it.re && it.re > dAt));
-    const ops = Object.values(it.op || {}).filter((x) => x && x.at), cur = ops.filter((x) => (x.n ? x.n >= s.n : x.at >= s.at)).sort((a, z) => (a.at < z.at ? -1 : 1));
+    // 4.0.4: gli orari si confrontano in millisecondi (prima come testo: «…Z» del telefono e ora locale si mischiavano)
+    const ms = (v) => { const t = Date.parse(v || ""); return isFinite(t) ? t : 0; };
+    const deliv = !!(busta && sp && sp.deliv && !(it.re && ms(it.re) > ms(dAt)));
+    const ops = Object.values(it.op || {}).filter((x) => x && x.at), cur = ops.filter((x) => (x.n ? x.n >= s.n : ms(x.at) >= ms(s.at))).sort((a, z) => ms(a.at) - ms(z.at));
     // opened / openedBy: quando e da chi è stata aperta la versione inviata per ultima
     const base = { at: s.at, by: s.by, n: s.n, to: s.to || [], sp, re: it.re || "", openedOld: !cur.length && ops.length > 0, opened: cur.length ? cur[0].at : "", openedBy: cur.map((x) => x.autista).filter(Boolean).join(" e ") };
     if (deliv) return Object.assign(base, { k: "consegnata", when: dAt || sp.upd || "", who: sp.by || "" });
@@ -386,7 +394,7 @@
   const newPhoneId = () => { const r = crypto.getRandomValues(new Uint8Array(8)); let s = "t"; for (const x of r) s += (x % 36).toString(36); return s; };
 
   (root.AGENDA_FILES = root.AGENDA_FILES || {}).autisti = "3.0";
-  (root.AGENDA_PATCH = root.AGENDA_PATCH || {}).autisti = "3.0.10"; // 3.0.2: allegati nell'impronta del foglio («da reinviare»); 3.0.3: mezzi del tour giorno per giorno; 3.0.10: sentFromFolder
+  (root.AGENDA_PATCH = root.AGENDA_PATCH || {}).autisti = "4.0.4"; // 3.0.2: allegati nell'impronta del foglio («da reinviare»); 3.0.3: mezzi del tour giorno per giorno; 3.0.10: sentFromFolder
   const API = Object.assign({}, PURE, {
     configure(h) { Object.assign(hooks, h); },
     linked, startLink, redirectMine, purpose, takeRedirect, revoke, prepare,
