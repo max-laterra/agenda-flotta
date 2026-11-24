@@ -46,6 +46,17 @@
     const u = a && a.uid && cache.users && cache.users.users ? cache.users.users[a.uid] : null;
     return !!u && u.active !== false && u.max === true;
   }
+  // 4.0.5 (sicurezza): i permessi si controllano anche qui, non solo nei pulsanti (prima un utente normale poteva
+  // cambiare impostazioni e anagrafiche chiamando le funzioni dalla console del browser). Master e Super Master: tutto;
+  // utente: secondo Impostazioni › Permessi; senza elenco utenti (primo avvio) si lascia fare.
+  function need(what) {
+    if (!cache.users || !cache.users.users) return;
+    const role = actorRole();
+    if (role === "master" || role === "super") return;
+    const p = (cache.settings && isObj(cache.settings.perms) && cache.settings.perms) || {};
+    const ok = role === "utente" && (what === "office" || (what === "anag" && p.anag !== false) || (what === "fleet" && p.fleet !== false) || (what === "clients" && p.clients !== false) || (what === "inv" && p.inv !== false) || (what === "contab" && p.contab === true));
+    if (!ok) throw { code: "forbidden", what };
+  }
   // profilo «solo anteprima e invio» (2.5): non scrive mai niente, tranne il segno «inviato all'autista»
   // outdated (2.6): su Dropbox c'è già una versione più nuova dell'agenda (versione-minima.json) e questa pagina è
   // rimasta aperta con quella di prima: non scrive più niente finché non si ricarica.
@@ -76,10 +87,11 @@
   }
   function idbReadAll() {
     return new Promise((res, rej) => {
-      const t = idb.transaction(["days", "meta"], "readonly"), days = {}; let meta = null;
+      const t = idb.transaction(["days", "meta"], "readonly"), days = {}; let meta = null, q = null;
       t.objectStore("meta").get("cache").onsuccess = (e) => { meta = e.target.result || null; };
+      t.objectStore("meta").get("queue").onsuccess = (e) => { q = e.target.result || null; }; // 4.0.5
       t.objectStore("days").openCursor().onsuccess = (e) => { const c = e.target.result; if (c) { days[c.key] = c.value; c.continue(); } };
-      t.oncomplete = () => res({ meta, days });
+      t.oncomplete = () => res({ meta, days, q });
       t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
     });
   }
@@ -94,7 +106,9 @@
       if (!Array.isArray(queue.clients)) queue.clients = [];
       try {
         idb = await idbOpen();
-        const { meta, days } = await idbReadAll();
+        const { meta, days, q } = await idbReadAll();
+        // 4.0.5: coda salvata in IndexedDB più recente di quella della memoria del browser (che magari non si è salvata)
+        if (q && typeof q === "object" && Array.isArray(q.days) && (Number(q.st) || 0) > (Number(queue.st) || 0)) { queue = q; if (!queue.fat || typeof queue.fat !== "object") queue.fat = {}; if (!Array.isArray(queue.clients)) queue.clients = []; }
         if (meta) { cache = Object.assign(emptyCache(), meta, { days }); }
         else {
           // prima apertura con la 1.7: si riprende la copia della 1.6 (localStorage)
@@ -111,10 +125,22 @@
       status.lastSync = cache.lastSync || null;
     })());
   }
+  // 4.0.5: la coda delle modifiche da inviare si salva in due posti: memoria del browser (localStorage) e IndexedDB
+  // (con una transazione). Basta che uno dei due riesca; se non riesce nessuno l'app mostra un avviso fisso.
+  // All'avvio vale la copia più recente (st = ora del salvataggio).
   function saveQueue() {
     if (writesBlocked) return;
-    try { localStorage.setItem(QK, JSON.stringify(queue)); if (status.storage === "queue") status.storage = null; }
-    catch (_) { status.storage = "queue"; emitStatus(); } // 4.0.4: l'app mostra un avviso fisso
+    queue.st = Date.now();
+    let lsOk = false;
+    try { localStorage.setItem(QK, JSON.stringify(queue)); lsOk = true; } catch (_) {}
+    const bad = () => { if (!lsOk && status.storage !== "queue") { status.storage = "queue"; emitStatus(); } };
+    if (lsOk && status.storage === "queue") { status.storage = null; emitStatus(); }
+    if (!idb) { bad(); return; }
+    try {
+      const t = idb.transaction("meta", "readwrite"); t.objectStore("meta").put(JSON.parse(JSON.stringify(queue)), "queue");
+      t.oncomplete = () => { if (status.storage === "queue") { status.storage = null; emitStatus(); } };
+      t.onerror = t.onabort = bad;
+    } catch (_) { bad(); }
   }
   // dates: giornate cambiate ("all" = tutte). La coda si salva subito, la copia delle giornate poco dopo.
   function persist(dates) {
@@ -189,7 +215,14 @@
           // e si applicano solo i campi cambiati qui. Con "only" (conferma con un clic) si scrivono sempre
           // e solo quei campi: due clic di seguito non rimettono i valori vecchi degli altri campi.
           const merged = clone(prev), clash = [];
-          for (const k of op.patch) { merged[k] = clone(op.b[k]); }
+          // 4.0.5: stesso campo cambiato anche dall'altro dispositivo (valore in Dropbox diverso da quello che c'era
+          // quando il modulo è stato aperto): non si sovrascrive, resta il suo valore e si avvisa con i due valori
+          const nv = (v) => (v == null || v === "" ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
+          const orig = !op.only && strict && stale && isObj(op.orig) ? op.orig : null;
+          for (const k of op.patch) {
+            if (orig && Object.prototype.hasOwnProperty.call(orig, k) && !badKey(k) && nv(prev[k]) !== nv(orig[k]) && nv(op.b[k]) !== nv(prev[k])) { clash.push({ k, mine: clone(op.b[k]), theirs: clone(prev[k]) }); continue; }
+            merged[k] = clone(op.b[k]);
+          }
           // dopo un'unione la versione prende un'ora nuova: così anche le modifiche successive ancora in coda su
           // questo dispositivo (fatte sulla copia vecchia) vengono unite campo per campo invece di sovrascrivere
           merged.updatedAt = strict && stale ? new Date().toISOString() : op.b.updatedAt;
@@ -598,6 +631,7 @@
   // ---------- cartella «Autisti La Terra» (2.5): config/autisti.json ----------
   // key: App key dell'app Dropbox degli autisti; office: collegamento usato dai dispositivi dell'ufficio;
   // phones: un collegamento per ogni telefono (serve per poterlo bloccare da qui).
+  const encOk = (v) => typeof v === "string" && /^v1:[A-Za-z0-9+/=]{24,3000}$/.test(v);
   function cleanAut(j) {
     if (!isObj(j)) return null;
     const when = (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T[\d:.]{5,12}Z?$/.test(v) ? v : ""), tk = (v) => (typeof v === "string" && /^[\w.~+/=-]{8,400}$/.test(v) ? v : "");
@@ -607,10 +641,13 @@
       const f = j.phones[id];
       if (badKey(id) || !/^[a-z0-9]{6,24}$/.test(id) || !isObj(f) || !txt(f.driver, 80).trim()) continue;
       o.phones[id] = { driver: txt(f.driver, 80).trim(), label: txt(f.label, 60), refresh: tk(f.refresh), created: when(f.created), by: txt(f.by, 80), blocked: isObj(f.blocked) ? { at: when(f.blocked.at), by: txt(f.blocked.by, 80) } : null };
+      if (encOk(f.enc)) o.phones[id].enc = f.enc; // 4.0.5: chiave del telefono cifrata con la password del Super Master
     }
+    // 4.0.5: sale e controllo della chiave di cifratura (dalla password del Super Master)
+    if (isObj(j.ks) && /^[0-9a-f]{32}$/.test(txt(j.ks.salt, 40)) && Number.isInteger(Number(j.ks.iter)) && Number(j.ks.iter) >= 100000 && Number(j.ks.iter) <= 2000000 && encOk(j.ks.chk)) o.ks = { salt: j.ks.salt, iter: Number(j.ks.iter), chk: j.ks.chk };
     // 4.0.4: collegamenti da revocare (telefoni dell'app di prima, collegamenti sostituiti): si tolgono solo quando
     // Dropbox conferma la revoca
-    if (Array.isArray(j.revq)) { const q = j.revq.filter(isObj).map((x) => ({ refresh: tk(x.refresh), key: /^[A-Za-z0-9]{6,40}$/.test(txt(x.key, 60)) ? x.key : "", at: when(x.at), what: txt(x.what, 80) })).filter((x) => x.refresh && x.key).slice(0, 200); if (q.length) o.revq = q; }
+    if (Array.isArray(j.revq)) { const q = j.revq.filter(isObj).map((x) => Object.assign({ refresh: tk(x.refresh), key: /^[A-Za-z0-9]{6,40}$/.test(txt(x.key, 60)) ? x.key : "", at: when(x.at), what: txt(x.what, 80) }, encOk(x.enc) ? { enc: x.enc } : {})).filter((x) => (x.refresh || x.enc) && x.key).slice(0, 200); if (q.length) o.revq = q; }
     return o;
   }
   // giornate: ogni prenotazione deve essere un oggetto, con testi, numeri ed elenchi del tipo giusto
@@ -716,6 +753,7 @@
     if (cache.fatGone && !isObj(cache.fatGone)) cache.fatGone = {};
     if (cache.fatWritten && !isObj(cache.fatWritten)) cache.fatWritten = null;
     if (cache.retry && !isObj(cache.retry)) cache.retry = {}; // 4.0.4
+    if (cache.shareQ && !isObj(cache.shareQ)) cache.shareQ = null; // 4.0.5
     if (cache.numRes && !isObj(cache.numRes)) cache.numRes = null; // 4.0.4
     if (cache.lists && !isObj(cache.lists)) cache.lists = null;
     if (cache.regs) { const g = {}; if (isObj(cache.regs)) for (const k of Object.keys(REGF)) { const c = cache.regs[k] ? cleanReg(k, cache.regs[k]) : null; if (c) g[k] = c; } cache.regs = Object.keys(g).length ? g : null; }
@@ -914,6 +952,7 @@
     // prima si leggono le novità degli altri dispositivi: con dati vecchi non si rimettono righe né si fa pulizia
     // (si rischierebbe di riscrivere servizi appena spostati o eliminati da un altro operatore)
     const fresh = (await pull()) && queue.days.length === 0;
+    if (fresh && cache.shareQ) { try { await shareRetry(); } catch (_) {} } // 4.0.5
     const yOfFoglio = (fg) => "20" + String(fg).slice(0, 2);
     const fileFor = (y) => (files[y] ? y : files["*"] ? "*" : null);
     // righe non valide (data sbagliata) o di anni senza file: non c'è dove scriverle
@@ -1020,8 +1059,21 @@
         const meta = f && !f.meta.rev ? await DBX.metadata(path) : f && f.meta;
         await DBX.upload(path, enc.encode(JSON.stringify({ fogli: cur, tolti: gone })), f ? { update: meta.rev } : "add");
         return;
-      } catch (e) { if (e.code !== "conflict") return; }
+      } catch (e) { if (e.code !== "conflict") { shareLater(add, del, res); return; } } // 4.0.5: si riprova al prossimo giro
     }
+    shareLater(add, del, res);
+  }
+  // 4.0.5: aggiornamento dell'elenco condiviso non riuscito (rete, Dropbox occupato): resta da fare e si riprova
+  function shareLater(add, del, res) {
+    const q = isObj(cache.shareQ) ? cache.shareQ : { addedFogli: [], clearedFogli: [], clearedSig: {}, prints: {} };
+    q.addedFogli = Array.from(new Set(q.addedFogli.concat(add))).slice(-5000); q.clearedFogli = Array.from(new Set(q.clearedFogli.concat(del))).slice(-5000);
+    Object.assign(q.clearedSig, (res && res.clearedSig) || {}); Object.assign(q.prints, (res && res.prints) || {});
+    cache.shareQ = q; persist();
+  }
+  async function shareRetry() {
+    const q = cache.shareQ; if (!isObj(q)) return;
+    cache.shareQ = null; persist();
+    await shareRows({ addedFogli: q.addedFogli || [], clearedFogli: q.clearedFogli || [], clearedSig: q.clearedSig || {}, prints: q.prints || {} }, []);
   }
   // clienti scritti nel foglio "clienti": escono dalla coda e l'app riceve il codice assegnato.
   // Un cliente che non si può scrivere (manca il foglio, manca il nome) resta in elenco come "non scritto":
@@ -1057,6 +1109,7 @@
   // nuovo cliente: va in coda e viene scritto nel file fatturato (subito se c'è la connessione)
   function addClient(vals, name) {
     noRO();
+    need("clients"); // 4.0.5
     const tmp = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     queue.clients.push({ tmp, vals, name, at: Date.now() });
     persist(); changed(); syncFatturato();
@@ -1065,6 +1118,7 @@
   // cliente esistente modificato nell'app: solo i campi cambiati (vals) e i loro valori di partenza (base)
   function editClient(code, vals, base, name) {
     noRO();
+    need("clients"); // 4.0.5
     const tmp = "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     queue.clients.push({ tmp, kind: "edit", code, vals, base, name, at: Date.now() });
     persist(); changed(); syncFatturato();
@@ -1088,6 +1142,7 @@
   // adds (3.0.5): mezzi nuovi, con un id mai usato. I mezzi non si tolgono mai dal file: si eliminano con gone.
   async function patchFleet(patches, base, adds) {
     noRO();
+    need("fleet"); // 4.0.5
     if (!navigator.onLine) throw { code: "offline" };
     const path = P.cfg + "/flotta.json";
     for (let i = 0; i < 5; i++) {
@@ -1116,7 +1171,22 @@
     }
     throw { code: "busy" };
   }
-  async function setSettings(s) { noRO(); cache.settings = Object.assign({}, cache.settings || {}, s); await putJSON(P.cfg + "/impostazioni.json", cache.settings); persist(); changed(); }
+  // 4.0.5: impostazioni scritte sull'ultima versione di Dropbox con il controllo della revisione (prima si
+  // sovrascriveva il file: due computer insieme perdevano le modifiche dell'altro); solo Master e Super Master
+  async function setSettings(s) {
+    noRO(); need("master");
+    if (!navigator.onLine) throw { code: "offline" };
+    const path = P.cfg + "/impostazioni.json";
+    for (let i = 0; i < 6; i++) {
+      const f = await DBX.download(path);
+      if (f && !f.meta.rev) f.meta = await DBX.metadata(path);
+      const cur = f ? cleanSettings(parseJSON(f.buf)) || {} : clone(cache.settings || {});
+      const next = Object.assign({}, cur, clone(s));
+      try { await DBX.upload(path, enc.encode(JSON.stringify(next, null, 1)), f ? { update: f.meta.rev } : "add"); cache.settings = cleanSettings(next) || next; persist(); changed(); return; }
+      catch (e) { if (e.code !== "conflict") throw e; }
+    }
+    throw { code: "busy" };
+  }
   // collega un file fatturato: vale per l'anno scritto nel nome (o per tutti se non c'è un anno)
   async function linkFatturato(path, name) {
     const files = fatFiles(); files[yearOf(name) || "*"] = { path, name };
@@ -1354,9 +1424,11 @@
   // fogli (2.9): stato della creazione iniziale dei PDF di tutti i fogli di servizio (chi la fa, a che punto è)
   // autisti (2.8): anagrafica degli autisti (nome e colore) che si cambia nell'Archivio; riposi (2.8): giorni di
   // riposo chiesti dagli autisti, segnati dall'ufficio nella pagina Autisti
+  // testimail (4.0.6): oggetto e testo della mail delle fatture ricordati per un cliente; richieste (4.0.6): richieste dei
+  // dati di fatturazione mandate ai clienti nuovi e le loro risposte (con i dati letti e i controlli)
   // pasti (2.7): correzioni dell'ufficio alle crocette dei pasti degli autisti (le crocette vere restano nella
   // cartella degli autisti, scritte dai telefoni: l'ufficio non le tocca)
-  const REGF = { referenti: "anagrafica-referenti.json", guide: "anagrafica-guide.json", hotel: "anagrafica-hotel.json", tendine: "tendine.json", parcheggi: "anagrafica-parcheggi.json", suggerimenti: "suggerimenti-tolti.json", pasti: "pasti-correzioni.json", autisti: "anagrafica-autisti.json", riposi: "riposi-autisti.json", fogli: "fogli-pdf.json" };
+  const REGF = { referenti: "anagrafica-referenti.json", guide: "anagrafica-guide.json", hotel: "anagrafica-hotel.json", tendine: "tendine.json", parcheggi: "anagrafica-parcheggi.json", suggerimenti: "suggerimenti-tolti.json", pasti: "pasti-correzioni.json", autisti: "anagrafica-autisti.json", riposi: "riposi-autisti.json", fogli: "fogli-pdf.json", testimail: "testi-email-clienti.json", richieste: "richieste-dati-clienti.json" };
   const TENDINE = { note: ["parcheggi", "autista", "3 ore", "extra 1", "extra 2"], ruolo: ["contabile", "ufficio", "operativo", "sul bus"],
     spese: ["bottigliette d'acqua", "alloggio dell'autista", "kilometri extra", "notturno extra", "rimborso traghetto", "radioline e auricolari", "anticipo spese", "altro"] }; // spese: causale degli extra (2.8)
   function defaultReg(kind) { return kind === "tendine" ? clone(TENDINE) : { rows: [] }; }
@@ -1364,6 +1436,7 @@
   function regLoaded(kind) { return !!(cache.regs && cache.regs[kind]); }
   async function updateReg(kind, fn) {
     noRO();
+    need(["referenti", "guide", "hotel", "autisti", "tendine"].includes(kind) ? "anag" : "office"); // 4.0.5
     if (!REGF[kind]) throw { code: "kind" };
     if (!navigator.onLine) throw { code: "offline" };
     const path = P.cfg + "/" + REGF[kind];
@@ -1417,6 +1490,7 @@
   function contab() { try { return FT().cleanContab(cache.contab || null); } catch (_) { return FT().defaults(); } }
   async function updateContab(fn) {
     noRO();
+    need("contab"); // 4.0.5
     if (!navigator.onLine) throw { code: "offline" };
     const path = P.cfg + "/contabilita.json";
     for (let i = 0; i < 6; i++) {
@@ -1444,6 +1518,7 @@
   // se nel frattempo un altro dispositivo l'ha cambiata non la sovrascrive (errore "conflict").
   async function saveDraft(d, rev) {
     noRO();
+    need("inv"); // 4.0.5
     if (!navigator.onLine) throw { code: "offline" };
     const doc = FT().cleanDraft(d); if (!doc || badKey(doc.id)) throw { code: "baddraft" };
     if (rev === undefined) rev = draftRev(doc.id);
@@ -1455,6 +1530,7 @@
   }
   async function deleteDraft(id) {
     noRO();
+    need("inv"); // 4.0.5
     if (!navigator.onLine) throw { code: "offline" };
     if (!/^[A-Za-z0-9_-]{1,24}$/.test(String(id))) throw { code: "baddraft" };
     await DBX.remove(draftPath(id));
@@ -1476,6 +1552,7 @@
   // dispositivi che emettono nello stesso minuto non prendono lo stesso numero. key = anno + numero normalizzato.
   async function reserveNumero(key, id, num, year, force) {
     noRO();
+    need("inv"); // 4.0.5
     if (!navigator.onLine) throw { code: "offline" };
     const path = P.cfg + "/numeri-fattura.json";
     for (let i = 0; i < 6; i++) {
@@ -1509,8 +1586,11 @@
     }
     throw { code: "conflict" };
   }
+  // 4.0.5: il file XML si considera salvato solo se Dropbox conferma la dimensione giusta
+  async function upXml(path, text, mode) { const b = enc.encode(text), m = await DBX.upload(path, b, mode); if (!m || Number(m.size) !== b.length) throw { code: "verify" }; return m; }
   async function saveInvoiceXml(name, text, again, date, taken, keepOld, planned) {
     noRO();
+    need("inv"); // 4.0.5
     name = safeFileName(name); if (!/\.xml$/i.test(name)) name += ".xml";
     const folder = xmlFolder(String(date || "")), tk = taken instanceof Set ? taken : new Set();
     // 4.0.4: percorso già scelto e salvato nella bozza: si scrive lì (sovrascrivendo un tentativo di prima di questa fattura)
@@ -1527,13 +1607,13 @@
       catch (e) { if (!(e && e.code === "conflict" && /not_found/.test(e.summary || ""))) throw { code: "move", detail: e }; }
       let p = "";
       for (const part of folder.split("/").filter(Boolean)) { p += "/" + part; await DBX.createFolder(p).catch(() => {}); }
-      await DBX.upload(path, enc.encode(text), plan ? "overwrite" : "add");
+      await upXml(path, text, plan ? "overwrite" : "add");
       return { path, oldLeft: false, moved };
     }
-    if (mine && mine.toLowerCase() === path.toLowerCase()) { await DBX.upload(mine, enc.encode(text), "overwrite"); return { path: mine, oldLeft: false }; }
+    if (mine && mine.toLowerCase() === path.toLowerCase()) { await upXml(mine, text, "overwrite"); return { path: mine, oldLeft: false }; }
     let p = "";
     for (const part of path.replace(/\/[^/]*$/, "").split("/").filter(Boolean)) { p += "/" + part; await DBX.createFolder(p).catch(() => {}); }
-    await DBX.upload(path, enc.encode(text), plan ? "overwrite" : "add");
+    await upXml(path, text, plan ? "overwrite" : "add");
     let oldLeft = false;
     if (mine) { try { await DBX.remove(mine); } catch (e) { oldLeft = !(e && e.code === "not_found"); } }
     return { path, oldLeft };
@@ -1565,7 +1645,7 @@
   }
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "3.0";
-  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "4.0.4"; // 4.0.4: correzioni di sicurezza (pulizia notturna, fatture, fatturato, sincronizzazione); 4.0.3: passeggero H a bordo; // 4.0.1: scorciatoie da tastiera nelle impostazioni personali; 4.0: aspetto, tema e benvenuto nelle impostazioni personali; 3.0.11: pulizia di quelle senza cliente alle 00:00 del giorno del servizio; 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "4.0.6"; // 4.0.6: testi delle mail per cliente e richieste dei dati di fatturazione; 4.0.5: conflitti sullo stesso campo, permessi, impostazioni con revisione, coda anche in IndexedDB, chiavi dei telefoni cifrate; 4.0.4: correzioni di sicurezza (pulizia notturna, fatture, fatturato, sincronizzazione); 4.0.3: passeggero H a bordo; // 4.0.1: scorciatoie da tastiera nelle impostazioni personali; 4.0: aspetto, tema e benvenuto nelle impostazioni personali; 3.0.11: pulizia di quelle senza cliente alle 00:00 del giorno del servizio; 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
   window.STORE = {
     BASE, P,
     saveAttachment, readAttachment, removeAttachment, cleanAtt, ATT_MAX,

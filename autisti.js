@@ -28,8 +28,9 @@
   const num = (v) => { if (v === "" || v == null || typeof v === "boolean") return null; if (typeof v === "number") return isFinite(v) ? v : null; const t = String(v).trim().replace(/\s|€/g, ""); if (!/^-?[\d.,]+$/.test(t)) return null; const n = Number(t.indexOf(",") >= 0 ? t.replace(/\./g, "").replace(",", ".") : t); return isFinite(n) ? n : null; };
 
   // ---------- dati inviati all'autista ----------
-  // Si copiano SOLO i campi elencati qui. Prezzo, parcheggi, pasti, saldo, codice cliente, note interne e
-  // tutta la parte contabile non sono nell'elenco: non possono finire nel file nemmeno per sbaglio.
+  // Si copiano SOLO i campi elencati qui. Prezzo, parcheggi, pasti, codice cliente, note interne e tutta la
+  // parte contabile non sono nell'elenco: non possono finire nel file nemmeno per sbaglio. (Saldo SÌ/NO con
+  // l'importo e l'anticipo spese invece sono stampati, voluti, sul PDF del foglio per l'autista: li incassa lui.)
   // o: { cliente, mezzo: {nome, posti, targa}, autisti: [nomi], alias, noPlate }
   function payload(b, o) {
     o = o || {};
@@ -221,21 +222,34 @@
   // ---------- invio e ritiro di un foglio ----------
   const dirOf = (b) => (b.sent && b.sent.dir) || ((validDate(b.start) ? b.start.slice(0, 4) : String(new Date().getFullYear())) + "/" + safeId(b.id));
   const baseOf = (b) => "/servizi/" + dirOf(b);
+  // 4.0.5: due invii quasi contemporanei dello stesso foglio non si mescolano: foglio.json si scrive con il controllo della
+  // revisione (se un altro invio è arrivato nel frattempo si rifanno PDF e JSON di questo invio, sempre coerenti) e il
+  // numero d'invio si prende dal foglio in Dropbox (contatore condiviso), non dalla copia di questo dispositivo
   async function send(b, blob, o) {
-    const c = client(), base = baseOf(b), at = new Date().toISOString(), n = ((b.sent && b.sent.n) || 0) + 1;
+    const c = client(), base = baseOf(b), at = new Date().toISOString();
     const data = payload(b, o);
     if (!data.autisti.length) throw { code: "nodriver" };
     const h = sheetHash(b, Object.assign({}, o, { hv: 2 }));
     const buf = new Uint8Array(await blob.arrayBuffer());
     if (!(buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46)) throw { code: "nopdf" };
-    const m = await c.upload(base + "/foglio.pdf", buf, "overwrite");
-    data.inviato = { at, da: txt(o.by, 80), n };
-    data.pdf = { file: "foglio.pdf", rev: (m && m.rev) || "", size: buf.length };
-    data.ritirato = null;
-    data.h = h; data.hv = 2; data.alias = !!o.alias; data.noPlate = !!o.noPlate; // 4.0.4: per ricostruire il segno di invio (sentFromFolder)
-    await c.upload(base + "/foglio.json", enc.encode(JSON.stringify(data, null, 1)), "overwrite");
-    return { at, by: txt(o.by, 80), n, to: data.autisti.slice(), dir: dirOf(b), h, hv: 2, alias: !!o.alias, noPlate: !!o.noPlate };
+    for (let i = 0; i < 5; i++) {
+      const cur = await c.download(base + "/foglio.json");
+      if (cur && !cur.meta.rev) cur.meta = await c.metadata(base + "/foglio.json");
+      let was = 0; if (cur) { try { const j = JSON.parse(dec.decode(cur.buf)); was = Number(j && j.inviato && j.inviato.n) || 0; } catch (_) {} }
+      const n = Math.max(was, (b.sent && b.sent.n) || 0) + 1;
+      const m = await c.upload(base + "/foglio.pdf", buf, "overwrite");
+      data.inviato = { at, da: txt(o.by, 80), n };
+      data.pdf = { file: "foglio.pdf", rev: (m && m.rev) || "", size: buf.length };
+      data.ritirato = null;
+      data.h = h; data.hv = 2; data.alias = !!o.alias; data.noPlate = !!o.noPlate; // 4.0.4: per ricostruire il segno di invio (sentFromFolder)
+      try {
+        await c.upload(base + "/foglio.json", enc.encode(JSON.stringify(data, null, 1)), cur && cur.meta && cur.meta.rev ? { update: cur.meta.rev } : "add");
+        return { at, by: txt(o.by, 80), n, to: data.autisti.slice(), dir: dirOf(b), h, hv: 2, alias: !!o.alias, noPlate: !!o.noPlate };
+      } catch (e) { if (!(e && e.code === "conflict")) throw e; }
+    }
+    throw { code: "busy" };
   }
+
   // 3.0.10: com'è il foglio nella cartella degli autisti (per rimettere il segno «inviato» perso con la 3.0.7–3.0.9):
   // null se non c'è, se è stato ritirato o se non è di questa prenotazione
   async function sentFromFolder(b) {
@@ -394,7 +408,7 @@
   const newPhoneId = () => { const r = crypto.getRandomValues(new Uint8Array(8)); let s = "t"; for (const x of r) s += (x % 36).toString(36); return s; };
 
   (root.AGENDA_FILES = root.AGENDA_FILES || {}).autisti = "3.0";
-  (root.AGENDA_PATCH = root.AGENDA_PATCH || {}).autisti = "4.0.4"; // 3.0.2: allegati nell'impronta del foglio («da reinviare»); 3.0.3: mezzi del tour giorno per giorno; 3.0.10: sentFromFolder
+  (root.AGENDA_PATCH = root.AGENDA_PATCH || {}).autisti = "4.0.5"; // 3.0.2: allegati nell'impronta del foglio («da reinviare»); 3.0.3: mezzi del tour giorno per giorno; 3.0.10: sentFromFolder
   const API = Object.assign({}, PURE, {
     configure(h) { Object.assign(hooks, h); },
     linked, startLink, redirectMine, purpose, takeRedirect, revoke, prepare,

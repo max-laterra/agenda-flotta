@@ -75,6 +75,7 @@
   const ID_RE = /^[A-Za-z0-9_-]{1,24}$/;
   const up = (s) => String(s || "").toUpperCase();
   // Il file contabilita.json letto da Dropbox: si tiene solo quello che ha la forma giusta, il resto torna ai valori di partenza.
+  const okIso = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v);
   function cleanContab(j) {
     const D = defaults();
     if (!isObj(j)) return D;
@@ -113,6 +114,9 @@
     // 3.0.4: ultimo numero di fattura emesso fuori dall'agenda (programma di contabilità) e il suo anno: serve per proporre il numero
     O.ultimoNum = str(p.ultimoNum, 20).trim(); const ua = Math.round(numOr(p.ultimoAnno, 0)); O.ultimoAnno = ua >= 2000 && ua <= 2099 ? ua : 0;
     o.opzioni = O;
+    // 4.0.6: e-mail al cliente con la copia di cortesia (testi e indirizzo del server postale della fase 2)
+    const ml = isObj(j.mail) ? j.mail : {};
+    o.mail = { oggetto: str(ml.oggetto, 300), testo: str(ml.testo, 6000), firma: str(ml.firma, 1000), mittente: str(ml.mittente, 120), rdOggetto: str(ml.rdOggetto, 300), rdTesto: str(ml.rdTesto, 6000), server: /^https:\/\/[A-Za-z0-9.-]+(:\d{2,5})?(\/[\w./-]*)?$/.test(str(ml.server, 300).trim()) ? str(ml.server, 300).trim() : "" };
     return o;
   }
 
@@ -164,6 +168,8 @@
       const bi = numOr(S.bolloImporto, 2);
       o.snap = { at: str(S.at, 40), aliquote: al, arrot: has(ARROT, str(S.arrot, 6)) ? str(S.arrot, 6) : "no", arrotVerso: has(VERSI, S.arrotVerso) ? S.arrotVerso : "vicino", bolloImporto: bi >= 0 && bi <= 100 ? r2(bi) : 2, totale: r2(numOr(S.totale, 0)), imponibile: r2(numOr(S.imponibile, 0)), imposta: r2(numOr(S.imposta, 0)) };
     }
+    // 4.0.6: copia di cortesia inviata per e-mail (dal server dell'ufficio): a chi, quando, da chi
+    if (isObj(j.mail) && okIso(j.mail.at)) o.mail = { at: str(j.mail.at, 40), to: str(j.mail.to, 256), by: str(j.mail.by, 80), subject: str(j.mail.subject, 300), id: str(j.mail.id, 200), xml: str(j.mail.xml, 120) };
     const hist = (Array.isArray(j.xmlHist) ? j.xmlHist : []).filter(isObj).slice(-50).map((h) => ({ name: str(h.name, 160), path: str(h.path, 300), at: str(h.at, 40), by: str(h.by, 80), why: str(h.why, 300), prog: str(h.prog, 10) })).filter((h) => h.at || h.name);
     if (hist.length) o.xmlHist = hist;
     return o;
@@ -525,7 +531,188 @@
     return { xml: x, name: A.paese + latin(A.piva, 28).replace(/[^A-Za-z0-9]/g, "") + "_" + prog + ".xml", prog, formato: fmt, calc: k };
   }
 
-  const API = { VERSION: "4.0.4", REGIMI, NATURE, TIPI_DOC, TIPI_SCELTA, causaleRow, causaleApart, parkLines, extraLines, MOD_PAG, COND_PAG, USI, ARROT, VERSI, defaults, cleanContab, cleanDraft, contabOf, snapOf, cleanCliente, newDraft, linesFor, lineFromService, fill, mezzo, periodo, mesi, calc, validate, xml, latin, isPA, okDate, addDays, itLong, itShort, newId, r2, amt, numOr, progressivo, nextProg, progOf, numeroDoc, destOf, parseNumero, nextNumero };
+  // ---------- 4.0.6: dati di fatturazione mandati dal cliente per e-mail (richiesta dati) ----------
+  // leggiDati: legge le righe «Etichetta: valore» della risposta (anche citate con «>»); verificaDati: controlli fiscali
+  // (cifra di controllo di partita IVA e codice fiscale, codice destinatario, PEC) e anagrafici (codice fiscale e nome,
+  // CAP e provincia, doppioni, ragione sociale registrata nel VIES). Nessun controllo cambia i dati: dice solo cosa non torna.
+  const PROV = "AG AL AN AO AP AQ AR AT AV BA BG BI BL BN BO BR BS BT BZ CA CB CE CH CI CL CN CO CR CS CT CZ EN FC FE FG FI FM FR GE GO GR IM IS KR LC LE LI LO LT LU MB MC ME MI MN MO MS MT NA NO NU OG OR OT PA PC PD PE PG PI PN PO PR PT PU PV PZ RA RC RE RG RI RM RN RO SA SI SO SP SR SS SU SV TA TE TN TO TP TR TS TV UD VA VB VC VE VI VR VS VT VV".split(" ");
+  // province per nome (chi scrive «Ragusa» invece di «RG»)
+  const PROV_NOMI = { agrigento: "AG", alessandria: "AL", ancona: "AN", aosta: "AO", "valle d aosta": "AO", "ascoli piceno": "AP", "l aquila": "AQ", aquila: "AQ", arezzo: "AR", asti: "AT", avellino: "AV", bari: "BA", bergamo: "BG", biella: "BI", belluno: "BL", benevento: "BN", bologna: "BO", brindisi: "BR", brescia: "BS", "barletta andria trani": "BT", bat: "BT", bolzano: "BZ", cagliari: "CA", campobasso: "CB", caserta: "CE", chieti: "CH", caltanissetta: "CL", cuneo: "CN", como: "CO", cremona: "CR", cosenza: "CS", catania: "CT", catanzaro: "CZ", enna: "EN", "forli cesena": "FC", forli: "FC", ferrara: "FE", foggia: "FG", firenze: "FI", fermo: "FM", frosinone: "FR", genova: "GE", gorizia: "GO", grosseto: "GR", imperia: "IM", isernia: "IS", crotone: "KR", lecco: "LC", lecce: "LE", livorno: "LI", lodi: "LO", latina: "LT", lucca: "LU", "monza e brianza": "MB", "monza e della brianza": "MB", monza: "MB", macerata: "MC", messina: "ME", milano: "MI", mantova: "MN", modena: "MO", "massa carrara": "MS", massa: "MS", matera: "MT", napoli: "NA", novara: "NO", nuoro: "NU", oristano: "OR", palermo: "PA", piacenza: "PC", padova: "PD", pescara: "PE", perugia: "PG", pisa: "PI", pordenone: "PN", prato: "PO", parma: "PR", pistoia: "PT", "pesaro e urbino": "PU", "pesaro urbino": "PU", pesaro: "PU", pavia: "PV", potenza: "PZ", ravenna: "RA", "reggio calabria": "RC", "reggio di calabria": "RC", "reggio emilia": "RE", "reggio nell emilia": "RE", ragusa: "RG", rieti: "RI", roma: "RM", rimini: "RN", rovigo: "RO", salerno: "SA", siena: "SI", sondrio: "SO", "la spezia": "SP", spezia: "SP", siracusa: "SR", sassari: "SS", "sud sardegna": "SU", savona: "SV", taranto: "TA", teramo: "TE", trento: "TN", torino: "TO", trapani: "TP", terni: "TR", trieste: "TS", treviso: "TV", udine: "UD", varese: "VA", "verbano cusio ossola": "VB", verbania: "VB", vercelli: "VC", venezia: "VE", vicenza: "VI", verona: "VR", viterbo: "VT", "vibo valentia": "VV", vibo: "VV" };
+  // prime due cifre del CAP → province (di solito è così; ci sono poche eccezioni, per questo è solo un avviso)
+  const CAP_PROV = { "00": "RM", "01": "VT", "02": "RI", "03": "FR", "04": "LT", "05": "TR", "06": "PG", "07": "SS OT", "08": "NU OG", "09": "CA OR SU CI VS", 10: "TO", 11: "AO", 12: "CN", 13: "VC BI", 14: "AT", 15: "AL", 16: "GE", 17: "SV", 18: "IM", 19: "SP", 20: "MI MB", 21: "VA", 22: "CO", 23: "SO LC", 24: "BG", 25: "BS", 26: "CR LO", 27: "PV", 28: "NO VB", 29: "PC", 30: "VE", 31: "TV", 32: "BL UD", 33: "UD PN", 34: "TS GO", 35: "PD", 36: "VI", 37: "VR", 38: "TN", 39: "BZ", 40: "BO", 41: "MO", 42: "RE", 43: "PR", 44: "FE", 45: "RO", 46: "MN", 47: "FC RN", 48: "RA", 50: "FI", 51: "PT", 52: "AR", 53: "SI", 54: "MS", 55: "LU", 56: "PI", 57: "LI", 58: "GR", 59: "PO", 60: "AN", 61: "PU RN", 62: "MC", 63: "AP FM", 64: "TE", 65: "PE", 66: "CH", 67: "AQ", 70: "BA BT", 71: "FG BT", 72: "BR", 73: "LE", 74: "TA", 75: "MT", 76: "BT", 80: "NA", 81: "CE", 82: "BN", 83: "AV", 84: "SA", 85: "PZ", 86: "CB IS", 87: "CS", 88: "CZ KR VV", 89: "RC VV", 90: "PA", 91: "TP", 92: "AG", 93: "CL", 94: "EN", 95: "CT", 96: "SR", 97: "RG", 98: "ME" };
+  const plain = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const keyOf = (s) => plain(s).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  // partita IVA italiana (e codice fiscale numerico di enti e società): 11 cifre con la cifra di controllo
+  function pivaOk(p) {
+    p = String(p || "").replace(/[\s.\-]/g, "").replace(/^IT/i, "");
+    if (!/^\d{11}$/.test(p) || /^0+$/.test(p)) return false;
+    let s = 0;
+    for (let i = 0; i < 10; i++) { let n = +p[i]; if (i % 2) { n *= 2; if (n > 9) n -= 9; } s += n; }
+    return (10 - (s % 10)) % 10 === +p[10];
+  }
+  const CF_RE = /^[A-Z]{6}[0-9LMNPQRSTUV]{2}[ABCDEHLMPRST][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/;
+  const CF_ODD = [1, 0, 5, 7, 9, 13, 15, 17, 19, 21, 2, 4, 18, 20, 11, 3, 6, 8, 12, 14, 16, 10, 22, 25, 24, 23];
+  // codice fiscale delle persone (16 caratteri, anche con l'omocodia) con il carattere di controllo
+  function cfOk(cf) {
+    cf = up(cf).replace(/\s/g, "");
+    if (/^\d{11}$/.test(cf)) return pivaOk(cf);
+    if (!CF_RE.test(cf)) return false;
+    let s = 0;
+    for (let i = 0; i < 15; i++) {
+      const c = cf.charCodeAt(i), v = c >= 48 && c <= 57 ? c - 48 : c - 65;
+      s += i % 2 ? v : CF_ODD[v];
+    }
+    return String.fromCharCode(65 + (s % 26)) === cf[15];
+  }
+  const CONS = (s) => s.replace(/[^BCDFGHJKLMNPQRSTVWXYZ]/g, ""), VOC = (s) => s.replace(/[^AEIOU]/g, "");
+  const cfCogn = (s) => { s = up(plain(s)).replace(/[^A-Z]/g, ""); return (CONS(s) + VOC(s) + "XXX").slice(0, 3); };
+  const cfNome = (s) => { s = up(plain(s)).replace(/[^A-Z]/g, ""); const c = CONS(s); return c.length >= 4 ? c[0] + c[2] + c[3] : (c + VOC(s) + "XXX").slice(0, 3); };
+  // il codice fiscale corrisponde a nome e cognome? (si provano «Rossi Mario» e «Mario Rossi», anche con più nomi)
+  function cfNomeOk(cf, nome) {
+    cf = up(cf); const w = plain(nome).replace(/[^A-Za-z' ]+/g, " ").replace(/'/g, "").split(/\s+/).filter(Boolean);
+    if (!CF_RE.test(cf) || w.length < 2) return false;
+    const t = cf.slice(0, 6);
+    for (let k = 1; k < w.length; k++) {
+      const a = w.slice(0, k).join(""), b = w.slice(k).join("");
+      if (cfCogn(a) + cfNome(b) === t || cfCogn(b) + cfNome(a) === t) return true;
+    }
+    return false;
+  }
+  function provOf(v) {
+    const s = String(v || "").trim(); if (!s) return "";
+    const m = /^\(?([A-Za-z]{2})\)?\.?$/.exec(s); if (m) return up(m[1]);
+    const k = keyOf(s).replace(/^provincia (di |del |della )?/, "");
+    const pm = /\(([A-Za-z]{2})\)/.exec(s);
+    return PROV_NOMI[k] || (pm ? up(pm[1]) : s);
+  }
+  const mailIn = (s) => { const m = /[^\s<>"'(),;:]+@[^\s<>"'(),;:]+\.[A-Za-z]{2,}/.exec(String(s || "")); return m ? m[0].replace(/^mailto:/i, "") : ""; };
+  // etichette della risposta → campo (prima quelle più precise: «indirizzo PEC» non è l'indirizzo, «codice fiscale» non è il codice destinatario)
+  const LAB = [
+    ["pec", /^(indirizzo )?(pec|posta (elettronica )?certificata)\b/],
+    ["mail", /^(indirizzo )?(e ?mail|email|mail|posta elettronica|indirizzo di posta)\b/],
+    ["sdi", /^(codice (destinatario|univoco|sdi|ufficio|dest)|cod (destinatario|univoco|dest)|sdi\b|codice univoco ufficio|cuu\b)/],
+    ["piva", /^(partita iva|p ?iva|piva|p i\b|vat|numero (di )?partita iva|n partita iva)/],
+    ["cf", /^(codice fiscale|cod fisc|cod fiscale|c ?f\b)/],
+    ["name", /^(ragione sociale|denominazione|nome e cognome|cognome e nome|intestatario|intestazione|nominativo|cliente|societa|ente|scuola|istituto|ditta)\b/],
+    ["cap", /^(cap|c a p|codice postale)\b/],
+    ["city", /^(comune|citta|localita)\b/],
+    ["prov", /^(provincia|prov|sigla (della )?provincia)\b/],
+    ["naz", /^(nazione|paese|stato)\b/],
+    ["addr", /^(indirizzo|via|sede( legale)?|domicilio( fiscale)?|residenza)\b/],
+    ["tel", /^(telefono|tel|cellulare|cell|recapito( telefonico)?|numero di telefono)\b/],
+    ["ref", /^(referente|persona (di riferimento|da contattare)|contatto)\b/],
+  ];
+  const labOf = (l) => { const k = keyOf(String(l).replace(/\(.*?\)/g, " ")); if (!k || k.length > 60) return ""; for (const [f, re] of LAB) if (re.test(k)) return f; return ""; };
+  // «Etichetta: valore»: i due punti dentro le parentesi dell'etichetta non contano
+  function splitLab(l) {
+    let dep = 0;
+    for (let i = 0; i < l.length && i <= 160; i++) { const c = l[i]; if (c === "(") dep++; else if (c === ")") dep = Math.max(0, dep - 1); else if ((c === ":" || c === "=") && !dep) return i > 0 ? [l.slice(0, i).trim(), l.slice(i + 1).trim()] : null; }
+    return null;
+  }
+  const empty = (v) => /^[\s_.\-–—…*xX?]*$/.test(v) || /^(da compilare|scrivere qui|\.\.\.)$/i.test(v);
+  function leggiDati(text) {
+    const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n").map((l) => l.replace(/^(\s*>)+\s?/, "").replace(/^\s*[-*•·]\s+/, "").replace(/\*\*/g, "").trim());
+    const d = { name: "", piva: "", cf: "", addr: "", cap: "", city: "", prov: "", naz: "", sdi: "", pec: "", mail: "", tel: "", ref: "" }, src = {};
+    for (let i = 0; i < lines.length && i < 4000; i++) {
+      const m = splitLab(lines[i]); if (!m) continue;
+      const f = labOf(m[0]); if (!f || d[f]) continue;
+      let v = m[1].replace(/<mailto:[^>]*>/gi, "").trim();
+      if (!v && i + 1 < lines.length && lines[i + 1] && !splitLab(lines[i + 1]) && !labOf(lines[i + 1])) v = lines[i + 1];
+      if (empty(v)) continue;
+      { const q = /^["'«](.*)["'»]$/.exec(v); if (q) v = q[1]; }
+      v = v.trim().slice(0, 200);
+      if (f === "pec" || f === "mail") { v = mailIn(v); if (!v) continue; }
+      d[f] = v; src[f] = "riga";
+    }
+    // valori nel formato giusto
+    d.piva = d.piva.replace(/[\s.\-]/g, "").toUpperCase().replace(/^IT(?=\d{11}$)/, "");
+    d.cf = up(d.cf).replace(/[\s.\-]/g, "");
+    d.sdi = up(d.sdi).replace(/\s/g, "");
+    d.cap = d.cap.replace(/\s/g, "");
+    d.prov = provOf(d.prov);
+    d.city = d.city.replace(/\s*\(([A-Za-z]{2})\)\s*$/, (m, p) => { if (!d.prov) d.prov = up(p); return ""; }).trim();
+    const nz = keyOf(d.naz); d.naz = !nz || /^(it|ita|italia|italy|italiana)$/.test(nz) ? "IT" : d.naz;
+    // «Via Roma 1, 97100 Ragusa (RG)» tutto nell'indirizzo
+    if (d.addr && (!d.cap || !d.city)) {
+      const m = /^(.*?)[,\s–-]+(\d{5})\s+([^,(]+?)\s*(?:\(([A-Za-z]{2})\)|[,\s–-]+([A-Za-z]{2}))?\s*$/.exec(d.addr);
+      if (m && m[1].trim()) { d.addr = m[1].trim(); if (!d.cap) d.cap = m[2]; if (!d.city) d.city = m[3].trim(); if (!d.prov && (m[4] || m[5])) d.prov = up(m[4] || m[5]); src.cap = src.cap || "indirizzo"; }
+    }
+    // non scritti con l'etichetta: si cercano nel testo (solo se la cifra di controllo torna)
+    const all = lines.join("\n");
+    if (!d.piva) { const re = /\b(?:IT)?(\d{11})\b/g; let m; while ((m = re.exec(all))) if (pivaOk(m[1]) && m[1] !== d.cf) { d.piva = m[1]; src.piva = "testo"; break; } }
+    if (!d.cf) { const re = /\b([A-Za-z]{6}[0-9LMNPQRSTUVlmnpqrstuv]{2}[A-Za-z][0-9LMNPQRSTUVlmnpqrstuv]{2}[A-Za-z][0-9LMNPQRSTUVlmnpqrstuv]{3}[A-Za-z])\b/g; let m; while ((m = re.exec(all))) if (cfOk(m[1])) { d.cf = up(m[1]); src.cf = "testo"; break; } }
+    if (!d.pec) { const re = /[^\s<>"'(),;:]+@[^\s<>"'(),;:]*pec[^\s<>"'(),;:]*\.[A-Za-z]{2,}/gi, m = re.exec(all); if (m) { d.pec = m[0]; src.pec = "testo"; } }
+    if (!d.sdi) { const m = /\b(?:sdi|destinatario|univoco)\b[^A-Za-z0-9\n]{0,25}([A-Za-z0-9]{7}|[A-Za-z0-9]{6})\b/i.exec(all); if (m && /\d/.test(m[1])) { d.sdi = up(m[1]); src.sdi = "testo"; } }
+    d.src = src;
+    return d;
+  }
+  // nomi simili? (senza forma societaria, punteggiatura e parole di 1 lettera)
+  const FORME = /\b(s ?r ?l ?s|s ?r ?l|s ?p ?a|s ?n ?c|s ?a ?s|s ?a ?p ?a|soc( coop)?|societa|cooperativa|coop|a ?r ?l|unipersonale|semplificata|di|de|del|della|e|ed|c|ltd|sas|snc|onlus|aps|asd|ssd)\b/g;
+  function nomiSimili(a, b) {
+    const t = (s) => keyOf(s).replace(FORME, " ").split(" ").filter((x) => x.length > 1);
+    const A = t(a), B = t(b); if (!A.length || !B.length) return false;
+    const hit = A.filter((x) => B.includes(x)).length;
+    return hit / Math.min(A.length, B.length) >= 0.6;
+  }
+  // ctx: { dup: (piva, cf) => {code, name} | null, vies: {valid, name, address} | {error} | null, from: indirizzo che ha risposto }
+  // Restituisce { checks: [{f, s: "ok"|"warn"|"err", t}], auto, estero, persona }: auto = tutto verde (il cliente può entrare da solo)
+  function verificaDati(d, ctx) {
+    ctx = ctx || {}; const C = [], ok = (f, t) => C.push({ f, s: "ok", t }), warn = (f, t) => C.push({ f, s: "warn", t }), err = (f, t) => C.push({ f, s: "err", t });
+    const it = !d.naz || d.naz === "IT", persona = !d.piva && /^[A-Z0-9]{16}$/.test(d.cf || "");
+    // valori che un foglio di calcolo potrebbe prendere per formule (=, +, -, @ all'inizio) o con caratteri di controllo: mai da soli
+    for (const f of ["name", "piva", "cf", "addr", "cap", "city", "prov", "naz", "sdi", "pec", "mail", "tel", "ref"]) {
+      const v = String(d[f] || "");
+      if ((f === "tel" ? /^[=@]|^[+\-](?![\d\s(])/ : /^[=+\-@]/).test(v) || /[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/.test(v)) err(f, "Valore scritto in modo strano (inizia con un simbolo o ha caratteri nascosti): controllalo.");
+    }
+    if (!String(d.name || "").trim()) err("name", "Manca la ragione sociale (o nome e cognome).");
+    if (!it) warn("naz", "Cliente estero (" + d.naz + "): i controlli italiani non valgono, controlla tu i dati.");
+    if (it) {
+      if (d.piva) { if (!/^\d{11}$/.test(d.piva)) err("piva", "La partita IVA deve avere 11 cifre."); else if (!pivaOk(d.piva)) err("piva", "Partita IVA sbagliata: la cifra di controllo non torna (forse un numero scritto male)."); else ok("piva", "Partita IVA scritta correttamente (cifra di controllo giusta)."); }
+      if (d.cf) {
+        if (/^\d{11}$/.test(d.cf)) { if (pivaOk(d.cf)) ok("cf", "Codice fiscale numerico corretto."); else err("cf", "Codice fiscale numerico sbagliato: la cifra di controllo non torna."); }
+        else if (d.cf.length !== 16) err("cf", "Il codice fiscale ha 16 caratteri (persone) o 11 cifre (enti e società).");
+        else if (!cfOk(d.cf)) err("cf", "Codice fiscale sbagliato: il carattere di controllo non torna (forse una lettera scritta male).");
+        else if (persona) { if (cfNomeOk(d.cf, d.name)) ok("cf", "Codice fiscale corretto e corrispondente a nome e cognome."); else warn("cf", "Il codice fiscale è scritto bene ma non corrisponde al nome e cognome: controlla."); }
+        else ok("cf", "Codice fiscale scritto correttamente.");
+      }
+      if (!d.piva && !d.cf) err("piva", "Mancano partita IVA e codice fiscale.");
+      if (d.src && (d.src.piva === "testo" || d.src.cf === "testo")) warn(d.src.piva === "testo" ? "piva" : "cf", "Trovato nel testo della mail, non nella riga giusta: controlla che sia del cliente.");
+      if (d.piva && pivaOk(d.piva)) {
+        const v = ctx.vies;
+        if (!v) warn("piva", "Verifica online della partita IVA non fatta (VIES): si fa con il server dell'ufficio.");
+        else if (v.error) warn("piva", "Verifica online della partita IVA non riuscita (" + String(v.error).slice(0, 80) + "): riprova più tardi.");
+        else if (v.valid === false) err("piva", "Partita IVA non attiva secondo il VIES (archivio europeo delle partite IVA).");
+        else if (v.valid === true) {
+          ok("piva", "Partita IVA attiva (verificata online nel VIES).");
+          const vn = String(v.name || "").trim();
+          if (vn && vn !== "---") { if (nomiSimili(vn, d.name)) ok("name", "Ragione sociale uguale a quella registrata: «" + vn + "»."); else warn("name", "La ragione sociale registrata è «" + vn + "»: controlla quella scritta dal cliente."); }
+        }
+      }
+      if (!String(d.addr || "").trim()) err("addr", "Manca l'indirizzo."); else ok("addr", "Indirizzo presente.");
+      if (!d.cap) err("cap", "Manca il CAP."); else if (!/^\d{5}$/.test(d.cap)) err("cap", "Il CAP ha 5 cifre."); 
+      if (!String(d.city || "").trim()) err("city", "Manca il comune.");
+      if (!d.prov) err("prov", "Manca la provincia.");
+      else if (!/^[A-Z]{2}$/.test(d.prov) || !PROV.includes(d.prov)) warn("prov", "Non riconosco la provincia «" + d.prov + "»: serve la sigla di 2 lettere (es. RG).");
+      if (/^\d{5}$/.test(d.cap) && PROV.includes(d.prov)) { const pp = CAP_PROV[d.cap.slice(0, 2)]; if (pp && !pp.split(" ").includes(d.prov)) warn("cap", "Il CAP " + d.cap + " di solito è della provincia di " + pp.split(" ").join(" o ") + ", non di " + d.prov + ": controlla."); else ok("cap", "CAP e provincia corrispondono."); }
+      // fattura elettronica: codice destinatario o PEC
+      const pa = /^[A-Z0-9]{6}$/.test(d.sdi || "");
+      if (d.sdi) {
+        if (pa) { if (/^\d{11}$/.test(d.cf || "") && !d.piva) ok("sdi", "Codice univoco ufficio di 6 caratteri (ente pubblico)."); else warn("sdi", "Codice di 6 caratteri: è quello degli enti pubblici. Se il cliente non è un ente pubblico serve il codice di 7 caratteri."); }
+        else if (!/^[A-Z0-9]{7}$/.test(d.sdi)) err("sdi", "Il codice destinatario ha 7 caratteri (6 per gli enti pubblici).");
+        else if (d.sdi === "0000000" && !d.pec && !persona) warn("sdi", "Codice 0000000 senza PEC: la fattura arriverebbe solo nell'area riservata del cliente sul sito dell'Agenzia delle Entrate.");
+        else ok("sdi", "Codice destinatario scritto correttamente.");
+      }
+      if (d.pec) { if (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.pec)) ok("pec", "PEC scritta correttamente."); else err("pec", "La PEC non è un indirizzo valido."); }
+      if (!d.sdi && !d.pec) { if (persona) ok("sdi", "Privato: codice destinatario 0000000."); else warn("sdi", "Mancano codice destinatario e PEC: chiedili al cliente (servono per la fattura elettronica)."); }
+    }
+    if (d.mail) { if (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.mail)) ok("mail", d.src && d.src.mail === "mittente" ? "E-mail: quella da cui il cliente ha risposto." : "E-mail scritta correttamente."); else warn("mail", "L'indirizzo e-mail non sembra valido."); }
+    const dp = ctx.dup ? ctx.dup(d.piva, d.cf) : null;
+    if (dp) err("dup", "È già in anagrafica: Cod. " + dp.code + " – " + dp.name + ".");
+    const auto = !C.some((c) => c.s !== "ok") && C.length > 0;
+    return { checks: C, auto, estero: !it, persona, dup: dp || null };
+  }
+
+  const API = { VERSION: "4.0.6", REGIMI, NATURE, TIPI_DOC, TIPI_SCELTA, causaleRow, causaleApart, parkLines, extraLines, MOD_PAG, COND_PAG, USI, ARROT, VERSI, defaults, cleanContab, cleanDraft, contabOf, snapOf, cleanCliente, newDraft, linesFor, lineFromService, fill, mezzo, periodo, mesi, calc, validate, xml, latin, isPA, okDate, addDays, itLong, itShort, newId, r2, amt, numOr, progressivo, nextProg, progOf, numeroDoc, destOf, parseNumero, nextNumero, PROV, pivaOk, cfOk, cfNomeOk, leggiDati, verificaDati, nomiSimili };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
-  if (root) { root.FATTURE = API; if (root.document) { (root.AGENDA_FILES = root.AGENDA_FILES || {}).fatture = "3.0"; (root.AGENDA_PATCH = root.AGENDA_PATCH || {}).fatture = "4.0.4"; } } // 3.0.4: clienti esteri, numero proposto; 4.0.4: numero (contatore e anno), bollo, impostazioni salvate all'emissione
+  if (root) { root.FATTURE = API; if (root.document) { (root.AGENDA_FILES = root.AGENDA_FILES || {}).fatture = "3.0"; (root.AGENDA_PATCH = root.AGENDA_PATCH || {}).fatture = "4.0.6"; } } // 3.0.4: clienti esteri, numero proposto; 4.0.4: numero (contatore e anno), bollo, impostazioni salvate all'emissione
 })(typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null);

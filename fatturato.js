@@ -488,7 +488,8 @@
   // colonne «virtuali» dei clienti: l'app le manda con una chiave che comincia con «_» e qui diventano la colonna vera
   // (se manca la si aggiunge in fondo alla tabella, con questa intestazione)
   function virtualCols(cols, hdr, colOf) {
-    return [{ key: "_SDI", name: "Codice univoco", re: /univoco|\bsdi\b/i }, { key: "_NAZ", name: "Nazione", re: /^\s*(nazione|paese)\b/i }].map((x) => Object.assign(x, { col: colOf(x.re) }));
+    return [{ key: "_SDI", name: "Codice univoco", re: /univoco|\bsdi\b/i }, { key: "_NAZ", name: "Nazione", re: /^\s*(nazione|paese)\b/i },
+      { key: "_MAIL", name: "E-mail", re: /^(?!.*\bpec\b).*\b(e-?\s?)?mail\b/i }, { key: "_PEC", name: "PEC", re: /\bpec\b/i }].map((x) => Object.assign(x, { col: colOf(x.re) })); // 4.0.6: e-mail del cliente (copia di cortesia) e PEC (dati arrivati con la richiesta dati)
   }
   // nuove colonne: l'area del foglio arriva fino all'ultima e ognuna ha una larghezza leggibile
   function widenSheet(xml, newCols) {
@@ -746,6 +747,6 @@
   async function lists(buf) { const zip = await openZip(buf); const sstF = zip.file("xl/sharedStrings.xml"); const sst = sstF ? parseSST(await readText(zip, "xl/sharedStrings.xml")) : []; const out = await readLists(zip, sst); if (zip._agendaTooBig) throw { code: "toobig" }; return out; }
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).fatturato = "3.0";
-  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).fatturato = "4.0.4"; // 3.0.4: colonna «Nazione» nel foglio clienti; 4.0.4: impronta delle righe (celle vecchie riparate, correzioni dell'ufficio tenute)
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).fatturato = "4.0.6"; // 3.0.4: colonna «Nazione» nel foglio clienti; 4.0.4: impronta delle righe (celle vecchie riparate, correzioni dell'ufficio tenute)
   window.FAT = { apply, lists, COLS, colIdx, xEsc, openZip, readText, wholeSheet, balanced };
 })();

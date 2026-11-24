@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="4.0.4",APP_DATE="23/11/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="4.0.6",APP_DATE="24/11/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
@@ -16,7 +16,7 @@ const APP_VERSION="4.0.4",APP_DATE="23/11/2026";window.AGENDA_VERSION=APP_VERSIO
 //        store.js e autisti.js restano quelli della 3.0.3.
 // 3.0.6: aggiornamento parziale (solo app.js): nomi di prima degli autisti (un autista rinominato nell'anagrafica
 //        resta una persona sola: servizi già inseriti, telefono, crocette dei pasti). Gli altri file restano della 3.0.5.
-const APP_FAMILY="3.0",APP_PATCH={index:"4.0.4",store:"4.0.4",autisti:"4.0.4",fatture:"4.0.4",fatturato:"4.0.4",accessi:"4.0.4",dropbox:"4.0.4"};
+const APP_FAMILY="3.0",APP_PATCH={index:"4.0.6",store:"4.0.6",autisti:"4.0.5",fatture:"4.0.6",fatturato:"4.0.6",accessi:"4.0.4",dropbox:"4.0.4"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -42,7 +42,7 @@ if(framed){stopPage("Agenda Flotta La Terra","Per sicurezza l'agenda non si può
   const F=window.AGENDA_FILES||{},FP=window.AGENDA_PATCH||{},bad=[];
   if(document.documentElement.getAttribute("data-v")!==APP_FAMILY||(APP_PATCH.index&&document.documentElement.getAttribute("data-p")!==APP_PATCH.index))bad.push("index.html");
   for(const f of ["dropbox","fatturato","fatture","store","accessi","autisti"])if(F[f]!==APP_FAMILY||(APP_PATCH[f]&&FP[f]!==APP_PATCH[f]))bad.push(f+".js");
-  try{if(getComputedStyle(document.documentElement).getPropertyValue("--skin40").indexOf("4.0.4")<0)bad.push("skin40.css");}catch(_){} // 4.0: anche la grafica nuova deve essere arrivata
+  try{if(getComputedStyle(document.documentElement).getPropertyValue("--skin40").indexOf("4.0.6")<0)bad.push("skin40.css");}catch(_){} // 4.0: anche la grafica nuova deve essere arrivata
   let n=0;try{n=+sessionStorage.getItem("agenda-upd-try")||0;}catch(_){}
   if(bad.length){
     // ricaricando, ogni file viene richiesto di nuovo al sito (la copia per l'uso offline non si cancella:
@@ -65,18 +65,19 @@ if(framed){stopPage("Agenda Flotta La Terra","Per sicurezza l'agenda non si può
 {const l=document.getElementById("gfonts");if(l){const on=()=>{l.media="all";};if(l.sheet)on();else l.addEventListener("load",on);}}
 // ---------- flotta predefinita ----------
 function mk(id,name,seats,kind,h){return {id:id,name:name,seats:seats,kind:kind,plate:"",h:!!h};}
-// Dati della flotta aggiornati (30/09/2026): targa, posti, categoria Excel, ID mezzo, nell'ordine voluto.
+// Flotta DI PROVA (4.0.5: le targhe vere non stanno più nel codice pubblico; la flotta vera è in Dropbox, config/flotta.json):
+// targa finta, posti, categoria Excel, ID mezzo, nell'ordine voluto.
 // id = mezzo dell'agenda a cui vanno (le prenotazioni restano legate all'id)
 const FLEET_2026=[
-  ["b81-1","GM701RZ",81,"_81_posti","50"],["b81-2","EY494KH",81,"_81_posti","41"],["b79","AE383RP",79,"_81_posti","16"],
-  ["b64","EB605WA",64,"_64_posti","36"],["b58-1","EL851DX",58,"_58_posti","38"],["b58-2","EL852DX",58,"_58_posti","39"],
-  ["b54-1","BY620WH",54,"_54_posti","23"],["b54-2","BY241WH",54,"_54_posti","24"],["b54-3","FY961BX",54,"_54_posti","34"],
-  ["b52h","DL621AZ","52H","_54_posti","33"],["b52-1","CW410AT",52,"_54_posti","29"],["b52-2","FX264GX",52,"_54_posti","46"],
-  ["b52-3","GP342PL",52,"_54_posti","48"],["b52-4","GZ137ZG",52,"_54_posti","51"],["b50","FE144ZK",50,"_54_posti","43"],
-  ["b42-1","ER949JC",42,"_42_posti","40"],["b42-2","FP990DZ",42,"_42_posti","44"],["b28-1","FD945CT",28,"_28_posti","42"],
-  ["b28-2","GT856XE",28,"_28_posti","49"],["b20-1","EH555MS",20,"_20_posti","35"],["b20-2","FP353BC",20,"_20_posti","45"],
-  ["b20-3","HE096VW",20,"_20_posti","52"],["b19","CY324NW",19,"_20_posti","31"],["van7-1","CY999NW",7,"_7_posti","Viano V"],
-  ["van7-2","GT889XE",7,"_7_posti","Viano N"],["auto","DX285ME",4,"_3_posti","SW"]
+  ["b81-1","AA001AA",81,"_81_posti","50"],["b81-2","AA002AA",81,"_81_posti","41"],["b79","AA003AA",79,"_81_posti","16"],
+  ["b64","AA004AA",64,"_64_posti","36"],["b58-1","AA005AA",58,"_58_posti","38"],["b58-2","AA006AA",58,"_58_posti","39"],
+  ["b54-1","AA007AA",54,"_54_posti","23"],["b54-2","AA008AA",54,"_54_posti","24"],["b54-3","AA009AA",54,"_54_posti","34"],
+  ["b52h","AA010AA","52H","_54_posti","33"],["b52-1","AA011AA",52,"_54_posti","29"],["b52-2","AA012AA",52,"_54_posti","46"],
+  ["b52-3","AA013AA",52,"_54_posti","48"],["b52-4","AA014AA",52,"_54_posti","51"],["b50","AA015AA",50,"_54_posti","43"],
+  ["b42-1","AA016AA",42,"_42_posti","40"],["b42-2","AA017AA",42,"_42_posti","44"],["b28-1","AA018AA",28,"_28_posti","42"],
+  ["b28-2","AA019AA",28,"_28_posti","49"],["b20-1","AA020AA",20,"_20_posti","35"],["b20-2","AA021AA",20,"_20_posti","45"],
+  ["b20-3","AA022AA",20,"_20_posti","52"],["b19","AA023AA",19,"_20_posti","31"],["van7-1","AA024AA",7,"_7_posti","Viano V"],
+  ["van7-2","AA025AA",7,"_7_posti","Viano N"],["auto","AA026AA",4,"_3_posti","SW"]
 ];
 function fleetRec(r,ord){const h=/H$/i.test(String(r[2])),n=parseInt(r[2],10);return {plate:r[1],seats:n,h,xcat:r[3],num:r[4],ord,name:n+" posti"+(h?" H":"")};}
 const DEFAULT_FLEET=FLEET_2026.map((r,i)=>Object.assign({id:r[0],kind:r[0]==="auto"?"auto":/^van/.test(r[0])?"van":"bus"},fleetRec(r,i+1)));
@@ -95,7 +96,7 @@ const hasEvent=t=>normType(t)==="notturno";
 const GEN1="Autista Generico 1",GEN2="Autista Generico 2";
 const isGen=x=>/^autista\s+generico\b/i.test(String(x||"").trim());
 const realDriver=x=>{x=String(x||"").trim();return x&&!isGen(x)?x:"";};
-const DRIVERS0=[["Accardi Giovanni","g"],["Buscema Salvatore","r"],["Calabrese Saro","g"],["Campo Gianfranco","g"],["Capuano Cosimo","r"],["Cascone Saro","g"],["Di Blasi Antonio","g"],["Giannone Piero","r"],["Giannone Roberto","r"],["Giummarra Luca","g"],["Giunta Fabio","g"],["Giurdanella Giorgio","r"],["Gurrieri Angelo","r"],["La Terra Massimo","r"],["Lo Buglio Antonio","g"],["Lucenti Franco","r"],["Panasia Giovanni","r"],["Senia Fabio","g"],["Silipo Graziano","r"],["Sortino Giorgio","g"],["Virduzzo Luca","g"]];
+const DRIVERS0=[["Rossi Mario","g"],["Bianchi Luca","r"],["Verdi Paolo","g"],["Russo Andrea","g"],["Ferrari Marco","r"],["Esposito Giuseppe","g"],["Romano Antonio","r"],["Greco Fabio","g"]]; // 4.0.5: nomi DI PROVA (gli autisti veri sono in Dropbox, anagrafica-autisti.json)
 // 2.8: l'elenco degli autisti si cambia nell'Archivio (anagrafica autisti, config/anagrafica-autisti.json). Finché
 // l'anagrafica non è stata toccata vale l'elenco di sempre (DRIVERS0); colore "g" verde, "r" rosso.
 let _drvSrc=null,_drvList=DRIVERS0,_drvAka=new Map(),_drvAkaId=new Map();
@@ -108,7 +109,7 @@ function drivers(){
   }
   return _drvList;
 }
-// 3.0.6: NOMI DI PRIMA. Cambiando il nome di un autista nell'anagrafica (es. «Cascone Saro» → «Cascone Rosario») i
+// 3.0.6: NOMI DI PRIMA. Cambiando il nome di un autista nell'anagrafica (es. «Rossi Mario» → «Rossi Mariano») i
 // servizi già inseriti, il telefono e le crocette dei pasti tengono il nome vecchio: è la stessa persona, conta una
 // volta sola e nella pagina Autisti ha una riga sola. Nomi di prima di una riga: quello dell'elenco di sempre (l'id
 // «d-…» delle righe di partenza viene da lì) e quelli salvati a ogni cambio di nome (campo «prima», separati da «;»).
@@ -147,7 +148,7 @@ function driverCanon(x){
   x=String(x||"").trim().replace(/\s+/g," ");if(!x||isGen(x))return x;
   const n=norm(x).replace(/\bold\b/g,"").replace(/[.]/g," ").replace(/\s+/g," ").trim();
   const exact=drivers().find(d=>norm(d[0])===n);if(exact)return exact[0];
-  const aka=_drvAka.get(n);if(aka)return aka; // 3.0.6: nome di prima (es. «Cascone Saro» → «Cascone Rosario»)
+  const aka=_drvAka.get(n);if(aka)return aka; // 3.0.6: nome di prima (es. «Rossi Mario» → «Rossi Mariano»)
   const parts=n.split(" "),ini=parts.length>1&&parts[parts.length-1].length===1?parts.pop():"",sur=parts.join(" ");
   const same=drivers().filter(d=>norm(d[0]).startsWith(sur+" "));
   if(same.length===1)return same[0][0];
@@ -226,7 +227,7 @@ function cleanText(t,multi){
 // ---------- stato ----------
 // flotta in ordine decrescente di posti (l'auto in fondo)
 function sortFleet(list){return (Array.isArray(list)?list:[]).filter(v=>v&&typeof v==="object"&&!Array.isArray(v)).map((v,i)=>[v,i]).sort((a,b)=>(a[0].ord&&b[0].ord?a[0].ord-b[0].ord:0)||((b[0].seats||0)-(a[0].seats||0))||(a[1]-b[1])).map(x=>x[0]);}
-// come si vede il mezzo nell'elenco a sinistra delle viste Giorno, Settimana e Mese: "81 p. - GM701RZ (50)"
+// come si vede il mezzo nell'elenco a sinistra delle viste Giorno, Settimana e Mese: "81 p. - AB123CD (50)"
 function vehLabelHTML(v){if(v&&v.xbus)return '<b class="xb-tag">EXTRA</b><span class="xb-n">'+(v.seats?'<b>'+esc(v.seats+" p.")+'</b> ':'')+esc(v.az||"altra azienda")+(v.plate?' - '+esc(v.plate):'')+'</span>';const s=v.seats?v.seats+" p.":"Auto";return '<b>'+esc(s)+'</b>'+(v.h?'<span class="badge-h" title="Accessibile">H</span>':'')+(v.plate?' - '+esc(v.plate):'')+(v.num?' ('+esc(v.num)+')':'');}
 // larghezza della colonna dei mezzi: quanto basta per l'etichetta più lunga, così il resto è per i servizi
 let _vw={k:"",w:{}};
@@ -668,12 +669,13 @@ function openForm(opts){
   formLoading=true;syncType();formLoading=false;checkWarns();
   $("f-hpax").checked=!!(editing&&b.hPax===true);hPaxRow(); // 4.0.3
   formOrig=readForm(); // per sapere se l'utente ha cambiato qualcosa e quali campi
+  formSrc=opts.booking?JSON.parse(JSON.stringify(b)):null; // 4.0.5: la prenotazione com'era all'apertura
   // parcheggi scelti che superano «€ Parcheggi» (cifra abbassata da un dispositivo non aggiornato): il cambio si vede
   if(editing&&pkMismatch!=null)formOrig.park=pkMismatch;
   $("ovBooking").hidden=false;setTimeout(()=>$("f-client").focus(),30);growAll($("progWrap"));
   progT0=progFirstTime(($("prog-0")||{}).value||"");progTimeNote(false); // 4.0.3: aprendo una prenotazione l'ora non cambia
 }
-let formOrig=null,saving=false,editConfirmed=false;
+let formOrig=null,formSrc=null,saving=false,editConfirmed=false;
 let formDayv=[],dvOpen=false; // 3.0.3: mezzi e autisti del tour giorno per giorno (modulo aperto)
 // 3.0.2 — allegati per l'autista (il resto è più giù, dopo la stampa del foglio): limiti, stato del modulo aperto
 // (elenco, file caricati in questa apertura da cancellare se non si salva, file tolti) e byte già scaricati
@@ -905,7 +907,7 @@ function overlapping(start,end){
   for(let d=start,n=0;d<=e&&n<32;d=addDays(d,1),n++)for(const x of dayList(d))if(!editing||x.id!==editing.id)out.set(x.id+"|"+x.start,x);
   return [...out.values()];
 }
-const drvKey=x=>driverCanon(String(x||"").trim()).toLowerCase().replace(/\s+/g," "); // "Campo G." = "Campo Gianfranco"
+const drvKey=x=>driverCanon(String(x||"").trim()).toLowerCase().replace(/\s+/g," "); // "Bianchi L." = "Bianchi Luca"
 // ---------- giorni di riposo degli autisti (2.8): config/riposi-autisti.json, segnati nella pagina Autisti ----------
 function riposi(){return regRows("riposi").filter(r=>String(r.nome||"").trim()&&validDate(String(r.dal||"")));}
 const rpEnd=r=>validDate(String(r.al||""))&&r.al>=r.dal?r.al:r.dal;
@@ -1416,8 +1418,9 @@ function pickClient(c){
 function renderClientInfo(){
   const el=$("cInfo"),v=$("f-client").value.trim();
   if(formClient&&formClient.name===v){const c=S.clients.find(x=>String(x[0])===String(formClient.code));el.className="cinfo ok";el.textContent="Codice "+formClient.code+(c&&c[2]?" · "+c[2]:"")+(c&&c[3]?" · "+c[3]:"")+(c&&c[4]?" · tel. "+c[4]:"");}
-  else{el.className="cinfo";el.textContent=v?"Non in elenco: in fatturato il nome andrà nella colonna Cliente, senza codice.":"";}
+  else{el.className="cinfo";el.textContent=v?"Non in elenco: in fatturato il nome andrà nella colonna Cliente, senza codice."+rdInfo(v):"";}
   fgHint(); // 3.0.3
+  rdBtnPaint(); // 4.0.6
 }
 $("f-client").addEventListener("input",()=>{sugIdx=-1;renderSug();renderClientInfo();});
 $("f-client").addEventListener("focus",renderSug);
@@ -1587,9 +1590,9 @@ $("cliPending").addEventListener("click",e=>{
 });
 
 // --- nuovo cliente ---
-let cnFromBooking=false,cnReplacing=null,cnEditing=null;
+let cnFromBooking=false,cnReplacing=null,cnEditing=null,cnReq=null;
 function openClientNew(o){
-  o=o||{};cnFromBooking=!!o.fromBooking;
+  o=o||{};cnFromBooking=!!o.fromBooking;cnReq=o.req||null; // 4.0.6: dati arrivati per e-mail (richiesta dati)
   if(S.readOnly){toast("Hai accesso in sola lettura.");return;}
   if(!canEdit("clients")){toast("Il Master non ha abilitato le modifiche all'anagrafica clienti.");return;}
   const ed=o.edit||null;cnEditing=ed?{code:ed[0],name:ed[1],row:cliRow(ed)}:null;
@@ -1601,16 +1604,18 @@ function openClientNew(o){
   $("dlCat").innerHTML=cats.map(x=>'<option value="'+esc(x)+'">').join("");
   // campi: Codice Multi, poi le colonne del foglio clienti; se manca la colonna del codice univoco la aggiunge l'app
   const cols=cliCols().filter(x=>x.c!=="A"),fields=[{c:"A",h:"Codice"}];
-  const hasSdi=cols.some(x=>cliKind(x.h)==="sdi"),hasNaz=cols.some(x=>cliKind(x.h)==="naz");
-  for(const x of cols){fields.push(x);if(!hasSdi&&cliKind(x.h)==="cf")fields.push({c:"_SDI",h:"Codice univoco"});if(!hasNaz&&cliKind(x.h)==="prov")fields.push({c:"_NAZ",h:"Nazione"});}
+  const hasSdi=cols.some(x=>cliKind(x.h)==="sdi"),hasNaz=cols.some(x=>cliKind(x.h)==="naz"),hasMail=cols.some(x=>cliKind(x.h)==="mail"),hasPec=cols.some(x=>cliKind(x.h)==="pec");
+  for(const x of cols){fields.push(x);if(!hasSdi&&cliKind(x.h)==="cf"){fields.push({c:"_SDI",h:"Codice univoco"});if(!hasPec)fields.push({c:"_PEC",h:"PEC"});}if(!hasNaz&&cliKind(x.h)==="prov")fields.push({c:"_NAZ",h:"Nazione"});if(!hasMail&&cliKind(x.h)==="pec")fields.push({c:"_MAIL",h:"E-mail"});}
+  if(!hasMail&&!fields.some(x=>x.c==="_MAIL"))fields.push({c:"_MAIL",h:"E-mail"}); // 4.0.6: e-mail per la copia di cortesia delle fatture
   if(!hasSdi&&!fields.some(x=>x.c==="_SDI"))fields.push({c:"_SDI",h:"Codice univoco"});
+  if(!hasPec&&!fields.some(x=>x.c==="_PEC"))fields.push({c:"_PEC",h:"PEC"}); // 4.0.6: la PEC (se nel foglio manca la colonna, la aggiunge l'agenda)
   if(!hasNaz&&!fields.some(x=>x.c==="_NAZ"))fields.push({c:"_NAZ",h:"Nazione"}); // 3.0.4: la colonna la aggiunge l'app
   $("cnFields").innerHTML=fields.map(x=>{
     const k=x.c==="A"?"code":cliKind(x.h),id="cn-"+x.c,full=k==="name"||k==="addr";
     const at=k==="code"?' inputmode="numeric" maxlength="7" required':k==="cap"?' maxlength="10"':k==="prov"?' maxlength="2" class="up"':k==="city"||k==="cf"?' class="up"':k==="piva"?' maxlength="20"':k==="mail"||k==="pec"?' type="email"':k==="sdi"?' maxlength="7" class="up"':k==="naz"?' maxlength="60" list="dlNaz"':k==="tel"?' type="tel" inputmode="tel"':k==="cat"?' list="dlCat"':'';
     const ph=''; // 4.0.4: niente esempi nei campi (sono nell'Aiuto «Aggiungere un cliente»)
     const sub='';
-    return '<div class="f'+(full?" full":"")+'"><label for="'+id+'">'+esc(x.c==="A"?"Codice Multi":x.c==="_SDI"?"Codice univoco (SDI)":x.c==="_NAZ"?"Nazione":cliLabel(x))+(k==="name"||k==="code"?" *":"")+'</label><input id="'+id+'" data-col="'+x.c+'" data-kind="'+k+'"'+at+ph+' autocomplete="off">'+sub+'</div>';
+    return '<div class="f'+(full?" full":"")+'"><label for="'+id+'">'+esc(x.c==="A"?"Codice Multi":x.c==="_SDI"?"Codice univoco (SDI)":x.c==="_NAZ"?"Nazione":x.c==="_MAIL"?"E-mail":cliLabel(x))+(k==="name"||k==="code"?" *":"")+'</label><input id="'+id+'" data-col="'+x.c+'" data-kind="'+k+'"'+at+ph+' autocomplete="off">'+sub+'</div>';
   }).join("");
   $("cn-A").value=o.prefill?"":nextClientCode();$("cn-A").readOnly=!!ed;
   if(ed){const cs=cliCols(),row=cliRow(ed);$("cn-A").value=ed[0];for(let i=0;i<cs.length;i++){const el=$("cn-"+cs[i].c);if(el&&cs[i].c!=="A")el.value=row[i]||"";}}
@@ -1682,6 +1687,8 @@ $("fClient").addEventListener("submit",e=>{
   if(cnReplacing){STORE.cancelClient(cnReplacing);delete cnWaiting[cnReplacing];cnReplacing=null;}
   const tmp=STORE.addClient(vals,r.name);
   ACC.log("cliente","Nuovo cliente «"+r.name+"»"+(vals.A&&vals.A.n?" (codice Multi "+vals.A.n+")":""));
+  if(cnReq){const rq=cnReq,rw=rdRow(rq),cd=String((vals.A&&vals.A.n)||"");cnReq=null; // 4.0.6: la risposta del cliente risulta inserita
+    rdSet(rq,{stato:"inserita",code:cd,tmp:String(tmp||""),insBy:meName()||"ufficio",cliName:r.name}).then(()=>postaPaint()).catch(()=>{});if(rw)rdLinkBookings(rw.nome,cd,r.name);}
   cnWaiting[tmp]={name:r.name,fromBooking:cnFromBooking};
   $("ovClientNew").hidden=true;
   if(cnFromBooking){$("f-client").value=r.name;formClient=null;renderClientInfo();}
@@ -1697,7 +1704,7 @@ function saveClientEdit(name){
     const a=(E.start[col]||{}).v||"",v=(now[col]||{}).v||"";if(a===v)continue;
     const i=cs.findIndex(x=>x.c===col),was=i>=0?String(E.row[i]||""):"";
     vals[col]=v===""?null:el.dataset.kind==="cap"&&/^[1-9]\d{4}$/.test(v)?{n:Number(v)}:{t:v};base[col]=was;
-    ch.push([col==="_SDI"?"Codice univoco (SDI)":col==="_NAZ"?"Nazione":cliLabel(cs[i]||{c:col,h:col}),was,v||"(vuoto)"]);
+    ch.push([col==="_SDI"?"Codice univoco (SDI)":col==="_NAZ"?"Nazione":col==="_MAIL"?"E-mail":col==="_PEC"?"PEC":cliLabel(cs[i]||{c:col,h:col}),was,v||"(vuoto)"]);
   }
   $("ovClientNew").hidden=true;cnEditing=null;
   if(!ch.length){toast("Nessuna modifica da salvare.");return;}
@@ -1775,6 +1782,8 @@ $("fBooking").addEventListener("submit",async e=>{
   const old=editing&&editing.start,moved=!!(old&&old!==b.start);
   // per le modifiche: versione di partenza e campi cambiati, così non si cancellano le modifiche fatte da altri nel frattempo
   const meta=editing?{edit:true,base:editing.base,patch:withOldNoteKeys(formChanges())}:{};
+  // 4.0.5: valori dei campi cambiati com'erano all'apertura del modulo (per riconoscere chi ha cambiato lo stesso campo)
+  if(editing&&formSrc){meta.orig={};for(const k of meta.patch)meta.orig[k]=formSrc[k]===undefined?null:JSON.parse(JSON.stringify(formSrc[k]));}
   if(fvPatch&&!meta.patch.includes("fveh"))meta.patch.push("fveh");
   if(editing){const ax=attFormDelta();if(ax)meta.attx=ax;} // 3.0.2: allegati aggiunti e tolti qui (si uniscono a quelli di altri)
   if(bossEdit)meta.boss=true;
@@ -2658,7 +2667,7 @@ function tplPlan(b,measure){
 // programma completo: una riga per tappa (o per giorno nei tour). all (pagina 2): in testa gli hotel e in
 // fondo referenti e guide, tutti per esteso.
 let _tplOpt=null; // 3.0.3: scelte del foglio in corso (targa nascosta o no) per le righe dei giorni
-// cambio di mezzo o autista in un giorno del tour, come compare sul foglio: "(bus 28 posti GT856XE, autista Rossi Mario)"
+// cambio di mezzo o autista in un giorno del tour, come compare sul foglio: "(bus 28 posti AB123CD, autista Rossi Mario)"
 function dvSheetTxt(b,i,O){
   const o=dayvOf(b)[i];if(!o||!(o.v||o.d1||o.d2))return "";
   const l=[];
@@ -3580,6 +3589,7 @@ function refreshFromStore(){
   if(!$("app").hidden)renderAll();
   if(!$("invio").hidden)renderInvio();
   refreshSheetBooking();
+  try{postaPaint();}catch(_){} // 4.0.6: tasto «E-mail» (risposte arrivate o inserite da un altro dispositivo)
   if(!$("app").hidden)setTimeout(migrateFleet2026,300);
   if(!$("ovReg").hidden&&!$("regTable").contains(document.activeElement))renderReg();
 }
@@ -3667,6 +3677,10 @@ function onNotice(n){
   const who=n.client?"«"+n.client+"»":"una prenotazione";
   if(n.kind==="gone")notify("La prenotazione "+who+" del "+itD(n.date)+" era stata eliminata o spostata da un altro dispositivo: la tua modifica non è stata salvata. Controlla e, se serve, ripetila.",true);
   else if(n.kind==="delGone")notify("La prenotazione "+who+" non è stata eliminata: nel frattempo un altro dispositivo l'aveva spostata su un altro giorno. Controlla e, se serve, eliminala di nuovo.",true);
+  else if(n.kind==="merged"&&Array.isArray(n.clash)&&n.clash.length){ // 4.0.5: stesso campo cambiato da due dispositivi
+    const v=x=>{if(x==null||x==="")return "vuoto";if(typeof x==="object")return Array.isArray(x)?x.filter(Boolean).join(", ")||"vuoto":"(modificato)";return String(x);};
+    notify("Prenotazione "+who+" del "+itD(n.date)+": un altro dispositivo aveva appena cambiato gli stessi campi. Ho tenuto i suoi valori, i tuoi NON sono stati salvati: "+n.clash.map(c=>(FIELD_LBL[c.k]||c.k)+": suo «"+v(c.theirs)+"», tuo «"+v(c.mine)+"»").join("; ")+". Se è giusto il tuo, riapri la prenotazione e correggi.",true);
+    ACC.tlog("avviso","Conflitto sulla prenotazione "+(n.client||"")+" del "+n.date,n.clash.map(c=>c.k).join(", "));}
   else if(n.kind==="merged")toast("Prenotazione "+who+" modificata anche da un altro dispositivo: ho unito le modifiche.");
   else if(n.kind==="renumbered"){
     // avviso fisso solo se un foglio di servizio con il numero vecchio è già uscito (salvato o inviato)
@@ -3929,7 +3943,7 @@ $("mPw").addEventListener("submit",async e=>{
   if(!navigator.onLine){msg.textContent="Per cambiare la password serve la connessione a internet.";return;}
   if(!(await ACC.checkPw(u,o))){msg.textContent="La password attuale è errata.";return;}
   $("pwGo").disabled=true;
-  try{await setOwnPassword(n1);$("mPw").reset();$("ovMenu").hidden=true;ACC.log("utenti","Ha cambiato la propria password");toast("Password cambiata");}
+  try{await setOwnPassword(n1);if(isSuper())await autRekey(n1).catch(()=>{});$("mPw").reset();$("ovMenu").hidden=true;ACC.log("utenti","Ha cambiato la propria password");toast("Password cambiata");} // 4.0.5: chiavi dei telefoni con la password nuova
   catch(_){msg.textContent="Non riesco a salvare la nuova password. Riprova.";}
   finally{$("pwGo").disabled=false;}
 });
@@ -4012,6 +4026,7 @@ $("gMasterForm").addEventListener("submit",async e=>{
   finally{btn.disabled=false;}
 });
 function doLogout(msg,why){
+  autKey=null;try{sessionStorage.removeItem("agenda-autk");}catch(_){} // 4.0.5: la chiave delle chiavi dei telefoni non resta dopo l'uscita
   ACC.log("accesso",why||"Uscita");ACC.logout();ACC.beat("uscito");ACC.flushLog();
   mstLog=null;mstDevs=null;mstTlog=null;
   applyRole();showGate("login",{msg:msg||""});
@@ -4435,6 +4450,24 @@ function renderContab(){
       C.causali.map((c,i)=>'<div class="ct-row ct-cau"><input data-ctl="causali.'+i+'.nome" value="'+esc(c.nome)+'" aria-label="Nome"><select data-ctl="causali.'+i+'.uso" aria-label="Si usa per">'+optList(FT.USI,c.uso)+'</select><textarea data-ctl="causali.'+i+'.testo" rows="2" aria-label="Testo">'+esc(c.testo)+'</textarea><select data-ctl="causali.'+i+'.aliq" aria-label="Aliquota">'+aliqOpts(C,c.aliq,"da scegliere ogni volta")+'</select><button type="button" class="btn icon" data-ctdel="causali.'+i+'" aria-label="Elimina causale" title="Elimina">×</button></div>').join("")+
       '</div><button type="button" class="btn" data-ctadd="causali">+ Aggiungi causale</button>'+
       '<h4 class="ct-h">Come si scrive il mezzo ({MEZZO})</h4><div class="ct-grid">'+[["bus","Pullman"],["van","Van / minibus"],["auto","Auto"]].map(([k,l])=>'<div class="f"><label for="ct-mz-'+k+'">'+l+'</label><input id="ct-mz-'+k+'" data-ct="mezzi.'+k+'" value="'+esc(C.mezzi[k])+'"></div>').join("")+'</div>';
+  }else if(ctTab==="mail"){ // 4.0.6
+    const M=C.mail||(C.mail={}),A=C.azienda||{},TM=(((STORE.reg("testimail")||{}).rows)||[]).filter(r=>r&&r.id).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),"it"));
+    h='<div class="ct-cards"><div class="set-card"><h4>Testo predefinito della mail con la fattura</h4>'+
+      '<p class="mst-sub">Al posto delle parole tra graffe l\'agenda mette i dati della fattura: {cliente}, {Documento} o {documento} (fattura / nota di credito), {numero}, {data}, {totale}, {causale}, {azienda}, {pdf}, {xml}.</p>'+
+      '<div class="f"><label for="ct-mlsub">Oggetto</label><input id="ct-mlsub" data-ct="mail.oggetto" maxlength="300" value="'+esc(M.oggetto||MAIL_DEF.oggetto)+'"></div>'+
+      '<div class="f"><label for="ct-mltxt">Testo</label><textarea id="ct-mltxt" data-ct="mail.testo" rows="13">'+esc(M.testo||MAIL_DEF.testo)+'</textarea></div>'+
+      '<div class="f"><label for="ct-mlfirma">Firma</label><textarea id="ct-mlfirma" data-ct="mail.firma" rows="5">'+esc(M.firma||mailFirmaDef(A))+'</textarea></div>'+
+      '<button type="button" class="btn" id="ctMailReset">Rimetti il testo di serie</button></div>'+
+      // 4.0.6: testi ricordati per cliente e richiesta dei dati ai clienti nuovi
+      '<div class="set-card"><h4>Testi ricordati per cliente</h4><p class="mst-sub">Nell\'anteprima della mail, con «Ricorda oggetto e testo per …» spuntato, il testo cambiato resta per quel cliente: le fatture dopo partono da lì (con numero, data e totale nuovi). Qui li vedi e puoi rimettere il testo predefinito.</p>'+
+      (TM.length?'<div class="ct-tm">'+TM.map(r=>'<div class="ct-tm-row"><span class="ct-tm-t"><b>'+esc(r.nome||"Cliente")+'</b> <small>Cod. '+esc(r.code||"")+(r.at?' · salvato il '+esc(itD(String(r.at).slice(0,10))):'')+(r.by?' da '+esc(r.by):'')+'</small><span class="ct-tm-s">'+esc(r.oggetto||"")+'</span></span><button type="button" class="btn sm" data-tmdel="'+esc(r.id)+'">Rimetti il predefinito</button></div>').join("")+'</div>':'<p class="mst-sub"><i>Per ora nessun cliente ha un testo suo.</i></p>')+'</div>'+
+      '<div class="set-card"><h4>Richiesta dati ai clienti nuovi</h4><p class="mst-sub">La mail del pulsante «Richiedi dati cliente» della prenotazione. Al posto delle parole tra graffe l\'agenda mette: {cliente} (il nome scritto nella prenotazione), {servizio} (data e itinerario), {azienda}, {schema} (le righe che il cliente compila: se lo togli vanno in fondo). Il codice della richiesta (RD-…) va sempre nell\'oggetto: serve a riconoscere la risposta.</p>'+
+      '<div class="f"><label for="ct-rdsub">Oggetto</label><input id="ct-rdsub" data-ct="mail.rdOggetto" maxlength="300" value="'+esc(M.rdOggetto||RD_DEF.oggetto)+'"></div>'+
+      '<div class="f"><label for="ct-rdtxt">Testo</label><textarea id="ct-rdtxt" data-ct="mail.rdTesto" rows="12">'+esc(M.rdTesto||RD_DEF.testo)+'</textarea></div>'+
+      '<button type="button" class="btn" id="ctRdReset">Rimetti il testo di serie</button></div>'+
+      '<div class="set-card"><h4>Invio</h4><div class="f"><label for="ct-mlfrom">Nome del mittente</label><input id="ct-mlfrom" data-ct="mail.mittente" maxlength="120" value="'+esc(M.mittente||"")+'" placeholder="'+esc(A.nome||"")+'"></div>'+
+      '<div class="f"><label for="ct-mlsrv">Indirizzo del server postale dell\'ufficio</label><input id="ct-mlsrv" data-ct="mail.server" inputmode="url" spellcheck="false" maxlength="300" value="'+esc(M.server||"")+'"></div>'+
+      '<p class="mst-sub">'+(M.server?"Le mail partono dal server dell\'ufficio, con l\'account Gmail scelto lì.":"Non ancora collegato: si collega con il server dell\'ufficio (fase 2). Fino ad allora l\'anteprima della mail si prepara già, ma «Invia» resta spento.")+'</p></div></div>';
   }else{
     const O=C.opzioni;
     h='<div class="ct-cards"><div class="set-card"><h4>Prezzi e descrizioni</h4>'+
@@ -4461,6 +4494,14 @@ function ctRead(e){
   if(e.type==="change"&&/^aliquote\.\d+\.perc$/.test(p))renderContab();
 }
 $("contBody").addEventListener("input",ctRead);$("contBody").addEventListener("change",ctRead);
+$("contBody").addEventListener("click",async e=>{ // 4.0.6: richiesta dati e testi per cliente
+  if(!CT)return;
+  if(e.target.id==="ctRdReset"){CT.mail=Object.assign({},CT.mail,{rdOggetto:"",rdTesto:""});ctDirty=true;renderContab();return;}
+  const del=e.target.closest("[data-tmdel]");if(!del)return;const id=del.dataset.tmdel,r=(((STORE.reg("testimail")||{}).rows)||[]).find(x=>x.id===id);
+  if(!r||!confirm("Rimettere il testo predefinito per «"+(r.nome||"il cliente")+"»?\n\nLe prossime mail delle sue fatture useranno il testo predefinito."))return;
+  del.disabled=true;try{await STORE.updateReg("testimail",J=>{J.rows=(J.rows||[]).filter(x=>x.id!==id);return J;});toast("«"+(r.nome||"")+"» torna al testo predefinito.");}catch(err){handleErr(err);}renderContab();
+});
+$("contBody").addEventListener("click",e=>{if(e.target.id!=="ctMailReset"||!CT)return;CT.mail=Object.assign({},CT.mail,{oggetto:MAIL_DEF.oggetto,testo:MAIL_DEF.testo,firma:mailFirmaDef(CT.azienda)});ctDirty=true;renderContab();}); // 4.0.6
 $("contBody").addEventListener("click",e=>{
   const add=e.target.closest("[data-ctadd]"),del=e.target.closest("[data-ctdel]");if(!CT||(!add&&!del))return;
   if(add){if(add.dataset.ctadd==="aliquote")CT.aliquote.push({id:FT.newId("a").slice(0,20),nome:"",perc:0,natura:"N2.2",rif:""});else CT.causali.push({id:FT.newId("c").slice(0,20),nome:"",uso:"libera",testo:"",aliq:""});}
@@ -4561,11 +4602,13 @@ function invHistHTML(d){
 }
 function invApplyLock(){
   if(!INV)return;const d=INV.d,L=!!INV.locked,box=$("invLock");
+  $("invMail").hidden=!(d.xmlAt&&!d.reopen); // 4.0.6: e-mail al cliente solo per le fatture emesse
   $("invForm").classList.toggle("locked",L);
   if(L)for(const el of $("invForm").querySelectorAll("input,select,textarea,button"))el.disabled=true;
   if(L){
     box.className="inv-lock";
     box.innerHTML='<div class="il-t"><b>Fattura emessa</b>: file XML creato il '+esc(itD(String(d.xmlAt).slice(0,10)))+(d.xmlBy?" da "+esc(d.xmlBy):"")+(d.xmlName?' · <span class="il-f">'+esc(d.xmlName)+'</span>':"")+'. È bloccata: se l\'ente l\'ha rifiutata o va corretta, premi «Modifica fattura emessa».</div>'+
+      (d.mail&&d.mail.at?'<div class="il-mail">Inviata per e-mail a <b>'+esc(d.mail.to)+'</b> il '+esc(itD(String(d.mail.at).slice(0,10)))+(d.mail.by?" da "+esc(d.mail.by):"")+'</div>':"")+ // 4.0.6
       '<div class="il-a" id="invUnlockBox"><button type="button" class="btn" id="invUnlock"'+(S.readOnly||!canInv()?" disabled":"")+'>Modifica fattura emessa</button></div>'+invHistHTML(d);
   }else if(d.xmlAt&&d.reopen){
     box.className="inv-lock open";
@@ -4977,35 +5020,45 @@ $("invXml").onclick=async()=>{
         invMsg("Non riesco a prenotare il numero della fattura in Dropbox: il file non è stato creato. Riprova.","err");return;
       }
     }
-    // 1) la bozza si salva come emessa (con il percorso previsto)
     const keep=JSON.parse(JSON.stringify({xmlAt:cur.d.xmlAt,xmlBy:cur.d.xmlBy,xmlName:cur.d.xmlName,xmlProg:cur.d.xmlProg,xmlPath:cur.d.xmlPath,xmlHist:cur.d.xmlHist,reopen:cur.d.reopen,snap:cur.d.snap}));
     const restore=()=>{for(const k in keep){if(keep[k]===undefined)delete cur.d[k];else cur.d[k]=keep[k];}};
-    if(fix){const h=(cur.d.xmlHist||[]).slice(-49);h.push({name:cur.d.xmlName||"",path:oldPath?oldPath.replace(/\/[^/]*$/,"")+"/sostituite/"+oldPath.split("/").pop():"",at:cur.d.xmlAt||"",by:cur.d.xmlBy||"",why:cur.d.reopen.why||"",prog:cur.d.xmlProg||""});cur.d.xmlHist=h;delete cur.d.reopen;}
-    cur.d.snap=FT.snapOf(d,C); // 4.0.4: aliquote, nature, bollo, arrotondamento e totali di questa emissione
-    cur.d.xmlAt=new Date().toISOString();cur.d.xmlBy=meName();cur.d.xmlName=out.name;cur.d.xmlProg=prog;cur.d.xmlPath=path;cur.dirty=true;
-    const saved=INV===cur?await invSave(true):false;
-    if(!saved){restore();cur.dirty=true;cur.plan={base,fdate,fix,prog,path};
-      if(INV===cur){invMsg("La fattura non è stata salvata in Dropbox, quindi il file XML NON è stato creato (così non nascono numeri o file doppi). "+($("invMsg").textContent||"")+" Poi premi di nuovo «Crea XML».","err");invApplyLock();renderInvLive();}
-      return;}
-    cur.plan=null;
-    // 2) il file in Dropbox (cartella Fatture XML) e sul dispositivo
+    const markEmitted=()=>{
+      if(fix){const h=(cur.d.xmlHist||[]).slice(-49);h.push({name:cur.d.xmlName||"",path:oldPath?oldPath.replace(/\/[^/]*$/,"")+"/sostituite/"+oldPath.split("/").pop():"",at:cur.d.xmlAt||"",by:cur.d.xmlBy||"",why:cur.d.reopen.why||"",prog:cur.d.xmlProg||""});cur.d.xmlHist=h;delete cur.d.reopen;}
+      cur.d.snap=FT.snapOf(d,C); // 4.0.4: aliquote, nature, bollo, arrotondamento e totali di questa emissione
+      cur.d.xmlAt=new Date().toISOString();cur.d.xmlBy=meName();cur.d.xmlName=out.name;cur.d.xmlProg=prog;cur.d.xmlPath=path;cur.dirty=true;};
+    const failSave=extra=>{restore();cur.dirty=true;cur.plan={base,fdate,fix,prog,path};
+      if(INV===cur){invMsg("La fattura non è stata salvata in Dropbox, quindi NON è emessa e resta una bozza (così non nascono numeri o file doppi). "+($("invMsg").textContent||"")+(extra||"")+" Poi premi di nuovo «Crea XML».","err");invApplyLock();renderInvLive();}};
     let where="",oldLeft=false,movedOld="";
-    try{const r=await STORE.saveInvoiceXml(out.name,out.xml,oldPath,fdate,taken,fix,path);oldLeft=r.oldLeft;if(fix)movedOld=r.moved||"";
-      where=" Copia in Dropbox › "+path.replace(STORE.BASE+"/","").split("/").slice(0,-1).join(" › ")+"."+(movedOld?" Il file di prima è nella cartella «sostituite».":"")+(oldLeft?" Il file di prima di questa bozza ("+oldPath.split("/").pop()+") non sono riuscito a toglierlo: eliminalo a mano in Dropbox, così alla contabilità non arrivano due file.":"");}
-    catch(e){
-      if(fix){ // correzione: senza lo spostamento del file di prima niente file nuovo; la bozza torna «in correzione»
+    if(!fix){
+      // 4.0.5: emissione in tre passi: 1) file XML in Dropbox (verificato), 2) bozza salvata come emessa, 3) blocco.
+      // Se Dropbox non conferma il file la fattura resta una bozza; se poi la bozza non si salva il file si toglie.
+      try{const r=await STORE.saveInvoiceXml(out.name,out.xml,oldPath,fdate,taken,false,path);oldLeft=r.oldLeft;}
+      catch(e){cur.plan={base,fdate,fix,prog,path};ACC.tlog("errore","Bozza fattura: file XML non salvato in Dropbox",String((e&&(e.code||e.summary))||e));
+        if(INV===cur)invMsg("Non riesco a salvare il file XML in Dropbox: la fattura NON è emessa e resta una bozza. Controlla la connessione e riprova.","err");return;}
+      markEmitted();
+      const saved=INV===cur?await invSave(true):false;
+      if(!saved){try{await DBX.remove(path);}catch(_){}failSave(" Il file XML appena scritto in Dropbox è stato tolto.");return;}
+      cur.plan=null;
+      where=" Copia in Dropbox › "+path.replace(STORE.BASE+"/","").split("/").slice(0,-1).join(" › ")+"."+(oldLeft?" Il file di prima di questa bozza ("+oldPath.split("/").pop()+") non sono riuscito a toglierlo: eliminalo a mano in Dropbox, così alla contabilità non arrivano due file.":"");
+    }else{
+      // correzione di una fattura emessa: prima la bozza (storico, motivo), poi il file; se il file non riesce si torna «in correzione»
+      markEmitted();
+      const saved=INV===cur?await invSave(true):false;
+      if(!saved){failSave("");return;}
+      cur.plan=null;
+      try{const r=await STORE.saveInvoiceXml(out.name,out.xml,oldPath,fdate,taken,true,path);movedOld=r.moved||"";
+        where=" Copia in Dropbox › "+path.replace(STORE.BASE+"/","").split("/").slice(0,-1).join(" › ")+"."+(movedOld?" Il file di prima è nella cartella «sostituite».":"");}
+      catch(e){
         restore();cur.dirty=true;const back=INV===cur?await invSave(true):false;
         invMsg((e&&e.code==="move"?"Non riesco a spostare il file di prima nella cartella «sostituite»":"Non riesco a salvare il file in Dropbox")+": il file nuovo non è stato creato."+(back?" Riprova.":" Attenzione: la bozza risulta emessa con il nome "+out.name+" ma il file non c'è. Riprova «Modifica fattura emessa» quando torna la connessione."),"err");
         if(back){invApplyLock();renderInvLive();}return;}
-      where=" Non sono riuscito a metterne una copia in Dropbox: rifallo più tardi con lo stesso nome (premi «Modifica fattura emessa» e di nuovo «Crea XML»), oppure caricalo a mano nella cartella «Fatture XML».";
-      ACC.tlog("errore","Bozza fattura: copia del file XML in Dropbox non riuscita",String((e&&(e.code||e.summary))||e));
     }
     dlFile(new Blob([out.xml],{type:"application/xml"}),out.name);
     cur.locked=true; // 3.0: con il file XML la fattura è emessa: si blocca
     // 3.0.5: fattura emessa: i servizi spuntati per la fattura unica si tolgono dalla selezione
     {const ids=new Set((d.servizi||[]).map(s=>s.id));let ch=false;for(const k of [...invSel])if(ids.has(k.split("|")[0])){invSel.delete(k);ch=true;}if(ch)renderBill();}
     ACC.log("fattura",(fix?"Corretta e rifatta (file di prima in «sostituite»):":again?"Rifatto":"Creato")+" il file XML "+out.name+" («"+(d.cliente.nome||"")+"», € "+eur2(out.calc.totale)+", formato "+out.formato+")",{id:d.id});
-    if(INV===cur)invMsg("File "+out.name+" scaricato."+where,!oldLeft&&!/Non sono riuscito/.test(where)?"ok":"err");
+    if(INV===cur)invMsg("File "+out.name+" scaricato."+where,!oldLeft?"ok":"err");
   }catch(err){console.error(err);ACC.tlog("errore","Bozza fattura: file XML non creato",String((err&&(err.code||err.message))||err));if(INV===cur)invMsg("Non sono riuscito a creare il file.","err");}
   finally{cur.busy=false;if(INV===cur)renderInvLive();}
 };
@@ -5020,7 +5073,7 @@ $("invPrint").onclick=async()=>{
 };
 
 // 3.0.4 «Scarica anteprima»: la stessa anteprima (disposizione della fattura dell'Agenzia delle Entrate) in un file PDF
-async function invPreviewPdf(d,C){
+async function invPreviewPdf(d,C,o){ // 4.0.6: o.cortesia → «Copia di cortesia» nel piè di pagina
   const k=FT.calc(d,C),A=C.azienda,c=d.cliente,est=c.nazione!=="IT",fd=FT.destOf(c),dest=fd==="0000000"&&c.pec&&!est?"Indicata PEC":fd;
   const PL=await loadPdfLib(),{PDFDocument,StandardFonts,rgb}=PL,pdf=await PDFDocument.create();
   pdf.setTitle("Fattura "+(String(d.numero||"").trim()?"n. "+d.numero:"(bozza)")+" – "+(c.nome||""));pdf.setAuthor(A.nome||"La Terra s.r.l.");pdf.setCreator("Agenda Flotta La Terra");
@@ -5086,7 +5139,7 @@ async function invPreviewPdf(d,C){
   table([{t:"Modalità pagamento",w:.2,a:"l"},{t:"Coordinate bancarie",w:.34,a:"l"},{t:"Istituto",w:.2,a:"l"},{t:"Data scadenza",w:.13,a:"c"},{t:"Importo",w:.13,a:"r"}],
     [[pg.mod+" "+(FT.MOD_PAG[pg.mod]||""),pg.mod==="MP05"&&A.iban?"IBAN "+A.iban+(A.abi||A.cab?"\nABI "+A.abi+" - CAB "+A.cab:""):"",pg.mod==="MP05"?A.banca:"",dt(pg.scad),num(k.daPagare)]]);
   // piè di pagina: anteprima e numero di pagina
-  pages.forEach((pp,i)=>{page=pp;const t="Anteprima della fattura"+(String(d.numero||"").trim()?" n. "+d.numero:" (bozza, senza numero)")+" – il documento valido è il file XML trasmesso al Sistema di Interscambio",pn="Pagina "+(i+1)+" di "+pages.length;
+  pages.forEach((pp,i)=>{page=pp;const t=(o&&o.cortesia?"Copia di cortesia della "+(d.tipo==="TD04"?"nota di credito":"fattura"):"Anteprima della fattura")+(String(d.numero||"").trim()?" n. "+d.numero:" (bozza, senza numero)")+" – il documento valido è il file XML trasmesso al Sistema di Interscambio",pn="Pagina "+(i+1)+" di "+pages.length;
     txt(t,M,M-14,7,false,grey);txt(pn,W-M-tw(pn,7,false),M-14,7,false,grey);});
   return new Blob([await pdf.save()],{type:"application/pdf"});
 }
@@ -5099,6 +5152,415 @@ $("invPdf").onclick=async()=>{
   }catch(err){console.error(err);ACC.tlog("errore","Bozza fattura: PDF dell'anteprima non creato",String((err&&(err.code||err.message))||err));invMsg("Non sono riuscito a creare il PDF dell'anteprima.","err");}
   finally{b.disabled=false;}
 };
+
+// ---------- 4.0.6: e-mail al cliente con la copia di cortesia (PDF) e il file XML ----------
+// L'invio parte dal server dell'ufficio (fase 2): finché in Contabilità › E-mail non c'è il suo indirizzo,
+// l'anteprima della mail si prepara già (destinatario, oggetto, testo, allegati) ma «Invia» resta spento.
+// Contratto con il server: POST <server>/api/mail/fattura, JSON {v:1,to,subject,text,fromName,replyTo,
+// attachments:[{name,type,base64}],meta:{draftId,numero,data,tipo,cliente,code,totale,xml,by,device}}
+// → risposta {ok:true,id,at} oppure {ok:false,error}.
+const MAIL_DEF={oggetto:"{Documento} n. {numero} del {data} – {azienda}",
+  testo:"Gentile {cliente},\n\nin allegato le inviamo la copia di cortesia della {documento} n. {numero} del {data}, di importo totale {totale}.\n\nL'originale della fattura elettronica le viene recapitato tramite il Sistema di Interscambio (SdI), al codice destinatario o alla PEC che ci ha indicato: questa copia non ha valore fiscale.\n\nIn allegato:\n- {pdf} (copia di cortesia in PDF)\n- {xml} (file XML della fattura elettronica, per il suo commercialista)\n\nRestiamo a disposizione per qualsiasi chiarimento.\n\nCordiali saluti"};
+function mailFirmaDef(A){A=A||{};const ind=[A.indirizzo,A.civico].filter(Boolean).join(" "),loc=[A.cap,A.comune].filter(Boolean).join(" ")+(A.prov?" ("+A.prov+")":"");
+  return [A.nome,[ind,loc].filter(x=>x.trim()).join(" – "),A.tel?"Tel. "+A.tel:"",A.email||"",A.piva?"P.IVA "+A.piva:""].filter(x=>String(x||"").trim()).join("\n");}
+function mailNames(d){const n=String(d.numero||"").trim().replace(/[\/\\:*?"<>|]+/g,"-"),doc=d.tipo==="TD04"?"Nota di credito":"Fattura";
+  return {xml:d.xmlName||"fattura.xml",pdf:doc+(n?" "+n:"")+(d.data?" del "+itDate(d.data).replace(/\//g,"-"):"")+" - copia di cortesia.pdf"};}
+function mailFill(t,d,C){const k=FT.calc(d,C),nm=mailNames(d),doc=d.tipo==="TD04"?"nota di credito":"fattura";
+  const map={cliente:d.cliente.nome||"",documento:doc,Documento:doc.charAt(0).toUpperCase()+doc.slice(1),numero:String(d.numero||"").trim(),data:itDate(d.data),totale:"€ "+eur2(k.totale),causale:String(d.causale||"").trim(),azienda:(C.azienda||{}).nome||"",pdf:nm.pdf,xml:nm.xml};
+  return String(t||"").replace(/\{(\w+)\}/g,(m,x)=>Object.prototype.hasOwnProperty.call(map,x)?map[x]:m);}
+const mailOk=t=>/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]{2,}$/.test(String(t||"").trim());
+function cliMail(code){const c=code!==""&&code!=null?clientByCode(code):null;return c?String(cliField(c,"mail")||"").trim():"";}
+// indirizzo scritto nell'anteprima: si salva nella colonna «E-mail» del foglio clienti (se manca la aggiunge l'agenda)
+function invMailToAnag(code,v){
+  const cl=code!==""&&code!=null?clientByCode(code):null;if(!cl||S.readOnly||!mailOk(v))return false;
+  const was=cliMail(code);if(was.toLowerCase()===v.toLowerCase())return false;
+  if(!canEdit("clients")){toast("L'indirizzo non è stato salvato nella scheda del cliente: il Master non ha abilitato le modifiche ai clienti.");return false;}
+  const cols=cliCols(),i=cols.findIndex(x=>cliKind(x.h)==="mail"),col=i>=0?cols[i].c:"_MAIL",nm=cl[1]||"";
+  STORE.editClient(String(code),{[col]:{t:v}},{[col]:was},nm);
+  ACC.log("cliente","E-mail di «"+nm+"» (codice "+code+") salvata nella scheda del cliente",{ch:[["E-mail",was||"(vuoto)",v]]});return true;
+}
+async function mailXml(d,C){ // il file XML emesso: quello in Dropbox; se non si legge, rifatto uguale (stesse impostazioni e progressivo)
+  if(d.xmlPath&&navigator.onLine){try{const f=await DBX.download(d.xmlPath);if(f&&f.buf)return new Uint8Array(f.buf);}catch(_){}}
+  return new TextEncoder().encode(FT.xml(d,C,{prog:d.xmlProg}).xml);
+}
+// 4.0.6: oggetto e testo ricordati per un cliente (config/testi-email-clienti.json). Si salvano con le parole tra
+// graffe ({numero}, {data}, {totale}…), così la fattura dopo prende i suoi dati; la firma resta quella di Contabilità.
+const tmKey=code=>"c"+String(code).replace(/[^A-Za-z0-9_-]/g,"").slice(0,30);
+function tmRow(code){if(code===""||code==null)return null;return ((STORE.reg("testimail")||{}).rows||[]).find(r=>r&&r.id===tmKey(code))||null;}
+const reEsc=s=>String(s).replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+// testo dell'anteprima → modello: al posto dei dati di questa fattura tornano le parole tra graffe
+function mailTpl(text,d,C){
+  const k=FT.calc(d,C),nm=mailNames(d),num=String(d.numero||"").trim();let t=String(text||"");
+  const rep=(a,b,min)=>{a=String(a||"");if(a.length>=(min||3))t=t.split(a).join(b);};
+  rep(nm.pdf,"{pdf}");rep(nm.xml,"{xml}",5);rep("€ "+eur2(k.totale),"{totale}");rep(itDate(d.data),"{data}",8);
+  rep(d.cliente.nome,"{cliente}",4);rep((C.azienda||{}).nome,"{azienda}",4);rep(String(d.causale||"").trim(),"{causale}",8);
+  if(num)t=t.replace(new RegExp("(\\b(?:n\\.|nr\\.|n°|numero)\\s*)"+reEsc(num)+"(?![\\w/])","gi"),"$1{numero}");
+  t=t.replace(/(Fattura|fattura|Nota di credito|nota di credito)(\s+(?:n\.|nr\.|n°|numero)\s*\{numero\})/g,(m,w,r)=>(w[0]==="F"||w[0]==="N"?"{Documento}":"{documento}")+r);
+  return t;
+}
+let ML=null;
+function mlMsg(t,cls){const m=$("mlMsg");m.textContent=t||"";m.className="ml-msg"+(cls?" "+cls:"");}
+function mailState(){
+  if(!ML)return;const rd=ML.mode==="rd",srv=mailSrv(ML.C),to=$("mlTo").value.trim(),ok=mailOk(to),sent=!rd&&ML.d.mail&&ML.d.mail.at;
+  $("mlSaveBox").hidden=rd||!(ok&&ML.d.cliente.code&&to.toLowerCase()!==String(ML.sheet||"").toLowerCase()&&canEdit("clients"));
+  $("mlSend").disabled=!srv||!ok||S.readOnly||ML.busy;
+  $("mlSend").title=!srv?"Il server postale dell'ufficio non è ancora collegato (fase 2)":"";
+  if(ML.busy)return;
+  if(!ok)mlMsg(to?"L'indirizzo e-mail non è valido.":rd?"Scrivi l'indirizzo e-mail del cliente a cui chiedere i dati.":"Scrivi l'indirizzo e-mail del cliente.","err");
+  else if(!srv)mlMsg((rd?"Anteprima pronta. La richiesta partirà":"Anteprima pronta. L'invio partirà")+" dal server dell'ufficio, che non è ancora collegato: per ora «Invia» resta spento.");
+  else if(sent)mlMsg("Già inviata a "+ML.d.mail.to+" il "+itD(String(ML.d.mail.at).slice(0,10))+": con «Invia» parte di nuovo.");
+  else if(rd&&ML.prev)mlMsg("Dati già chiesti il "+itD(String(ML.prev.at).slice(0,10))+" a "+ML.prev.to+": con «Invia» parte una nuova richiesta.");
+  else mlMsg("");
+}
+// casella «Ricorda per questo cliente» e «Torna al testo predefinito»
+function mlRemPaint(){
+  const fat=ML&&ML.mode==="fat",code=fat?ML.d.cliente.code:"",can=fat&&code!==""&&code!=null&&!S.readOnly;
+  $("mlRemBox").hidden=!can;$("mlDef").hidden=!(ML&&(ML.mode==="rd"||ML.tm||ML.changed));
+  if(can){const nm=ML.d.cliente.nome||"questo cliente";$("mlRemTxt").textContent="Ricorda oggetto e testo per «"+nm+"»: le prossime fatture partono da qui";
+    $("mlRemNote").textContent=ML.tm?"Questo cliente ha un testo suo"+(ML.tm.at?", salvato il "+itD(String(ML.tm.at).slice(0,10)):"")+(ML.tm.by?" da "+ML.tm.by:"")+".":"";$("mlRemNote").hidden=!ML.tm;}
+}
+function mailOpen(){
+  if(!INV||!INV.d.xmlAt||INV.d.reopen)return;
+  const d=INV.d,C=STORE.contab(),M=C.mail||{},sheet=cliMail(d.cliente.code),tm=tmRow(d.cliente.code),firma=M.firma||mailFirmaDef(C.azienda);
+  ML={mode:"fat",d,C,sheet,busy:false,tm,firma,changed:false,remTouched:false,remDone:false};
+  $("mlTitle").textContent="E-mail al cliente";
+  $("mlTo").value=sheet||(d.mail&&d.mail.to)||"";$("mlSaveTo").checked=true;
+  $("mlFrom").textContent=(M.mittente||(C.azienda||{}).nome||"")+" – dal server dell'ufficio";
+  $("mlSubj").value=mailFill(tm?tm.oggetto:(M.oggetto||MAIL_DEF.oggetto),d,C);
+  $("mlBody").value=mailFill(tm?tm.testo:(M.testo||MAIL_DEF.testo),d,C)+(tm&&tm.firma==="0"?"":"\n\n"+firma);
+  ML.start=$("mlSubj").value+"\u0001"+$("mlBody").value;$("mlRem").checked=!!tm;$("mlBody").scrollTop=0;
+  const nm=mailNames(d);
+  $("mlAtt").hidden=false;$("mlAtt").innerHTML='<span class="ml-chip"><b>PDF</b> '+esc(nm.pdf)+' <button type="button" class="btn sm" id="mlPdf">Apri</button></span><span class="ml-chip"><b>XML</b> '+esc(nm.xml)+' <button type="button" class="btn sm" id="mlXml">Scarica</button></span>';
+  mlRemPaint();$("ovMail").hidden=false;$("mlBody").scrollTop=0;mailState();setTimeout(()=>{const f=mailOk($("mlTo").value)?$("mlBody"):$("mlTo");f.focus({preventScroll:true});if(f.id==="mlBody")f.setSelectionRange(0,0);$("mlBody").scrollTop=0;},30);
+}
+// alla chiusura (o all'invio) con la casella spuntata: il testo cambiato resta per il cliente; uguale a quello
+// predefinito: il cliente torna al testo predefinito
+async function mailRemember(){
+  if(!ML||ML.mode!=="fat"||ML.remDone)return;const m=ML,d=m.d,code=d.cliente.code;
+  if(code===""||code==null||S.readOnly||!$("mlRem").checked)return;
+  if($("mlSubj").value+"\u0001"+$("mlBody").value===m.start)return;
+  m.remDone=true;
+  let body=$("mlBody").value,fl="1";const tail="\n\n"+m.firma;
+  if(body.endsWith(tail))body=body.slice(0,-tail.length);else if(body.trimEnd().endsWith(m.firma.trim()))body=body.trimEnd().slice(0,-m.firma.trim().length).replace(/\s+$/,"");else fl="0";
+  const M=m.C.mail||{},so=mailTpl($("mlSubj").value.trim(),d,m.C),bo=mailTpl(body,d,m.C);
+  const isDef=so===(M.oggetto||MAIL_DEF.oggetto)&&bo===(M.testo||MAIL_DEF.testo)&&fl==="1",id=tmKey(code),nm=d.cliente.nome||"";
+  if(isDef&&!tmRow(code))return;
+  try{
+    await STORE.updateReg("testimail",J=>{J.rows=(J.rows||[]).filter(r=>r.id!==id);if(!isDef)J.rows.push({id,code:String(code),nome:nm,oggetto:so,testo:bo,firma:fl,by:meName(),at:new Date().toISOString()});return J;});
+    toast(isDef?"«"+nm+"» torna al testo predefinito della mail.":"Oggetto e testo della mail ricordati per «"+nm+"».");
+  }catch(e){toast("Il testo per «"+nm+"» non si è salvato"+(e&&e.code==="offline"?": sei offline.":e&&e.code==="forbidden"?": non hai il permesso.":"."));}
+}
+function mailClose(){if(ML&&ML.busy)return;mailRemember();$("ovMail").hidden=true;ML=null;}
+async function mailSend(){
+  if(!ML||ML.busy)return;if(ML.mode==="rd")return rdSend();
+  const srv=mailSrv(ML.C),to=$("mlTo").value.trim();if(!srv||!mailOk(to))return;
+  const d=ML.d,C=ML.C,subj=$("mlSubj").value.trim(),text=$("mlBody").value;
+  if(!subj){mlMsg("Scrivi l'oggetto.","err");return;}
+  ML.busy=true;mailState();mlMsg("Preparo gli allegati…");
+  try{
+    const nm=mailNames(d),pdf=new Uint8Array(await (await invPreviewPdf(d,C,{cortesia:true})).arrayBuffer()),xml=await mailXml(d,C);
+    const body={v:1,to,subject:subj,text,fromName:(C.mail&&C.mail.mittente)||(C.azienda||{}).nome||"",replyTo:(C.azienda||{}).email||"",
+      attachments:[{name:nm.pdf,type:"application/pdf",base64:b64e(pdf)},{name:nm.xml,type:"application/xml",base64:b64e(xml)}],
+      meta:{draftId:d.id,numero:String(d.numero||""),data:d.data,tipo:d.tipo,cliente:d.cliente.nome||"",code:String(d.cliente.code||""),totale:FT.calc(d,C).totale,xml:d.xmlName||"",by:meName(),device:ACC.device.id}};
+    mlMsg("Invio…");
+    let r,j={};
+    try{r=await fetch(srv+"/api/mail/fattura",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});j=await r.json().catch(()=>({}));}
+    catch(e){throw {code:"rete"};}
+    if(!r.ok||!j.ok)throw {code:"server",detail:j.error||("HTTP "+r.status)};
+    const rec={at:typeof j.at==="string"&&j.at?j.at:new Date().toISOString(),to,by:meName(),subject:subj,id:String(j.id||""),xml:d.xmlName||""};
+    if($("mlSaveTo").checked&&!$("mlSaveBox").hidden)invMailToAnag(d.cliente.code,to);
+    ACC.log("fattura","Copia di cortesia della fattura "+(d.numero||"")+" («"+(d.cliente.nome||"")+"») inviata per e-mail a "+to,{id:d.id});
+    mailRemember();
+    let saved=false;for(let i=0;i<3&&!saved;i++){try{const cur=STORE.draft(d.id)||d;await STORE.saveDraft(FT.cleanDraft(Object.assign({},cur,{mail:rec})));saved=true;}catch(e){if(e&&e.code==="conflict"){try{await STORE.pull();}catch(_){}continue;}break;}}
+    d.mail=rec;if(INV&&INV.d.id===d.id){INV.d.mail=rec;invApplyLock();}
+    ML.busy=false;mlMsg("Inviata a "+to+"."+(saved?"":" (Il segno «Inviata per e-mail» non si è salvato: riprova più tardi.)"),saved?"ok":"err");mailState();
+    toast("E-mail inviata a "+to);setTimeout(()=>{if(ML&&ML.mode==="fat"&&ML.d.id===d.id&&!ML.busy)mailClose();},1200);
+  }catch(e){
+    ML.busy=false;ACC.tlog("errore","E-mail della fattura non inviata",String((e&&(e.detail||e.code||e.message))||e));
+    mlMsg(e&&e.code==="rete"?"Non riesco a raggiungere il server dell'ufficio: controlla di essere nella rete dell'ufficio (o la connessione) e riprova.":"Il server dell'ufficio non ha mandato la mail"+(e&&e.detail?" ("+e.detail+")":"")+". Riprova.","err");
+    $("mlSend").disabled=false;
+  }
+}
+$("invMail").onclick=()=>mailOpen();
+$("mlClose").onclick=()=>mailClose();
+$("mlSend").onclick=()=>mailSend();
+$("mlTo").addEventListener("input",mailState);
+// testo cambiato: la casella «Ricorda» si spunta da sola (una volta: se la togli resta tolta)
+$("ovMail").addEventListener("input",e=>{if(!ML||(e.target.id!=="mlSubj"&&e.target.id!=="mlBody"))return;ML.changed=true;if(ML.mode==="fat"&&!ML.remTouched&&!$("mlRemBox").hidden)$("mlRem").checked=true;mlRemPaint();});
+$("mlRem").addEventListener("change",()=>{if(ML)ML.remTouched=true;});
+$("mlDef").onclick=()=>{
+  if(!ML)return;const C=ML.C,M=C.mail||{};
+  if(ML.mode==="rd"){$("mlSubj").value=rdFill(M.rdOggetto||RD_DEF.oggetto,ML)+" [Rif. "+ML.rif+"]";$("mlBody").value=rdBody(ML,ML.nota);mlMsg("Rimesso il testo predefinito della richiesta.");return;}
+  $("mlSubj").value=mailFill(M.oggetto||MAIL_DEF.oggetto,ML.d,C);$("mlBody").value=mailFill(M.testo||MAIL_DEF.testo,ML.d,C)+"\n\n"+ML.firma;
+  ML.changed=true;$("mlRem").checked=true;ML.remTouched=true;mlRemPaint();
+  mlMsg(ML.tm?"Testo predefinito: chiudendo (o inviando) «"+(ML.d.cliente.nome||"")+"» torna al testo predefinito.":"Rimesso il testo predefinito.");
+};
+backdropClose($("ovMail"),()=>mailClose());
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("ovMail").hidden){e.preventDefault();e.stopImmediatePropagation();mailClose();}},true);
+$("mlAtt").addEventListener("click",async e=>{
+  if(!ML||ML.mode!=="fat")return;const d=ML.d,C=ML.C,nm=mailNames(d);
+  if(e.target.id==="mlPdf"){try{const blob=await invPreviewPdf(d,C,{cortesia:true});window.open(URL.createObjectURL(blob),"_blank");}catch(err){mlMsg("Non sono riuscito a creare il PDF.","err");}}
+  if(e.target.id==="mlXml"){try{dlFile(new Blob([await mailXml(d,C)],{type:"application/xml"}),nm.xml);}catch(err){mlMsg("Non sono riuscito a preparare il file XML.","err");}}
+});
+
+// ----- 4.0.6: richiesta dei dati di fatturazione a un cliente nuovo (dalla prenotazione) e risposte -----
+// La richiesta parte dal server dell'ufficio (POST <server>/api/mail/richiesta-dati) con un codice «RD-…» nell'oggetto.
+// Il server legge la casella e dà le risposte che hanno quel codice (GET <server>/api/mail/risposte?dal=…); l'agenda
+// legge le righe compilate (FATTURE.leggiDati), le controlla (FATTURE.verificaDati, con la verifica online della
+// partita IVA nel VIES fatta dal server: POST <server>/api/vies) e, se tutto è a posto, il cliente entra da solo
+// nell'anagrafica (foglio clienti del fatturato) con il primo codice Multi libero; le prenotazioni scritte con lo stesso
+// nome prendono il codice. Se qualcosa non torna, la risposta resta «da controllare» nel tasto «E-mail».
+// Le richieste e le risposte lette sono in config/richieste-dati-clienti.json (le vedono tutti i dispositivi).
+const RD_RIGHE=["Ragione sociale (o nome e cognome): ","Partita IVA: ","Codice fiscale: ","Indirizzo (via e numero civico): ","CAP: ","Comune: ","Provincia (sigla, es. RG): ","Nazione: Italia","Codice destinatario SDI (7 caratteri, per gli enti pubblici il codice univoco ufficio di 6): ","PEC: ","E-mail per ricevere le fatture: ","Telefono: "].join("\n");
+const RD_DEF={oggetto:"Richiesta dati per la fatturazione – {azienda}",
+  testo:"Gentile {cliente},\n\nper poter emettere la fattura{servizio} abbiamo bisogno dei suoi dati di fatturazione.\n\nLe chiediamo di rispondere a questa e-mail scrivendo i dati dopo i due punti, senza cambiare le parole che li precedono:\n\n{schema}\n\nI dati vengono controllati (partita IVA, codice fiscale, codice destinatario e indirizzo) e inseriti nella nostra anagrafica clienti: se qualcosa non torna la ricontatteremo.\nI suoi dati saranno usati solo per la fatturazione, nel rispetto della normativa sulla privacy (Regolamento UE 2016/679).\n\nGrazie per la collaborazione.\n\nCordiali saluti"};
+const RD_ST={inviata:"In attesa di risposta",controllo:"Da controllare",pronta:"In inserimento",inserimento:"In inserimento",inserita:"In anagrafica",presente:"Già in anagrafica"};
+function mailSrv(C){return String((((C||STORE.contab())||{}).mail||{}).server||"").replace(/\/+$/,"");}
+function rdRows(){return (((STORE.reg("richieste")||{}).rows)||[]).filter(r=>r&&typeof r.rif==="string"&&/^RD-[A-Z0-9]{4,12}$/.test(r.rif));}
+function rdRow(rif){return rdRows().find(r=>r.rif===rif)||null;}
+function rdLast(nome){const k=norm(nome).trim();let best=null;if(!k)return null;for(const r of rdRows())if(norm(r.nome).trim()===k&&(!best||String(r.at)>String(best.at)))best=r;return best;}
+const jParse=s=>{try{return JSON.parse(s||"null");}catch(_){return null;}};
+const rdStale=r=>!r.insAt||Date.now()-Date.parse(r.insAt)>10*60e3;
+function rdNewRif(){const A="ABCDEFGHJKLMNPQRSTUVWXYZ23456789",u=new Uint8Array(6);crypto.getRandomValues(u);let s="RD-";for(const x of u)s+=A[x%A.length];return rdRow(s)?rdNewRif():s;}
+function rdFill(t,o){const C=o.C||STORE.contab(),map={cliente:o.nome||"",azienda:(C.azienda||{}).nome||"",servizio:o.serv||"",rif:o.rif||"",schema:RD_RIGHE};
+  return String(t||"").replace(/\{(\w+)\}/g,(m,x)=>Object.prototype.hasOwnProperty.call(map,x)?map[x]:m);}
+// testo della richiesta: le righe da compilare ci sono sempre (se il testo predefinito non ha {schema} vanno in fondo)
+function rdBody(o,nota){const C=o.C,M=C.mail||{},t=M.rdTesto||RD_DEF.testo,firma=M.firma||mailFirmaDef(C.azienda);
+  let b=rdFill(t,o);if(!/\{schema\}/.test(t))b+="\n\n"+RD_RIGHE;
+  if(nota)b=b.replace(/\n\n/,"\n\n"+nota+"\n\n");
+  return b+"\n\nCodice della richiesta: "+o.rif+"\n\n"+firma;}
+function rdOpen(o){
+  o=o||{};if(S.readOnly||isInvio())return;const nome=String(o.nome||$("f-client").value||"").trim();if(!nome)return;
+  const C=STORE.contab(),M=C.mail||{},prev=o.rif?rdRow(o.rif):rdLast(nome),dt=o.rif?(prev&&prev.bstart)||"":$("f-start").value,rt=o.rif?"":$("f-route").value.trim();
+  const serv=o.rif?(prev&&prev.serv)||"":validDate(dt)?" del servizio del "+itD(dt)+(rt?" ("+rt+")":""):"";
+  ML={mode:"rd",C,rif:o.rif||rdNewRif(),nome,serv,busy:false,prev:o.rif?null:prev,bid:o.rif?(prev&&prev.bid)||"":(editing&&editing.id)||"",bstart:dt,nota:o.nota||"",changed:false};
+  $("mlTitle").textContent=o.rif?"Richiesta dati di nuovo":"Richiesta dati per la fatturazione";
+  $("mlTo").value=o.to||(prev&&prev.to)||"";$("mlSaveBox").hidden=true;
+  $("mlFrom").textContent=(M.mittente||(C.azienda||{}).nome||"")+" – dal server dell'ufficio";
+  $("mlSubj").value=rdFill(M.rdOggetto||RD_DEF.oggetto,ML)+" [Rif. "+ML.rif+"]";
+  $("mlBody").value=rdBody(ML,ML.nota);$("mlBody").scrollTop=0;
+  $("mlAtt").innerHTML="";$("mlAtt").hidden=true;mlRemPaint();
+  $("ovMail").hidden=false;$("mlBody").scrollTop=0;mailState();setTimeout(()=>{const f=mailOk($("mlTo").value)?$("mlBody"):$("mlTo");f.focus({preventScroll:true});if(f.id==="mlBody")f.setSelectionRange(0,0);$("mlBody").scrollTop=0;},30);
+}
+// richieste vecchie: si tengono al massimo 200 righe; quelle chiuse da più di 6 mesi e quelle senza risposta da più di 4 si tolgono
+function rdPrune(rows){const now=Date.now(),old=(r,g)=>now-Date.parse(r.at||0)>g*864e5;
+  return rows.filter(r=>!((r.stato==="inserita"||r.stato==="presente")&&old(r,183))&&!(r.stato==="inviata"&&old(r,122))).sort((a,b)=>String(b.at).localeCompare(String(a.at))).slice(0,200);}
+async function rdSend(){
+  const srv=mailSrv(ML.C),to=$("mlTo").value.trim();if(!srv||!mailOk(to))return;
+  const m=ML;let subj=$("mlSubj").value.trim(),text=$("mlBody").value;
+  if(!subj){mlMsg("Scrivi l'oggetto.","err");return;}
+  if(!/Partita IVA\s*:/i.test(text)||!/Codice fiscale\s*:/i.test(text)){mlMsg("Nel testo mancano le righe da compilare (Ragione sociale, Partita IVA…): rimettile con «Testo predefinito».","err");return;}
+  if(!subj.includes(m.rif))subj+=" [Rif. "+m.rif+"]";if(!text.includes(m.rif))text+="\n\nCodice della richiesta: "+m.rif;
+  m.busy=true;mailState();mlMsg("Invio…");
+  try{
+    const body={v:1,to,subject:subj,text,fromName:(m.C.mail&&m.C.mail.mittente)||(m.C.azienda||{}).nome||"",replyTo:(m.C.azienda||{}).email||"",meta:{rif:m.rif,cliente:m.nome,servizio:m.serv.trim(),by:meName(),device:ACC.device.id}};
+    let r,j={};
+    try{r=await fetch(srv+"/api/mail/richiesta-dati",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});j=await r.json().catch(()=>({}));}catch(e){throw {code:"rete"};}
+    if(!r.ok||!j.ok)throw {code:"server",detail:j.error||("HTTP "+r.status)};
+    const at=typeof j.at==="string"&&j.at?j.at:new Date().toISOString();
+    let saved=true;
+    try{await STORE.updateReg("richieste",J=>{const rows=J.rows||[],x=rows.find(y=>y.rif===m.rif);
+      if(x)Object.assign(x,{to,at,by:meName(),stato:x.stato==="inserita"||x.stato==="presente"?x.stato:"inviata",mid:String(j.id||""),again:"1"});
+      else rows.push({id:m.rif,rif:m.rif,to,nome:m.nome,serv:m.serv,bid:m.bid,bstart:m.bstart,at,by:meName(),stato:"inviata",mid:String(j.id||"")});
+      J.rows=rdPrune(rows);return J;});}catch(_){saved=false;}
+    ACC.log("cliente","Richiesti i dati di fatturazione a «"+m.nome+"» ("+to+")"+(m.nota?": di nuovo, dopo una risposta con dati da correggere":""));
+    m.busy=false;mlMsg("Richiesta inviata a "+to+"."+(saved?" Quando il cliente risponde, i dati arrivano nel tasto «E-mail».":" (Non sono riuscito a segnarla nell'agenda: la risposta potrebbe non essere riconosciuta.)"),saved?"ok":"err");
+    toast("Richiesta dati inviata a "+to);try{renderClientInfo();}catch(_){}
+    setTimeout(()=>{if(ML===m&&!m.busy)mailClose();},1400);
+  }catch(e){
+    m.busy=false;ACC.tlog("errore","Richiesta dati non inviata",String((e&&(e.detail||e.code||e.message))||e));
+    mlMsg(e&&e.code==="rete"?"Non riesco a raggiungere il server dell'ufficio: controlla di essere nella rete dell'ufficio (o la connessione) e riprova.":"Il server dell'ufficio non ha mandato la richiesta"+(e&&e.detail?" ("+e.detail+")":"")+". Riprova.","err");
+    $("mlSend").disabled=false;
+  }
+}
+// pulsante nella prenotazione: acceso quando il cliente scritto non è nell'anagrafica
+function rdKnown(v){v=String(v||"").trim();if(!v)return false;if(formClient&&formClient.name===v)return true;const k=norm(v).trim();return S.clients.some(c=>norm(c[1]).trim()===k);}
+function rdBtnPaint(){
+  const b=$("fReqData");if(!b)return;const v=$("f-client").value.trim(),known=rdKnown(v);
+  b.hidden=isInvio();b.disabled=S.readOnly||!v||known;
+  b.title=!v?"Scrivi il cliente: se non è nell'anagrafica puoi chiedergli i dati per la fattura":known?"Il cliente è già nell'anagrafica":"Manda al cliente l'e-mail per chiedere i dati di fatturazione";
+}
+function rdInfo(v){const r=rdLast(v);if(!r)return "";
+  const c=r.code?" (Cod. "+r.code+")":"";
+  return r.stato==="inviata"?" Dati chiesti il "+itD(String(r.at).slice(0,10))+" a "+r.to+": in attesa di risposta.":r.stato==="inserita"||r.stato==="presente"?" "+RD_ST[r.stato]+c+" dalla risposta del cliente.":" Risposta del cliente arrivata: "+RD_ST[r.stato].toLowerCase()+" (tasto «E-mail»).";}
+$("fReqData").onclick=()=>rdOpen();
+
+// ----- le risposte: lettura dal server, controlli, inserimento -----
+const PST={busy:false,last:0,err:"",sel:"",lastOk:""};
+function cliDup(piva,cf){
+  const P=idNorm(piva),F=idNorm(cf);if(!P&&!F)return null;
+  const hit=S.clients.find(c=>{const a=idNorm(cliField(c,"piva")),b=idNorm(cliField(c,"cf"));return !!((P&&(a===P||b===P))||(F&&(b===F||a===F)));});
+  if(hit)return {code:String(hit[0]),name:String(hit[1]||"")};
+  for(const p of STORE.pendingClients){if(p.kind==="edit"||p.failed)continue;const vs=Object.values(p.vals||{}).map(v=>idNorm(v&&(v.t!=null?v.t:v.n)));if((P&&vs.includes(P))||(F&&vs.includes(F)))return {code:String((p.vals&&p.vals.A&&p.vals.A.n)||"in scrittura"),name:p.name||""};}
+  return null;
+}
+async function postaVerify(d,srv){
+  let vies=null;
+  if(d.piva&&FT.pivaOk(d.piva)&&(!d.naz||d.naz==="IT")&&srv){
+    try{const r=await fetch(srv+"/api/vies",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({paese:"IT",piva:d.piva})});const j=await r.json().catch(()=>({}));
+      vies=r.ok&&j&&j.ok&&(j.valid===true||j.valid===false)?{valid:j.valid,name:String(j.name||"").slice(0,200),address:String(j.address||"").slice(0,300),at:typeof j.at==="string"?j.at:new Date().toISOString()}:{error:String((j&&j.error)||("HTTP "+r.status)).slice(0,120)};}
+    catch(e){vies={error:"server non raggiungibile"};}
+  }
+  return {vies,res:FT.verificaDati(d,{vies,dup:cliDup})};
+}
+const okIsoApp=v=>typeof v==="string"&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v);
+const fromMail=s=>(String(s||"").match(/[^\s<>"'(),;:]+@[^\s<>"'(),;:]+\.[A-Za-z]{2,}/)||[""])[0];
+async function rdSet(rif,patch){return STORE.updateReg("richieste",J=>{const x=(J.rows||[]).find(y=>y.rif===rif);if(!x)return null;Object.assign(x,patch);return J;});}
+async function postaTake(rw,m,srv){
+  const text=String(m.text||"").slice(0,20000),d=FT.leggiDati(text),fm=fromMail(m.from);
+  if(!d.mail&&fm){d.mail=fm;d.src.mail="mittente";}
+  const {vies,res}=await postaVerify(d,srv);
+  const att=(Array.isArray(m.attachments)?m.attachments:[]).filter(a=>a&&typeof a.name==="string").slice(0,10).map((a,i)=>({n:Number.isInteger(a.n)?a.n:i,name:a.name.slice(0,120),type:String(a.type||"").slice(0,80),size:+a.size||0}));
+  let auto=false;
+  await STORE.updateReg("richieste",J=>{const x=(J.rows||[]).find(y=>y.rif===rw.rif);if(!x||x.msgId===m.id||["inserita","presente","inserimento"].includes(x.stato))return null;
+    Object.assign(x,{msgId:String(m.id).slice(0,200),msgFrom:fm||String(m.from||"").slice(0,200),msgName:String(m.fromName||"").slice(0,120),msgDate:okIsoApp(m.date)?m.date:new Date().toISOString(),msgSubj:String(m.subject||"").slice(0,300),msgText:text.slice(0,6000),att:JSON.stringify(att),dati:JSON.stringify(d),esito:JSON.stringify(res),viesErr:vies&&vies.error?"1":"",viesName:vies&&vies.name||"",rxAt:new Date().toISOString(),stato:res.auto?"pronta":"controllo"});
+    auto=res.auto;return J;});
+  if(auto)await postaInsert(rw.rif,"auto");
+  else{const r=rdRow(rw.rif);if(r&&r.stato==="controllo")notify("È arrivata la risposta di «"+(d.name||rw.nome)+"» con i dati per la fattura: c'è qualcosa da controllare (tasto «E-mail»).");}
+}
+// i dati letti → colonne del foglio clienti (come il modulo «Nuovo cliente»)
+function rdVals(d){
+  const vals={A:{n:nextClientCode()}},has={};let tel=false;
+  const put=(c,k,v)=>{v=String(v||"").trim();if(!v)return;vals[c]=k==="cap"&&/^[1-9]\d{4}$/.test(v)?{n:Number(v)}:{t:v};};
+  for(const x of cliCols()){if(x.c==="A")continue;const k=cliKind(x.h);has[k]=true;
+    const v=k==="name"?d.name:k==="addr"?d.addr:k==="cap"?d.cap:k==="city"?String(d.city||"").toUpperCase():k==="prov"?String(d.prov||"").toUpperCase():k==="piva"?d.piva:k==="cf"?String(d.cf||"").toUpperCase():k==="pec"?d.pec:k==="mail"?d.mail:k==="sdi"?String(d.sdi||"").toUpperCase():k==="ref"?d.ref:k==="naz"?(d.naz&&d.naz!=="IT"?d.naz:""):k==="tel"&&!tel&&!/fax|refer/i.test(x.h)?(tel=true,d.tel):"";
+    if(v)put(x.c,k,v);}
+  if(!has.sdi&&d.sdi)vals._SDI={t:String(d.sdi).toUpperCase()};
+  if(!has.mail&&d.mail)vals._MAIL={t:d.mail};
+  if(!has.pec&&d.pec)vals._PEC={t:d.pec};
+  if(!has.naz&&d.naz&&d.naz!=="IT")vals._NAZ={t:d.naz};
+  return vals;
+}
+// prenotazioni scritte con lo stesso nome e senza codice: prendono il cliente dell'anagrafica
+function rdLinkBookings(nome,code,name){
+  if(S.readOnly)return 0;const k=norm(nome).trim();if(!k||!code)return 0;let n=0;
+  for(const date of Object.keys(S.days||{})){const doc=S.days[date];if(!doc||!doc.bookings)continue;
+    for(const id of Object.keys(doc.bookings)){const b=doc.bookings[id];if(!b||(b.clientCode!==""&&b.clientCode!=null)||norm(b.client).trim()!==k)continue;
+      const nb=Object.assign({},b,{client:name||b.client,clientCode:code,updatedAt:new Date().toISOString(),updBy:meName()});
+      try{writeDayOps(date,{bookings:{[id]:nb}},{edit:true,only:true,base:b.updatedAt||null,patch:["client","clientCode","updBy"]});n++;}catch(_){}}}
+  if(n){ACC.log("prenotazione","Collegat"+(n>1?"e "+n+" prenotazioni":"a una prenotazione")+" di «"+nome+"» al cliente «"+(name||nome)+"» (codice "+code+")");try{renderAll();}catch(_){}}
+  return n;
+}
+// inserimento nell'anagrafica: lo fa un solo dispositivo (la richiesta passa a «in inserimento» con una scrittura condizionata)
+async function postaInsert(rif,mode){
+  if(S.readOnly||isInvio()||!canEdit("clients")||!S.clients.length||!Object.keys(STORE.fatFiles()||{}).length)return false;
+  const me=ACC.device.id,now=new Date().toISOString();let row=null;
+  try{await STORE.updateReg("richieste",J=>{const x=(J.rows||[]).find(y=>y.rif===rif);if(!x||!(x.stato==="pronta"||(x.stato==="inserimento"&&rdStale(x))))return null;Object.assign(x,{stato:"inserimento",insDev:me,insAt:now});row=Object.assign({},x);return J;});}catch(_){return false;}
+  if(!row)return false;
+  const d=jParse(row.dati)||{},dp=cliDup(d.piva,d.cf);
+  if(dp){await rdSet(rif,{stato:"presente",code:dp.code,cliName:dp.name}).catch(()=>{});rdLinkBookings(row.nome,dp.code,dp.name);postaPaint();return false;}
+  const name=String(d.name||"").trim();if(!name){await rdSet(rif,{stato:"controllo"}).catch(()=>{});postaPaint();return false;}
+  const vals=rdVals(d),code=String(vals.A.n),tmp=STORE.addClient(vals,name);
+  ACC.log("cliente","Nuovo cliente «"+name+"» (codice Multi "+code+") dai dati mandati per e-mail"+(mode==="auto"?": controlli tutti a posto, inserito in automatico":""));
+  await rdSet(rif,{stato:"inserita",code,tmp:String(tmp||""),insBy:mode==="auto"?"automatico":meName(),cliName:name}).catch(()=>{});
+  rdLinkBookings(row.nome,code,name);
+  toast("Nuovo cliente «"+name+"» inserito nell'anagrafica (codice "+code+") dalla sua e-mail.");postaPaint();
+  return true;
+}
+async function postaRecheck(rif){
+  const r=rdRow(rif),srv=mailSrv();if(!r)return;const d=jParse(r.dati);if(!d)return;
+  const {vies,res}=await postaVerify(d,srv);let auto=false;
+  await STORE.updateReg("richieste",J=>{const x=(J.rows||[]).find(y=>y.rif===rif);if(!x||x.stato!=="controllo")return null;Object.assign(x,{esito:JSON.stringify(res),viesErr:vies&&vies.error?"1":"",viesName:vies&&vies.name||"",stato:res.auto?"pronta":"controllo"});auto=res.auto;return J;});
+  if(auto)await postaInsert(rif,"auto");postaPaint();
+}
+async function postaPoll(force){
+  const srv=mailSrv();if(!srv||!navigator.onLine||PST.busy||S.readOnly||isInvio()||$("app").hidden)return 0;
+  const R=rdRows(),open=R.filter(r=>["inviata","controllo","pronta"].includes(r.stato)||(r.stato==="inserimento"&&rdStale(r)));
+  if(!open.length)return 0;
+  if(!force&&Date.now()-PST.last<4*60e3)return 0;
+  PST.busy=true;PST.last=Date.now();let n=0;postaPaint();
+  try{
+    const dal=open.map(r=>String(r.at||"")).sort()[0]||"";let r,j;
+    try{r=await fetch(srv+"/api/mail/risposte?dal="+encodeURIComponent(dal),{cache:"no-store"});j=await r.json().catch(()=>null);}catch(e){throw {code:"rete"};}
+    if(!r.ok||!j||!j.ok||!Array.isArray(j.messages))throw {code:"server",detail:(j&&j.error)||("HTTP "+r.status)};
+    const msgs=j.messages.filter(m=>m&&typeof m.id==="string"&&typeof m.rif==="string").sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+    for(const m of msgs){const rw=rdRow(m.rif);if(!rw||rw.msgId===m.id||["inserita","presente","inserimento"].includes(rw.stato))continue;if(rw.msgDate&&String(m.date||"")<String(rw.msgDate))continue;
+      try{await postaTake(rw,m,srv);n++;}catch(e){ACC.tlog("errore","Risposta "+m.rif+" non letta",String((e&&(e.code||e.message))||e));}}
+    let k=0;for(const rw of rdRows())if(rw.stato==="controllo"&&rw.viesErr==="1"&&k++<3)await postaRecheck(rw.rif).catch(()=>{});
+    for(const rw of rdRows())if(rw.stato==="pronta"||(rw.stato==="inserimento"&&rdStale(rw)))await postaInsert(rw.rif,"auto").catch(()=>{});
+    PST.err="";PST.lastOk=new Date().toISOString();
+  }catch(e){PST.err=e&&e.code==="rete"?"Non raggiungo il server dell'ufficio (fuori dall'ufficio le risposte si leggono quando un computer dell'ufficio è acceso).":"Il server dell'ufficio non ha dato le risposte"+(e&&e.detail?" ("+e.detail+")":"")+".";ACC.tlog("errore","Risposte alle richieste dati non lette",String((e&&(e.detail||e.code))||e));}
+  finally{PST.busy=false;postaPaint();}
+  return n;
+}
+setInterval(()=>{postaPoll(false).catch(()=>{});},60e3);
+window.addEventListener("focus",()=>{setTimeout(()=>postaPoll(false).catch(()=>{}),1500);});
+
+// ----- tasto «E-mail» della pagina principale: le risposte ricevute -----
+const PO_SEEN="agenda-posta-visti";
+function poSeen(){try{const a=JSON.parse(localStorage.getItem(PO_SEEN)||"[]");return Array.isArray(a)?a:[];}catch(_){return [];}}
+function poSee(id){if(!id)return;try{const a=poSeen();if(!a.includes(id)){a.push(id);localStorage.setItem(PO_SEEN,JSON.stringify(a.slice(-300)));}}catch(_){}}
+const poRx=()=>rdRows().filter(r=>r.msgId).sort((a,b)=>String(b.rxAt||b.msgDate).localeCompare(String(a.rxAt||a.msgDate)));
+const poState=r=>r.stato==="inserimento"&&rdStale(r)?"controllo":r.stato;
+function postaPaint(){
+  const btn=$("vMail");if(!btn)return;btn.parentElement.hidden=isInvio();
+  const seen=poSeen(),rx=poRx(),n=rx.filter(r=>poState(r)==="controllo"||!seen.includes(r.msgId)).length;
+  $("vMailN").hidden=!n;$("vMailN").textContent=n>99?"99+":String(n);
+  btn.title="E-mail ricevute: le risposte dei clienti alle richieste dei dati di fatturazione"+(n?" ("+n+" da guardare)":"");
+  if(!$("ovPosta").hidden)renderPosta();
+}
+const PO_LBL={name:"Ragione sociale",piva:"Partita IVA",cf:"Codice fiscale",addr:"Indirizzo",cap:"CAP",city:"Comune",prov:"Provincia",naz:"Nazione",sdi:"Codice destinatario",pec:"PEC",mail:"E-mail",tel:"Telefono",ref:"Referente"};
+const poIco=s=>s==="ok"?'<span class="inb-ic ok" aria-label="a posto">✓</span>':s==="err"?'<span class="inb-ic err" aria-label="errore">✕</span>':'<span class="inb-ic warn" aria-label="da controllare">!</span>';
+function renderPosta(){
+  const rx=poRx(),srv=mailSrv(),wait=rdRows().filter(r=>r.stato==="inviata");
+  if(PST.sel&&!rx.some(r=>r.rif===PST.sel))PST.sel="";
+  if(!PST.sel&&rx.length&&matchMedia("(min-width:760px)").matches)PST.sel=rx[0].rif;
+  {const r0=rx.find(x=>x.rif===PST.sel);if(r0)poSee(r0.msgId);}
+  const seen=poSeen();
+  $("inbCheck").hidden=!srv;$("inbCheck").disabled=PST.busy;$("inbCheck").textContent=PST.busy?"Controllo…":"Controlla adesso";
+  $("ovPosta").classList.toggle("inb-one",!!PST.sel);
+  if(!rx.length){
+    $("inbList").innerHTML="";
+    $("inbView").innerHTML='<div class="inb-empty"><b>Nessuna e-mail ricevuta</b><p>'+(srv?"Qui arrivano le risposte dei clienti alle richieste dei dati di fatturazione (pulsante «Richiedi dati cliente» nella prenotazione).":"Il server postale dell'ufficio non è ancora collegato (Contabilità › E-mail). Quando lo sarà, qui arriveranno le risposte dei clienti alle richieste dei dati di fatturazione.")+'</p></div>';
+  }else{
+    $("inbList").innerHTML=rx.map(r=>{const st=poState(r),d=jParse(r.dati)||{},nw=!seen.includes(r.msgId);
+      return '<button type="button" class="inb-it'+(nw?" nw":"")+'" data-inb="'+esc(r.rif)+'" aria-current="'+(r.rif===PST.sel)+'"><span class="inb-it-h"><b>'+esc(r.msgName||d.name||r.nome)+'</b><time>'+esc(itD(String(r.msgDate||r.rxAt).slice(0,10)))+'</time></span><span class="inb-it-s">'+esc(r.msgSubj||"")+'</span><span class="inb-chip st-'+st+'">'+esc(RD_ST[st]||st)+(r.code&&(st==="inserita"||st==="presente")?" · Cod. "+esc(r.code):"")+'</span></button>';}).join("");
+    const r=rx.find(x=>x.rif===PST.sel);
+    $("inbView").innerHTML=r?poDetail(r):'<div class="inb-empty"><p>Scegli una e-mail dall\'elenco.</p></div>';
+  }
+  $("inbFoot").textContent=(PST.err?PST.err+" ":"")+(wait.length?"In attesa di risposta: "+wait.length+(wait.length===1?" richiesta":" richieste")+" ("+wait.slice(0,4).map(x=>x.nome).join(", ")+(wait.length>4?"…":"")+").":"");
+  const n=$("vMailN");const cnt=rx.filter(x=>poState(x)==="controllo"||!poSeen().includes(x.msgId)).length;n.hidden=!cnt;n.textContent=String(cnt);
+}
+function poDetail(r){
+  const st=poState(r),d=jParse(r.dati)||{},E=jParse(r.esito)||{checks:[]},att=jParse(r.att)||[],by={};
+  for(const c of E.checks||[])(by[c.f]=by[c.f]||[]).push(c);
+  const rank={err:0,warn:1,ok:2},top=["dup","naz"].flatMap(f=>by[f]||[]);
+  const row=f=>{const cs=(by[f]||[]).slice().sort((a,b)=>rank[a.s]-rank[b.s]),v=d[f]||"";if(!v&&!cs.length)return "";
+    return '<tr><th>'+esc(PO_LBL[f])+'</th><td><div class="inb-v">'+(v?esc(v):'<span class="inb-none">non scritto</span>')+'</div>'+cs.map(c=>'<div class="inb-ck '+c.s+'">'+poIco(c.s)+'<span>'+esc(c.t)+'</span></div>').join("")+'</td></tr>';};
+  const can=!S.readOnly&&canEdit("clients"),msgs={inserita:"Il cliente è nell'anagrafica"+(r.code?" con il codice "+r.code:"")+(r.insBy==="automatico"?": tutti i controlli erano a posto e l'agenda l'ha inserito da sola.":r.insBy?": inserito da "+r.insBy+".":"."),
+    presente:"Questo cliente era già nell'anagrafica"+(r.code?" (codice "+r.code+")":"")+": non è stato aggiunto di nuovo.",
+    controllo:"Qualcosa non torna: controlla i punti segnati, poi aggiungi il cliente correggendo i dati oppure chiedigli di nuovo i dati.",
+    pronta:"Controlli tutti a posto: il cliente sta entrando nell'anagrafica.",inserimento:"Il cliente sta entrando nell'anagrafica."};
+  const acts=st==="inserita"||st==="presente"?(r.code&&/^\d+$/.test(r.code)?'<button type="button" class="btn" data-inbact="cli" data-rif="'+esc(r.rif)+'">Apri la scheda del cliente</button>':""):
+    st==="controllo"?(can?'<button type="button" class="btn primary" data-inbact="fix" data-rif="'+esc(r.rif)+'">Correggi e aggiungi all\'anagrafica</button>':"")+(E.dup&&can?'<button type="button" class="btn" data-inbact="dup" data-rif="'+esc(r.rif)+'">È già in anagrafica: segna come fatto</button>':"")+
+      (r.viesErr==="1"?'<button type="button" class="btn" data-inbact="vies" data-rif="'+esc(r.rif)+'">Rifai la verifica online</button>':"")+(mailSrv()&&!S.readOnly?'<button type="button" class="btn" data-inbact="again" data-rif="'+esc(r.rif)+'">Chiedi di nuovo i dati</button>':""):"";
+  return '<button type="button" class="linkbtn inb-back" data-inbback="1">‹ Tutte le e-mail</button><div class="inb-h"><div class="inb-from"><b>'+esc(r.msgName||r.msgFrom)+'</b> '+(r.msgName?'<span>&lt;'+esc(r.msgFrom)+'&gt;</span>':"")+'</div><div class="inb-meta">'+esc(new Date(r.msgDate||r.rxAt).toLocaleString("it-IT",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}))+' · richiesta del '+esc(itD(String(r.at).slice(0,10)))+' per «'+esc(r.nome)+'»</div><div class="inb-subj">'+esc(r.msgSubj||"")+'</div></div>'+
+    '<div class="inb-st st-'+st+'"><b>'+esc(RD_ST[st]||st)+'</b> '+esc(msgs[st]||"")+(top.length?top.map(c=>'<div class="inb-ck '+c.s+'">'+poIco(c.s)+'<span>'+esc(c.t)+'</span></div>').join(""):"")+(acts?'<div class="inb-acts">'+acts+'</div>':"")+'</div>'+
+    '<h4 class="inb-h4">Dati letti dalla mail</h4><table class="inb-dati"><tbody>'+["name","piva","cf","addr","cap","city","prov","naz","sdi","pec","mail","tel","ref"].map(row).join("")+'</tbody></table>'+
+    (att.length?'<h4 class="inb-h4">Allegati</h4><div class="inb-att">'+att.map(a=>'<span class="ml-chip">'+esc(a.name)+(a.size?' <small>'+Math.max(1,Math.round(a.size/1024))+' KB</small>':"")+' <button type="button" class="btn sm" data-inbatt="'+esc(a.n)+'" data-rif="'+esc(r.rif)+'">Apri</button></span>').join("")+'</div>':"")+
+    '<h4 class="inb-h4">Testo della mail</h4><pre class="inb-text">'+esc(r.msgText||"")+'</pre>';
+}
+function openPosta(){if(!matchMedia("(min-width:760px)").matches)PST.sel="";$("ovPosta").hidden=false;renderPosta();postaPoll(true).catch(()=>{});setTimeout(()=>{const b=$("inbList").querySelector('[aria-current="true"]')||$("inbClose");b.focus();},30);}
+function closePosta(){$("ovPosta").hidden=true;postaPaint();}
+$("vMail").onclick=()=>openPosta();
+$("inbClose").onclick=()=>closePosta();
+$("inbCheck").onclick=()=>{PST.last=0;postaPoll(true).catch(()=>{});};
+backdropClose($("ovPosta"),()=>closePosta());
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("ovPosta").hidden&&$("ovMail").hidden&&$("ovClientNew").hidden&&$("ovClients").hidden){e.preventDefault();e.stopImmediatePropagation();if($("ovPosta").classList.contains("inb-one")&&!matchMedia("(min-width:760px)").matches){PST.sel="";renderPosta();return;}closePosta();}},true);
+$("inbList").addEventListener("click",e=>{const b=e.target.closest("[data-inb]");if(!b)return;PST.sel=b.dataset.inb;renderPosta();});
+$("inbView").addEventListener("click",async e=>{
+  if(e.target.closest("[data-inbback]")){PST.sel="";renderPosta();return;}
+  const a=e.target.closest("[data-inbact]"),t=e.target.closest("[data-inbatt]");
+  if(t){const srv=mailSrv(),r=rdRow(t.dataset.rif);if(!srv||!r){toast("Gli allegati si aprono dal server dell'ufficio, che ora non è collegato.");return;}
+    try{const res=await fetch(srv+"/api/mail/allegato?id="+encodeURIComponent(r.msgId)+"&n="+encodeURIComponent(t.dataset.inbatt));if(!res.ok)throw 0;window.open(URL.createObjectURL(await res.blob()),"_blank");}catch(_){toast("Non riesco ad aprire l'allegato: controlla di essere nella rete dell'ufficio.");}return;}
+  if(!a)return;const r=rdRow(a.dataset.rif);if(!r)return;const d=jParse(r.dati)||{};
+  if(a.dataset.inbact==="cli"){openClients(String(r.code));cliOpenCode=String(r.code);renderClients();return;}
+  if(a.dataset.inbact==="vies"){a.disabled=true;await postaRecheck(r.rif).catch(()=>{});return;}
+  if(a.dataset.inbact==="dup"){const E=jParse(r.esito)||{},dp=E.dup||cliDup(d.piva,d.cf);if(!dp)return;try{await rdSet(r.rif,{stato:"presente",code:String(dp.code),cliName:dp.name||""});rdLinkBookings(r.nome,String(dp.code),dp.name);}catch(err){handleErr(err);}postaPaint();return;}
+  if(a.dataset.inbact==="fix"){openClientNew({prefill:{vals:rdVals(d)},req:r.rif,fromBooking:false});return;}
+  if(a.dataset.inbact==="again"){const E=jParse(r.esito)||{checks:[]},bad=(E.checks||[]).filter(c=>c.s!=="ok"&&c.f!=="dup");
+    rdOpen({nome:r.nome,to:r.msgFrom||r.to,rif:r.rif,nota:"Grazie per la risposta. Nei dati che ci ha mandato qualcosa non torna:\n"+(bad.length?bad.map(c=>"- "+c.t).join("\n"):"- alcuni dati mancano o non sono leggibili")+"\nLe chiediamo di controllarli e di rimandarceli completi."});}
+});
 
 // ----- elenco delle bozze -----
 let invOnly=null; // elenco ristretto alle bozze di certi servizi
@@ -5346,7 +5808,7 @@ const REG_NOTE={referenti:"Si scelgono nel modulo della prenotazione (riga Refer
   parcheggi:"Si scelgono nel modulo della prenotazione, accanto a «€ Parcheggi» (anche più di uno). «In fattura» è come il parcheggio compare nella riga di rimborso della bozza fattura (es. A SIRACUSA, ALL'APT. DI CATANIA): se è vuoto si usa la città. «IVA della ricevuta» è l'aliquota di quella riga.",
   note:"Voci della casella «Causale» delle note per l'autista. Parcheggi, autista e 3 ore vanno nelle righe 1°, 2° e 3° del foglio di servizio; le altre nella 4° (extra).",
   ruolo:"Voci della casella «Ruolo» del referente.",
-  autisti:"Gli autisti delle caselle «1° autista» e «2° autista» del modulo, della pagina Autisti e del profilo di MAX. Scrivi cognome e nome per esteso (es. Rossi Mario), uguale al nome usato nell'app degli autisti. Togliendo un autista (×) sparisce dagli elenchi, ma i servizi già inseriti tengono il suo nome. Se cambi il nome scrivendoci sopra (es. «Cascone Saro» → «Cascone Rosario») i servizi già inseriti tengono quello vecchio, ma l'agenda sa che è la stessa persona: conta una volta sola e nella pagina Autisti ha una riga sola, con le crocette di prima e di adesso (fermando il mouse sul nome si vede quello di prima). Per una persona diversa non scrivere sopra: togli (×) e aggiungi con «+ Nuovo». «Autista generico» resta sempre.",
+  autisti:"Gli autisti delle caselle «1° autista» e «2° autista» del modulo, della pagina Autisti e del profilo di MAX. Scrivi cognome e nome per esteso (es. Rossi Mario), uguale al nome usato nell'app degli autisti. Togliendo un autista (×) sparisce dagli elenchi, ma i servizi già inseriti tengono il suo nome. Se cambi il nome scrivendoci sopra (es. «Rossi Mario» → «Rossi Mariano») i servizi già inseriti tengono quello vecchio, ma l'agenda sa che è la stessa persona: conta una volta sola e nella pagina Autisti ha una riga sola, con le crocette di prima e di adesso (fermando il mouse sul nome si vede quello di prima). Per una persona diversa non scrivere sopra: togli (×) e aggiungi con «+ Nuovo». «Autista generico» resta sempre.",
   spese:"Voci della casella «€ Extra» del modulo della prenotazione (accanto a «€ Pasti»). L'extra va nel file fatturato (colonne «€ varie / tipo varie») e nella bozza fattura, con la causale scritta qui."};
 const isTend=k=>k==="note"||k==="ruolo"||k==="spese";
 const regFile=k=>isTend(k)?"tendine":k;
@@ -5575,7 +6037,8 @@ $("tlTxt").onclick=()=>{
 // altrimenti al mezzo libero con i posti più vicini. Le prenotazioni restano legate al loro mezzo.
 let fleetMigrating=false;
 async function migrateFleet2026(){
-  if(fleetMigrating||!navigator.onLine||!ACC.session()||$("app").hidden)return;
+  return; // 4.0.5: passaggio del 30/09/2026 già fatto; spento perché nel codice ora ci sono solo targhe di prova
+  if(fleetMigrating||!navigator.onLine||!ACC.session()||$("app").hidden||!isMaster())return;
   const cur=STORE.fleet;
   if(!Array.isArray(cur)||!cur.length)return; // flotta mai modificata: valgono già i dati nuovi
   if((STORE.settings||{}).fleet2026||cur.some(v=>v.num!=null&&String(v.num)!==""))return;
@@ -6756,7 +7219,7 @@ function applyLook(l){
       t4.innerHTML='<div class="t4 t4a"><div class="t4l"></div><div class="t4r"></div></div><div class="t4 t4b"><div class="t4l"></div><div class="t4c"></div><div class="t4r"></div></div>';top.appendChild(t4);}
     const put=(box,...els)=>{for(const e of els)if(e)t4.querySelector(box).appendChild(e);};
     put(".t4a .t4l",top.querySelector(".logo"),top.querySelector(".brand"));
-    put(".t4a .t4r",$("btnInvio"),$("vBill").parentElement,$("vPasti").parentElement,$("btnMenu"),$("btnHelp"));
+    put(".t4a .t4r",$("btnInvio"),$("vMail").parentElement,$("vBill").parentElement,$("vPasti").parentElement,$("btnMenu"),$("btnHelp"));
     put(".t4b .t4l",top.querySelector(".monthbar"));
     put(".t4b .t4c",$("vDay").parentElement,$("btnToday"));
     put(".t4b .t4r",$("btnNew"));
@@ -6822,6 +7285,18 @@ const HOWTO=[
  {t:"Aggiornamento automatico dell'agenda",d:"Quando su GitHub arriva una versione nuova, l'agenda se ne accorge da sola (controlla ogni 2 minuti, quando torni sull'agenda e quando torna internet). Se stai lavorando non ti interrompe: compare un riquadro in basso a sinistra «Nuova versione …». Se nessuno la usa da qualche minuto si aggiorna da sola, con il conto alla rovescia.",k:"aggiornamento automatico nuova versione riquadro basso sinistra scarica barra github riavvio finestra pop-up più tardi",v:"4.0.4",go:null,
   s:["Premi il riquadro «Nuova versione …» in basso a sinistra: si ingrandisce a tutto schermo.","Premi «Scarica l'aggiornamento»: la barra mostra quanto manca; poi l'agenda si riapre da sola.","Se hai una prenotazione o un'altra finestra di modifica aperta: premi «Più tardi», salva o chiudi la finestra, poi premi di nuovo il riquadro.","Se su GitHub manca ancora qualche file, l'agenda lo dice e riprova da sola ogni 30 secondi."],
   n:"I dati non si toccano: restano su Dropbox. Dopo il riavvio compare «Agenda aggiornata alla versione …»."},
+ {t:"Mandare la fattura per e-mail al cliente",d:"Da una fattura emessa (file XML creato) il pulsante «E-mail» prepara la mail per il cliente con la copia di cortesia in PDF e il file XML. L'invio parte dal server dell'ufficio: finché non è collegato (fase 2) l'anteprima si prepara già, ma «Invia» resta spento.",k:"email e-mail mail fattura cliente copia di cortesia pdf xml invia inviata per e-mail testo oggetto firma server postale",v:"4.0.6",go:{view:"bill"},
+  s:["Apri la fattura emessa (Fatturato › Bozze fatture) e premi «E-mail».","Controlla l'indirizzo del cliente: viene dalla colonna «E-mail» del foglio clienti; se non c'è, scrivilo (si salva nella scheda del cliente).","Controlla oggetto e testo. Se li cambi, con «Ricorda oggetto e testo per …» spuntato restano per quel cliente: le prossime fatture partono da lì (con numero, data e totale nuovi). «Testo predefinito» rimette quello di serie.","Con «Apri» vedi il PDF di cortesia, con «Scarica» il file XML.","Premi «Invia» (quando il server dell'ufficio sarà collegato): la fattura viene segnata «Inviata per e-mail»."],
+  n:"Il testo predefinito, la firma e il nome del mittente si cambiano in Contabilità › E-mail; lì vedi anche i clienti con un testo loro."},
+ {t:"Chiedere i dati di fatturazione a un cliente nuovo",d:"Se il cliente della prenotazione non è nell'anagrafica, in alto nella prenotazione si accende «Richiedi dati cliente»: prepara la mail con le righe da compilare. Quando il cliente risponde, i dati vengono controllati (partita IVA e codice fiscale con la cifra di controllo e la verifica online, codice destinatario, PEC, CAP e provincia, doppioni): se è tutto a posto il cliente entra da solo nell'anagrafica.",k:"richiesta dati cliente nuovo anagrafica fatturazione partita iva codice fiscale pec sdi codice destinatario email e-mail mail richiedi controlli vies",v:"4.0.6",go:{hl:"#btnNew"},
+  s:["Apri la prenotazione (o «+ Nuova prenotazione») e scrivi il nome del cliente nel campo «Cliente».","Se il cliente non è nell'anagrafica, in alto si accende «Richiedi dati cliente»: premilo.","Scrivi l'indirizzo e-mail del cliente; se vuoi cambia il testo (le righe da compilare devono restare).","Premi «Invia» (quando il server dell'ufficio sarà collegato).","Quando il cliente risponde: se i controlli sono tutti a posto il cliente entra nell'anagrafica con il primo codice Multi libero e la prenotazione prende il suo codice; se qualcosa non torna la risposta resta da controllare nel tasto «E-mail»."],
+  n:"Il testo della richiesta si cambia in Contabilità › E-mail. L'invio e la lettura delle risposte passano dal server dell'ufficio (fase 2)."},
+ {t:"Guardare le e-mail ricevute dai clienti",d:"Il tasto fucsia «E-mail», a sinistra di «Fatturato», mostra le risposte dei clienti alle richieste dei dati di fatturazione, con i dati letti e i controlli.",k:"email e-mail ricevute posta risposte clienti dati controlli anagrafica tasto fucsia inbox arrivate",v:"4.0.6",go:{hl:"#vMail"},
+  s:["Premi «E-mail» in alto: il numero sul tasto dice quante risposte sono nuove o da controllare.","Scegli una e-mail: vedi i dati letti con i controlli (✓ a posto, ! da controllare, ✕ sbagliato) e il testo della mail.","«Da controllare»: «Correggi e aggiungi all'anagrafica» apre il modulo del cliente già compilato; «Chiedi di nuovo i dati» prepara una nuova richiesta con l'elenco di quello che non torna.","«In anagrafica»: «Apri la scheda del cliente» mostra il cliente inserito."],
+  n:"Si vedono solo le risposte alle richieste dei dati di fatturazione, non tutta la posta."},
+ {t:"Due computer cambiano la stessa prenotazione",d:"Se mentre hai aperta una prenotazione un altro computer la salva cambiando lo stesso campo (per esempio il prezzo), quando salvi tu resta il suo valore e compare un avviso con i due valori. Le modifiche a campi diversi si uniscono da sole.",k:"conflitto due computer stessa prenotazione prezzo sovrascrive avviso valori suo tuo unite modifiche",v:"4.0.5",go:null,
+  s:["Leggi l'avviso in alto: per ogni campo c'è il valore dell'altro computer («suo») e il tuo («tuo»).","Se è giusto il tuo: riapri la prenotazione, correggi il campo e premi «Salva».","Se è giusto il suo: non devi fare niente."],
+  n:"Così due persone che lavorano sulla stessa prenotazione non si cancellano più le modifiche a vicenda senza accorgersene."},
  {t:"Sessione scaduta con un modulo aperto",d:"Dopo il tempo dell'uscita automatica (di serie 30 minuti) senza toccare niente, se hai una prenotazione o una bozza di fattura aperta e modificata compare «Sessione scaduta»: il modulo resta com'era.",k:"sessione scaduta uscita automatica inattività password blocco modulo aperto 30 minuti",v:"4.0.4",go:null,
   s:["Scrivi la tua password nel riquadro «Sessione scaduta».","Premi «Continua»: ritrovi il modulo come l'avevi lasciato.","Se non sei tu: premi «Esci senza salvare» (le modifiche non salvate si perdono)."],
   n:"Il tempo dell'uscita automatica lo sceglie il Master in Impostazioni › Generali; ognuno può sceglierne uno più corto nelle sue impostazioni."},
@@ -7649,7 +8124,7 @@ $("gHidForm").addEventListener("submit",async e=>{
   try{
     // stessa risposta se è sbagliato il nome o la password
     const ok=!!ent&&ent[1].active!==false&&norm(ent[1].name)===norm(name)&&await ACC.checkPw(ent[1],pw);
-    if(ok){ACC.failReset();ACC.login(ent[1],ent[0],STORE.users);rehashMine(ent[0],pw);$("ghPw").value="";ACC.log("accesso","Accesso");enterApp();}
+    if(ok){ACC.failReset();ACC.login(ent[1],ent[0],STORE.users);rehashMine(ent[0],pw);autUnlockLater(pw);$("ghPw").value="";ACC.log("accesso","Accesso");enterApp();}
     else{ACC.failAdd();ACC.log("accesso","Accesso riservato: nome o password errati",{bad:1,hid:1},"");ACC.flushLog();const w2=ACC.failWait();msg.textContent=w2?"Troppi tentativi sbagliati: riprova tra "+w2+" secondi.":"Nome o password errati.";$("ghPw").select();}
   }finally{btn.disabled=false;}
 });
@@ -7738,12 +8213,16 @@ function renderAut(){
   const sel=$("phDriver"),cur=sel.value;
   sel.innerHTML='<option value="">Scegli l\'autista…</option>'+drivers().map(d=>'<option'+(d[0]===cur?" selected":"")+'>'+esc(d[0])+'</option>').join("");
   const ph=Object.entries((a&&a.phones)||{}).sort((x,y)=>x[1].driver.localeCompare(y[1].driver,"it")||(x[1].created<y[1].created?-1:1));
-  $("phList").innerHTML=ph.map(([pid,f])=>{
+  $("phList").innerHTML=autLockBox()+ph.map(([pid,f])=>{
     const s=phoneState(pid,f);
     return '<div class="ph-row"><div><b>'+esc(f.driver)+'</b></div><div>'+esc(f.label||"Telefono")+'<small>'+(f.created?"creato "+esc(fmtTime(f.created)):"")+(f.by?" da "+esc(f.by):"")+'</small></div>'+
       '<div><span class="pill '+s.k+'">'+esc(s.t)+'</span><small>'+esc(s.s)+'</small></div>'+
       '<div class="row-act">'+(f.blocked?'<button type="button" class="btn" data-phdel="'+esc(pid)+'">Togli dall\'elenco</button>':(s.k===""?'<button type="button" class="btn" data-phqr="'+esc(pid)+'">Mostra QR e link</button>':'')+'<button type="button" class="btn danger" data-phblock="'+esc(pid)+'">Blocca</button>')+'</div></div>';
   }).join("")||'<div class="lg-empty">Nessun telefono collegato.</div>';
+  if($("autPwGo"))$("autPwGo").onclick=async()=>{const pw=$("autPw").value;if(!pw)return;mstMsg("Controllo…");const ok=await autUnlock(pw).catch(()=>false);mstMsg(ok?"Chiavi dei telefoni sbloccate in questa scheda.":"Password sbagliata.",!ok);if(ok){autKeyBad=false;renderAut();revqRun();}};
+  if($("autPw"))$("autPw").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("autPwGo").click();}});
+  if($("autReset"))$("autReset").onclick=async()=>{if(!confirm("Azzerare la protezione delle chiavi dei telefoni? Le chiavi protette con la password di prima si perdono: i telefoni continuano a funzionare, ma per mostrare il QR o bloccarli vanno collegati di nuovo."))return;
+    try{await STORE.updateAut(J=>{delete J.ks;for(const x of Object.values(J.phones||{}))delete x.enc;if(J.revq){J.revq=J.revq.filter(x=>x.refresh);if(!J.revq.length)delete J.revq;}return J;});autKeyBad=false;ACC.log("dispositivi","Azzerata la protezione delle chiavi dei telefoni (password del Super Master cambiata con il codice di recupero)");renderAut();}catch(_){mstMsg("Non riesco a salvare. Riprova.",true);}};
 }
 $("autLink").onclick=async()=>{
   if(!isSuper())return;
@@ -7773,9 +8252,63 @@ $("phAdd").onclick=async()=>{
   mstMsg("Apro Dropbox…");
   try{await AUT.startLink(a.key,{t:"phone",driver,label});}catch(_){mstMsg("Non riesco ad aprire Dropbox. Riprova.",true);}
 };
-function showQr(pid){
-  const a=STORE.aut,f=a&&a.phones&&a.phones[pid];if(!f||!f.refresh||f.blocked||!isSuper())return;
-  const link=AUT.phoneLink(a.appUrl,a.key,f.refresh,f.driver,pid);
+// ---------- 4.0.5: chiavi Dropbox dei telefoni cifrate con la password del Super Master ----------
+// In config/autisti.json la chiave di ogni telefono è cifrata (AES-GCM) con una chiave ricavata dalla password del
+// Super Master (PBKDF2, sale in autisti.json › ks): gli altri computer collegati a Dropbox non la possono usare.
+// La chiave ricavata resta solo in questa scheda (sessionStorage, si cancella chiudendola, uscendo o bloccando).
+// all'accesso del Super Master: appena l'elenco dei telefoni è caricato si ricava la chiave (e si cifrano quelle in chiaro)
+function autUnlockLater(pw){let n=0;const t=setInterval(()=>{n++;if(STORE.aut||n>40){clearInterval(t);if(STORE.aut&&isSuper())autUnlock(pw).then(()=>{if(!$("ovMaster").hidden||!$("ovSet").hidden)try{renderAut();}catch(_){}}).catch(()=>{});}},500);}
+const AUTK_SS="agenda-autk";let autKey=null,autKeyBad=false;
+const b64e=u=>{let s="";u=new Uint8Array(u);for(let i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);return btoa(s);};
+const b64d=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+const hexd=h=>Uint8Array.from(h.match(/../g).map(x=>parseInt(x,16)));
+async function autDerive(pw,ks){const base=await crypto.subtle.importKey("raw",new TextEncoder().encode(pw),"PBKDF2",false,["deriveBits"]);return new Uint8Array(await crypto.subtle.deriveBits({name:"PBKDF2",salt:hexd(ks.salt),iterations:ks.iter,hash:"SHA-256"},base,256));}
+const autImport=raw=>crypto.subtle.importKey("raw",raw,"AES-GCM",false,["encrypt","decrypt"]);
+async function autEnc(t,key){const iv=crypto.getRandomValues(new Uint8Array(12)),ct=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},key||autKey,new TextEncoder().encode(t)));const o=new Uint8Array(12+ct.length);o.set(iv);o.set(ct,12);return "v1:"+b64e(o);}
+async function autDec(s,key){const u=b64d(String(s).slice(3));return new TextDecoder().decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:u.slice(0,12)},key||autKey,u.slice(12)));}
+async function autCheck(key,ks){try{return (await autDec(ks.chk,key))==="ok";}catch(_){return false;}}
+// con la password (all'accesso del Super Master o dal riquadro «Sblocca»): ricava la chiave e cifra le chiavi in chiaro
+async function autUnlock(pw){
+  if(!isSuper()||!STORE.aut)return false;let a=STORE.aut,ks=a.ks;
+  if(!ks){ks={salt:[...crypto.getRandomValues(new Uint8Array(16))].map(x=>x.toString(16).padStart(2,"0")).join(""),iter:310000};const raw=await autDerive(pw,ks),key=await autImport(raw);ks.chk=await autEnc("ok",key);
+    await STORE.updateAut(J=>{if(J.ks)return null;J.ks=ks;return J;});a=STORE.aut;if(a.ks&&a.ks.salt!==ks.salt){ks=a.ks;}}
+  const raw=await autDerive(pw,ks),key=await autImport(raw);
+  if(!(await autCheck(key,ks))){autKeyBad=true;return false;}
+  autKey=key;autKeyBad=false;try{sessionStorage.setItem(AUTK_SS,b64e(raw));}catch(_){}
+  await autProtect();return true;
+}
+async function autKeyRestore(){if(autKey||!STORE.aut||!STORE.aut.ks)return !!autKey;let s="";try{s=sessionStorage.getItem(AUTK_SS)||"";}catch(_){}if(!s)return false;try{const k=await autImport(b64d(s));if(await autCheck(k,STORE.aut.ks)){autKey=k;return true;}}catch(_){}return false;}
+// chiavi ancora in chiaro (telefoni collegati prima della 4.0.5, revoche in sospeso): si cifrano
+async function autProtect(){
+  const a=STORE.aut;if(!autKey||!a)return;
+  const ph=Object.entries(a.phones||{}).filter(([,f])=>f.refresh&&!f.blocked),rq=(a.revq||[]).filter(x=>x.refresh);if(!ph.length&&!rq.length)return;
+  const encP={},encQ={};for(const [pid,f] of ph)encP[pid]=await autEnc(f.refresh);for(const x of rq)encQ[x.refresh]=await autEnc(x.refresh);
+  try{await STORE.updateAut(J=>{let ch=false;for(const pid in encP){const x=J.phones[pid];if(x&&x.refresh){x.enc=encP[pid];x.refresh="";ch=true;}}for(const x of J.revq||[])if(x.refresh&&encQ[x.refresh]){x.enc=encQ[x.refresh];x.refresh="";ch=true;}return ch?J:null;});
+    ACC.log("dispositivi","Protette con la password del Super Master le chiavi dei telefoni degli autisti ("+ph.length+")");}catch(_){}
+}
+// la chiave Dropbox di un telefono (null = serve la password del Super Master)
+const phoneTokNew={};
+async function phoneTok(f){if(!f)return "";if(f.refresh)return f.refresh;if(!f.enc)return "";if(!(await autKeyRestore()))return null;try{return await autDec(f.enc);}catch(_){return null;}}
+// Super Master che cambia la password (conoscendo quella di prima): le chiavi si cifrano di nuovo con quella nuova
+async function autRekey(pw){
+  const a=STORE.aut;if(!a||!a.ks||!(await autKeyRestore()))return;
+  const ks={salt:[...crypto.getRandomValues(new Uint8Array(16))].map(x=>x.toString(16).padStart(2,"0")).join(""),iter:310000},raw=await autDerive(pw,ks),key=await autImport(raw);ks.chk=await autEnc("ok",key);
+  const plainP={},plainQ=[];for(const [pid,f] of Object.entries(a.phones||{}))if(f.enc){try{plainP[pid]=await autDec(f.enc);}catch(_){}}for(const x of a.revq||[])if(x.enc){try{plainQ.push([x.enc,await autDec(x.enc)]);}catch(_){}}
+  const encP={};for(const pid in plainP)encP[pid]=await autEnc(plainP[pid],key);const encQ={};for(const [o,p] of plainQ)encQ[o]=await autEnc(p,key);
+  await STORE.updateAut(J=>{J.ks=ks;for(const pid in encP)if(J.phones[pid])J.phones[pid].enc=encP[pid];for(const x of J.revq||[])if(encQ[x.enc])x.enc=encQ[x.enc];return J;});
+  autKey=key;try{sessionStorage.setItem(AUTK_SS,b64e(raw));}catch(_){}
+}
+function autLockBox(){
+  const a=STORE.aut;if(!isSuper()||!a)return "";
+  const enc=Object.values(a.phones||{}).some(f=>f.enc&&!f.blocked)||(a.revq||[]).some(x=>x.enc);
+  if(autKeyBad)return '<div class="aut-lock warn">Le chiavi dei telefoni sono protette con una password di prima del Super Master (cambiata con il codice di recupero): non si possono più leggere. I telefoni continuano a funzionare; per mostrare di nuovo il QR o bloccarne uno, collegalo di nuovo. <button type="button" class="btn" id="autReset">Azzera la protezione</button></div>';
+  if(enc&&!autKey)return '<div class="aut-lock">Le chiavi dei telefoni sono protette con la tua password. Per mostrare un QR o bloccare un telefono scrivila qui: <input type="password" id="autPw" autocomplete="current-password" aria-label="Password del Super Master"> <button type="button" class="btn" id="autPwGo">Sblocca</button></div>';
+  return "";
+}
+async function showQr(pid){
+  const a=STORE.aut,f=a&&a.phones&&a.phones[pid];if(!f||!(f.refresh||f.enc)||f.blocked||!isSuper())return;
+  const tok=phoneTokNew[pid]||await phoneTok(f);if(!tok){mstMsg("Per mostrare il QR scrivi la tua password nel riquadro «Sblocca» qui sopra.",true);renderAut();return;}
+  const link=AUT.phoneLink(a.appUrl,a.key,tok,f.driver,pid);
   $("qrTitle").textContent="Collega il telefono di "+f.driver;
   $("qrInfo").textContent=(f.label||"Telefono")+" · app degli autisti: "+a.appUrl;
   $("qrBox").innerHTML=AUT.qrSvg(link);$("qrLink").value=link;$("qrMsg").textContent="";
@@ -7796,8 +8329,9 @@ $("phList").addEventListener("click",async e=>{
       if(!confirm("Bloccare «"+(f.label||"Telefono")+"» di "+f.driver+"?\nIl telefono viene scollegato da Dropbox e non vede più i fogli. Gli altri telefoni restano collegati."))return;
       if(!navigator.onLine){mstMsg("Serve la connessione a internet.",true);return;}
       mstMsg("Blocco il telefono…");
-      await AUT.revoke(f.refresh,a.key);
-      await STORE.updateAut(J=>{const x=J.phones[pid];if(!x)return null;x.blocked={at:new Date().toISOString(),by:suName()};x.refresh="";return J;});
+      const tok=await phoneTok(f);if(tok===null){mstMsg("Per bloccare il telefono scrivi prima la tua password nel riquadro «Sblocca».",true);return;}
+      await AUT.revoke(tok,a.key);
+      await STORE.updateAut(J=>{const x=J.phones[pid];if(!x)return null;x.blocked={at:new Date().toISOString(),by:suName()};x.refresh="";delete x.enc;return J;});
       ACC.log("dispositivi","Bloccato il telefono «"+(f.label||"")+"» dell'autista «"+f.driver+"»");mstMsg("Telefono bloccato: è stato scollegato da Dropbox.");
     }else if(dl){
       await STORE.updateAut(J=>{if(!J.phones[pid])return null;delete J.phones[pid];return J;});mstMsg("");
@@ -7810,8 +8344,8 @@ let revqBusy=false;
 async function revqRun(){
   const a=STORE.aut;if(revqBusy||!isSuper()||!a||!(a.revq||[]).length||!navigator.onLine)return;
   revqBusy=true;const done=[];
-  try{for(const x of a.revq){try{await AUT.revoke(x.refresh,x.key);done.push(x.refresh);}catch(e){ACC.tlog("avviso","Revoca di un collegamento Dropbox degli autisti non ancora riuscita: riprovo più tardi",(x.what||"")+" "+String((e&&(e.code||e.summary))||e).slice(0,80));}}
-    if(done.length)await STORE.updateAut(J=>{if(!J.revq)return null;J.revq=J.revq.filter(x=>!done.includes(x.refresh));if(!J.revq.length)delete J.revq;return J;});
+  try{for(const x of a.revq){try{const t=await phoneTok(x);if(t===null)continue;await AUT.revoke(t,x.key);done.push(x.refresh||x.enc);}catch(e){ACC.tlog("avviso","Revoca di un collegamento Dropbox degli autisti non ancora riuscita: riprovo più tardi",(x.what||"")+" "+String((e&&(e.code||e.summary))||e).slice(0,80));}}
+    if(done.length)await STORE.updateAut(J=>{if(!J.revq)return null;J.revq=J.revq.filter(x=>!done.includes(x.refresh||x.enc));if(!J.revq.length)delete J.revq;return J;});
   }catch(_){}finally{revqBusy=false;}
 }
 // ritorno da Dropbox dopo l'autorizzazione: si completa il collegamento della cartella o del telefono
@@ -7827,7 +8361,9 @@ async function autAfterRedirect(){
     if(p.t==="phone"&&p.driver){
       if(!STORE.aut||STORE.aut.key!==r.key)throw {code:"otherapp"};
       const pid=AUT.newPhoneId();
-      await STORE.updateAut(J=>{J.phones[pid]={driver:String(p.driver),label:String(p.label||""),refresh:r.tok.refresh,created:new Date().toISOString(),by:suName(),blocked:null};return J;});
+      const encT=(await autKeyRestore())?await autEnc(r.tok.refresh):""; // 4.0.5: cifrata con la password del Super Master
+      await STORE.updateAut(J=>{J.phones[pid]=Object.assign({driver:String(p.driver),label:String(p.label||""),refresh:encT?"":r.tok.refresh,created:new Date().toISOString(),by:suName(),blocked:null},encT?{enc:encT}:{});return J;});
+      phoneTokNew[pid]=r.tok.refresh; // per il QR subito, anche se la chiave non c'è
       saved=true;
       ACC.log("dispositivi","Preparato il collegamento di un telefono per l'autista «"+p.driver+"»"+(p.label?" ("+p.label+")":""));
       renderAut();mstMsg("Collegamento pronto: fai inquadrare il codice QR al telefono di "+p.driver+".");
@@ -7840,7 +8376,7 @@ async function autAfterRedirect(){
       await AUT.prepare(r.tok.refresh,r.key,probe);
       // 4.0.4: i collegamenti di prima vanno nella lista delle revoche e ne escono solo quando Dropbox conferma
       await STORE.updateAut(J=>{const now=new Date().toISOString(),q=J.revq||[];
-        if(J.key&&J.key!==r.key){for(const f of Object.values(J.phones||{}))if(f.refresh)q.push({refresh:f.refresh,key:J.key,at:now,what:"telefono di "+f.driver});J.phones={};}
+        if(J.key&&J.key!==r.key){for(const f of Object.values(J.phones||{}))if(f.refresh||f.enc)q.push(Object.assign({refresh:f.refresh||"",key:J.key,at:now,what:"telefono di "+f.driver},f.enc?{enc:f.enc}:{}));J.phones={};}
         if(J.office&&J.office.refresh&&J.office.refresh!==r.tok.refresh&&J.key)q.push({refresh:J.office.refresh,key:J.key,at:now,what:"collegamento dell'ufficio di prima"});
         if(q.length)J.revq=q;J.key=r.key;J.office={refresh:r.tok.refresh,at:now,by:suName()};return J;});
       saved=true;
@@ -7916,7 +8452,7 @@ function takeWindow(steal){
 // Scaricamento con la barra, controllo che su GitHub siano arrivati tutti i file, ultime modifiche salvate su Dropbox,
 // poi l'agenda si riapre da sola.
 const UPD={st:"",remote:"",tries:0,tk:null,files:[],i:0,bytes:0,cur:"",act:Date.now(),auto:false};
-const UPD_EDIT=["ovBooking","ovInv","ovXbus","ovRiposo","ovPasto","ovCapo","ovClientNew","ovPostit","ovBusta","ovSpese","ovVeh","ovSheet"];
+const UPD_EDIT=["ovBooking","ovInv","ovMail","ovXbus","ovRiposo","ovPasto","ovCapo","ovClientNew","ovPostit","ovBusta","ovSpese","ovVeh","ovSheet"];
 const UPD_FILES_DEF=["./index.html","./skin40.css","./app.js","./config.js","./dropbox.js","./store.js","./accessi.js","./autisti.js","./fatturato.js","./fatture.js",
   "./vendor/jszip.min.js","./vendor/pdf-lib.min.js","./vendor/font-pdf.js","./vendor/qrcode.js","./logo.jpg","./manifest.webmanifest",
   "./icons/icon-192.png","./icons/icon-512.png","./icons/apple-touch-icon.png","./icons/favicon-64.png"];

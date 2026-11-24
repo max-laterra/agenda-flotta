@@ -3,7 +3,7 @@
    Tutte le regole valgono SOLO con <html data-look="nuovo">: con l'aspetto «Classico» l'agenda resta identica alla 3.0.
    Sul Mac e sull'iPhone il carattere è quello di Apple (San Francisco); altrove Inter / quello di sistema.
    ===================================================================================== */
-:root{--skin40:"4.0.4"} /* l'app controlla che questo file sia arrivato (stessa versione degli altri) */
+:root{--skin40:"4.0.6"} /* l'app controlla che questo file sia arrivato (stessa versione degli altri) */
 html[data-look="nuovo"]{
   --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F4F4F7; --ink:#1D1D1F; --ink-2:#4A4A4F; --ink-3:#8E8E93;
   --line:#E3E3E8; --accent:#C8102E; --accent-ink:#FFFFFF; --accent-soft:#FCE8EB;
@@ -755,3 +755,123 @@ html[data-theme="dark"] .upd-card{--u-bg:#2A2A2D;--u-ink:#F5F5F7;--u-ink2:#C7C7C
 .idle-card input{width:100%;font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line,#c8c8cc);border-radius:10px;background:transparent;color:inherit;box-sizing:border-box}
 .idle-msg{min-height:1.3em;color:var(--red,#c62828);font-size:14px;margin:8px 0 0!important}
 .idle-act{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px}
+/* 4.0.5: chiavi dei telefoni protette con la password del Super Master */
+.aut-lock{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px;padding:10px 12px;border-radius:10px;background:var(--soft,#f2f2f7);font-size:14px;line-height:1.4}
+.aut-lock input{font:inherit;font-size:15px;padding:6px 10px;border:1px solid var(--line,#c8c8cc);border-radius:8px;background:transparent;color:inherit;min-width:180px}
+.aut-lock.warn{background:#fff4e5;color:#5c3b00}
+/* 4.0.6: e-mail al cliente (copia di cortesia) */
+#ovMail{z-index:70} /* sopra la finestra della fattura */
+#contTabs{flex-wrap:wrap;max-width:100%;height:auto} /* 4.0.6: con la scheda «E-mail» nelle finestre strette va a capo */
+#mlSend:disabled{opacity:.42;cursor:not-allowed;filter:saturate(.4)}
+.mail-modal{width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;display:flex;flex-direction:column;gap:10px}
+.ml-grid{display:grid;grid-template-columns:70px 1fr;gap:8px 10px;align-items:center}
+.ml-grid>label,.ml-grid .ml-l{font-weight:600;color:var(--mute,#6e6e73)}
+.ml-grid input[type=email],.ml-grid input#mlSubj{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:8px 10px;border:1px solid var(--line,#c8c8cc);border-radius:9px;background:transparent;color:inherit}
+.ml-from{color:var(--mute,#6e6e73);font-size:14px}
+.ml-save{display:flex;align-items:center;gap:6px;margin-top:5px;font-size:13px;font-weight:400;color:inherit}
+#mlBody{width:100%;box-sizing:border-box;min-height:260px;font:inherit;font-size:14.5px;line-height:1.5;padding:10px 12px;border:1px solid var(--line,#c8c8cc);border-radius:10px;background:transparent;color:inherit;resize:vertical}
+.ml-att{display:flex;flex-wrap:wrap;gap:8px}
+.ml-chip{display:inline-flex;align-items:center;gap:8px;padding:6px 8px 6px 10px;border:1px solid var(--line,#c8c8cc);border-radius:10px;font-size:13px;max-width:100%}
+.ml-chip b{font-size:11px;letter-spacing:.02em;padding:2px 6px;border-radius:5px;background:var(--soft,#f2f2f7)}
+.ml-chip .btn.sm,.btn.sm{padding:3px 10px;font-size:13px}
+.ml-msg{min-height:1.3em;margin:0;font-size:14px;color:var(--mute,#6e6e73)}
+.ml-msg.ok{color:var(--ok,#1f7a45)}.ml-msg.err{color:var(--red,#c62828)}
+.il-mail{margin:6px 0 0;font-size:13.5px}
+@media (max-width:640px){.ml-grid{grid-template-columns:1fr}.ml-grid>label,.ml-grid .ml-l{margin-bottom:-4px}}
+/* 4.0.6 — richiesta dati al cliente nuovo (prenotazione), testo ricordato per cliente, tasto «E-mail» con le risposte.
+   Il fucsia è quello dello stato «Stampabile» (#D81B8C), per tutti e due gli aspetti. */
+:root{--ic-mail:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round' stroke-linecap='round'%3E%3Crect x='1.8' y='3.3' width='12.4' height='9.4' rx='1.6'/%3E%3Cpath d='M2.4 4.4 8 8.7l5.6-4.3'/%3E%3C/svg%3E")}
+.f-head{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap}
+.f-head h3{margin-right:auto}
+.rd-btn{display:inline-flex;align-items:center;gap:7px;border:1px solid #D81B8C;color:#9C0F63;background:transparent;border-radius:9px;font-weight:600}
+.rd-btn::before{content:"";width:15px;height:15px;flex:none;background:currentColor;-webkit-mask:var(--ic-mail) center/contain no-repeat;mask:var(--ic-mail) center/contain no-repeat}
+.rd-btn:not(:disabled):hover{background:#FCE4F2}
+.rd-btn:disabled{opacity:.5;cursor:not-allowed;border-color:var(--line,#c8c8cc);color:var(--ink-3,#8e8e93)}
+html[data-theme="dark"] .rd-btn:not(:disabled){color:#FF9ED2}html[data-theme="dark"] .rd-btn:not(:disabled):hover{background:#4A1236}
+@media (prefers-color-scheme:dark){html:not([data-theme="light"]) .rd-btn:not(:disabled){color:#FF9ED2}html:not([data-theme="light"]) .rd-btn:not(:disabled):hover{background:#4A1236}}
+.seg.solo #vMail,html[data-look="nuovo"] #vMail{background:#D81B8C;color:#fff;display:inline-flex;align-items:center;gap:7px;border-radius:9px}
+.seg.solo #vMail:hover,html[data-look="nuovo"] #vMail:hover{background:#C2187D}
+.seg.solo #vMail:focus-visible{outline:2px solid #D81B8C;outline-offset:2px}
+html[data-look="nuovo"] #vMail::before{content:"";width:15px;height:15px;flex:none;background:currentColor;-webkit-mask:var(--ic-mail) center/contain no-repeat;mask:var(--ic-mail) center/contain no-repeat}
+.vm-n{display:inline-block;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#fff;color:#B8156F;font-size:11.5px;font-weight:700;line-height:18px;text-align:center;box-sizing:border-box}
+.vm-n[hidden]{display:none}
+html.tel-compact[data-look="nuovo"] #vMail{font-size:0;gap:0;width:42px;height:36px;padding:0;justify-content:center;position:relative}
+html.tel-compact[data-look="nuovo"] #vMail::before{width:18px;height:18px}
+html.tel-compact[data-look="nuovo"] #vMail .vm-n{position:absolute;top:-6px;right:-6px;font-size:10.5px;min-width:17px;height:17px;line-height:17px;box-shadow:0 0 0 2px #D81B8C}
+/* anteprima della mail: «Ricorda per questo cliente» e «Testo predefinito» */
+.ml-opts{display:flex;align-items:flex-start;gap:6px 14px;flex-wrap:wrap;font-size:13.5px}
+.ml-opts:not(:has(> :not([hidden]))){display:none}
+.ml-rem{display:flex;align-items:flex-start;gap:7px;flex:1 1 320px;cursor:pointer;line-height:1.35}
+.ml-rem input{margin-top:2px;accent-color:#D81B8C;flex:none}
+.ml-remnote{flex-basis:100%;margin:-2px 0 0 22px;color:var(--ink-3,#8e8e93);font-size:12.5px}
+#mlDef{white-space:nowrap;font-size:13.5px}
+#mlAtt[hidden]{display:none}
+/* Contabilità › E-mail: testi per cliente */
+.ct-tm{display:flex;flex-direction:column;border:1px solid var(--line,#d9d9de);border-radius:10px;overflow:hidden}
+.ct-tm-row{display:flex;align-items:center;gap:10px;padding:8px 10px}
+.ct-tm-row+.ct-tm-row{border-top:1px solid var(--line,#d9d9de)}
+.ct-tm-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.ct-tm-t small{color:var(--ink-3,#8e8e93);font-weight:400}
+.ct-tm-s{font-size:12.5px;color:var(--ink-2,#555);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* tasto «E-mail»: le risposte ricevute */
+#ovPosta{z-index:55}
+#ovClients,#ovClientNew{z-index:56}
+.posta-modal{width:min(1080px,calc(100vw - 32px));max-width:1080px;height:min(780px,calc(100vh - 48px));display:flex;flex-direction:column;gap:10px;box-sizing:border-box}
+.inb-top{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.inb-tt h3{margin:0}
+.inb-sub{margin:2px 0 0;color:var(--ink-3,#8e8e93);font-size:13.5px}
+.inb-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(240px,320px) 1fr;border:1px solid var(--line,#d9d9de);border-radius:12px;overflow:hidden;background:var(--surface,#fff)}
+.inb-body:has(.inb-list:empty){grid-template-columns:1fr}
+.inb-list:empty{display:none}
+.inb-list{overflow:auto;border-right:1px solid var(--line,#d9d9de);background:var(--surface-2,#f6f6f8)}
+.inb-it{display:grid;gap:3px;width:100%;text-align:left;padding:10px 12px 11px 20px;border:0;border-bottom:1px solid var(--line,#d9d9de);background:transparent;color:inherit;font:inherit;cursor:pointer;position:relative}
+.inb-it:hover{background:color-mix(in srgb,var(--surface,#fff) 60%,transparent)}
+.inb-it[aria-current="true"]{background:var(--surface,#fff);box-shadow:inset 3px 0 0 #D81B8C}
+.inb-it.nw::before{content:"";position:absolute;left:8px;top:16px;width:7px;height:7px;border-radius:50%;background:#D81B8C}
+.inb-it.nw .inb-it-h b{font-weight:800}
+.inb-it-h{display:flex;gap:8px;align-items:baseline;min-width:0}
+.inb-it-h b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inb-it-h time{font-size:12px;color:var(--ink-3,#8e8e93);flex:none}
+.inb-it-s{font-size:12.5px;color:var(--ink-2,#555);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inb-chip{justify-self:start;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;margin-top:3px;--c:#6e6e73;color:var(--c);background:color-mix(in srgb,var(--c) 13%,transparent)}
+.st-inserita{--c:#1E8E46}.st-presente{--c:#6e6e73}.st-controllo{--c:#C25E00}.st-pronta,.st-inserimento{--c:#0A6CFF}.st-inviata{--c:#6e6e73}
+html[data-theme="dark"] .st-inserita{--c:#32D35F}html[data-theme="dark"] .st-controllo{--c:#FFB04A}html[data-theme="dark"] .st-presente,html[data-theme="dark"] .st-inviata{--c:#AEAEB2}html[data-theme="dark"] .st-pronta,html[data-theme="dark"] .st-inserimento{--c:#64A8FF}
+@media (prefers-color-scheme:dark){html:not([data-theme="light"]) .st-inserita{--c:#32D35F}html:not([data-theme="light"]) .st-controllo{--c:#FFB04A}html:not([data-theme="light"]) .st-presente,html:not([data-theme="light"]) .st-inviata{--c:#AEAEB2}html:not([data-theme="light"]) .st-pronta,html:not([data-theme="light"]) .st-inserimento{--c:#64A8FF}}
+.inb-view{overflow:auto;padding:16px 20px 22px;min-width:0}
+.inb-back{display:none;margin:0 0 8px}
+.inb-h{border-bottom:1px solid var(--line,#d9d9de);padding-bottom:10px;margin-bottom:12px}
+.inb-from b{font-size:15.5px}.inb-from span{color:var(--ink-3,#8e8e93);word-break:break-all}
+.inb-meta{font-size:12.5px;color:var(--ink-3,#8e8e93);margin-top:2px}
+.inb-subj{font-weight:600;margin-top:6px}
+.inb-st{border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.45;border:1px solid color-mix(in srgb,var(--c) 32%,transparent);background:color-mix(in srgb,var(--c) 9%,transparent)}
+.inb-st>b{color:var(--c);margin-right:4px}
+.inb-st .inb-ck{margin-top:6px}
+.inb-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.inb-h4{margin:18px 0 6px;font-size:13.5px;font-weight:700;color:var(--ink-2,#4a4a4f)}
+.inb-dati{width:100%;border-collapse:collapse;font-size:13.5px}
+.inb-dati th{text-align:left;font-weight:600;color:var(--ink-2,#4a4a4f);padding:7px 10px 7px 0;width:150px;vertical-align:top;border-bottom:1px solid var(--line,#d9d9de)}
+.inb-dati td{padding:7px 0;vertical-align:top;border-bottom:1px solid var(--line,#d9d9de)}
+.inb-v{font-weight:500;word-break:break-word}
+.inb-v+.inb-ck{margin-top:4px}
+.inb-ck{display:flex;gap:6px;align-items:flex-start;font-size:12.5px;line-height:1.4;color:var(--ink-2,#4a4a4f)}
+.inb-ck+.inb-ck{margin-top:3px}
+.inb-ic{flex:none;width:16px;height:16px;border-radius:50%;display:inline-grid;place-items:center;font-size:10px;font-weight:800;color:#fff;margin-top:1px;line-height:1}
+.inb-ic.ok{background:#1E9E4A}.inb-ic.warn{background:#E08600}.inb-ic.err{background:#D70015}
+.inb-none{color:var(--ink-3,#8e8e93);font-style:italic;font-weight:400}
+.inb-text{white-space:pre-wrap;word-break:break-word;font:inherit;font-size:13px;line-height:1.45;background:var(--surface-2,#f6f6f8);border-radius:10px;padding:12px 14px;margin:0}
+.inb-att{display:flex;flex-wrap:wrap;gap:8px}
+.inb-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:100%;color:var(--ink-2,#4a4a4f);padding:30px;box-sizing:border-box}
+.inb-empty p{max-width:440px;margin:6px 0 0;color:var(--ink-3,#8e8e93);line-height:1.45}
+.inb-foot{margin:0;font-size:13px;color:var(--ink-3,#8e8e93);min-height:1.2em}
+@media (max-width:759px){
+  .posta-modal{height:calc(100vh - 32px)}
+  .inb-body{grid-template-columns:1fr}
+  .inb-list{border-right:0}
+  #ovPosta.inb-one .inb-list{display:none}
+  #ovPosta:not(.inb-one) .inb-list:not(:empty)~.inb-view{display:none}
+  .inb-back{display:inline-block}
+  .inb-view{padding:12px 14px 18px}
+  .inb-dati th{width:auto;display:block;border-bottom:0;padding-bottom:0}
+  .inb-dati td{display:block;padding-top:3px}
+}
+.inb-top .spacer{flex:1}

@@ -1,27 +1,202 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 4.0.4 (23/11/2026)
+AGENDA FLOTTA LA TERRA – VERSIONE 4.0.6 (24/11/2026)
 ====================================================
 La versione in uso si vede nell'app: in alto accanto a "Sincronizzato", nella schermata di
 accesso e in Impostazioni › Generali. Deve corrispondere a quella di questo file.
 
-COME AGGIORNARE ALLA 4.0.4 (dalla 4.0.3 o precedenti: 3 minuti, 11 file)
-----------------------------------------------------------------------
+COME AGGIORNARE ALLA 4.0.6 (dalla 4.0.5: 3 minuti, 9 file)
+----------------------------------------------------------
 1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
-   11 file: index.html, app.js, store.js, accessi.js, dropbox.js, autisti.js, fatture.js,
-   fatturato.js, skin40.css, sw.js, LEGGIMI.txt. Niente config.js.
-   Gli altri file (logo, icone, cartella vendor, manifest) restano quelli di adesso.
-2. "Commit changes". Dopo 1–2 minuti apri l'agenda e ricarica (Cmd+Shift+R): in alto "v4.0.4".
-   Se compare "Aggiornamento in corso (…)" per più di qualche minuto, su GitHub manca il file
-   scritto tra parentesi.
-3. Sui telefoni chiudi e riapri l'agenda (se è sulla schermata Home: chiudila dal multitasking
-   e riaprila). Sugli altri Mac ricarica. Il server dell'ufficio copia la nuova versione da
-   GitHub da solo, come sempre.
-4. Niente da fare sui dati e sull'app per Mac (nessun file nuovo, nessun tipo di download nuovo,
-   stampa come prima). Il foglio di servizio non cambia. L'app degli autisti non cambia: dalla
-   4.0.4 il foglio inviato contiene in più l'«impronta» (serve all'agenda, il telefono la ignora).
-5. Dopo l'aggiornamento: il primo accesso di ognuno dura un secondo in più (la password viene
-   protetta meglio, una volta sola). Un Master che apre l'agenda salva da solo l'account Dropbox
-   dell'agenda (vedi punto 5 delle novità).
+   9 file: index.html, app.js, store.js, fatture.js, fatturato.js, autisti.js, skin40.css, sw.js,
+   LEGGIMI.txt. Niente config.js. Gli altri file restano quelli della 4.0.5.
+   (Se aggiorni da una versione più vecchia della 4.0.5 usa lo zip «completo» e carica tutti i
+   file tranne config.js.)
+2. "Commit changes". Dopo 1–2 minuti l'agenda si aggiorna da sola (riquadro in basso a sinistra),
+   oppure ricarica (Cmd+Shift+R): in alto "v4.0.6".
+3. Niente da fare sull'app degli autisti, sui dati e sull'app per Mac (nessun tipo di download
+   nuovo: PDF e XML c'erano già; il PDF si apre in Anteprima come gli altri). I due file nuovi in
+   Dropbox (config/testi-email-clienti.json e config/richieste-dati-clienti.json) li crea l'agenda
+   la prima volta che servono.
 
+NOVITÀ DELLA 4.0.6
+------------------
+L'invio e la lettura delle e-mail passano dal server dell'ufficio (fase 2): finché non è collegato
+tutto si prepara (anteprime, testi, pulsanti), ma «Invia» resta spento e non arrivano risposte.
+
+1) E-MAIL AL CLIENTE CON LA COPIA DI CORTESIA DELLA FATTURA
+- Nella finestra di una fattura EMESSA (file XML creato) c'è il pulsante «E-mail». Apre l'anteprima
+  della mail: destinatario, mittente, oggetto, testo e i due allegati (PDF di cortesia e file XML),
+  con «Apri» per vedere il PDF e «Scarica» per l'XML.
+- Destinatario: dalla colonna «E-mail» del foglio clienti del fatturato. Se manca lo scrivi lì e,
+  con la spunta «Salva questo indirizzo nella scheda del cliente», l'agenda lo scrive nel foglio
+  clienti (se la colonna «E-mail» non c'è la aggiunge in fondo, come per Codice univoco e Nazione).
+  Il campo «E-mail» c'è anche nella scheda del cliente (Nuovo cliente / Modifica cliente).
+- TESTO RICORDATO PER CLIENTE: se cambi oggetto o testo, la casella «Ricorda oggetto e testo per …»
+  si spunta da sola; chiudendo (o inviando) quel testo resta per quel cliente e le fatture dopo
+  partono da lì, con numero, data e totale della fattura nuova (l'agenda li salva come {numero},
+  {data}, {totale}…). La firma resta quella di Contabilità. «Testo predefinito» rimette il testo di
+  serie: chiudendo, il cliente torna al testo predefinito. Se togli la spunta, la modifica vale solo
+  per quella mail.
+- Testo predefinito, firma (di serie: i dati societari) e nome del mittente si cambiano in
+  Impostazioni › Contabilità › E-mail (classico: Archivio › Contabilità › E-mail). Lì c'è anche
+  l'elenco «Testi ricordati per cliente», con «Rimetti il predefinito» per ogni cliente.
+  Parole che l'agenda sostituisce: {cliente}, {Documento} o {documento} (fattura / nota di
+  credito), {numero}, {data}, {totale}, {causale}, {azienda}, {pdf}, {xml}.
+- Testo di serie: «questa copia non ha valore fiscale; l'originale arriva tramite lo SdI»
+  (Provvedimento dell'Agenzia delle Entrate del 30/04/2018 n. 89757 sulla fattura elettronica –
+  formula da far confermare al commercialista).
+- Con il server collegato la fattura viene segnata «Inviata per e-mail a … il … da …» e l'invio va
+  nel Registro.
+
+2) RICHIESTA DEI DATI DI FATTURAZIONE A UN CLIENTE NUOVO (dalla prenotazione)
+- In alto nella prenotazione c'è «Richiedi dati cliente». Si accende quando il nome scritto nel
+  campo «Cliente» non è nell'anagrafica clienti (se il cliente c'è, resta spento).
+- Prepara la mail (si può cambiare): saluto con il nome scritto, data e itinerario del servizio,
+  le righe da compilare (Ragione sociale, Partita IVA, Codice fiscale, Indirizzo, CAP, Comune,
+  Provincia, Nazione, Codice destinatario SDI, PEC, E-mail per le fatture, Telefono), una frase
+  sulla privacy e la firma. Nell'oggetto c'è un codice «[Rif. RD-…]»: serve a riconoscere la
+  risposta, l'agenda lo rimette se lo togli. Le righe da compilare devono restare.
+- Sotto il campo Cliente si vede lo stato: «Dati chiesti il … a …: in attesa di risposta», poi
+  «da controllare» o «In anagrafica (Cod. …)».
+- Il testo di serie si cambia in Impostazioni › Contabilità › E-mail › «Richiesta dati ai clienti
+  nuovi». Parole: {cliente}, {servizio}, {azienda}, {schema} (le righe da compilare).
+- La frase sulla privacy (Regolamento UE 2016/679) è generica: DA FAR CONTROLLARE al consulente
+  privacy, che può indicare un testo o un link all'informativa.
+
+3) LA RISPOSTA DEL CLIENTE: CONTROLLI E INSERIMENTO NELL'ANAGRAFICA
+- L'agenda legge le righe compilate (anche se il cliente risponde dentro il testo citato, o scrive
+  l'indirizzo tutto su una riga «Via Roma 1, 97100 Ragusa (RG)», o la provincia per nome).
+- Controlli fatti (✓ a posto, ! da controllare, ✕ sbagliato):
+  · partita IVA: 11 cifre e cifra di controllo (algoritmo ufficiale dell'Agenzia delle Entrate);
+  · partita IVA attiva e ragione sociale registrata: verifica online nel VIES, l'archivio europeo
+    delle partite IVA della Commissione Europea (la fa il server dell'ufficio);
+  · codice fiscale: 16 caratteri con il carattere di controllo (anche con l'omocodia) o 11 cifre
+    per enti e società; per i privati, che corrisponda a nome e cognome;
+  · codice destinatario (7 caratteri; 6 = enti pubblici) o PEC: senza nessuno dei due, per una
+    ditta, avviso (la fattura arriverebbe solo nell'area riservata del cliente);
+  · indirizzo, CAP (5 cifre), comune, provincia (sigla) e CAP coerente con la provincia (di solito
+    le prime due cifre del CAP sono della provincia: è un avviso, ci sono poche eccezioni);
+  · doppioni: stessa partita IVA o codice fiscale di un cliente già in anagrafica.
+- TUTTO A POSTO (nessun avviso): il cliente entra DA SOLO nell'anagrafica (foglio clienti del
+  fatturato) con il primo codice Multi libero, come dal modulo «Nuovo cliente»; le prenotazioni
+  scritte con lo stesso nome e senza codice prendono il cliente e il codice. L'inserimento lo fa un
+  solo computer (quello acceso con il permesso «Clienti»), anche se ne sono aperti diversi.
+- QUALCOSA NON TORNA: la risposta resta «Da controllare» nel tasto «E-mail» (vedi sotto), con
+  «Correggi e aggiungi all'anagrafica» (apre il modulo del cliente già compilato) o «Chiedi di
+  nuovo i dati» (prepara una nuova richiesta con l'elenco di quello che non torna).
+- La PEC: se nel foglio clienti non c'è la colonna «PEC», l'agenda la aggiunge in fondo (come
+  Codice univoco e Nazione); il campo PEC c'è anche nel modulo del cliente.
+- Nota: i controlli fermano gli errori di scrittura e le partite IVA non attive; non possono
+  sapere se un dato giusto è proprio di quel cliente: per gli importi alti una telefonata resta utile.
+
+4) TASTO «E-MAIL» NELLA PAGINA PRINCIPALE
+- In alto, a sinistra di «Fatturato», fucsia come lo stato «Stampabile». Il numero sul tasto dice
+  quante risposte sono nuove o da controllare.
+- Mostra SOLO le risposte dei clienti alle richieste dei dati di fatturazione (non tutta la posta):
+  a sinistra l'elenco, a destra la mail scelta con lo stato, i dati letti con i controlli, gli
+  allegati («Apri», dal server dell'ufficio) e il testo della mail. Sul telefono prima l'elenco,
+  poi la mail con «‹ Tutte le e-mail».
+- Con il server collegato le risposte si controllano da sole ogni 4–5 minuti (e con «Controlla
+  adesso»), dai computer che raggiungono il server dell'ufficio.
+- Nuove voci dell'Aiuto «?»: «Chiedere i dati di fatturazione a un cliente nuovo», «Guardare le
+  e-mail ricevute dai clienti»; aggiornata «Mandare la fattura per e-mail al cliente».
+
+PER IL SERVER DELL'UFFICIO (fase 2) – COSA DEVE FARE
+- Indirizzo da scrivere in Contabilità › E-mail (deve iniziare con https://). L'agenda può
+  già chiamare https://192.168.1.250:8444 (permesso nella riga Content-Security-Policy di
+  index.html, «connect-src»); se il server avrà un altro indirizzo va aggiunto lì.
+- Tutte le risposte in JSON; in caso di errore {"ok":false,"error":"<motivo in italiano>"}.
+- Deve permettere le richieste dalle pagine dell'agenda: CORS (Access-Control-Allow-Origin per
+  l'indirizzo di GitHub e per http://localhost:47816, metodi GET e POST, intestazione Content-Type).
+  Chrome, per una pagina pubblica che chiama un indirizzo della rete locale (192.168.…), può
+  chiedere anche «Access-Control-Allow-Private-Network: true» nella risposta alla richiesta
+  preliminare (OPTIONS): DA VERIFICARE quando si prepara il server.
+a) Copia di cortesia della fattura: POST <indirizzo>/api/mail/fattura
+  { "v":1, "to":"cliente@…", "subject":"…", "text":"…", "fromName":"La Terra srl",
+    "replyTo":"<e-mail dei dati societari>",
+    "attachments":[{"name":"Fattura 15 del 20-11-2026 - copia di cortesia.pdf","type":"application/pdf","base64":"…"},
+                   {"name":"<nome del file XML>","type":"application/xml","base64":"…"}],
+    "meta":{"draftId","numero","data","tipo","cliente","code","totale","xml","by","device"} }
+  → {"ok":true,"id":"<id del messaggio>","at":"<data e ora ISO>"}
+b) Richiesta dati: POST <indirizzo>/api/mail/richiesta-dati
+  { "v":1, "to", "subject" (contiene «[Rif. RD-XXXXXX]»), "text", "fromName", "replyTo",
+    "meta":{"rif":"RD-XXXXXX","cliente","servizio","by","device"} }
+  → {"ok":true,"id","at"}
+c) Risposte dei clienti: GET <indirizzo>/api/mail/risposte?dal=<data ISO>
+  Il server legge la casella Gmail e dà SOLO le mail ricevute dopo «dal» che hanno un codice
+  «RD-» seguito da 6 lettere/cifre nell'oggetto (o, se manca lì, nel testo):
+  → {"ok":true,"messages":[{"id":"<id univoco>","rif":"RD-XXXXXX","from":"Nome <indirizzo>",
+     "fromName":"Nome","date":"<data e ora ISO>","subject":"…","text":"<testo semplice della mail>",
+     "attachments":[{"n":0,"name":"visura.pdf","type":"application/pdf","size":48211}]}]}
+d) Allegato di una risposta: GET <indirizzo>/api/mail/allegato?id=<id della mail>&n=<numero>
+  → il file (con il suo Content-Type).
+e) Verifica della partita IVA: POST <indirizzo>/api/vies {"paese":"IT","piva":"12345678903"}
+  → {"ok":true,"valid":true|false,"name":"<ragione sociale registrata>","address":"…","at":"…"}
+  Il server la chiede al servizio VIES della Commissione Europea, per esempio
+  GET https://ec.europa.eu/taxation_customs/vies/rest-api/ms/IT/vat/12345678903 (risposta con
+  isValid, name, address). Indirizzo e campi DA VERIFICARE sulla documentazione ufficiale del
+  VIES quando si prepara il server; se il VIES non risponde: {"ok":false,"error":"VIES non disponibile"}
+  (l'agenda riprova da sola e intanto la risposta resta «da controllare»).
+- Il server deve spedire con l'account Gmail scelto (mittente) e tenere un registro degli invii.
+
+======================================================================
+NOVITÀ DELLA 4.0.5 (seconda verifica tecnica)
+---------------------------------------------
+1) PRENOTAZIONI MODIFICATE DA DUE COMPUTER INSIEME
+- Se due computer cambiano lo STESSO campo della stessa prenotazione (per esempio il prezzo), chi
+  salva dopo non sovrascrive più in silenzio: resta il valore salvato prima e compare un avviso con
+  i due valori («suo 150, tuo 125»). Se è giusto il tuo, riapri la prenotazione e correggi.
+- Campi diversi (uno il prezzo, l'altro l'itinerario): si tengono tutte e due le modifiche, come prima.
+
+2) PERMESSI CONTROLLATI ANCHE NEL «MOTORE» DELL'AGENDA
+- Impostazioni: solo Master e Super Master. Anagrafiche, flotta, clienti, bozze di fattura e
+  Contabilità: secondo Impostazioni › Permessi, anche se qualcuno prova a farlo dagli strumenti
+  per sviluppatori del browser (prima bastava chiamare le funzioni a mano).
+- Le Impostazioni si scrivono sull'ultima versione di Dropbox: due computer che le cambiano insieme
+  non si cancellano più le modifiche a vicenda.
+
+3) FATTURA EMESSA SOLO SE IL FILE XML È DAVVERO IN DROPBOX
+- «Crea file XML» adesso: 1) scrive il file in Dropbox e controlla che sia arrivato intero,
+  2) salva la bozza come emessa, 3) la blocca e scarica il file. Se Dropbox non conferma il file la
+  fattura resta una bozza (messaggio «NON è emessa»); se poi la bozza non si salva il file si toglie.
+
+4) CHIAVI DEI TELEFONI DEGLI AUTISTI PROTETTE CON LA PASSWORD DEL SUPER MASTER
+- In Dropbox (config/autisti.json) le chiavi dei telefoni sono cifrate: gli altri computer collegati
+  non le possono più leggere né usare. Le vede solo il Super Master, dopo aver scritto la password.
+- Se il Super Master ricarica la pagina, per mostrare un QR o bloccare un telefono gli viene chiesta
+  la password nel riquadro «Sblocca» (Impostazioni › Autisti).
+- Se il Super Master cambia la password dal menu, le chiavi si proteggono da sole con quella nuova.
+  Se la cambia con il CODICE DI RECUPERO, le chiavi protette con quella vecchia non si leggono più: i
+  telefoni continuano a funzionare, ma per mostrare di nuovo il QR o bloccarne uno vanno ricollegati
+  (pulsante «Azzera la protezione»).
+- La chiave della cartella dell'ufficio resta leggibile dai computer che inviano i fogli: si
+  protegge solo con il server dell'ufficio (fase 2).
+
+5) MODIFICHE NON ANCORA INVIATE: SALVATE IN DUE POSTI
+- La coda delle modifiche da mandare a Dropbox si salva nella memoria del browser e anche in
+  IndexedDB: se una delle due è piena basta l'altra, anche chiudendo e riaprendo il browser. Se non
+  si salva da nessuna parte compare l'avviso fisso (come nella 4.0.4).
+
+6) INVIO DEI FOGLI ALL'AUTISTA: DUE INVII INSIEME NON SI MESCOLANO
+- Il file del foglio si scrive con il controllo della revisione: se due operatori inviano lo stesso
+  foglio quasi insieme, il PDF e i dati del foglio restano sempre quelli dello stesso invio. Il
+  numero d'invio si prende dal foglio in Dropbox (non dalla copia del singolo computer).
+- L'elenco condiviso delle righe del fatturato, se non si riesce ad aggiornarlo, si riprova da solo.
+
+7) DATI VERI TOLTI DAL CODICE PUBBLICO
+- Nel codice su GitHub non ci sono più targhe e nomi degli autisti veri: restano dati di prova. La
+  flotta e gli autisti veri si leggono da Dropbox (config/flotta.json e anagrafica-autisti.json),
+  come già succedeva ogni giorno. ATTENZIONE: le versioni vecchie restano nella cronologia di GitHub;
+  per toglierle davvero serve un repository nuovo (o una richiesta al supporto di GitHub).
+
+NON FATTO IN QUESTA VERSIONE (serve il server dell'ufficio o un intervento più ampio)
+- Server aziendale per utenti, permessi e chiavi Dropbox (fase 2): finché ogni computer ha la chiave
+  Dropbox completa, i controlli dell'agenda alzano l'asticella ma non sono una barriera assoluta.
+- Spostamento di una prenotazione «in due fasi» con recupero automatico: oggi eliminazione dal giorno
+  vecchio e inserimento nel nuovo sono in coda insieme e si completano al ritorno della rete; resta
+  un rischio solo se il dispositivo viene azzerato prima che la coda sia partita.
+- Copie di sicurezza automatiche separate da Dropbox: da organizzare a parte (consigliate).
+
+======================================================================
 NOVITÀ DELLA 4.0.4
 ------------------
 1) VIA LE DESCRIZIONI (TRANNE NELLE IMPOSTAZIONI)
@@ -217,7 +392,7 @@ NOVITÀ DELLA 4.0.3
 - Vale con tutti e due gli aspetti.
 
 4) BUS 33 (H): SPUNTA "PASSEGGERO H A BORDO"
-- Nel modulo della prenotazione, quando il mezzo è il 33 (52 posti H, DL621AZ), sotto "Mezzo"
+- Nel modulo della prenotazione, quando il mezzo è il 33 (52 posti H, AA010AA), sotto "Mezzo"
   compare la spunta "Passeggero H a bordo". Si mette solo quando il cliente H c'è davvero.
 - Con la spunta: sul foglio di servizio (stampa, PDF, copia in Dropbox e app degli autisti)
   accanto al mezzo c'è la H ("Bus 52 posti H"), così l'autista sa che vanno tolte le panche.
@@ -709,20 +884,20 @@ carica prima l'aggiornamento della 3.0.5 (le istruzioni sono qui sotto).
 
 NOVITÀ DELLA 3.0.6: AUTISTA RINOMINATO = SEMPRE LA STESSA PERSONA
 -----------------------------------------------------------------
-Il problema: il 4/11 nell'Archivio › Anagrafica autisti "Cascone Saro" è stato corretto in
-"Cascone Rosario". I servizi inseriti prima, il telefono di prima e le crocette dei pasti di
-ottobre e dell'1–3 novembre hanno ancora "Cascone Saro" (cartella del telefono cascone-saro);
-dopo il cambio il telefono scrive sotto "Cascone Rosario" (cartella cascone-rosario). Nella
-pagina Autisti comparivano due righe, "Cascone Rosario" e "Cascone Saro", come due persone.
+Il problema: il 4/11 nell'Archivio › Anagrafica autisti "Rossi Mario" è stato corretto in
+"Rossi Mariano". I servizi inseriti prima, il telefono di prima e le crocette dei pasti di
+ottobre e dell'1–3 novembre hanno ancora "Rossi Mario" (cartella del telefono rossi-mario);
+dopo il cambio il telefono scrive sotto "Rossi Mariano" (cartella rossi-mariano). Nella
+pagina Autisti comparivano due righe, "Rossi Mariano" e "Rossi Mario", come due persone.
 Adesso:
 - L'agenda si ricorda il nome di prima di ogni autista rinominato nell'anagrafica. Il nome di
-  prima vale come quello nuovo: nella pagina Autisti c'è UNA riga sola, "Cascone Rosario", con
+  prima vale come quello nuovo: nella pagina Autisti c'è UNA riga sola, "Rossi Mariano", con
   tutte le crocette (quelle di prima e quelle di adesso), i giorni di servizio e le correzioni
   dell'ufficio. Lo stesso nel Fatturato, nel modulo, nella vista Giorno e nella bozza fattura.
 - Nei conteggi degli autisti del giorno conta una persona sola; giorni di riposo e colore del
   nome valgono anche per i servizi scritti con il nome di prima.
-- I servizi già inseriti NON cambiano: nel modulo resta scritto "Cascone Saro". Va bene così.
-- Per "Cascone Saro" non devi fare niente: il nome di prima si riconosce da solo.
+- I servizi già inseriti NON cambiano: nel modulo resta scritto "Rossi Mario". Va bene così.
+- Per "Rossi Mario" non devi fare niente: il nome di prima si riconosce da solo.
 - Da adesso, ogni volta che correggi il nome di un autista scrivendoci sopra, il nome vecchio
   si salva da solo. Fermando il mouse sul nome, in Anagrafica autisti, si vede "Nome di prima".
 - Vale solo se il nome nuovo ha una parola in comune con quello vecchio (il cognome, oppure il
@@ -732,8 +907,8 @@ Adesso:
 - Se un nome di prima viene aggiunto di nuovo come autista a sé (una seconda persona con quel
   nome), da quel momento i due restano separati.
 DA SAPERE: FOGLI GIÀ INVIATI A CASCONE
-- Il telefono di Cascone adesso è collegato come "Cascone Rosario". I fogli dei servizi futuri
-  con "Cascone Saro", inviati prima del cambio di nome, adesso compaiono "Da reinviare": è
+- Il telefono di Rossi adesso è collegato come "Rossi Mariano". I fogli dei servizi futuri
+  con "Rossi Mario", inviati prima del cambio di nome, adesso compaiono "Da reinviare": è
   giusto, perché erano stati inviati al nome di prima. Aprili e premi di nuovo "Invia
   all'autista": partono con il nome di adesso.
 
@@ -1800,9 +1975,9 @@ DALLA 1.8 ALLA 1.9 (per chi è ancora alla 1.8: carica la 2.4 e leggi anche ques
   flotta (targhe, posti, categoria Excel, ID mezzo) e lo segnala con un avviso; lo trovi
   anche nel registro. Ogni mezzo va al mezzo dell'agenda con la stessa targa, così le
   prenotazioni già inserite restano sul pullman giusto. Il vecchio "Bus 79 posti" (senza
-  targa) diventa GM701RZ (81 posti): se c'erano prenotazioni su quella riga, controllale.
-  Due correzioni rispetto alla tabella: GP342L è stata scritta GP342PL (come nel foglio
-  "regole"; le targhe hanno 7 caratteri) e la SW DX285ME ha categoria "_3_posti", perché nel
+  targa) diventa AA001AA (81 posti): se c'erano prenotazioni su quella riga, controllale.
+  Due correzioni rispetto alla tabella: AA0XXAA è stata scritta AA013AA (come nel foglio
+  "regole"; le targhe hanno 7 caratteri) e la SW AA026AA ha categoria "_3_posti", perché nel
   fatturato la colonna Mezzo accetta solo le categorie del foglio "regole" (lì non c'è
   "_4_posti"). Se servono diverse, si cambiano da Archivio › Anagrafica flotta.
 
@@ -1996,7 +2171,7 @@ STORICO DELLE VERSIONI
                      grassetto (l'alias, se c'è), itinerario, autista. Il tipo di servizio si
                      riconosce dal colore. N. foglio, passeggeri, importi e autisti sono nel
                      riquadro che compare fermando il mouse sulla riga.
-                   · ELENCO MEZZI su una riga in tutte le viste ("81 p. - GM701RZ (50)") e
+                   · ELENCO MEZZI su una riga in tutte le viste ("81 p. - AA001AA (50)") e
                      meno spazio tra i mezzi e i servizi in Giorno, Settimana e Mese.
                    · "Fatturato" staccato da Giorno / Settimana / Mese.
                    · CONFERMA: le prenotazioni nuove nascono "In sospeso". Nella vista Giorno
@@ -2139,7 +2314,7 @@ STORICO DELLE VERSIONI
                      "5/26 mezzi impegnati"; autisti, servizi e mezzi separati dai numeri di
                      gite, tour, notturni e transfer.
                    · Vista Giorno: niente fasce "Bus" e "Auto e van"; ogni mezzo su una riga
-                     (81 posti - GM701RZ (50)); l'anteprima del servizio arriva fino a
+                     (81 posti - AA001AA (50)); l'anteprima del servizio arriva fino a
                      "Aggiungi" con le informazioni principali su una riga (col mouse sopra
                      si legge tutto).
                    · Flotta: dati aggiornati al 30/09/2026 e nuova colonna "ID mezzo", che va
@@ -2396,7 +2571,7 @@ Uso quotidiano
   generico o servizio senza autista conta uno), S = servizi, M = mezzi impegnati
   (auto e van compresi).
 - Flotta: nome, posti, categoria Excel, targa e ID mezzo (l'ID compare nella vista Giorno,
-  "81 p. - GM701RZ (50)", e come "Numero" nel foglio di servizio).
+  "81 p. - AA001AA (50)", e come "Numero" nel foglio di servizio).
 - Archivio (pulsante in alto): anagrafica clienti, flotta, referenti, guide, hotel e le
   due tendine (note e ruolo). Nelle anagrafiche e nelle tendine scrivi direttamente nella
   tabella: ogni casella si salva appena passi alla successiva ("Salvato."); "+ Nuovo"
@@ -2404,7 +2579,7 @@ Uso quotidiano
 - Clienti: Archivio › Anagrafica clienti. "+ Nuovo cliente" chiede anche il Codice Multi
   (colonna Codice del foglio clienti) e il Codice univoco (SDI). Se aggiungete altre
   colonne alla tabella clienti (per esempio "PEC"), compaiono da sole nel modulo.
-- Autisti: nel fatturato l'app scrive il nome per esteso (es. "Campo Gianfranco").
+- Autisti: nel fatturato l'app scrive il nome per esteso (es. "Bianchi Luca").
   Conviene aggiornare con i nomi per esteso anche l'elenco AUTISTA del foglio "regole",
   così la tendina di Excel corrisponde.
 - Foglio di servizio: "Stampa" stampa il foglio come nell'anteprima (su iPhone si apre

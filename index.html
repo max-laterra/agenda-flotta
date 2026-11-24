@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="it" data-v="3.0" data-p="4.0.4">
+<html lang="it" data-v="3.0" data-p="4.0.6">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
      Niente codice scritto dentro la pagina: anche se un dato arrivasse con del codice dentro, il browser non lo esegue. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com https://notify.dropboxapi.com https://places.googleapis.com; frame-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com https://notify.dropboxapi.com https://places.googleapis.com https://192.168.1.250:8444; frame-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Agenda Flotta La Terra</title>
 <meta name="theme-color" content="#521A22">
@@ -1482,6 +1482,9 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
         <button id="vWeek" aria-pressed="false">Settimana</button>
         <button id="vMonth" aria-pressed="false">Mese</button>
       </div>
+      <div class="seg solo" role="group" aria-label="E-mail ricevute">
+        <button type="button" id="vMail" aria-pressed="false">E-mail<span class="vm-n" id="vMailN" hidden></span></button>
+      </div>
       <div class="seg solo" role="group" aria-label="Fatturato">
         <button id="vBill" aria-pressed="false">Fatturato</button>
       </div>
@@ -1578,7 +1581,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
 
 <div class="overlay" id="ovBooking" hidden>
   <form class="modal" id="fBooking" autocomplete="off" novalidate>
-    <h3 id="fTitle">Nuova prenotazione</h3>
+    <div class="f-head"><h3 id="fTitle">Nuova prenotazione</h3><button type="button" class="btn sm rd-btn" id="fReqData" disabled>Richiedi dati cliente</button></div>
     <p class="f-who" id="fWho" hidden></p>
     <p class="capo-note" id="fCapo" hidden></p>
     <div class="types" role="radiogroup" aria-label="Tipo di servizio">
@@ -1869,6 +1872,28 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
     </div>
   </div>
 </div>
+<div class="overlay" id="ovMail" hidden>
+  <div class="modal mail-modal" role="dialog" aria-modal="true" aria-labelledby="mlTitle">
+    <h3 id="mlTitle">E-mail al cliente</h3>
+    <div class="ml-grid">
+      <label for="mlTo">A</label><div><input id="mlTo" type="email" autocomplete="off" spellcheck="false"><label class="ml-save" id="mlSaveBox" hidden><input type="checkbox" id="mlSaveTo" checked> Salva questo indirizzo nella scheda del cliente</label></div>
+      <span class="ml-l">Da</span><div id="mlFrom" class="ml-from"></div>
+      <label for="mlSubj">Oggetto</label><div><input id="mlSubj" maxlength="300"></div>
+    </div>
+    <textarea id="mlBody" rows="14" aria-label="Testo della mail"></textarea>
+    <div class="ml-opts"><label class="ml-rem" id="mlRemBox" hidden><input type="checkbox" id="mlRem"> <span id="mlRemTxt">Ricorda oggetto e testo per questo cliente</span></label><button type="button" class="linkbtn" id="mlDef" hidden>Testo predefinito</button><p class="ml-remnote" id="mlRemNote" hidden></p></div>
+    <div class="ml-att" id="mlAtt"></div>
+    <p class="ml-msg" id="mlMsg" role="status"></p>
+    <div class="mfoot"><span class="spacer"></span><button type="button" class="btn" id="mlClose">Chiudi</button><button type="button" class="btn primary" id="mlSend">Invia</button></div>
+  </div>
+</div>
+<div class="overlay" id="ovPosta" hidden>
+  <div class="modal posta-modal" role="dialog" aria-modal="true" aria-labelledby="inbTitle">
+    <div class="inb-top"><div class="inb-tt"><h3 id="inbTitle">E-mail ricevute</h3><p class="inb-sub">Risposte dei clienti alle richieste dei dati di fatturazione</p></div><span class="spacer"></span><button type="button" class="btn" id="inbCheck" hidden>Controlla adesso</button><button type="button" class="btn" id="inbClose">Chiudi</button></div>
+    <div class="inb-body"><div class="inb-list" id="inbList" aria-label="E-mail ricevute"></div><div class="inb-view" id="inbView"></div></div>
+    <p class="inb-foot" id="inbFoot" role="status"></p>
+  </div>
+</div>
 <div class="overlay" id="ovVeh" hidden>
   <div class="modal veh-modal" role="dialog" aria-labelledby="vwTitle">
     <h3 id="vwTitle">Perché cambi il mezzo?</h3>
@@ -2032,6 +2057,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
         <button type="button" data-ct-tab="iva" aria-pressed="false">Aliquote IVA</button>
         <button type="button" data-ct-tab="cau" aria-pressed="false">Causali</button>
         <button type="button" data-ct-tab="opz" aria-pressed="false">Pagamento, sconti, arrotondamenti</button>
+        <button type="button" data-ct-tab="mail" aria-pressed="false" title="E-mail al cliente (copia di cortesia)">E-mail</button>
       </div></div>
     <div class="cont-body" id="contBody"></div>
     <div class="inv-foot"><span class="inv-msg" id="contMsg" role="status"></span><span class="spacer"></span><button type="button" class="btn" id="contClose">Chiudi</button><button type="button" class="btn primary" id="contSave">Salva</button></div>
@@ -2065,7 +2091,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
     </div>
     <div class="inv-totals" id="invTotals"></div>
     <div class="inv-issues" id="invIssues" role="status"></div>
-    <div class="inv-foot"><button type="button" class="btn danger" id="invDel" hidden>Elimina bozza</button><span class="inv-msg" id="invMsg" role="status"></span><span class="spacer"></span><button type="button" class="btn" id="invClose">Chiudi</button><button type="button" class="btn" id="invPrint">Stampa anteprima</button><button type="button" class="btn" id="invPdf" title="Salva l'anteprima della fattura in un file PDF">Scarica anteprima</button><button type="button" class="btn" id="invSave">Salva bozza</button><button type="button" class="btn primary" id="invXml">Crea file XML</button></div>
+    <div class="inv-foot"><button type="button" class="btn danger" id="invDel" hidden>Elimina bozza</button><span class="inv-msg" id="invMsg" role="status"></span><span class="spacer"></span><button type="button" class="btn" id="invClose">Chiudi</button><button type="button" class="btn" id="invPrint">Stampa anteprima</button><button type="button" class="btn" id="invPdf" title="Salva l'anteprima della fattura in un file PDF">Scarica anteprima</button><button type="button" class="btn" id="invMail" hidden title="E-mail al cliente con la copia di cortesia (PDF) e il file XML">E-mail</button><button type="button" class="btn" id="invSave">Salva bozza</button><button type="button" class="btn primary" id="invXml">Crea file XML</button></div>
   </div>
 </div>
 <div class="overlay" id="ovReg" hidden>
