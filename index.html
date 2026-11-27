@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="3.0" data-p="4.0.6">
+<html lang="it" data-v="3.0" data-p="4.0.7">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -1478,6 +1478,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
     </div>
     <div class="controls">
       <div class="seg" role="group" aria-label="Vista">
+        <button type="button" id="vPlan" aria-pressed="false" aria-label="Planning" title="Planning: i mezzi con le ore del giorno, per spostare le prenotazioni e mettere i tempi morti">Planning</button>
         <button id="vDay" aria-pressed="true">Giorno</button>
         <button id="vWeek" aria-pressed="false">Settimana</button>
         <button id="vMonth" aria-pressed="false">Mese</button>
@@ -1519,6 +1520,39 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
         <div class="saved" id="extraSaved"></div>
       </div>
     </div>
+  </section>
+
+  <section id="planView" hidden>
+    <div class="pl-wrap">
+      <div class="sign" id="psign"></div>
+      <div class="pl-panel">
+        <div class="pl-head">
+          <button type="button" class="btn pl-lock" id="plLock" aria-pressed="true"></button>
+          <span class="pl-hint" id="plHint"></span>
+          <button type="button" class="btn sm" id="plTmSet">Tempi morti…</button>
+        </div>
+        <div class="pl-fb">
+          <label class="pl-srch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input type="search" id="plQ" placeholder="Cerca cliente, targa, itinerario, autista…" aria-label="Cerca nel Planning" autocomplete="off"></label>
+          <div class="pl-chips" id="plTy" role="group" aria-label="Tipo di servizio"></div>
+          <div class="pl-chips" id="plSt" role="group" aria-label="Stato"></div>
+          <select id="plSize" class="pl-sel" aria-label="Mezzi da mostrare">
+            <option value="">Tutti i mezzi</option>
+            <option value="g">Grandi (64 posti e più)</option>
+            <option value="m">Medi (50–63 posti)</option>
+            <option value="p">Piccoli (19–49 posti)</option>
+            <option value="v">Van e auto</option>
+          </select>
+          <label class="pl-chk"><input type="checkbox" id="plOnly"> Solo i mezzi con risultati</label>
+          <span class="pl-cnt" id="plCnt" role="status"></span>
+          <button type="button" class="btn sm" id="plClear" hidden>Azzera filtri</button>
+        </div>
+        <div class="pl-grid" id="plGrid"></div>
+        <div class="pl-tray" id="plTray"></div>
+        <div class="pl-msg" id="plMsg" role="status"><span id="plMsgT"></span><button type="button" class="btn sm" id="plUndo" hidden>Annulla</button></div>
+      </div>
+    </div>
+    <div class="pl-veil" id="plVeil" hidden></div>
+    <div class="pl-menu" id="plMenu" role="menu" aria-label="Tempi morti" hidden></div>
   </section>
 
   <section id="weekView" hidden>
@@ -1892,6 +1926,16 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
     <div class="inb-top"><div class="inb-tt"><h3 id="inbTitle">E-mail ricevute</h3><p class="inb-sub">Risposte dei clienti alle richieste dei dati di fatturazione</p></div><span class="spacer"></span><button type="button" class="btn" id="inbCheck" hidden>Controlla adesso</button><button type="button" class="btn" id="inbClose">Chiudi</button></div>
     <div class="inb-body"><div class="inb-list" id="inbList" aria-label="E-mail ricevute"></div><div class="inb-view" id="inbView"></div></div>
     <p class="inb-foot" id="inbFoot" role="status"></p>
+  </div>
+</div>
+<div class="overlay" id="ovTm" hidden>
+  <div class="modal tm-modal" role="dialog" aria-modal="true" aria-labelledby="tmTitle">
+    <h3 id="tmTitle">Tempi morti</h3>
+    <p class="mst-sub">Le voci del menu del tasto destro nel Planning (su un punto vuoto della riga di un mezzo, con il lucchetto aperto). Valgono per tutti i dispositivi.</p>
+    <div class="tm-rows" id="tmRows"></div>
+    <div><button type="button" class="btn sm" id="tmAdd">+ Aggiungi una voce</button></div>
+    <div class="sheet-msg" id="tmMsg" role="status"></div>
+    <div class="mfoot"><span class="spacer"></span><button type="button" class="btn" id="tmCancel">Annulla</button><button type="button" class="btn primary" id="tmSave">Salva</button></div>
   </div>
 </div>
 <div class="overlay" id="ovVeh" hidden>

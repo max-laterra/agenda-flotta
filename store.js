@@ -247,12 +247,15 @@
           else if (prev) { if (prev.capo) b.capo = clone(prev.capo); else delete b.capo; }
           else if (!op.move) delete b.capo; // prenotazione nuova: nessun segno; spostata di giorno: lo porta con sé
         }
+        // 4.0.7: prenotazione senza mezzo (da assegnare dal Planning): resta in sospeso finché non ha il mezzo
+        if (!String(b.vehicle || "").trim() && b.status !== "opzione") b.status = "opzione";
         const pre = yymmdd(doc.date);
         // una modifica non cambia mai il n. foglio: resta quello già assegnato (magari rinumerato nel frattempo)
         if (op.edit && !op.assign && prev && prev.foglio) b.foglio = prev.foglio;
         // 3.0.3: una prenotazione senza cliente non ha il foglio di servizio (nessun n. foglio, quindi niente riga nel
         // fatturato né PDF): il numero arriva quando c'è il cliente. Un numero già assegnato resta anche senza cliente.
-        if (op.assign || (!b.foglio && String(b.client || "").trim())) {
+        // 4.0.7: e nemmeno una senza mezzo (niente riga nel fatturato finché il mezzo non c'è)
+        if (op.assign || (!b.foglio && String(b.client || "").trim() && String(b.vehicle || "").trim())) {
           if (!op.renumber && prev && prev.foglio && String(prev.foglio).slice(0, 6) === pre) {
             b.foglio = prev.foglio; // già numerata (per esempio invio ripetuto dopo un errore di rete): non si rinumera
           } else {
@@ -1424,11 +1427,12 @@
   // fogli (2.9): stato della creazione iniziale dei PDF di tutti i fogli di servizio (chi la fa, a che punto è)
   // autisti (2.8): anagrafica degli autisti (nome e colore) che si cambia nell'Archivio; riposi (2.8): giorni di
   // riposo chiesti dagli autisti, segnati dall'ufficio nella pagina Autisti
+  // tempimorti (4.0.7): tempi morti messi sul Planning (mezzo, giorno, dalle–alle); tipimorti: le voci del menu (nome, minuti)
   // testimail (4.0.6): oggetto e testo della mail delle fatture ricordati per un cliente; richieste (4.0.6): richieste dei
   // dati di fatturazione mandate ai clienti nuovi e le loro risposte (con i dati letti e i controlli)
   // pasti (2.7): correzioni dell'ufficio alle crocette dei pasti degli autisti (le crocette vere restano nella
   // cartella degli autisti, scritte dai telefoni: l'ufficio non le tocca)
-  const REGF = { referenti: "anagrafica-referenti.json", guide: "anagrafica-guide.json", hotel: "anagrafica-hotel.json", tendine: "tendine.json", parcheggi: "anagrafica-parcheggi.json", suggerimenti: "suggerimenti-tolti.json", pasti: "pasti-correzioni.json", autisti: "anagrafica-autisti.json", riposi: "riposi-autisti.json", fogli: "fogli-pdf.json", testimail: "testi-email-clienti.json", richieste: "richieste-dati-clienti.json" };
+  const REGF = { referenti: "anagrafica-referenti.json", guide: "anagrafica-guide.json", hotel: "anagrafica-hotel.json", tendine: "tendine.json", parcheggi: "anagrafica-parcheggi.json", suggerimenti: "suggerimenti-tolti.json", pasti: "pasti-correzioni.json", autisti: "anagrafica-autisti.json", riposi: "riposi-autisti.json", fogli: "fogli-pdf.json", testimail: "testi-email-clienti.json", richieste: "richieste-dati-clienti.json", tempimorti: "tempi-morti.json", tipimorti: "tempi-morti-voci.json" };
   const TENDINE = { note: ["parcheggi", "autista", "3 ore", "extra 1", "extra 2"], ruolo: ["contabile", "ufficio", "operativo", "sul bus"],
     spese: ["bottigliette d'acqua", "alloggio dell'autista", "kilometri extra", "notturno extra", "rimborso traghetto", "radioline e auricolari", "anticipo spese", "altro"] }; // spese: causale degli extra (2.8)
   function defaultReg(kind) { return kind === "tendine" ? clone(TENDINE) : { rows: [] }; }
@@ -1645,7 +1649,7 @@
   }
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "3.0";
-  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "4.0.6"; // 4.0.6: testi delle mail per cliente e richieste dei dati di fatturazione; 4.0.5: conflitti sullo stesso campo, permessi, impostazioni con revisione, coda anche in IndexedDB, chiavi dei telefoni cifrate; 4.0.4: correzioni di sicurezza (pulizia notturna, fatture, fatturato, sincronizzazione); 4.0.3: passeggero H a bordo; // 4.0.1: scorciatoie da tastiera nelle impostazioni personali; 4.0: aspetto, tema e benvenuto nelle impostazioni personali; 3.0.11: pulizia di quelle senza cliente alle 00:00 del giorno del servizio; 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "4.0.7"; // 4.0.7: prenotazioni senza mezzo, tempi morti; 4.0.6: testi delle mail per cliente e richieste dei dati di fatturazione; 4.0.5: conflitti sullo stesso campo, permessi, impostazioni con revisione, coda anche in IndexedDB, chiavi dei telefoni cifrate; 4.0.4: correzioni di sicurezza (pulizia notturna, fatture, fatturato, sincronizzazione); 4.0.3: passeggero H a bordo; // 4.0.1: scorciatoie da tastiera nelle impostazioni personali; 4.0: aspetto, tema e benvenuto nelle impostazioni personali; 3.0.11: pulizia di quelle senza cliente alle 00:00 del giorno del servizio; 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
   window.STORE = {
     BASE, P,
     saveAttachment, readAttachment, removeAttachment, cleanAtt, ATT_MAX,

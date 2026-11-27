@@ -1,7 +1,115 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 4.0.6 (24/11/2026)
+AGENDA FLOTTA LA TERRA – VERSIONE 4.0.7 (27/11/2026)
 ====================================================
 La versione in uso si vede nell'app: in alto accanto a "Sincronizzato", nella schermata di
 accesso e in Impostazioni › Generali. Deve corrispondere a quella di questo file.
+
+COME AGGIORNARE ALLA 4.0.7 (dalla 4.0.6 o dalla 4.0.5: 3 minuti, 9 file)
+------------------------------------------------------------------------
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   9 file: index.html, app.js, store.js, fatture.js, fatturato.js, autisti.js, skin40.css, sw.js,
+   LEGGIMI.txt. Niente config.js. Gli altri file restano quelli che ci sono.
+   Dalla 4.0.6 sono cambiati solo index.html, app.js, store.js, skin40.css, sw.js e LEGGIMI.txt:
+   fatture.js, fatturato.js e autisti.js sono gli stessi della 4.0.6 e sono nello zip solo perché
+   così va bene anche se la 4.0.6 non era ancora stata caricata (ricaricarli non fa danni).
+   (Se aggiorni da una versione più vecchia della 4.0.5 usa lo zip «completo» e carica tutti i
+   file tranne config.js.)
+2. "Commit changes". Dopo 1–2 minuti l'agenda si aggiorna da sola (riquadro in basso a sinistra),
+   oppure ricarica (Cmd+Shift+R): in alto "v4.0.7".
+3. IMPORTANTE: aggiorna TUTTI i computer, i tablet e i telefoni con l'agenda (basta aprirla e
+   aspettare il riquadro «Nuova versione», oppure ricaricare). Le versioni vecchie non conoscono
+   le prenotazioni senza mezzo: non le vedono e, se qualcuno ne apre una con una versione vecchia
+   e la salva, potrebbe darle il primo mezzo dell'elenco. Finché non sono tutti alla 4.0.7 evita
+   di salvare prenotazioni senza mezzo.
+4. Niente da fare sull'app degli autisti (non è cambiata), sui dati e sull'app per Mac (nessun tipo
+   di download nuovo). I due file nuovi in Dropbox (config/tempi-morti-voci.json e
+   config/tempi-morti.json) li crea l'agenda la prima volta che servono.
+
+NOVITÀ DELLA 4.0.7
+------------------
+1) PLANNING: IL TABELLONE DEI MEZZI
+- Nuovo tasto «Planning» a sinistra di «Giorno» (sul telefono è un'icona con tre righe). Apre il
+  giorno scelto come tabellone: a sinistra tutti i mezzi della flotta (targhe), in alto le ore
+  dalle 00 alle 24, ogni prenotazione è una barra lunga quanto il servizio, con il colore del tipo
+  (Gita, Tour, Notturno, Transfer) e il segno dello stato (? in sospeso, ✓ confermata). Una linea
+  colorata segna l'ora attuale quando guardi oggi. Ci sono anche gli extra bus del giorno.
+- Il giorno si cambia con le frecce, con la striscia dei giorni in alto o con «Oggi».
+- Un clic (o un tocco) su una barra apre la prenotazione.
+- I servizi che passano la mezzanotte (notturni, tour) si vedono tagliati sul bordo, con l'ora
+  vera nel testo (per esempio «07:00 – al 25/11 20:00»).
+
+2) LUCCHETTO E TRASCINAMENTO
+- In alto a sinistra nel Planning c'è il lucchetto. Chiuso («Bloccato») non si sposta niente:
+  serve a non cambiare un mezzo per sbaglio. Aperto («Sbloccato: puoi spostare») le prenotazioni
+  si trascinano col mouse sulla riga di un altro mezzo. Il lucchetto vale per il computer su cui
+  lo apri; quando riapri l'agenda è di nuovo chiuso. Chi ha l'agenda in sola lettura non lo vede.
+- Trascinando cambia SOLO IL MEZZO: date, orari, autista e prezzo restano quelli.
+- Mentre trascini la riga diventa verde se si può, rossa se no. Non si può quando:
+  · il mezzo è già occupato a quell'ora (anche da un tempo morto, vedi sotto);
+  · i passeggeri sono più dei posti del mezzo;
+  · c'è un passeggero in carrozzina e il mezzo non è quello attrezzato (H);
+  · il mezzo non è in flotta in quei giorni;
+  · la prenotazione è stata confermata da Massimo (MAX): la cambia solo lui.
+  Se a un servizio manca l'orario e non si capisce se si sovrappone, l'agenda chiede conferma.
+- TOUR: se sposti un giorno di un tour, il mezzo cambia per TUTTO il tour (tutti i giorni).
+- Dopo lo spostamento in basso compare cosa è cambiato, con «Annulla» per tornare indietro.
+  Se il foglio di servizio era già stato inviato all'autista compare «va reinviato».
+  Il mezzo per la fattura (quello del fatturato) segue le stesse regole di quando cambi il mezzo
+  nella prenotazione.
+- Ogni spostamento va nel Registro («Cambiato il mezzo dal Planning: …»).
+- Su telefono e tablet il Planning si guarda e le prenotazioni si aprono, ma per trascinare e per
+  i tempi morti serve il computer con il mouse.
+
+3) PRENOTAZIONI SENZA MEZZO («DA ASSEGNARE»)
+- Nella prenotazione, nel campo «Mezzo», in fondo all'elenco c'è «Da assegnare»: la prenotazione
+  si salva senza mezzo e si sceglie il mezzo dopo.
+- Una prenotazione senza mezzo RESTA IN SOSPESO finché non ha il mezzo: non si può confermare
+  (né renderla stampabile), non si invia all'autista e non prende il n. foglio, quindi non va nel
+  fatturato. Nell'avviso del modulo c'è scritto «Mezzo da assegnare…».
+- Dove si vedono: nella striscia «Da assegnare» in basso nel Planning, nella riga «Da assegnare»
+  in cima alla vista Giorno, e in Settimana e Mese (riga «Da assegnare» con il numero).
+- Per darle il mezzo: nel Planning apri il lucchetto e trascinala dalla striscia sulla riga del
+  mezzo, oppure apri la prenotazione e scegli il mezzo. Appena ha il mezzo (e il cliente) prende da
+  sola il n. foglio e va nel fatturato; poi la confermi come sempre.
+- Si può anche fare il contrario: trascinare una prenotazione dalla riga del mezzo nella striscia
+  «Da assegnare». Solo se è in sospeso, non decisa da Massimo e con il foglio non ancora sul
+  telefono dell'autista.
+  Se aveva già il n. foglio, la riga nel fatturato resta (con la nota «IN SOSPESO · MEZZO DA
+  ASSEGNARE» nelle note) e si aggiorna quando le ridai il mezzo: così il numero non si perde.
+
+4) TEMPI MORTI (TASTO DESTRO)
+- Nel Planning, con il lucchetto aperto, tasto destro su un punto vuoto della riga di un mezzo
+  (sul Mac: clic con due dita o ctrl + clic): menu con i tempi morti, per esempio «ATTESA
+  SCARICO» e «RITORNO VILLAGGIO». Il tempo morto parte dall'ora dove hai cliccato (arrotondata al
+  quarto d'ora) e dura quanto è impostato per quella voce.
+- Il tempo morto è un blocco a righe oblique sulla riga del mezzo, staccato dalle prenotazioni, e
+  OCCUPA IL MEZZO: lì non si possono trascinare prenotazioni a quell'ora (e il modulo della
+  prenotazione avvisa se metti quel mezzo a quell'ora).
+- Tasto destro su un tempo morto: cambi la durata (da 15 minuti a 4 ore) o «Togli questo tempo
+  morto».
+- Le voci si impostano con «Tempi morti…» (in alto a destra nel Planning) o «Imposta i tempi
+  morti…» in fondo al menu: nome e durata di serie, aggiungi, togli, «Salva». Di serie ci sono
+  ATTESA SCARICO e RITORNO VILLAGGIO (1 ora).
+- Voci e tempi morti sono salvati su Dropbox (config/tempi-morti-voci.json e
+  config/tempi-morti.json) e si vedono su tutti i computer. Si vedono anche nella vista Giorno,
+  sulla riga del mezzo. Non vanno nel foglio di servizio, non arrivano all'autista e non vanno nel
+  fatturato. Quelli più vecchi di 60 giorni l'agenda li toglie da sola.
+
+5) RICERCA E FILTRI NEL PLANNING
+- Casella di ricerca: cliente, targa, itinerario, autista, n. foglio. Le prenotazioni trovate sono
+  in evidenza, le altre schiarite.
+- Filtri: tipo (Gita, Tour, Notturno, Transfer), stato (In sospeso, Confermata, Stampabile),
+  grandezza del mezzo (Grandi 64 posti e oltre, Medi 50–63, Piccoli 19–49, Van e auto fino a 18 posti).
+- «Solo i mezzi con risultati» nasconde le righe senza prenotazioni trovate. «Azzera filtri»
+  rimette tutto.
+
+6) ALTRO
+- Nella guida (tasto «?») ci sono tre voci nuove: «Usare il Planning (mezzi e orari)», «Mettere un
+  tempo morto su un mezzo», «Prenotazione senza mezzo (da assegnare)».
+- Sul telefono (aspetto nuovo) i tasti Giorno / Settimana / Mese sono un po' più stretti per far
+  posto all'icona del Planning.
+
+======================================================================
+VERSIONE 4.0.6 (24/11/2026)
 
 COME AGGIORNARE ALLA 4.0.6 (dalla 4.0.5: 3 minuti, 9 file)
 ----------------------------------------------------------

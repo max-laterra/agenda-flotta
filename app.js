@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="4.0.6",APP_DATE="24/11/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="4.0.7",APP_DATE="27/11/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
@@ -16,7 +16,7 @@ const APP_VERSION="4.0.6",APP_DATE="24/11/2026";window.AGENDA_VERSION=APP_VERSIO
 //        store.js e autisti.js restano quelli della 3.0.3.
 // 3.0.6: aggiornamento parziale (solo app.js): nomi di prima degli autisti (un autista rinominato nell'anagrafica
 //        resta una persona sola: servizi già inseriti, telefono, crocette dei pasti). Gli altri file restano della 3.0.5.
-const APP_FAMILY="3.0",APP_PATCH={index:"4.0.6",store:"4.0.6",autisti:"4.0.5",fatture:"4.0.6",fatturato:"4.0.6",accessi:"4.0.4",dropbox:"4.0.4"};
+const APP_FAMILY="3.0",APP_PATCH={index:"4.0.7",store:"4.0.7",autisti:"4.0.5",fatture:"4.0.6",fatturato:"4.0.6",accessi:"4.0.4",dropbox:"4.0.4"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -42,7 +42,7 @@ if(framed){stopPage("Agenda Flotta La Terra","Per sicurezza l'agenda non si può
   const F=window.AGENDA_FILES||{},FP=window.AGENDA_PATCH||{},bad=[];
   if(document.documentElement.getAttribute("data-v")!==APP_FAMILY||(APP_PATCH.index&&document.documentElement.getAttribute("data-p")!==APP_PATCH.index))bad.push("index.html");
   for(const f of ["dropbox","fatturato","fatture","store","accessi","autisti"])if(F[f]!==APP_FAMILY||(APP_PATCH[f]&&FP[f]!==APP_PATCH[f]))bad.push(f+".js");
-  try{if(getComputedStyle(document.documentElement).getPropertyValue("--skin40").indexOf("4.0.6")<0)bad.push("skin40.css");}catch(_){} // 4.0: anche la grafica nuova deve essere arrivata
+  try{if(getComputedStyle(document.documentElement).getPropertyValue("--skin40").indexOf("4.0.7")<0)bad.push("skin40.css");}catch(_){} // 4.0: anche la grafica nuova deve essere arrivata
   let n=0;try{n=+sessionStorage.getItem("agenda-upd-try")||0;}catch(_){}
   if(bad.length){
     // ricaricando, ogni file viene richiesto di nuovo al sito (la copia per l'uso offline non si cancella:
@@ -166,7 +166,7 @@ function dayCounts(ds){
     if(!ds2.length)gen++;
     for(const d of ds2){if(isGen(d))gen++;else named.add(driverCanon(d).toLowerCase());}
   }
-  return {a:named.size+gen,gen:gen,s:list.length,p:new Set(list.filter(b=>!isXbus(b.vehicle)).map(b=>b.vehicle)).size};
+  return {a:named.size+gen,gen:gen,s:list.length,p:new Set(list.filter(b=>b.vehicle&&!isXbus(b.vehicle)).map(b=>b.vehicle)).size};
 }
 function driversText(b){
   const l=[b.driver,b.driver2].map(x=>String(x||"").trim()).filter(Boolean);
@@ -347,14 +347,16 @@ function dayXbus(ds){
 }
 
 // ---------- rendering ----------
-function renderAll(){syncLook();$("btnInvio").hidden=!(hasMax()&&!isInvio());renderMonthBar();renderStrip();if(S.view==="day")renderDay();else if(S.view==="week")renderWeek();else if(S.view==="bill")renderBill();else if(S.view==="pasti")renderPasti();else renderMonth();}
+function renderAll(){syncLook();$("btnInvio").hidden=!(hasMax()&&!isInvio());renderMonthBar();renderStrip();if(S.view==="day")renderDay();else if(S.view==="plan"){if(PL.drag)PL.dirty=true;else renderPlan();}else if(S.view==="week")renderWeek();else if(S.view==="bill")renderBill();else if(S.view==="pasti")renderPasti();else renderMonth();}
 function weekStart(s){return addDays(s,-((wday(s)+6)%7));}
 
+const UNV={id:"",name:"Da assegnare",un:true}; // 4.0.7: riga delle prenotazioni senza mezzo
+const unLabel='<b class="un-tag">Da assegnare</b>';
 function renderWeek(){
   const mon=weekStart(S.sel),sun=addDays(mon,6),all=bookingsAll(),t=todayISO();
   const days=[];for(let i=0;i<7;i++)days.push(addDays(mon,i));
   const inWeek=all.filter(b=>b.start<=sun&&endOf(b)>=mon);
-  const busyAny=new Set(days.flatMap(ds=>dayList(ds)).filter(b=>!isXbus(b.vehicle)).map(b=>b.vehicle)).size;
+  const busyAny=new Set(days.flatMap(ds=>dayList(ds)).filter(b=>b.vehicle&&!isXbus(b.vehicle)).map(b=>b.vehicle)).size;
   const cnt=tp=>inWeek.filter(b=>b.type===tp).length;
   const a=parse(mon),z=parse(sun);
   const range=a.getUTCMonth()===z.getUTCMonth()?a.getUTCDate()+"–"+z.getUTCDate()+" "+MN[z.getUTCMonth()]+" "+z.getUTCFullYear():a.getUTCDate()+" "+MN[a.getUTCMonth()].slice(0,3)+" – "+z.getUTCDate()+" "+MN[z.getUTCMonth()].slice(0,3)+" "+z.getUTCFullYear();
@@ -370,9 +372,9 @@ function renderWeek(){
   h+='</tr></thead><tbody>';
   // 2.8: in fondo gli extra bus della settimana (altre aziende); «+ Aggiungi» solo nei giorni in cui ci sono
   const xbw=new Map();for(const ds of days)for(const x of dayXbus(ds)){if(!xbw.has(x.vid))xbw.set(x.vid,{def:x.def,days:new Set()});xbw.get(x.vid).days.add(ds);}
-  const rowsV=fleetRows(days).map(v=>({v,xb:null})).concat([...xbw].map(([vid,o])=>({v:xbVehOf(o.def,vid),xb:o})));
+  const rowsV=(days.some(ds=>on(ds,"").length)?[{v:UNV,xb:null}]:[]).concat(fleetRows(days).map(v=>({v,xb:null})),[...xbw].map(([vid,o])=>({v:xbVehOf(o.def,vid),xb:o})));
   for(const {v,xb} of rowsV){
-    h+='<tr'+(xb?' class="xbrow"':'')+'><th class="vc"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span>'+(xb?"":vOffTag(v,days.find(ds=>!vOn(v,ds))||days[0]))+'</th>';
+    h+='<tr'+(xb?' class="xbrow"':v.un?' class="unrow"':'')+'><th class="vc"><span class="vl" title="'+esc(v.un?"Prenotazioni senza mezzo: assegnale dal Planning o dalla prenotazione":v.name||"")+'">'+(v.un?unLabel:vehLabelHTML(v))+'</span>'+(xb||v.un?"":vOffTag(v,days.find(ds=>!vOn(v,ds))||days[0]))+'</th>';
     for(const ds of days){
       const list=on(ds,v.id);
       let inner="";
@@ -383,10 +385,10 @@ function renderWeek(){
           '<span class="l1">'+missBadge(b,ds)+(tm?'<span class="tm">'+esc(tm)+'</span>':"")+'<span class="tp">'+tp+'</span><span class="stm '+stCls(b)+'" aria-hidden="true">'+stMark(b)+'</span></span>'+
           '<span class="cl">'+fvChip(b)+esc(dispClient(b))+'</span>'+(hasEvent(b.type)&&b.event?'<span class="ev">'+esc(b.event)+'</span>':"")+(whatToday(b,ds)?'<span class="rt'+(dayProgram(b,ds)?" pg":"")+'">'+esc(whatToday(b,ds))+'</span>':"")+'</button>';
       }
-      const canAdd=!S.readOnly&&(!xb||xb.days.has(ds));
+      const canAdd=!S.readOnly&&!v.un&&(!xb||xb.days.has(ds));
       // 3.0.5: dove c'è già un servizio il «+» non occupa spazio (compare nell'angolo al passaggio del mouse)
       if(canAdd)inner+=list.length?'<span class="plus" title="Aggiungi un altro servizio su questo mezzo">+</span>':'<span class="plus">+ Aggiungi</span>';
-      const pl=xb?[]:postitsOf(ds,v.id);
+      const pl=xb||v.un?[]:postitsOf(ds,v.id);
       h+='<td class="wc'+(wday(ds)===0?" sun":"")+(pl.length?" has-pi":"")+'"'+(canAdd?' data-addv="'+esc(v.id)+'" data-addd="'+esc(ds)+'"':'')+'><div class="wcell'+(list.length?" has":"")+'">'+(pl.length?'<div class="wpi">'+pl.map(p=>piNote(p,ds,"sm")).join("")+'</div>':"")+inner+'</div></td>';
     }
     h+='</tr>';
@@ -518,7 +520,7 @@ function bookingHTML(b,date){
 function renderDay(){
   const date=S.sel,w=wday(date),all=bookingsAll(),d=parse(date);
   const today=dayList(date);
-  const busy=new Set(today.filter(b=>!isXbus(b.vehicle)).map(b=>b.vehicle)),dc=dayCounts(date);
+  const busy=new Set(today.filter(b=>b.vehicle&&!isXbus(b.vehicle)).map(b=>b.vehicle)),dc=dayCounts(date);
   // giorno e data sulla stessa riga; la domenica in rosso. Numeri: autisti, servizi, mezzi | tipi di servizio
   $("sign").className="sign"+(w===0?" sun":"");
   const tcount=Object.keys(STAT_LABELS).map(k=>[k,today.filter(b=>b.type===k).length]).filter(x=>x[1]);
@@ -538,11 +540,13 @@ function renderDay(){
   $("sheet").className="sheet"+(w===0?" sun":"");
   $("sheet").style.setProperty("--vehw",vehColW(15)+"px");
   let h="";
+  {const una=on(date,""); // 4.0.7: prenotazioni senza mezzo, in cima
+    if(una.length)h+='<div class="row busy unrow"><div class="veh"><span class="vl" title="Prenotazioni senza mezzo: assegnale dal Planning (trascinandole su un mezzo) o dalla prenotazione">'+unLabel+'</span></div><div class="slots">'+una.map(b=>bookingHTML(b,date)).join("")+'</div><span></span></div>';}
   for(const v of fleetRows(date)){ // 3.0.5: i mezzi eliminati solo se quel giorno hanno servizi
     const list=on(date,v.id);
     h+='<div class="row'+(list.length?" busy":"")+(vOn(v,date)?"":" v-offrow")+'">'+
       '<div class="veh"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span>'+vOffTag(v,date)+postitsOf(date,v.id).map(p=>piNote(p,date,"sm")).join("")+'</div>'+
-      '<div class="slots">'+(list.length?list.map(b=>bookingHTML(b,date)).join(""):'<span class="free">Libero</span>')+'</div>'+
+      '<div class="slots">'+(list.length?list.map(b=>bookingHTML(b,date)).join(""):tmOn(date,v.id).length?"":'<span class="free">Libero</span>')+tmChips(date,v.id)+'</div>'+
       (S.readOnly?"<span></span>":'<button class="add" data-add="'+esc(v.id)+'">+ Aggiungi</button>')+
     '</div>';
   }
@@ -573,6 +577,10 @@ function renderMonth(){
   for(let d=1;d<=n;d++){const ds=k+"-"+pad(d),w=wday(ds);const pd=postitsOf(ds,"");h+='<th class="'+(w===0?"sun ":"")+(ds===S.sel?"sel":"")+(pd.length?" has-pi":"")+'" data-day="'+ds+'" style="cursor:pointer"'+(pd.length?' title="'+esc(piTip(pd))+'"':'')+'>'+(pd.length?'<i class="pi-dot c-'+esc(pd[0].col)+'"></i>':'')+WD[w].slice(0,1)+'<span class="n">'+d+'</span></th>';}
   h+='</tr></thead><tbody>';
   const mdays=[];for(let d=1;d<=n;d++)mdays.push(k+"-"+pad(d));
+  if(mdays.some(ds=>on(ds,"").length)){ // 4.0.7: prenotazioni senza mezzo
+    h+='<tr class="unrow"><th class="vc"><span class="vl" title="Prenotazioni senza mezzo: assegnale dal Planning o dalla prenotazione">'+unLabel+'</span></th>';
+    for(const ds of mdays){const l=on(ds,""),w=wday(ds);h+='<td class="c'+(w===0?" sun":"")+(ds===S.sel?" sel":"")+'" data-day="'+ds+'" title="'+esc(itD(ds)+(l.length?"\n"+l.map(x=>"? "+(TYPES[x.type]||"")+(x.time?" "+x.time:"")+" – "+dispClient(x)).join("\n"):" – nessuna da assegnare"))+'">'+(l.length?'<div class="cell un opz">'+l.length+'</div>':'')+'</td>';}
+    h+='</tr>';}
   for(const v of fleetRows(mdays)){
     h+='<tr><th class="vc"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span>'+vOffTag(v,mdays.find(ds=>!vOn(v,ds))||mdays[0])+'</th>';
     for(let d=1;d<=n;d++){
@@ -643,7 +651,7 @@ function openForm(opts){
   formXbCur=isXbus(b.vehicle)?{vid:b.vehicle,def:Object.assign({},xbIndex().get(b.vehicle)||{},b.xbus||{})}:null;
   fillVehOpts(b.vehicle,b.start);
   $("t-"+normType(b.type)).checked=true;
-  $("f-vehicle").value=b.vehicle;if(!$("f-vehicle").value&&$("f-vehicle").options[0])$("f-vehicle").value=$("f-vehicle").options[0].value;$("f-start").value=b.start;$("f-end").value=(b.end&&b.end>=b.start)?b.end:b.start;$("f-end").min=b.start||"";formStart=b.start;
+  $("f-vehicle").value=b.vehicle||"";if($("f-vehicle").value!==(b.vehicle||"")&&$("f-vehicle").options[0])$("f-vehicle").value=$("f-vehicle").options[0].value;$("f-start").value=b.start;$("f-end").value=(b.end&&b.end>=b.start)?b.end:b.start;$("f-end").min=b.start||"";formStart=b.start;
   $("f-time").value=b.time||"";$("f-time2").value=b.time2||"";$("f-client").value=b.client||"";$("f-route").value=b.route||"";
   $("f-pax").value=b.pax==null?"":b.pax;$("f-event").value=b.event||"";$("f-escort").value=b.escort||"";$("f-driver").value=b.driver||"";$("f-contact").value=b.contact||"";$("f-contactname").value=b.contactName||"";$("f-contactnote").value=b.contactNote||"";$("f-contactrole").innerHTML=tendinaOpts("ruolo",b.contactRole||"");drvPaint("f-driver");drvPaint("f-driver2");
   $("f-status").value=b.status==="opzione"?"opzione":b.status==="stampabile"?"stampabile":"confermato";paintStatus();
@@ -831,8 +839,9 @@ function fillVehOpts(sel,date){
   // 4.0.4: mezzo della prenotazione che sulla flotta di questo dispositivo non c'è (flotta non ancora aggiornata, mezzo
   // eliminato): resta scelto con un avviso; prima il modulo sceglieva il primo mezzo e salvando la prenotazione passava all'81 posti
   if(sel&&!isXbus(sel)&&!S.fleet.some(v=>v.id===sel)&&editing){h='<option value="'+esc(sel)+'">Mezzo «'+esc(sel)+'» (non trovato nella flotta di questo dispositivo)</option>'+h;if(fvMissWarn!==sel){fvMissWarn=sel;toast("Il mezzo di questa prenotazione non c'è nella flotta di questo dispositivo: resta quello di prima. Aggiorna l'agenda o controlla la flotta.");}}
+  h+='<optgroup label="Senza mezzo"><option value="">Da assegnare (il mezzo si sceglie dopo, anche dal Planning)</option></optgroup>'; // 4.0.7
   $("f-vehicle").innerHTML=h;
-  if(sel!=null){$("f-vehicle").value=sel;if(!$("f-vehicle").value&&$("f-vehicle").options[0])$("f-vehicle").value=$("f-vehicle").options[0].value;}
+  if(sel!=null){$("f-vehicle").value=sel;if($("f-vehicle").value!==sel&&$("f-vehicle").options[0])$("f-vehicle").value=$("f-vehicle").options[0].value;}
 }
 let fvMissWarn="";
 const formXbusOf=vid=>{if(!isXbus(vid))return "";const d=formXb.get(vid)||{};return {id:vid.slice(3),az:String(d.az||""),posti:String(d.posti||""),targa:String(d.targa||"")};};
@@ -926,6 +935,8 @@ function timesApart(a,b){const p=busyOf(a),q=busyOf(b);return !!(p&&q)&&(p[1]<=q
 const when=x=>short(x.start)+(endOf(x)!==x.start?"–"+short(endOf(x)):"")+(x.time?" ore "+x.time:"");
 function checkWarns(){
   const b=readForm(),w=[],v=vehicle(b.vehicle);
+  for(const x of tmWarns(b))w.push(x); // 4.0.7
+  if(!b.vehicle)w.push("Mezzo da assegnare: la prenotazione resta in sospeso finché non scegli il mezzo (qui o nel Planning, trascinandola su un mezzo). Senza mezzo non ha il n. foglio e non va nel fatturato."); // 4.0.7
   if(b.start&&!validDate(b.start))w.push("La data di partenza non è valida: controlla l'anno (per esempio 2026, non 0026).");
   if(b.end&&b.end!==b.start&&!validDate(b.end))w.push("La data di rientro non è valida: controlla l'anno.");
   if(b.end&&b.end<b.start)w.push("La data di rientro è prima della partenza.");
@@ -972,7 +983,7 @@ function dayConflicts(b,self){
   const e=validDate(b.end)&&b.end>=b.start&&diff(b.start,b.end)<=31?b.end:b.start;
   for(let d=b.start,n=0;d<=e&&n<32;d=addDays(d,1),n++){
     const me=dayView(b,d),oth=dayList(d).filter(x=>!self||x.id!==self);
-    for(const x of oth)if(x.vehicle===me.vehicle){if(!out.veh.has(me.vehicle))out.veh.set(me.vehicle,new Map());out.veh.get(me.vehicle).set(x.id,x);}
+    if(me.vehicle)for(const x of oth)if(x.vehicle===me.vehicle){if(!out.veh.has(me.vehicle))out.veh.set(me.vehicle,new Map());out.veh.get(me.vehicle).set(x.id,x);}
     for(const dn of [me.driver,me.driver2].map(realDriver).filter(Boolean)){
       const k=drvKey(dn);
       for(const x of oth)if([x.driver,x.driver2].some(y=>realDriver(y)&&drvKey(y)===k)){if(!out.drv.has(k))out.drv.set(k,{dn,m:new Map()});out.drv.get(k).m.set(x.id,x);}
@@ -1048,6 +1059,7 @@ $("dvRows").addEventListener("change",e=>{
 // 4.0.3: spunta «Passeggero H a bordo» solo con il 33
 function hPaxRow(){const on=isH33(vehicle($("f-vehicle").value));$("fHpaxRow").hidden=!on;if(!on)$("f-hpax").checked=false;}
 $("f-vehicle").addEventListener("change",hPaxRow);
+$("f-vehicle").addEventListener("change",()=>{if(!$("f-vehicle").value&&$("f-status").value!=="opzione"){$("f-status").value="opzione";paintStatus();toast("Senza mezzo la prenotazione resta in sospeso.");}}); // 4.0.7
 // passeggeri oltre la capienza dei mezzi scelti per i singoli giorni del tour
 function dvSeatsWarn(b){
   const out=[],pax=String(b.pax||"");if(!/^\d+$/.test(pax))return out;
@@ -1761,6 +1773,7 @@ $("fBooking").addEventListener("submit",async e=>{
     return;
   }
   editConfirmed=false;$("fEditAsk").hidden=true;
+  if(!b.vehicle&&b.status!=="opzione")b.status="opzione"; // 4.0.7: senza mezzo resta in sospeso
   withOldNotes(b);
   // il segno «inviato all'autista» non è nel modulo: si porta dietro com'è (anche se il servizio cambia giorno)
   let bossEdit=false;
@@ -1797,7 +1810,8 @@ $("fBooking").addEventListener("submit",async e=>{
     // n. foglio: AAMMGG + progressivo del giorno del servizio; resta fisso finché il servizio non cambia giorno
     // 3.0.3: senza cliente niente n. foglio (il foglio nasce con il cliente); un numero già assegnato resta
     let foglio=editing?editing.foglio:"",seqPatch={};
-    if((!foglio&&String(b.client||"").trim())||(foglio&&moved)){const n=await nextSeq(b.start);foglio=yymmdd(b.start)+pad(n);seqPatch={assign:true};}
+    // 4.0.7: senza mezzo niente n. foglio (arriva con il mezzo)
+    if((!foglio&&String(b.client||"").trim()&&b.vehicle)||(foglio&&moved)){const n=await nextSeq(b.start);foglio=yymmdd(b.start)+pad(n);seqPatch={assign:true};}
     b.foglio=foglio;
     if(moved)writeDayOps(old,{bookings:{[id]:null}},{move:b.start,know:knowOf(bookingsAll().find(x=>x.id===id))});
     writeDayOps(b.start,Object.assign({bookings:{[id]:b}},seqPatch),Object.assign({},meta,moved?{move:true}:{}));
@@ -2232,7 +2246,7 @@ $("extraText").addEventListener("blur",()=>{if(exTimer)saveExtra();});
 
 // ---------- navigazione ----------
 function go(date){if(exTimer)saveExtra();$("extraSaved").textContent="";S.sel=date;if(mkey(date)!==subMonth)subscribe();renderAll();}
-function setView(v){S.view=v;["day","week","month","bill","pasti"].forEach(k=>{const id={day:"vDay",week:"vWeek",month:"vMonth",bill:"vBill",pasti:"vPasti"}[k];$(id).setAttribute("aria-pressed",v===k);$(k+"View").hidden=v!==k;});$("stickHead").classList.toggle("on",v==="day"||v==="week");try{localStorage.setItem("agenda-view",v);}catch(_){}renderAll();stickSize();}
+function setView(v){S.view=v;if(v!=="plan"&&typeof plMenuClose==="function"){try{plMenuClose();}catch(_){}}["plan","day","week","month","bill","pasti"].forEach(k=>{const id={plan:"vPlan",day:"vDay",week:"vWeek",month:"vMonth",bill:"vBill",pasti:"vPasti"}[k];$(id).setAttribute("aria-pressed",v===k);$(k+"View").hidden=v!==k;});$("stickHead").classList.toggle("on",v==="day"||v==="week"||v==="plan");try{localStorage.setItem("agenda-view",v);}catch(_){}renderAll();stickSize();}
 // 2.8: altezza della parte ferma in alto (e della barra grigia della Settimana), per mettere sotto la barra grigia
 function stickSize(){const r=document.documentElement.style;r.setProperty("--headH",$("stickHead").offsetHeight+"px");r.setProperty("--wsignH",$("wsign").offsetHeight+"px");}
 if(window.ResizeObserver){const ro=new ResizeObserver(()=>stickSize());ro.observe($("stickHead"));ro.observe($("wsign"));}
@@ -2335,6 +2349,7 @@ function billNote(b){
   const cl=b.clientCode!==""&&b.clientCode!=null?clientByCode(b.clientCode):null;
   if(b.contactName||(b.contact&&!(cl&&cl[4]===b.contact)))p.push("Ref. "+[b.contactName,b.contact&&!(cl&&cl[4]===b.contact)?b.contact:""].filter(Boolean).join(" "));
   if(isXbus(b.vehicle)){const x=vehicle(b.vehicle)||{};p.push("EXTRA BUS "+[x.az,x.plate].filter(Boolean).join(" "));} // 2.8: bus di un'altra azienda
+  if(!b.vehicle)p.unshift("MEZZO DA ASSEGNARE"); // 4.0.7 (solo per le prenotazioni che avevano già il n. foglio)
   if(b.status==="opzione")p.unshift("IN SOSPESO"); // per primo: nella casella del foglio non deve essere tagliato
   return p.join(" · ");
 }
@@ -3701,6 +3716,7 @@ function setStatus(id,start,st,msg){
   if(S.readOnly){toast("Accesso in sola lettura");return false;}
   const doc=S.days[start],cur=doc&&doc.bookings&&doc.bookings[id];if(!cur){toast("La prenotazione non c'è più (eliminata o spostata).");return false;}
   const was=pending(cur)?"opzione":printable(cur)?"stampabile":"confermato";if(was===st)return true;
+  if(st!=="opzione"&&!cur.vehicle){toast("Prima assegna il mezzo: senza mezzo la prenotazione resta in sospeso.");return false;} // 4.0.7
   const b=Object.assign({},cur,{status:st,updatedAt:new Date().toISOString(),updBy:meName()});
   try{
     writeDayOps(start,{bookings:{[id]:b}},{edit:true,only:true,base:cur.updatedAt||null,patch:["status","updBy"]});
@@ -3719,6 +3735,329 @@ function togglePrintable(id,start){if(isInvio()){toast("Dal profilo «solo antep
   const doc=S.days[start],cur=doc&&doc.bookings&&doc.bookings[id];if(!cur){setStatus(id,start,"stampabile");return;}setStatus(id,start,printable(cur)?"confermato":"stampabile",printable(cur)?"Tolto «Stampabile»: la prenotazione resta confermata":"");}
 // quello che questo dispositivo sa della scelta del capo e dell'invio di una prenotazione (per spostamenti ed eliminazioni)
 function knowOf(b){return {c:(b&&b.capo&&b.capo.at)||"",s:b&&b.sent?(b.sent.at||"")+"|"+((b.sent.off&&b.sent.off.at)||""):""};}
+// =====================================================================================
+// 4.0.7 — Planning: i mezzi in righe, le ore del giorno (00–24) in colonna, le prenotazioni come barre.
+// Con il lucchetto aperto si trascina una prenotazione sulla riga di un altro mezzo (cambia solo il mezzo: date e orari
+// restano; per i tour di più giorni cambia il mezzo di tutto il tour) o dalla striscia «Da assegnare» (prenotazioni
+// senza mezzo) su un mezzo. Valgono le regole di sempre: posti, passeggero H, mezzo in flotta, mezzo libero a
+// quell'ora (anche i tempi morti), bus e autisti decisi da MAX, «perché cambi il mezzo?» nelle 24 ore prima della
+// partenza, foglio già inviato da reinviare (il foglio cambia impronta da solo).
+// Tempi morti: tasto destro su un punto vuoto della riga di un mezzo; occupano il mezzo. Sono in
+// config/tempi-morti.json; le voci del menu (nome e durata) in config/tempi-morti-voci.json («Tempi morti…»).
+// =====================================================================================
+const PL={locked:true,q:"",fty:[],fst:[],size:"",only:false,drag:null,over:null,fit:new Map(),undo:null,menu:null,dirty:false};
+const PL_SIZE={g:[64,9999],m:[50,63],p:[19,49],v:[0,18]};
+const PL_DUR=[15,30,45,60,90,120,180,240];
+const TM_DEF=[{nome:"ATTESA SCARICO",min:60},{nome:"RITORNO VILLAGGIO",min:60}];
+const PL_LOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+const PL_OPEN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.6-1.8"/></svg>';
+const hm=h=>{h=Math.max(0,Math.min(24,h));let H=Math.floor(h+1e-9),M=Math.round((h-H)*60);if(M===60){H++;M=0;}return pad(H)+":"+pad(M);};
+const hOf=t=>{const m=/^(\d{1,2}):(\d{2})$/.exec(String(t||""));return m&&+m[1]<=24&&+m[2]<60?(+m[1])+(+m[2])/60:null;};
+const minLbl=m=>{m=+m||0;const h=Math.floor(m/60),r=m%60;return h?(h===1?"1 ora":h+" ore")+(r?" e "+r+" minuti":""):r+" minuti";};
+const plVLab=vid=>vid?vehLabel(vehicle(vid)||{id:vid}):"da assegnare";
+// ---- tempi morti ----
+function tmRows(){return ((((STORE.reg("tempimorti")||{}).rows)||[])).filter(t=>t&&typeof t.id==="string"&&validDate(t.data)&&typeof t.veh==="string"&&hOf(t.da)!=null&&hOf(t.a)!=null&&hOf(t.a)>hOf(t.da));}
+function tmOn(ds,vid){return tmRows().filter(t=>t.data===ds&&t.veh===vid).sort((a,b)=>a.da.localeCompare(b.da));}
+function tmBusy(t){const d0=Date.parse(t.data+"T00:00:00Z");return [d0+hOf(t.da)*36e5,d0+hOf(t.a)*36e5];}
+function tmTypes(){
+  const r=((((STORE.reg("tipimorti")||{}).rows)||[])).filter(x=>x&&String(x.nome||"").trim());
+  return r.length?r.slice(0,30).map(x=>({nome:String(x.nome).trim().slice(0,40),min:Math.max(5,Math.min(720,parseInt(x.min,10)||60))})):TM_DEF.map(x=>Object.assign({},x));
+}
+// tempi morti vecchi: si tengono gli ultimi 60 giorni (al massimo 3000)
+const tmPrune=rows=>{const lim=addDays(todayISO(),-60);return rows.filter(t=>t&&t.data>=lim).slice(-3000);};
+// cosa occupa il mezzo vid il giorno ds tra le ore a e z (prenotazioni con l'orario e altri tempi morti)
+function tmClash(vid,ds,a,z,skip){
+  const d0=Date.parse(ds+"T00:00:00Z"),A=d0+a*36e5,Z=d0+z*36e5;
+  for(const x of on(ds,vid)){const xz=busyOf(x);if(xz&&xz[0]<Z&&A<xz[1])return (TYPES[x.type]||"servizio")+" «"+dispClient(x)+"» ("+(x.time||"")+(x.time2?"–"+x.time2:"")+")";}
+  for(const t of tmOn(ds,vid)){if(t.id===skip)continue;const tz=tmBusy(t);if(tz[0]<Z&&A<tz[1])return "il tempo morto «"+t.nome+"» ("+t.da+"–"+t.a+")";}
+  return "";
+}
+// ---- prenotazioni nel giorno ----
+// ore del servizio nel giorno ds (0–24); cl/cr: continua dal giorno prima / nel giorno dopo; nt: senza orario
+function plSpan(b,ds){
+  const d0=Date.parse(ds+"T00:00:00Z"),bz=busyOf(b);
+  if(!bz)return {a:0,z:24,cl:ds>b.start,cr:ds<endOf(b),nt:true};
+  const a=(bz[0]-d0)/36e5,z=(bz[1]-d0)/36e5;
+  return {a:Math.max(0,a),z:Math.min(24,z),cl:a<0,cr:z>24,nt:false};
+}
+function plTime(b,ds){
+  const s=plSpan(b,ds);if(s.nt)return "orario non indicato";
+  const e=endOf(b);
+  return (s.cl?"dal "+itD(b.start).slice(0,5):hm(s.a))+" – "+(s.cr?(e>ds?"al "+itD(e).slice(0,5)+(b.time2?" "+b.time2:""):(b.time2||"")+" di notte"):hm(s.z));
+}
+const plSt=b=>pending(b)?"opzione":printable(b)?"stampabile":"confermato";
+const plFull=b=>bookingsAll().find(x=>x.id===b.id&&x.start===b.start)||bookingsAll().find(x=>x.id===b.id)||null;
+const plDvV=b=>dayvOf(b).some(o=>o&&o.v);
+function plFilt(){return !!(norm(PL.q).trim()||PL.fty.length||PL.fst.length);}
+function plMatch(b){
+  if(PL.fty.length&&!PL.fty.includes(b.type))return false;
+  if(PL.fst.length&&!PL.fst.includes(plSt(b)))return false;
+  const q=norm(PL.q).trim();if(!q)return true;
+  const v=vehicle(b.vehicle)||{};
+  return norm([b.client,dispClient(b),b.route,b.event,whatToday(b,S.sel),b.foglio,b.contactName,driversText(b),allDriversOf(b).join(" "),v.plate,String(v.plate||"").replace(/\s+/g,""),v.az,b.notes].join(" ")).includes(q);
+}
+const tmMatch=t=>{if(PL.fty.length||PL.fst.length)return false;const q=norm(PL.q).trim();return !q||norm(t.nome).includes(q);};
+// ---- si può mettere la prenotazione b sul mezzo vid? {ok, why, ask} ----
+function plCheck(b0,vid){
+  const cur=plFull(b0)||b0,v=vehicle(vid);
+  if(!v)return {ok:false,why:"Mezzo non trovato."};
+  if(capoLock(cur))return {ok:false,why:CAPO_NO};
+  const e=endOf(cur);
+  if(!v.xbus)for(let d=cur.start,n=0;d<=e&&n<32;d=addDays(d,1),n++)if(!vOn(v,d))return {ok:false,why:"Il "+vehLabel(v)+" non è in flotta il "+itD(d)+"."};
+  if(v.seats&&/^\d+$/.test(String(cur.pax||""))&&+cur.pax>v.seats)return {ok:false,why:"Non entra: «"+dispClient(cur)+"» ha "+cur.pax+" passeggeri e il "+vehLabel(v)+" ne porta "+v.seats+"."};
+  if(cur.hPax===true&&!isH33(v))return {ok:false,why:"A bordo c'è un passeggero in carrozzina: serve il mezzo attrezzato (H)."};
+  const bz=busyOf(cur),unk=[];
+  for(let d=cur.start,n=0;d<=e&&n<32;d=addDays(d,1),n++){
+    for(const x of on(d,vid)){if(x.id===cur.id)continue;const xz=busyOf(x);
+      if(!bz||!xz){if(!unk.includes("«"+dispClient(x)+"» ("+when(x)+")"))unk.push("«"+dispClient(x)+"» ("+when(x)+")");continue;}
+      if(xz[0]<bz[1]&&bz[0]<xz[1])return {ok:false,why:"Il "+vehLabel(v)+" è già occupato a quell'ora: "+(TYPES[x.type]||"servizio")+" «"+dispClient(x)+"» ("+when(x)+(x.time2?"–"+x.time2:"")+")."};}
+    for(const t of tmOn(d,vid)){const tz=tmBusy(t);
+      if(!bz){unk.push("il tempo morto «"+t.nome+"» ("+t.da+"–"+t.a+")");continue;}
+      if(tz[0]<bz[1]&&bz[0]<tz[1])return {ok:false,why:"Il "+vehLabel(v)+" ha un tempo morto a quell'ora: «"+t.nome+"» "+t.da+"–"+t.a+(d!==S.sel?" del "+itD(d):"")+"."};}
+  }
+  if(unk.length)return {ok:true,ask:"Sul "+vehLabel(v)+" negli stessi giorni c'è già "+unk.join(", ")+", e manca un orario per capire se si sovrappone.\n\nLo sposto lo stesso?"};
+  return {ok:true};
+}
+function plCheckOut(b0){
+  const cur=plFull(b0)||b0;
+  if(capoLock(cur))return {ok:false,why:CAPO_NO};
+  if(!pending(cur))return {ok:false,why:"Tra quelle da assegnare vanno solo le prenotazioni in sospeso: prima rimettila in sospeso."};
+  if(cur.sent&&cur.sent.at&&!cur.sent.off)return {ok:false,why:"Il foglio è già sul telefono dell'autista: prima ritiralo."};
+  return {ok:true};
+}
+function plSay(t,kind){PL.msg={t:t||"",k:kind||""};const m=$("plMsg");if(!m)return;$("plMsgT").textContent=PL.msg.t;m.className="pl-msg"+(PL.msg.k?" "+PL.msg.k:"");$("plUndo").hidden=!(PL.undo&&PL.msg.k==="ok");}
+const xbObjOf=vid=>{const d=xbIndex().get(vid)||(dayXbus(S.sel).find(x=>x.vid===vid)||{}).def||{};return {id:vid.slice(3),az:String(d.az||""),posti:String(d.posti||""),targa:String(d.targa||"")};};
+// sposta la prenotazione sul mezzo vid ("" = tra quelle da assegnare); u = annulla l'ultimo spostamento
+async function plMove(b0,vid,u){
+  if(S.readOnly||isInvio())return;
+  const cur=plFull(b0);if(!cur){plSay("La prenotazione non c'è più (eliminata o spostata).","err");return;}
+  vid=vid||"";
+  if(!u&&(cur.vehicle||"")===vid&&!plDvV(cur))return;
+  let fv=null;
+  if(!u){
+    const ck=vid?plCheck(cur,vid):plCheckOut(cur);
+    if(!ck.ok){plSay(ck.why,"err");return;}
+    if(ck.ask&&!confirm(ck.ask))return;
+    if(vid){fv=await fvAfterChange(cur,vid);if(!fv)return;}
+  }
+  const now=new Date().toISOString(),who=meName();
+  const nb=Object.assign({},cur,{vehicle:vid,updatedAt:now,updBy:who});
+  const pt=["vehicle","xbus","updBy"];
+  if(u){nb.xbus=u.xbus||"";nb.dayv=u.dayv||[];pt.push("dayv");if(u.fveh)nb.fveh=u.fveh;else delete nb.fveh;pt.push("fveh");nb.status=u.status;pt.push("status");}
+  else{
+    nb.xbus=isXbus(vid)?xbObjOf(vid):"";
+    if(plDvV(cur)){nb.dayv=dvTrim(dayvOf(cur).map(o=>o?{v:"",d1:o.d1||"",d2:o.d2||""}:null),32);pt.push("dayv");} // tutto il tour sul mezzo nuovo
+    if(fv){if(fv.fveh)nb.fveh=fv.fveh;else delete nb.fveh;if(JSON.stringify(cur.fveh||null)!==JSON.stringify(nb.fveh||null))pt.push("fveh");}
+    if(!vid&&nb.status!=="opzione"){nb.status="opzione";pt.push("status");}
+  }
+  try{writeDayOps(cur.start,{bookings:{[cur.id]:nb}},{edit:true,only:true,base:cur.updatedAt||null,patch:pt});}
+  catch(err){plSay(err&&err.code==="readonly"?"Con questo profilo non si possono spostare le prenotazioni.":"Non sono riuscito a spostarla: riprova.","err");return;}
+  const ch=[["Mezzo",plVLab(cur.vehicle),plVLab(vid)]];if(fv&&fv.why)ch.push(fvLogRow(fv));
+  ACC.log("prenotazione",(u?"Annullato lo spostamento dal Planning: ":vid?"Cambiato il mezzo dal Planning: ":"Tolto il mezzo dal Planning (da assegnare): ")+bookingLabel(nb),{id:cur.id,ch});
+  PL.undo=u?null:{id:cur.id,start:cur.start,vehicle:cur.vehicle||"",xbus:cur.xbus||"",dayv:Array.isArray(cur.dayv)?JSON.parse(JSON.stringify(cur.dayv)):[],fveh:cur.fveh?JSON.parse(JSON.stringify(cur.fveh)):null,status:cur.status||"opzione"};
+  const sent=!!(cur.sent&&cur.sent.at&&!cur.sent.off),tour=isMulti(cur.type)&&endOf(cur)>cur.start;
+  renderAll();
+  plSay(u?"Spostamento annullato.":"«"+dispClient(cur)+"» "+(vid?"ora è sul "+plVLab(vid)+(tour?" per tutto il tour":""):"è tra quelle da assegnare")+"."+(sent&&vid?" Il foglio era già stato inviato: va reinviato all'autista.":"")+(vid&&!cur.vehicle&&!cur.foglio&&String(cur.client||"").trim()?" Ora ha il n. foglio e va nel fatturato.":""),u?"":"ok");
+}
+// ---- disegno ----
+function plRows(ds){
+  const out=fleetRows(ds).map(v=>({v,xb:false})).concat(dayXbus(ds).map(x=>({v:xbVehOf(x.def,x.vid),xb:true})));
+  const sz=PL_SIZE[PL.size];
+  return sz?out.filter(r=>{const s=r.v.seats||0;return s>=sz[0]&&s<=sz[1];}):out;
+}
+function plBarHTML(b,ds,top,canDrag,f){
+  const s=plSpan(b,ds),m=!f||plMatch(b),q=!!norm(PL.q).trim(),tot=diff(b.start,endOf(b))+1,i=diff(b.start,ds)+1;
+  const l2=[(TYPES[b.type]||"Servizio")+(tot>1?" "+i+"/"+tot:""),whatToday(b,ds),b.pax!==""&&b.pax!=null?b.pax+" pax":"",(driversText(b)||"da assegnare").replace(/(\d+) da assegnare/,"$1 autisti da assegnare").replace(/(^|\+ )da assegnare/,"$1autista da assegnare")].filter(Boolean).join(" · ");
+  const tip=[(pending(b)?"IN SOSPESO":printable(b)?"Stampabile":"Confermata")+" · "+(TYPES[b.type]||"")+(b.foglio?" · n. "+b.foglio:""),dispClient(b),plTime(b,ds),whatToday(b,ds),b.pax!==""&&b.pax!=null?b.pax+" passeggeri":"","Autista: "+(driversText(b)||"da assegnare"),capoLock(b)?capoTitle(b):"",canDrag?"Trascina per cambiare il mezzo · clic: apri la prenotazione":"Clic: apri la prenotazione"].filter(Boolean).join("\n");
+  return '<div class="pl-bar t-'+esc(b.type)+(s.cl?" cl":"")+(s.cr?" cr":"")+(s.nt?" nt":"")+(canDrag?" mv":"")+(f?(m?(q?" hit":""):" dim"):"")+(pending(b)?" opz":"")+'" style="left:'+(s.a/24*100).toFixed(3)+'%;width:'+(Math.max(0.6,(s.z-s.a)/24*100)).toFixed(3)+'%;top:'+top+'px" draggable="'+(canDrag?"true":"false")+'" data-pb="'+esc(b.id)+'" data-ps="'+esc(b.start)+'" title="'+esc(tip)+'" tabindex="0" role="button" aria-label="'+esc(dispClient(b)+", "+plTime(b,ds))+'">'+
+    '<span class="stm '+stCls(b)+'" aria-hidden="true">'+stMark(b)+'</span><span class="pl-tx"><span class="l1">'+esc(plTime(b,ds)+" · "+dispClient(b))+'</span><span class="l2">'+esc(l2)+'</span></span></div>';
+}
+function renderPlan(){
+  const ds=S.sel,w=wday(ds),dd=parse(ds),canEd=!S.readOnly&&!isInvio();
+  if(!canEd)PL.locked=true;
+  $("psign").className="sign"+(w===0?" sun":"");
+  $("psign").innerHTML='<div class="date"><span>'+WDL[w]+'</span><span>'+dd.getUTCDate()+" "+MN[dd.getUTCMonth()]+" "+dd.getUTCFullYear()+'</span>'+(ds===todayISO()?'<span class="today-tag">Oggi</span>':'')+'</div><div class="sright"><div class="nav"><button type="button" id="pPrev" aria-label="Giorno precedente">‹</button><button type="button" id="pNext" aria-label="Giorno successivo">›</button></div></div>';
+  const lk=$("plLock");lk.hidden=!canEd;$("plTmSet").hidden=!canEd;
+  lk.setAttribute("aria-pressed",PL.locked?"true":"false");lk.classList.toggle("open",!PL.locked);
+  lk.innerHTML=(PL.locked?PL_LOCK:PL_OPEN)+'<span>'+(PL.locked?"Bloccato":"Sbloccato: puoi spostare")+'</span>';
+  const tch=!!(window.matchMedia&&matchMedia("(pointer:coarse)").matches&&!matchMedia("(any-pointer:fine)").matches);
+  $("plHint").textContent=!canEd?"Qui vedi i mezzi con le ore del giorno: le prenotazioni si aprono con un clic.":tch?"Su telefono e tablet il Planning si guarda e le prenotazioni si aprono con un tocco. Per trascinarle su un altro mezzo e per i tempi morti usa il computer con il mouse.":PL.locked?"Il lucchetto chiuso evita gli spostamenti per sbaglio. Aprilo per trascinare le prenotazioni su un altro mezzo o per mettere un tempo morto (tasto destro su un punto vuoto della riga di un mezzo).":"Trascina una prenotazione sulla riga di un altro mezzo: verde si può, rosso no. Tasto destro su un punto vuoto della riga: tempo morto da quell'ora. Quando hai finito richiudi il lucchetto.";
+  $("plTy").innerHTML=Object.keys(TYPES).map(k=>'<button type="button" class="pl-chip" data-plty="'+k+'" aria-pressed="'+PL.fty.includes(k)+'"><i class="sw t-'+k+'"></i>'+esc(TYPES[k])+'</button>').join("");
+  $("plSt").innerHTML=[["opzione","In sospeso","q"],["confermato","Confermata","ok"],["stampabile","Stampabile","pr"]].map(([k,l,c])=>'<button type="button" class="pl-chip" data-plst="'+k+'" aria-pressed="'+PL.fst.includes(k)+'"><i class="pl-dot '+c+'" aria-hidden="true"></i>'+l+'</button>').join("");
+  if($("plQ").value!==PL.q)$("plQ").value=PL.q;$("plSize").value=PL.size;$("plOnly").checked=PL.only;
+  const f=plFilt(),q=norm(PL.q).trim(),drag=canEd&&!PL.locked,now=new Date(),nowH=ds===todayISO()?now.getHours()+now.getMinutes()/60:null;
+  const nowM=nowH==null?"":'<div class="pl-now" style="left:'+(nowH/24*100).toFixed(3)+'%"></div>';
+  let hits=0,h='<div class="pl-row pl-axis"><div class="pl-lab">Mezzo</div><div class="pl-ax">';
+  for(let i=0;i<24;i++)h+='<span>'+pad(i)+'</span>';
+  h+=(nowH==null?"":'<b class="pl-nowp" style="left:'+(nowH/24*100).toFixed(3)+'%">'+hm(nowH)+'</b>')+'</div></div>';
+  let shown=0;
+  for(const {v,xb} of plRows(ds)){
+    const list=on(ds,v.id),tms=tmOn(ds,v.id),nb=list.filter(plMatch).length,nt=tms.filter(tmMatch).length,plHit=!!q&&norm(String(v.plate||"")+" "+String(v.plate||"").replace(/\s+/g,"")+" "+(v.num||"")).includes(q);
+    hits+=f?nb:0;
+    if(PL.only&&(f?(!nb&&!nt&&!plHit):(!list.length&&!tms.length)))continue;
+    shown++;
+    // corsie: le barre che si sovrappongono (orari mancanti, conflitti di prima) vanno una sotto l'altra
+    const items=list.map(b=>({b,s:plSpan(b,ds)})).sort((a,c)=>a.s.a-c.s.a),lanes=[];
+    for(const it of items){let k=0;while(lanes[k]!=null&&lanes[k]>it.s.a+1e-6)k++;lanes[k]=it.s.z;it.k=k;}
+    const nl=Math.max(1,lanes.length),hgt=8+nl*44;
+    h+='<div class="pl-row'+(xb?" xb":"")+(vOn(v,ds)||xb?"":" off")+'" data-pr="'+esc(v.id)+'"><div class="pl-lab'+(plHit?" hit":"")+'" style="min-height:'+hgt+'px"><span class="vl">'+vehLabelHTML(v)+'</span>'+(xb?"":vOffTag(v,ds))+'</div>'+
+      '<div class="pl-track" data-pt="'+esc(v.id)+'" style="height:'+hgt+'px">'+nowM+
+      tms.map(t=>{const a=hOf(t.da),z=hOf(t.a);return '<div class="pl-dead'+(f&&!tmMatch(t)?" dim":"")+'" data-pd="'+esc(t.id)+'" style="left:'+(a/24*100).toFixed(3)+'%;width:'+((z-a)/24*100).toFixed(3)+'%" title="'+esc("Tempo morto: "+t.nome+" "+t.da+"–"+t.a+(t.by?" (messo da "+t.by+")":"")+(drag?"\nTasto destro: cambia la durata o togli":""))+'"><b>'+esc(t.nome)+'</b><span>'+esc(t.da+"–"+t.a)+'</span></div>';}).join("")+
+      items.map(it=>plBarHTML(it.b,ds,4+it.k*44,drag&&!capoLock(it.b),f)).join("")+'</div></div>';
+  }
+  if(!shown)h+='<div class="pl-empty">Nessun mezzo con questi filtri. <button type="button" class="btn sm" data-plclear="1">Azzera filtri</button></div>';
+  const g=$("plGrid"),st=g.scrollTop;g.innerHTML=h;g.scrollTop=st;
+  // da assegnare
+  const una=on(ds,"");if(f)hits+=una.filter(plMatch).length;
+  $("plTray").innerHTML='<div class="pl-tray-h"><b>Da assegnare – prenotazioni senza mezzo</b><small>'+(una.length?(una.length===1?"1 prenotazione":una.length+" prenotazioni")+(drag?" · trascinale sulla riga di un mezzo":" · apri il lucchetto per assegnarle"):"nessuna in questo giorno")+'</small></div>'+
+    (una.length?'<div class="pl-cards">'+una.map(b=>{const m=plMatch(b);return '<div class="pl-card t-'+esc(b.type)+(drag?" mv":"")+(f?(m?(q?" hit":""):" dim"):"")+'" draggable="'+(drag?"true":"false")+'" data-pb="'+esc(b.id)+'" data-ps="'+esc(b.start)+'" tabindex="0" role="button" title="'+esc(dispClient(b)+"\n"+plTime(b,ds)+(drag?"\nTrascina sulla riga di un mezzo · clic: apri la prenotazione":"\nClic: apri la prenotazione"))+'"><span class="c1"><span class="stm '+stCls(b)+'" aria-hidden="true">'+stMark(b)+'</span>'+esc(plTime(b,ds))+'</span><span class="c2">'+esc(dispClient(b))+'</span><span class="c3">'+esc([(TYPES[b.type]||""),whatToday(b,ds),b.pax!==""&&b.pax!=null?b.pax+" passeggeri":""].filter(Boolean).join(" · "))+'</span></div>';}).join("")+'</div>':'');
+  $("plCnt").textContent=f?(hits===1?"1 prenotazione trovata":hits+" prenotazioni trovate"):shown+(shown===1?" mezzo":" mezzi");
+  $("plClear").hidden=!(f||PL.size||PL.only);
+  if(!PL.msg)plSay("","");else plSay(PL.msg.t,PL.msg.k);
+}
+// ---- comandi ----
+$("vPlan").onclick=()=>setView("plan");
+$("psign").addEventListener("click",e=>{if(e.target.id==="pPrev")go(addDays(S.sel,-1));if(e.target.id==="pNext")go(addDays(S.sel,1));});
+$("plLock").onclick=()=>{if(S.readOnly||isInvio())return;PL.locked=!PL.locked;PL.undo=null;plMenuClose();plSay(PL.locked?"Lucchetto chiuso: le prenotazioni non si spostano.":"Lucchetto aperto: ora puoi spostare le prenotazioni e mettere i tempi morti.","");renderPlan();};
+$("plQ").addEventListener("input",()=>{PL.q=$("plQ").value;clearTimeout(renderPlan._q);renderPlan._q=setTimeout(()=>{if(S.view==="plan")renderPlan();},150);});
+$("plSize").addEventListener("change",()=>{PL.size=$("plSize").value;renderPlan();});
+$("plOnly").addEventListener("change",()=>{PL.only=$("plOnly").checked;renderPlan();});
+const plClear=()=>{PL.q="";PL.fty=[];PL.fst=[];PL.size="";PL.only=false;renderPlan();};
+$("plClear").onclick=plClear;
+$("plUndo").onclick=()=>{const u=PL.undo;if(!u)return;PL.undo=null;plMove({id:u.id,start:u.start},u.vehicle,u);};
+$("planView").addEventListener("click",e=>{
+  const ty=e.target.closest("[data-plty]");if(ty){const k=ty.dataset.plty;PL.fty=PL.fty.includes(k)?PL.fty.filter(x=>x!==k):PL.fty.concat([k]);renderPlan();return;}
+  const st=e.target.closest("[data-plst]");if(st){const k=st.dataset.plst;PL.fst=PL.fst.includes(k)?PL.fst.filter(x=>x!==k):PL.fst.concat([k]);renderPlan();return;}
+  if(e.target.closest("[data-plclear]")){plClear();return;}
+  const b=e.target.closest("[data-pb]");
+  if(b&&(e.target.closest("#plGrid")||e.target.closest("#plTray"))){const x=bookingsAll().find(y=>y.id===b.dataset.pb&&y.start===b.dataset.ps);if(x)openForm({booking:x});}
+});
+$("planView").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches&&e.target.matches("[data-pb]")){e.preventDefault();e.target.click();}});
+// trascinamento
+function plOverClr(){if(PL.over){PL.over.classList.remove("ov-ok","ov-no");PL.over=null;}$("plTray").classList.remove("ov-ok","ov-no");}
+$("planView").addEventListener("dragstart",e=>{
+  const el=e.target.closest&&e.target.closest("[data-pb]");if(!el)return;
+  if(PL.locked||S.readOnly||isInvio()){e.preventDefault();return;}
+  const b=bookingsAll().find(y=>y.id===el.dataset.pb&&y.start===el.dataset.ps);if(!b||capoLock(b)){e.preventDefault();if(b)plSay(CAPO_NO,"err");return;}
+  PL.drag={id:b.id,start:b.start};PL.fit=new Map();plMenuClose();
+  try{e.dataTransfer.setData("text/plain",b.id);e.dataTransfer.effectAllowed="move";}catch(_){}
+  setTimeout(()=>el.classList.add("dragging"),0);
+});
+$("planView").addEventListener("dragend",e=>{
+  const el=e.target.closest&&e.target.closest("[data-pb]");if(el)el.classList.remove("dragging");
+  PL.drag=null;plOverClr();if(PL.dirty){PL.dirty=false;renderPlan();}
+});
+function plFitOf(vid){
+  if(!PL.drag)return null;if(PL.fit.has(vid))return PL.fit.get(vid);
+  const b=bookingsAll().find(y=>y.id===PL.drag.id);const r=!b?{ok:false}:vid==="__tray"?(b.vehicle?plCheckOut(b):{ok:false}):((b.vehicle||"")===vid?{ok:false,same:true}:plCheck(b,vid));
+  PL.fit.set(vid,r);return r;
+}
+$("plGrid").addEventListener("dragover",e=>{
+  if(!PL.drag)return;const row=e.target.closest("[data-pr]");if(!row)return;
+  e.preventDefault();const r=plFitOf(row.dataset.pr);
+  if(PL.over!==row){plOverClr();PL.over=row;}
+  row.classList.toggle("ov-ok",!!(r&&r.ok));row.classList.toggle("ov-no",!!(r&&!r.ok&&!r.same));
+  try{e.dataTransfer.dropEffect="move";}catch(_){}
+});
+$("plGrid").addEventListener("dragleave",e=>{if(PL.over&&!$("plGrid").contains(e.relatedTarget))plOverClr();});
+$("plGrid").addEventListener("drop",e=>{
+  if(!PL.drag)return;e.preventDefault();const row=e.target.closest("[data-pr]"),d=PL.drag;PL.drag=null;plOverClr();
+  if(row)plMove(d,row.dataset.pr);
+});
+$("plTray").addEventListener("dragover",e=>{if(!PL.drag)return;e.preventDefault();const r=plFitOf("__tray");plOverClr();$("plTray").classList.toggle("ov-ok",!!(r&&r.ok));$("plTray").classList.toggle("ov-no",!!(r&&!r.ok));});
+$("plTray").addEventListener("dragleave",e=>{if(!$("plTray").contains(e.relatedTarget))$("plTray").classList.remove("ov-ok","ov-no");});
+$("plTray").addEventListener("drop",e=>{
+  if(!PL.drag)return;e.preventDefault();const d=PL.drag;PL.drag=null;plOverClr();
+  const b=bookingsAll().find(y=>y.id===d.id);if(b&&b.vehicle)plMove(d,"");
+});
+// ---- menu del tasto destro (tempi morti) ----
+function plMenuClose(){PL.menu=null;$("plMenu").hidden=true;$("plVeil").hidden=true;}
+function plMenuOpen(m,x,y){
+  PL.menu=m;const mn=$("plMenu"),dis=PL.locked?" disabled":"";let h="";
+  if(m.kind==="row"){
+    h='<div class="pl-mh">'+(PL.locked?"Apri il lucchetto per mettere un tempo morto":"Tempo morto dalle "+hm(m.at)+" · "+esc(plVLab(m.vid)))+'</div>'+
+      tmTypes().map((t,i)=>'<button type="button" role="menuitem" data-tmadd="'+i+'"'+dis+'>'+esc(t.nome)+'<small>'+esc(minLbl(t.min))+'</small></button>').join("")+
+      '<div class="pl-sep"></div><button type="button" role="menuitem" data-tmset="1">Imposta i tempi morti…</button>';
+  }else{
+    const t=tmRows().find(x=>x.id===m.id);if(!t)return;const cur=Math.round((hOf(t.a)-hOf(t.da))*60);
+    h='<div class="pl-mh">'+esc(t.nome+" "+t.da+"–"+t.a)+'</div>'+PL_DUR.map(d=>'<button type="button" role="menuitem" data-tmdur="'+d+'"'+dis+'>Durata '+esc(minLbl(d))+'<small>'+(d===cur?"adesso":"")+'</small></button>').join("")+
+      '<div class="pl-sep"></div><button type="button" role="menuitem" class="del" data-tmdel="1"'+dis+'>Togli questo tempo morto</button>';
+  }
+  mn.innerHTML=h;mn.hidden=false;$("plVeil").hidden=false;
+  const r=mn.getBoundingClientRect();mn.style.left=Math.max(8,Math.min(x,innerWidth-r.width-8))+"px";mn.style.top=Math.max(8,Math.min(y,innerHeight-r.height-8))+"px";
+  const f=mn.querySelector("button:not([disabled])");if(f)f.focus();
+}
+$("plGrid").addEventListener("contextmenu",e=>{
+  if(S.readOnly||isInvio())return;
+  const dd=e.target.closest("[data-pd]");if(dd){e.preventDefault();plMenuOpen({kind:"dead",id:dd.dataset.pd},e.clientX,e.clientY);return;}
+  if(e.target.closest("[data-pb]"))return;
+  const tr=e.target.closest("[data-pt]");if(!tr)return;e.preventDefault();
+  const r=tr.getBoundingClientRect(),at=Math.max(0,Math.min(23.75,Math.round((e.clientX-r.left)/r.width*96)/4));
+  plMenuOpen({kind:"row",vid:tr.dataset.pt,at},e.clientX,e.clientY);
+});
+$("plVeil").addEventListener("click",plMenuClose);
+$("plVeil").addEventListener("contextmenu",e=>{e.preventDefault();plMenuClose();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("plMenu").hidden){e.preventDefault();e.stopImmediatePropagation();plMenuClose();}},true);
+$("plMenu").addEventListener("click",async e=>{
+  const bt=e.target.closest("button");if(!bt||bt.disabled)return;const m=PL.menu;if(!m)return;
+  if(bt.dataset.tmset){plMenuClose();tmEdOpen();return;}
+  plMenuClose();if(PL.locked)return;
+  if(bt.dataset.tmadd!=null){
+    const t=tmTypes()[+bt.dataset.tmadd];if(!t)return;const ds=S.sel,z=Math.min(24,m.at+t.min/60),c=tmClash(m.vid,ds,m.at,z,"");
+    if(c){plSay("Non metto «"+t.nome+"» sul "+plVLab(m.vid)+" alle "+hm(m.at)+": a quell'ora c'è "+c+".","err");return;}
+    const row={id:"t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),data:ds,veh:m.vid,da:hm(m.at),a:hm(z),nome:t.nome,by:meName(),at:new Date().toISOString()};
+    try{await STORE.updateReg("tempimorti",J=>{J.rows=tmPrune((J.rows||[]).concat([row]));return J;});}catch(err){handleErr(err);return;}
+    ACC.log("prenotazione","Tempo morto «"+t.nome+"» sul "+plVLab(m.vid)+" il "+itD(ds)+" dalle "+row.da+" alle "+row.a);
+    PL.undo=null;renderAll();plSay("Messo «"+t.nome+"» sul "+plVLab(m.vid)+" dalle "+row.da+" alle "+row.a+": in quelle ore il mezzo risulta occupato.","");return;
+  }
+  const t=tmRows().find(x=>x.id===m.id);if(!t)return;
+  if(bt.dataset.tmdur){
+    const z=Math.min(24,hOf(t.da)+(+bt.dataset.tmdur)/60),c=tmClash(t.veh,t.data,hOf(t.da),z,t.id);
+    if(c){plSay("Non posso allungarlo fino alle "+hm(z)+": c'è "+c+".","err");return;}
+    try{await STORE.updateReg("tempimorti",J=>{const x=(J.rows||[]).find(y=>y.id===t.id);if(!x)return null;x.a=hm(z);x.by=meName();x.at=new Date().toISOString();return J;});}catch(err){handleErr(err);return;}
+    renderAll();plSay("«"+t.nome+"» ora va dalle "+t.da+" alle "+hm(z)+".","");return;
+  }
+  if(bt.dataset.tmdel){
+    try{await STORE.updateReg("tempimorti",J=>{J.rows=(J.rows||[]).filter(y=>y.id!==t.id);return J;});}catch(err){handleErr(err);return;}
+    ACC.log("prenotazione","Tolto il tempo morto «"+t.nome+"» dal "+plVLab(t.veh)+" del "+itD(t.data)+" ("+t.da+"–"+t.a+")");
+    renderAll();plSay("Tolto «"+t.nome+"» ("+t.da+"–"+t.a+").","");
+  }
+});
+// ---- voci dei tempi morti ----
+let tmEd=[];
+function tmEdRender(){
+  const opts=m=>PL_DUR.concat([300,360,480]).map(d=>'<option value="'+d+'"'+(d===m?" selected":"")+'>'+esc(minLbl(d))+'</option>').join("")+(PL_DUR.concat([300,360,480]).includes(m)?"":'<option value="'+m+'" selected>'+esc(minLbl(m))+'</option>');
+  $("tmRows").innerHTML=tmEd.length?tmEd.map((t,i)=>'<div class="tm-row"><input data-tmn="'+i+'" maxlength="40" value="'+esc(t.nome)+'" aria-label="Nome del tempo morto" placeholder="Per esempio ATTESA SCARICO"><select data-tmm="'+i+'" aria-label="Durata predefinita">'+opts(t.min)+'</select><button type="button" class="btn icon tm-x" data-tmx="'+i+'" aria-label="Togli questa voce">×</button></div>').join(""):'<p class="mst-sub">Nessuna voce: con «+ Aggiungi una voce» ne crei una.</p>';
+}
+function tmEdOpen(){if(S.readOnly||isInvio())return;tmEd=tmTypes();$("tmMsg").textContent="";tmEdRender();$("ovTm").hidden=false;setTimeout(()=>{const i=$("tmRows").querySelector("input");if(i)i.focus();},30);}
+function tmEdClose(){$("ovTm").hidden=true;}
+$("plTmSet").onclick=()=>tmEdOpen();
+$("tmAdd").onclick=()=>{tmEd.push({nome:"",min:60});tmEdRender();const l=$("tmRows").querySelectorAll("input");if(l.length)l[l.length-1].focus();};
+$("tmRows").addEventListener("input",e=>{const n=e.target.dataset.tmn;if(n!=null)tmEd[+n].nome=e.target.value;});
+$("tmRows").addEventListener("change",e=>{const n=e.target.dataset.tmm;if(n!=null)tmEd[+n].min=+e.target.value;});
+$("tmRows").addEventListener("click",e=>{const x=e.target.closest("[data-tmx]");if(x){tmEd.splice(+x.dataset.tmx,1);tmEdRender();}});
+$("tmCancel").onclick=tmEdClose;
+backdropClose($("ovTm"),tmEdClose);
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("ovTm").hidden){e.preventDefault();e.stopImmediatePropagation();tmEdClose();}},true);
+$("tmSave").onclick=async()=>{
+  const l=tmEd.map(t=>({nome:String(t.nome||"").trim().slice(0,40),min:Math.max(5,Math.min(720,+t.min||60))})).filter(t=>t.nome);
+  const seen=new Set();for(const t of l){const k=norm(t.nome);if(seen.has(k)){$("tmMsg").textContent="«"+t.nome+"» c'è due volte: lascia una voce sola.";return;}seen.add(k);}
+  $("tmSave").disabled=true;
+  try{await STORE.updateReg("tipimorti",J=>{J.rows=l.map((t,i)=>({id:"v"+(i+1),nome:t.nome,min:String(t.min)}));return J;});
+    ACC.log("impostazioni","Cambiate le voci dei tempi morti del Planning: "+(l.map(t=>t.nome+" ("+minLbl(t.min)+")").join(", ")||"nessuna (restano quelle di serie)"));
+    tmEdClose();toast("Voci dei tempi morti salvate.");}
+  catch(err){$("tmMsg").textContent=err&&err.code==="offline"?"Sei offline: le voci si salvano con la connessione.":"Non sono riuscito a salvare: riprova.";}
+  finally{$("tmSave").disabled=false;}
+};
+// tempi morti nella vista Giorno e nel modulo della prenotazione
+const tmChips=(ds,vid)=>tmOn(ds,vid).map(t=>'<span class="tm-chip" title="Tempo morto messo dal Planning">'+esc(t.nome)+' '+esc(t.da+"–"+t.a)+'</span>').join("");
+function tmWarns(b){
+  const out=[];if(!b||!b.vehicle||!validDate(b.start))return out;
+  const bz=busyOf(b),e=endOf(b);
+  for(let d=b.start,n=0;d<=e&&n<32;d=addDays(d,1),n++)for(const t of tmOn(d,dayView(b,d).vehicle)){const tz=tmBusy(t);if(!bz||(tz[0]<bz[1]&&bz[0]<tz[1]))out.push("Sul mezzo c'è un tempo morto: «"+t.nome+"» "+(d!==b.start||e>b.start?itD(d)+" ":"")+t.da+"–"+t.a+".");}
+  return out;
+}
+
 function writeDayOps(date,patch,extra){
   const ops=[];extra=extra||{};
   if(patch.bookings)for(const k in patch.bookings)ops.push(patch.bookings[k]===null?Object.assign({t:"del",id:k},extra.move&&typeof extra.move==="string"?{move:extra.move}:{},extra.client!=null?{client:extra.client}:{},extra.know?{know:extra.know}:{},extra.ifOpz?{ifOpz:true,base:extra.base==null?null:String(extra.base)}:{},extra.ifNoCli?{ifNoCli:true}:{}):Object.assign({t:"put",id:k,b:patch.bookings[k],assign:!!patch.assign},extra));
@@ -4149,6 +4488,7 @@ window.addEventListener("pageshow",checkIdle);window.addEventListener("focus",ch
 // ---------- registro: cosa è cambiato in una prenotazione ----------
 const FIELD_LBL={hPax:"Passeggero H a bordo",type:"Categoria",vehicle:"Mezzo",start:"Data partenza",end:"Data rientro",time:"Ora partenza",time2:"Ora rientro",client:"Cliente",clientCode:"Codice cliente",route:"Itinerario",event:"Evento",escort:"Accompagnatore",pax:"Passeggeri",price:"Prezzo",park:"Parcheggi",parks:"Parcheggi scelti",meals:"Pasti",extras:"Extra",advance:"Acconto",envelope:"Busta",envno:"N. busta",driver:"1° autista",driver2:"2° autista",contact:"Telefono referente 1",contactName:"Referente 1",contactRole:"Ruolo referente 1",contactNote:"Note referente 1",dnotes:"Note per l'autista",status:"Stato",notes:"Note",saldo:"Saldo da ricevere",saldoAmt:"€ Saldo",npark:"Note 1° park",ndriver:"Note 2° autista",n3h:"Note 3° 3 ore",nextra:"Note 4° extra",refs:"Altri referenti",hotels:"Hotel",guides:"Guide",program:"Programma",att:"Allegati per l'autista",dayv:"Mezzi e autisti giorno per giorno"};
 function logVal(k,v){
+  if(k==="vehicle"&&!v)return "da assegnare"; // 4.0.7
   if(k==="hPax")return v===true?"sì (H sul foglio)":"no";
   if(v===""||v==null||(Array.isArray(v)&&!v.filter(Boolean).length))return "—";
   if(k==="vehicle"){const vv=vehicle(v);return vv?vehLabel(vv):String(v);}
@@ -6183,6 +6523,7 @@ async function sendToDriver(b0,o,say){
   let b=bookingsAll().find(x=>x.id===b0.id);
   if(!b){say("La prenotazione non c'è più (eliminata o spostata).");return false;}
   if(!hasSheet(b)){say(NOFG);return false;} // 3.0.3
+  if(!b.vehicle){say("Prima assegna il mezzo: una prenotazione da assegnare non si invia all'autista.");return false;} // 4.0.7
   if(capoLock(b)){say(CAPO_NO);return false;}
   if(!AUT.linked()){say(autMissing());return false;}
   if(!navigator.onLine){say("Per inviare il foglio serve la connessione a internet.");return false;}
@@ -7006,6 +7347,8 @@ function fvWindow(b){
 // nb: la prenotazione come sarà dopo la modifica (data e ora di partenza, se cambiano anche quelle)
 async function fvAfterChange(cur,newVid,nb){
   if(!cur||newVid===cur.vehicle)return {fveh:cur&&cur.fveh?cur.fveh:null};
+  if(!newVid)return {fveh:cur.fveh||null}; // 4.0.7: tolto il mezzo (da assegnare): resta quello che c'era da fatturare
+  if(!cur.vehicle&&!(cur.fveh&&cur.fveh.v))return {fveh:null}; // 4.0.7: primo mezzo di una prenotazione da assegnare
   const billed=billVeh(cur),nv=vehicle(newVid)||{};
   if(sameCat(billed,nv))return {fveh:null}; // stesso tipo di mezzo (o si torna a quello chiesto): niente da chiedere
   // più di 24 ore prima della partenza: è la programmazione normale, niente domanda (si fattura il mezzo che va;
@@ -7294,6 +7637,15 @@ const HOWTO=[
  {t:"Guardare le e-mail ricevute dai clienti",d:"Il tasto fucsia «E-mail», a sinistra di «Fatturato», mostra le risposte dei clienti alle richieste dei dati di fatturazione, con i dati letti e i controlli.",k:"email e-mail ricevute posta risposte clienti dati controlli anagrafica tasto fucsia inbox arrivate",v:"4.0.6",go:{hl:"#vMail"},
   s:["Premi «E-mail» in alto: il numero sul tasto dice quante risposte sono nuove o da controllare.","Scegli una e-mail: vedi i dati letti con i controlli (✓ a posto, ! da controllare, ✕ sbagliato) e il testo della mail.","«Da controllare»: «Correggi e aggiungi all'anagrafica» apre il modulo del cliente già compilato; «Chiedi di nuovo i dati» prepara una nuova richiesta con l'elenco di quello che non torna.","«In anagrafica»: «Apri la scheda del cliente» mostra il cliente inserito."],
   n:"Si vedono solo le risposte alle richieste dei dati di fatturazione, non tutta la posta."},
+ {t:"Usare il Planning (mezzi e orari)",d:"Il tasto «Planning», a sinistra di «Giorno», apre il tabellone del giorno: a sinistra i mezzi, in alto le ore dalle 00 alle 24, ogni prenotazione è una barra. Sotto c'è la striscia «Da assegnare» con le prenotazioni ancora senza mezzo. Col lucchetto aperto puoi trascinare una prenotazione su un altro mezzo: cambia solo il mezzo, date e orari restano quelli.",k:"planning tabellone mezzi orari ore trascina sposta cambia mezzo lucchetto blocca sblocca da assegnare senza mezzo filtri ricerca targa gantt",v:"4.0.7",go:{view:"plan"},
+  s:["Premi «Planning» (a sinistra di «Giorno») e scegli il giorno con le frecce o dalla striscia dei giorni.","Premi il lucchetto «Bloccato» per aprirlo: diventa «Sbloccato: puoi spostare».","Trascina la barra della prenotazione sulla riga del mezzo che vuoi: la riga diventa verde se si può, rossa se no (mezzo occupato a quell'ora, troppo piccolo, fermo, oppure prenotazione già confermata da Massimo).","Lascia il mouse: in basso compare cosa è cambiato, con il tasto «Annulla» se hai sbagliato.","Per togliere il mezzo a una prenotazione in sospeso, trascinala nella striscia «Da assegnare».","Quando hai finito premi di nuovo il lucchetto per chiuderlo.","Per cercare: scrivi nella casella (cliente, targa, itinerario, autista) oppure usa i filtri per tipo, stato e grandezza del mezzo; «Solo i mezzi con risultati» nasconde le righe vuote."],
+  n:"Se sposti un giorno di un tour, il mezzo cambia per tutto il tour. Se il foglio di servizio era già stato inviato all'autista, va reinviato. Un clic su una barra apre la prenotazione."},
+ {t:"Mettere un tempo morto su un mezzo",d:"Nel Planning, con il tasto destro su un punto vuoto della riga di un mezzo, scegli un tempo morto (per esempio «ATTESA SCARICO» o «RITORNO VILLAGGIO»): parte dall'ora dove hai cliccato e occupa il mezzo, quindi lì non si possono mettere altre prenotazioni.",k:"tempo morto tempi morti attesa scarico ritorno villaggio pulizia tasto destro occupato mezzo planning voci predefinite durata",v:"4.0.7",go:{view:"plan",hl:"#plTmSet"},
+  s:["Apri il Planning e porta il mouse sulla riga del mezzo, all'ora giusta.","Premi il tasto destro del mouse (sul Mac: clic con due dita, oppure ctrl + clic).","Scegli la voce dal menu: il tempo morto compare sulla riga, a righe oblique.","Per cambiare la durata o toglierlo: tasto destro sul tempo morto e scegli la durata nuova oppure «Togli questo tempo morto».","Per cambiare l'elenco delle voci: premi «Tempi morti…» in alto a destra nel Planning, aggiungi o modifica nome e durata, poi premi «Salva»."],
+  n:"Le voci e i tempi morti si salvano su Dropbox (cartella config: tempi-morti-voci.json e tempi-morti.json) e si vedono su tutti i computer. Si vedono anche nella vista Giorno, sulla riga del mezzo. Non vanno nel foglio di servizio e non arrivano all'autista."},
+ {t:"Prenotazione senza mezzo (da assegnare)",d:"Nella prenotazione, nel campo «Mezzo» puoi scegliere «Da assegnare»: la prenotazione si salva senza mezzo e resta in sospeso. Finché non ha il mezzo non si può confermare, non si invia all'autista e non prende il n. foglio, quindi non va nel fatturato.",k:"senza mezzo da assegnare mezzo dopo sospeso opzione prenotazione bus non scelto planning striscia assegna",v:"4.0.7",go:{hl:"#btnNew"},
+  s:["Premi «+ Nuova prenotazione».","Nel campo «Mezzo» scegli «Da assegnare» (in fondo all'elenco).","Compila il resto e premi «Salva»: la prenotazione compare nella riga «Da assegnare» in cima alla vista Giorno e nella striscia in basso del Planning.","Per darle il mezzo: nel Planning apri il lucchetto e trascinala sulla riga del mezzo, oppure apri la prenotazione e scegli il mezzo nel campo «Mezzo».","Quando ha il mezzo prende da sola il n. foglio e va nel fatturato; poi puoi confermarla come sempre."],
+  n:"Aggiorna tutti i computer e i telefoni alla 4.0.7: le versioni vecchie non vedono le prenotazioni senza mezzo."},
  {t:"Due computer cambiano la stessa prenotazione",d:"Se mentre hai aperta una prenotazione un altro computer la salva cambiando lo stesso campo (per esempio il prezzo), quando salvi tu resta il suo valore e compare un avviso con i due valori. Le modifiche a campi diversi si uniscono da sole.",k:"conflitto due computer stessa prenotazione prezzo sovrascrive avviso valori suo tuo unite modifiche",v:"4.0.5",go:null,
   s:["Leggi l'avviso in alto: per ogni campo c'è il valore dell'altro computer («suo») e il tuo («tuo»).","Se è giusto il tuo: riapri la prenotazione, correggi il campo e premi «Salva».","Se è giusto il suo: non devi fare niente."],
   n:"Così due persone che lavorano sulla stessa prenotazione non si cancellano più le modifiche a vicenda senza accorgersene."},
@@ -7585,7 +7937,7 @@ const RMOT=()=>{try{return matchMedia("(prefers-reduced-motion:reduce)").matches
 const shown=el=>!!el&&!el.disabled&&!el.hidden&&el.getClientRects().length>0&&getComputedStyle(el).visibility!=="hidden";
 const nrm=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
 const firstName=()=>{const n=String((ACC.session()||{}).name||"").trim();return n.split(/\s+/)[0]||n;};
-const VIEW_BTN={day:"vDay",week:"vWeek",month:"vMonth",bill:"vBill",pasti:"vPasti"};
+const VIEW_BTN={plan:"vPlan",day:"vDay",week:"vWeek",month:"vMonth",bill:"vBill",pasti:"vPasti"};
 function k4Busy(){return !$("k4Tour").hidden||!$("k4Intro").hidden;}
 // agenda in primo piano, senza finestre aperte sopra
 function appFree(){
@@ -7595,7 +7947,7 @@ function appFree(){
 // un passo avanti o indietro: giorno, settimana o mese (come le frecce ‹ › della vista)
 function k4Step(dir,month){
   const v=S.view;
-  if(!month&&v==="day"){go(addDays(S.sel,dir));return true;}
+  if(!month&&(v==="day"||v==="plan")){go(addDays(S.sel,dir));return true;}
   if(!month&&v==="week"){go(addDays(S.sel,7*dir));return true;}
   const b=$(dir<0?"mPrev":"mNext");if(shown(b)){b.click();return true;}
   return false;
@@ -7768,7 +8120,7 @@ function cmdItems(){
   const KM=keyMap(),kl=id=>KM[id]?kLabel(KM[id]):"";
   if(shown($("btnNew")))add("Nuova prenotazione",btn("btnNew"),{key:kl("new"),k:"aggiungi inserisci servizio gita transfer tour"});
   if(shown($("btnToday")))add("Vai a oggi",btn("btnToday"),{key:kl("today"),k:"oggi"});
-  add("Vista Giorno",btn("vDay"),{key:kl("day"),k:"giorno"});add("Vista Settimana",btn("vWeek"),{key:kl("week"),k:"settimana"});add("Vista Mese",btn("vMonth"),{key:kl("month"),k:"mese calendario"});
+  add("Planning (mezzi e orari)",btn("vPlan"),{key:kl("plan"),k:"planning tabellone orari mezzi sposta trascina tempi morti"});add("Vista Giorno",btn("vDay"),{key:kl("day"),k:"giorno"});add("Vista Settimana",btn("vWeek"),{key:kl("week"),k:"settimana"});add("Vista Mese",btn("vMonth"),{key:kl("month"),k:"mese calendario"});
   if(shown($("vBill")))add("Fatturato",btn("vBill"),{key:kl("bill"),k:"fatture fattura buste clienti bozze"});
   if(shown($("vPasti")))add("Autisti: pasti e riposi",btn("vPasti"),{key:kl("pasti"),k:"pasti crocette riposo ferie"});
   if(shown($("btnInvio")))add("Invio fogli",btn("btnInvio"),{key:kl("invio"),k:"max invio fogli bus autisti"});
@@ -8452,7 +8804,7 @@ function takeWindow(steal){
 // Scaricamento con la barra, controllo che su GitHub siano arrivati tutti i file, ultime modifiche salvate su Dropbox,
 // poi l'agenda si riapre da sola.
 const UPD={st:"",remote:"",tries:0,tk:null,files:[],i:0,bytes:0,cur:"",act:Date.now(),auto:false};
-const UPD_EDIT=["ovBooking","ovInv","ovMail","ovXbus","ovRiposo","ovPasto","ovCapo","ovClientNew","ovPostit","ovBusta","ovSpese","ovVeh","ovSheet"];
+const UPD_EDIT=["ovBooking","ovInv","ovMail","ovXbus","ovRiposo","ovPasto","ovCapo","ovClientNew","ovPostit","ovBusta","ovSpese","ovVeh","ovSheet","ovTm"];
 const UPD_FILES_DEF=["./index.html","./skin40.css","./app.js","./config.js","./dropbox.js","./store.js","./accessi.js","./autisti.js","./fatturato.js","./fatture.js",
   "./vendor/jszip.min.js","./vendor/pdf-lib.min.js","./vendor/font-pdf.js","./vendor/qrcode.js","./logo.jpg","./manifest.webmanifest",
   "./icons/icon-192.png","./icons/icon-512.png","./icons/apple-touch-icon.png","./icons/favicon-64.png"];
@@ -8629,7 +8981,7 @@ setInterval(()=>{if(UPD.st==="angolo"&&!updBusy()&&Date.now()-UPD.act>=UPD_IDLE)
 
 // ---------- avvio ----------
 async function boot(){
-  try{const v=localStorage.getItem("agenda-view");if(v==="month"||v==="week"||v==="bill"||v==="pasti")setView(v);}catch(_){}
+  try{const v=localStorage.getItem("agenda-view");if(v==="month"||v==="week"||v==="bill"||v==="pasti"||v==="plan")setView(v);}catch(_){}
   if("serviceWorker" in navigator&&location.protocol!=="file:")navigator.serviceWorker.register("./sw.js").catch(()=>{});
   showGate("loading",{title:"Avvio…"});
   let steal=false;try{steal=sessionStorage.getItem("agenda-steal")==="1";sessionStorage.removeItem("agenda-steal");}catch(_){}
