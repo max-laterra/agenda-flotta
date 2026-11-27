@@ -3,7 +3,7 @@
    Tutte le regole valgono SOLO con <html data-look="nuovo">: con l'aspetto «Classico» l'agenda resta identica alla 3.0.
    Sul Mac e sull'iPhone il carattere è quello di Apple (San Francisco); altrove Inter / quello di sistema.
    ===================================================================================== */
-:root{--skin40:"4.0.8"} /* l'app controlla che questo file sia arrivato (stessa versione degli altri) */
+:root{--skin40:"4.0.9"} /* l'app controlla che questo file sia arrivato (stessa versione degli altri) */
 html[data-look="nuovo"]{
   --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F4F4F7; --ink:#1D1D1F; --ink-2:#4A4A4F; --ink-3:#8E8E93;
   --line:#E3E3E8; --accent:#C8102E; --accent-ink:#FFFFFF; --accent-soft:#FCE8EB;
@@ -1023,3 +1023,8 @@ html[data-theme="dark"] .pl-msg.warn{color:#FFB074}
 @media (pointer:coarse){.pl-menu button{min-height:44px}.pl-mq{min-height:44px;font-size:16px}}
 html[data-theme="dark"] .pl-menu .pl-dl .busy small,html[data-theme="dark"] .tm-chip.clash{color:#FF8A84}html[data-theme="dark"] .pl-menu .pl-dl .day small{color:#FFB074}
 @media (prefers-color-scheme:dark){html:not([data-theme="light"]) .pl-menu .pl-dl .busy small,html:not([data-theme="light"]) .tm-chip.clash{color:#FF8A84}html:not([data-theme="light"]) .pl-menu .pl-dl .day small{color:#FFB074}}
+/* ===== 4.0.9 — Planning più pulito: niente barra dei filtri; «Da assegnare» anche come zona di attesa ===== */
+.pl-card .c4{font-size:11.5px;font-weight:700;color:var(--ink-3,#6e6e73);display:flex;align-items:center;gap:5px}
+.pl-card.park{border-style:solid}
+.pl-card.park .c4::before{content:"";width:12px;height:12px;flex:none;border-radius:50%;border:2px solid currentColor;box-sizing:border-box;background:linear-gradient(currentColor,currentColor) 50% 25%/2px 40% no-repeat}
+.pl-tray-h small{color:var(--ink-3,#6e6e73)}

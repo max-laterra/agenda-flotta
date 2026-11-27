@@ -1,7 +1,72 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 4.0.8 (27/11/2026)
+AGENDA FLOTTA LA TERRA – VERSIONE 4.0.9 (27/11/2026)
 ====================================================
 La versione in uso si vede nell'app: in alto accanto a "Sincronizzato", nella schermata di
 accesso e in Impostazioni › Generali. Deve corrispondere a quella di questo file.
+
+COME AGGIORNARE ALLA 4.0.9 (dalla 4.0.8, 4.0.7, 4.0.6 o 4.0.5: 3 minuti, 9 file)
+---------------------------------------------------------------------------------
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   9 file: index.html, app.js, store.js, fatture.js, fatturato.js, autisti.js, skin40.css, sw.js,
+   LEGGIMI.txt. Niente config.js. Gli altri file restano quelli che ci sono.
+   Dalla 4.0.8 sono cambiati index.html, app.js, store.js, skin40.css, sw.js e LEGGIMI.txt:
+   fatture.js, fatturato.js e autisti.js sono gli stessi e sono nello zip solo perché così va bene
+   anche partendo da una versione precedente (ricaricarli non fa danni).
+   (Se aggiorni da una versione più vecchia della 4.0.5 usa lo zip «completo» e carica tutti i
+   file tranne config.js.)
+2. "Commit changes". Dopo 1–2 minuti l'agenda si aggiorna da sola (riquadro in basso a sinistra),
+   oppure ricarica (Cmd+Shift+R): in alto "v4.0.9".
+3. Aggiorna tutti i computer, i tablet e i telefoni con l'agenda (basta aprirla e aspettare il
+   riquadro «Nuova versione», oppure ricaricare): le versioni vecchie non conoscono i servizi in
+   attesa e li mostrano sulla riga del loro mezzo.
+4. Niente da fare sull'app degli autisti (non è cambiata), sui dati e sull'app per Mac. Il file
+   nuovo in Dropbox (config/planning-attesa.json) lo crea l'agenda la prima volta che serve.
+
+NOVITÀ DELLA 4.0.9 – PLANNING PIÙ PULITO
+----------------------------------------
+1) VIA LA BARRA DI RICERCA E FILTRI
+- Sopra il tabellone non c'è più la barra con la ricerca, i colori (Gita, Tour, Notturno,
+  Transfer, In sospeso, Confermata, Stampabile), «Tutti i mezzi», «Solo i mezzi con risultati» e il
+  conteggio dei mezzi: il tabellone parte subito sotto il lucchetto. Anche il testo accanto al
+  lucchetto è più corto.
+
+2) «DA ASSEGNARE» COME ZONA DI ATTESA
+- Con il lucchetto aperto puoi trascinare un servizio (anche confermato o con il foglio già
+  inviato) nella striscia «Da assegnare» in basso, per lasciarlo un attimo in attesa mentre
+  riorganisci. (I servizi di cui MAX ha deciso bus e autisti si trascinano solo da lui; gli altri
+  possono metterli in attesa dal menu del tasto destro.)
+- Nell'agenda NON cambia niente: nella vista Giorno (e Settimana, Mese, fatturato, foglio di
+  servizio) resta sul suo mezzo e con il suo stato: non va in sospeso, non perde il mezzo né il
+  n. foglio. È solo un appunto del Planning.
+- Nella striscia la scheda dice «In attesa · nell'agenda sul …» (le prenotazioni create davvero
+  senza mezzo dicono «Senza mezzo»).
+- Nel Planning la riga di quel mezzo risulta libera: se ci trascini un altro servizio alla stessa
+  ora si sposta, ma compare l'avviso arancione «nell'agenda sul … a quell'ora c'è ancora «…» (in
+  attesa in «Da assegnare»): ricordati di dargli un altro mezzo».
+- Per riassegnarlo trascina la scheda sulla riga di un mezzo:
+  · su un altro mezzo: cambia il mezzo, con le regole di sempre (posti, carrozzina, mezzo libero,
+    servizi decisi da MAX…), ed esce dall'attesa; «Annulla» lo rimette com'era (e in attesa);
+  · sul suo mezzo: esce dall'attesa e torna com'era, se a quell'ora il mezzo è ancora libero
+    (altrimenti l'agenda lo dice e resta in attesa).
+- Anche dal menu del tasto destro (su telefono e tablet: tieni premuto): «Metti in attesa» sulla
+  barra di un servizio, «Rimetti sul suo mezzo» sulla scheda in attesa. Dal menu non serve aprire
+  il lucchetto.
+- L'attesa si vede su tutti i computer (è salvata in Dropbox: config/planning-attesa.json). Se
+  qualcuno cambia il mezzo dal modulo della prenotazione, il servizio esce da solo dall'attesa.
+- Cambia quello della 4.0.7: trascinando una prenotazione nella striscia non si toglie più il
+  mezzo e non si rimette in sospeso. Le prenotazioni senza mezzo si creano sempre dal modulo
+  (campo «Mezzo» › «Da assegnare») e funzionano come prima.
+
+3) TEMPI MORTI SOLO NEL PLANNING
+- Nella vista Giorno i tempi morti non compaiono più (sulla riga del mezzo torna «Libero» quando
+  non ci sono servizi). Nel Planning restano come prima. Nel modulo della prenotazione resta solo
+  l'avviso se il mezzo a quell'ora ha un tempo morto.
+
+4) GUIDA
+- Nuova voce «Mettere un servizio in attesa nel Planning»; aggiornate «Usare il Planning», «Mettere
+  un tempo morto su un mezzo» e «Assegnare l'autista dal Planning».
+
+======================================================================
+VERSIONE 4.0.8 (27/11/2026)
 
 COME AGGIORNARE ALLA 4.0.8 (dalla 4.0.7, 4.0.6 o 4.0.5: 3 minuti, 9 file)
 --------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="3.0" data-p="4.0.8">
+<html lang="it" data-v="3.0" data-p="4.0.9">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -1530,21 +1530,6 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
           <button type="button" class="btn pl-lock" id="plLock" aria-pressed="true"></button>
           <span class="pl-hint" id="plHint"></span>
           <button type="button" class="btn sm" id="plTmSet">Tempi morti…</button>
-        </div>
-        <div class="pl-fb">
-          <label class="pl-srch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input type="search" id="plQ" placeholder="Cerca cliente, targa, itinerario, autista…" aria-label="Cerca nel Planning" autocomplete="off"></label>
-          <div class="pl-chips" id="plTy" role="group" aria-label="Tipo di servizio"></div>
-          <div class="pl-chips" id="plSt" role="group" aria-label="Stato"></div>
-          <select id="plSize" class="pl-sel" aria-label="Mezzi da mostrare">
-            <option value="">Tutti i mezzi</option>
-            <option value="g">Grandi (64 posti e più)</option>
-            <option value="m">Medi (50–63 posti)</option>
-            <option value="p">Piccoli (19–49 posti)</option>
-            <option value="v">Van e auto</option>
-          </select>
-          <label class="pl-chk"><input type="checkbox" id="plOnly"> Solo i mezzi con risultati</label>
-          <span class="pl-cnt" id="plCnt" role="status"></span>
-          <button type="button" class="btn sm" id="plClear" hidden>Azzera filtri</button>
         </div>
         <div class="pl-grid" id="plGrid"></div>
         <div class="pl-tray" id="plTray"></div>

@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="4.0.8",APP_DATE="27/11/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="4.0.9",APP_DATE="27/11/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
@@ -16,7 +16,7 @@ const APP_VERSION="4.0.8",APP_DATE="27/11/2026";window.AGENDA_VERSION=APP_VERSIO
 //        store.js e autisti.js restano quelli della 3.0.3.
 // 3.0.6: aggiornamento parziale (solo app.js): nomi di prima degli autisti (un autista rinominato nell'anagrafica
 //        resta una persona sola: servizi già inseriti, telefono, crocette dei pasti). Gli altri file restano della 3.0.5.
-const APP_FAMILY="3.0",APP_PATCH={index:"4.0.8",store:"4.0.8",autisti:"4.0.5",fatture:"4.0.6",fatturato:"4.0.6",accessi:"4.0.4",dropbox:"4.0.4"};
+const APP_FAMILY="3.0",APP_PATCH={index:"4.0.9",store:"4.0.9",autisti:"4.0.5",fatture:"4.0.6",fatturato:"4.0.6",accessi:"4.0.4",dropbox:"4.0.4"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -42,7 +42,7 @@ if(framed){stopPage("Agenda Flotta La Terra","Per sicurezza l'agenda non si può
   const F=window.AGENDA_FILES||{},FP=window.AGENDA_PATCH||{},bad=[];
   if(document.documentElement.getAttribute("data-v")!==APP_FAMILY||(APP_PATCH.index&&document.documentElement.getAttribute("data-p")!==APP_PATCH.index))bad.push("index.html");
   for(const f of ["dropbox","fatturato","fatture","store","accessi","autisti"])if(F[f]!==APP_FAMILY||(APP_PATCH[f]&&FP[f]!==APP_PATCH[f]))bad.push(f+".js");
-  try{if(getComputedStyle(document.documentElement).getPropertyValue("--skin40").indexOf("4.0.8")<0)bad.push("skin40.css");}catch(_){} // 4.0: anche la grafica nuova deve essere arrivata
+  try{if(getComputedStyle(document.documentElement).getPropertyValue("--skin40").indexOf("4.0.9")<0)bad.push("skin40.css");}catch(_){} // 4.0: anche la grafica nuova deve essere arrivata
   let n=0;try{n=+sessionStorage.getItem("agenda-upd-try")||0;}catch(_){}
   if(bad.length){
     // ricaricando, ogni file viene richiesto di nuovo al sito (la copia per l'uso offline non si cancella:
@@ -546,7 +546,7 @@ function renderDay(){
     const list=on(date,v.id);
     h+='<div class="row'+(list.length?" busy":"")+(vOn(v,date)?"":" v-offrow")+'">'+
       '<div class="veh"><span class="vl" title="'+esc(v.name||"")+'">'+vehLabelHTML(v)+'</span>'+vOffTag(v,date)+postitsOf(date,v.id).map(p=>piNote(p,date,"sm")).join("")+'</div>'+
-      '<div class="slots">'+(list.length?list.map(b=>bookingHTML(b,date)).join(""):tmOn(date,v.id).length?"":'<span class="free">Libero</span>')+tmChips(date,v.id)+'</div>'+
+      '<div class="slots">'+(list.length?list.map(b=>bookingHTML(b,date)).join(""):'<span class="free">Libero</span>')+'</div>'+ // 4.0.9: i tempi morti solo nel Planning
       (S.readOnly?"<span></span>":'<button class="add" data-add="'+esc(v.id)+'">+ Aggiungi</button>')+
     '</div>';
   }
@@ -3748,6 +3748,9 @@ function knowOf(b){return {c:(b&&b.capo&&b.capo.at)||"",s:b&&b.sent?(b.sent.at||
 // tempo morto) non bloccano più: avviso in basso con «Annulla» e bordo rosso. Tasto destro (sul telefono e sul tablet:
 // tieni premuto) su una prenotazione: «Assegna autista» (1° e 2°), senza aprire il lucchetto. Impostazioni › Planning:
 // riga delle ore, linea dell'ora attuale e linee verticali si possono nascondere (vale per l'utente).
+// 4.0.9: niente barra di ricerca e filtri. «Da assegnare» è anche la zona di attesa: una prenotazione trascinata lì resta
+// nell'agenda sul suo mezzo e con il suo stato (config/planning-attesa.json, per tutti); nel Planning non occupa il mezzo
+// (chi la sovrappone viene avvisato). Riportata su un mezzo esce dall'attesa. I tempi morti non sono più nella vista Giorno.
 // =====================================================================================
 const PL={locked:true,q:"",fty:[],fst:[],size:"",only:false,drag:null,over:null,fit:new Map(),undo:null,menu:null,dirty:false,lp:null,lpT:0,lpAt:0,menuAt:0};
 // 4.0.8: cosa si vede nel Planning (Impostazioni › Planning, per utente)
@@ -3803,45 +3806,68 @@ function plMatch(b){
   return norm([b.client,dispClient(b),b.route,b.event,whatToday(b,S.sel),b.foglio,b.contactName,driversText(b),allDriversOf(b).join(" "),v.plate,String(v.plate||"").replace(/\s+/g,""),v.az,b.notes].join(" ")).includes(q);
 }
 const tmMatch=t=>{if(PL.fty.length||PL.fst.length)return false;const q=norm(PL.q).trim();return !q||norm(t.nome).includes(q);};
-// ---- si può mettere la prenotazione b sul mezzo vid? {ok, why, ask} ----
-function plCheck(b0,vid){
-  const cur=plFull(b0)||b0,v=vehicle(vid);
+// ---- 4.0.9: in attesa nel Planning ----
+// una riga vale finché la prenotazione ha ancora il mezzo che aveva quando è stata messa in attesa
+// (se il mezzo viene cambiato altrove, per esempio dal modulo, non è più in attesa)
+function plParkSet(){
+  const rows=((STORE.reg("attesa")||{}).rows)||[];if(!rows.length)return new Set();
+  const by=new Map(bookingsAll().map(b=>[b.id,b])),out=new Set();
+  for(const r of rows){const b=r&&by.get(r.id);if(b&&b.vehicle&&b.vehicle===r.veh)out.add(r.id);}
+  return out;
+}
+async function plParkWrite(cur,on){
+  const lim=addDays(todayISO(),-60);
+  await STORE.updateReg("attesa",J=>{const rows=(J.rows||[]).filter(r=>r&&r.id!==cur.id&&!(r.data&&r.data<lim));if(on)rows.push({id:cur.id,veh:cur.vehicle||"",data:endOf(cur),by:meName(),at:new Date().toISOString()});J.rows=rows.slice(-500);return J;});
+}
+// mette (on) o toglie dall'attesa; togliendola torna sul suo mezzo (se a quell'ora nel Planning è libero). u = annulla
+async function plParkDo(b0,on,u){
+  if(S.readOnly||isInvio())return;
+  const cur=plFull(b0);if(!cur){plSay("La prenotazione non c'è più (eliminata o spostata).","err");return;}
+  if(on&&!cur.vehicle)return;
+  let warn="";
+  if(!on&&!u){const ck=plCheck(cur,cur.vehicle,true);if(!ck.ok){plSay(ck.why+" Mettila su un altro mezzo.","err");return;}if(ck.ask&&!confirm(ck.ask))return;warn=ck.warn||"";}
+  try{await plParkWrite(cur,on);}catch(err){plSay(err&&err.code==="offline"?"Sei offline: l'attesa si salva con la connessione.":"Non sono riuscito a salvare: riprova.","err");return;}
+  ACC.log("prenotazione",(on?"Messa in attesa nel Planning: ":"Tolta dall'attesa nel Planning: ")+bookingLabel(cur));
+  PL.undo=u?null:{kind:"park",id:cur.id,start:cur.start,on:!on};
+  renderAll();
+  if(u){plSay(on?"Rimessa in attesa.":"Tolta dall'attesa: è di nuovo sul "+plVLab(cur.vehicle)+".","");return;}
+  plSay(on?"«"+dispClient(cur)+"» è in attesa in «Da assegnare». Nell'agenda resta sul "+plVLab(cur.vehicle)+", com'era.":"«"+dispClient(cur)+"» è di nuovo sul "+plVLab(cur.vehicle)+"."+(warn?" Attenzione: "+warn+".":""),warn?"warn":"ok");
+}
+// ---- si può mettere la prenotazione b sul mezzo vid? {ok, why, ask, warn}; same: torna sul suo mezzo (solo gli orari) ----
+function plCheck(b0,vid,same){
+  const cur=plFull(b0)||b0,v=vehicle(vid),pk=plParkSet();
   if(!v)return {ok:false,why:"Mezzo non trovato."};
-  if(capoLock(cur))return {ok:false,why:CAPO_NO};
+  if(!same&&capoLock(cur))return {ok:false,why:CAPO_NO};
   const e=endOf(cur);
-  if(!v.xbus)for(let d=cur.start,n=0;d<=e&&n<32;d=addDays(d,1),n++)if(!vOn(v,d))return {ok:false,why:"Il "+vehLabel(v)+" non è in flotta il "+itD(d)+"."};
-  if(v.seats&&/^\d+$/.test(String(cur.pax||""))&&+cur.pax>v.seats)return {ok:false,why:"Non entra: «"+dispClient(cur)+"» ha "+cur.pax+" passeggeri e il "+vehLabel(v)+" ne porta "+v.seats+"."};
-  if(cur.hPax===true&&!isH33(v))return {ok:false,why:"A bordo c'è un passeggero in carrozzina: serve il mezzo attrezzato (H)."};
-  const bz=busyOf(cur),unk=[],tw=[];
+  if(!same&&!v.xbus)for(let d=cur.start,n=0;d<=e&&n<32;d=addDays(d,1),n++)if(!vOn(v,d))return {ok:false,why:"Il "+vehLabel(v)+" non è in flotta il "+itD(d)+"."};
+  if(!same&&v.seats&&/^\d+$/.test(String(cur.pax||""))&&+cur.pax>v.seats)return {ok:false,why:"Non entra: «"+dispClient(cur)+"» ha "+cur.pax+" passeggeri e il "+vehLabel(v)+" ne porta "+v.seats+"."};
+  if(!same&&cur.hPax===true&&!isH33(v))return {ok:false,why:"A bordo c'è un passeggero in carrozzina: serve il mezzo attrezzato (H)."};
+  const bz=busyOf(cur),unk=[],tw=[],pw=[];
   for(let d=cur.start,n=0;d<=e&&n<32;d=addDays(d,1),n++){
     for(const x of on(d,vid)){if(x.id===cur.id)continue;const xz=busyOf(x);
+      // 4.0.9: in attesa nel Planning: non occupa il mezzo, ma nell'agenda è ancora lì: si avvisa
+      if(pk.has(x.id)){if(!bz||!xz||(xz[0]<bz[1]&&bz[0]<xz[1])){const l="«"+dispClient(x)+"»";if(!pw.includes(l))pw.push(l);}continue;}
       if(!bz||!xz){if(!unk.includes("«"+dispClient(x)+"» ("+when(x)+")"))unk.push("«"+dispClient(x)+"» ("+when(x)+")");continue;}
       if(xz[0]<bz[1]&&bz[0]<xz[1])return {ok:false,why:"Il "+vehLabel(v)+" è già occupato a quell'ora: "+(TYPES[x.type]||"servizio")+" «"+dispClient(x)+"» ("+when(x)+(x.time2?"–"+x.time2:"")+")."};}
     // 4.0.8: un tempo morto non blocca: si avvisa
     for(const t of tmOn(d,vid)){const tz=tmBusy(t);if(bz&&tz[0]<bz[1]&&bz[0]<tz[1])tw.push("«"+t.nome+"» "+t.da+"–"+t.a+(d!==S.sel?" del "+itD(d):""));}
   }
-  const warn=tw.length?"si sovrappone al tempo morto "+tw.join(", "):"";
+  const warn=[tw.length?"si sovrappone al tempo morto "+tw.join(", "):"",pw.length?"nell'agenda sul "+vehLabel(v)+" a quell'ora c'è ancora "+pw.join(", ")+" (in attesa in «Da assegnare»): ricordati di dargli un altro mezzo":""].filter(Boolean).join("; ");
   if(unk.length)return {ok:true,warn,ask:"Sul "+vehLabel(v)+" negli stessi giorni c'è già "+unk.join(", ")+", e manca un orario per capire se si sovrappone.\n\nLo sposto lo stesso?"};
   return {ok:true,warn};
-}
-function plCheckOut(b0){
-  const cur=plFull(b0)||b0;
-  if(capoLock(cur))return {ok:false,why:CAPO_NO};
-  if(!pending(cur))return {ok:false,why:"Tra quelle da assegnare vanno solo le prenotazioni in sospeso: prima rimettila in sospeso."};
-  if(cur.sent&&cur.sent.at&&!cur.sent.off)return {ok:false,why:"Il foglio è già sul telefono dell'autista: prima ritiralo."};
-  return {ok:true};
 }
 function plSay(t,kind){PL.msg={t:t||"",k:kind||""};const m=$("plMsg");if(!m)return;$("plMsgT").textContent=PL.msg.t;m.className="pl-msg"+(PL.msg.k?" "+PL.msg.k:"");$("plUndo").hidden=!(PL.undo&&(PL.msg.k==="ok"||PL.msg.k==="warn"));}
 const xbObjOf=vid=>{const d=xbIndex().get(vid)||(dayXbus(S.sel).find(x=>x.vid===vid)||{}).def||{};return {id:vid.slice(3),az:String(d.az||""),posti:String(d.posti||""),targa:String(d.targa||"")};};
 // sposta la prenotazione sul mezzo vid ("" = tra quelle da assegnare); u = annulla l'ultimo spostamento
-async function plMove(b0,vid,u){
+async function plMove(b0,vid,u,opt){
   if(S.readOnly||isInvio())return;
   const cur=plFull(b0);if(!cur){plSay("La prenotazione non c'è più (eliminata o spostata).","err");return;}
   vid=vid||"";
+  if(!vid&&!u)return; // 4.0.9: nella striscia «Da assegnare» si mette in attesa (plParkDo), il mezzo non si toglie (solo «Annulla» lo rimette senza mezzo)
   if(!u&&(cur.vehicle||"")===vid&&!plDvV(cur))return;
   let fv=null,warn="";
   if(!u){
-    const ck=vid?plCheck(cur,vid):plCheckOut(cur);
+    const ck=plCheck(cur,vid);
     if(!ck.ok){plSay(ck.why,"err");return;}
     warn=ck.warn||"";
     if(ck.ask&&!confirm(ck.ask))return;
@@ -3863,7 +3889,9 @@ async function plMove(b0,vid,u){
   catch(err){plSay(err&&err.code==="readonly"?"Con questo profilo non si possono spostare le prenotazioni.":"Non sono riuscito a spostarla: riprova.","err");return;}
   const ch=[["Mezzo",plVLab(cur.vehicle),plVLab(vid)]];if(fv&&fv.why)ch.push(fvLogRow(fv));
   ACC.log("prenotazione",(u?"Annullato lo spostamento dal Planning: ":vid?"Cambiato il mezzo dal Planning: ":"Tolto il mezzo dal Planning (da assegnare): ")+bookingLabel(nb),{id:cur.id,ch});
-  PL.undo=u?null:{kind:"veh",id:cur.id,start:cur.start,vehicle:cur.vehicle||"",xbus:cur.xbus||"",dayv:Array.isArray(cur.dayv)?JSON.parse(JSON.stringify(cur.dayv)):[],fveh:cur.fveh?JSON.parse(JSON.stringify(cur.fveh)):null,status:cur.status||"opzione"};
+  const unp=!u&&!!(opt&&opt.unpark);if(unp){try{await plParkWrite(cur,false);}catch(_){}}
+  if(u&&u.park){try{await plParkWrite(Object.assign({},cur,{vehicle:u.vehicle}),true);}catch(_){}}
+  PL.undo=u?null:{kind:"veh",park:unp,id:cur.id,start:cur.start,vehicle:cur.vehicle||"",xbus:cur.xbus||"",dayv:Array.isArray(cur.dayv)?JSON.parse(JSON.stringify(cur.dayv)):[],fveh:cur.fveh?JSON.parse(JSON.stringify(cur.fveh)):null,status:cur.status||"opzione"};
   const sent=!!(cur.sent&&cur.sent.at&&!cur.sent.off),tour=isMulti(cur.type)&&endOf(cur)>cur.start;
   renderAll();
   plSay(u?"Spostamento annullato.":"«"+dispClient(cur)+"» "+(vid?"ora è sul "+plVLab(vid)+(tour?" per tutto il tour":""):"è tra quelle da assegnare")+"."+(sent&&vid?" Il foglio era già stato inviato: va reinviato all'autista.":"")+(vid&&!cur.vehicle&&!cur.foglio&&String(cur.client||"").trim()?" Ora ha il n. foglio e va nel fatturato.":"")+(warn?" Attenzione: "+warn+".":""),u?"":warn?"warn":"ok");
@@ -3896,54 +3924,39 @@ function renderPlan(){
   lk.setAttribute("aria-pressed",PL.locked?"true":"false");lk.classList.toggle("open",!PL.locked);
   lk.innerHTML=(PL.locked?PL_LOCK:PL_OPEN)+'<span>'+(PL.locked?"Bloccato":"Sbloccato: puoi spostare")+'</span>';
   const tch=!!(window.matchMedia&&matchMedia("(pointer:coarse)").matches&&!matchMedia("(any-pointer:fine)").matches);
-  $("plHint").textContent=!canEd?"Qui vedi i mezzi con le ore del giorno: le prenotazioni si aprono con un clic.":tch?"Tocca una prenotazione per aprirla; tienila premuta per assegnare l'autista. Per trascinare le prenotazioni e i tempi morti usa il computer con il mouse.":PL.locked?"Il lucchetto chiuso evita gli spostamenti per sbaglio: aprilo per trascinare prenotazioni e tempi morti o per metterne uno (tasto destro su un punto vuoto della riga). Tasto destro su una prenotazione: assegna l'autista.":"Trascina prenotazioni e tempi morti: verde si può, arancione si può ma si sovrappone a un tempo morto, rosso no. Tasto destro su un punto vuoto: tempo morto; su una prenotazione: autista. Quando hai finito richiudi il lucchetto.";
-  $("plTy").innerHTML=Object.keys(TYPES).map(k=>'<button type="button" class="pl-chip" data-plty="'+k+'" aria-pressed="'+PL.fty.includes(k)+'"><i class="sw t-'+k+'"></i>'+esc(TYPES[k])+'</button>').join("");
-  $("plSt").innerHTML=[["opzione","In sospeso","q"],["confermato","Confermata","ok"],["stampabile","Stampabile","pr"]].map(([k,l,c])=>'<button type="button" class="pl-chip" data-plst="'+k+'" aria-pressed="'+PL.fst.includes(k)+'"><i class="pl-dot '+c+'" aria-hidden="true"></i>'+l+'</button>').join("");
-  if($("plQ").value!==PL.q)$("plQ").value=PL.q;$("plSize").value=PL.size;$("plOnly").checked=PL.only;
-  const f=plFilt(),q=norm(PL.q).trim(),drag=canEd&&!PL.locked,now=new Date(),nowH=ds===todayISO()?now.getHours()+now.getMinutes()/60:null;
+  $("plHint").textContent=!canEd?"Qui vedi i mezzi con le ore del giorno: le prenotazioni si aprono con un clic.":tch?"Tocca una prenotazione per aprirla; tienila premuta per l'autista o per metterla in attesa. Per trascinare usa il computer.":PL.locked?"Lucchetto chiuso: niente si sposta per sbaglio. Tasto destro su una prenotazione: autista e attesa.":"Trascina prenotazioni e tempi morti: verde si può, arancione si può con avviso, rosso no. In «Da assegnare» restano in attesa. Tasto destro su un punto vuoto: tempo morto.";
+  const f=false,drag=canEd&&!PL.locked,now=new Date(),nowH=ds===todayISO()?now.getHours()+now.getMinutes()/60:null,pk=plParkSet(); // 4.0.9: niente filtri
   const nowM=nowH==null?"":'<div class="pl-now" style="left:'+(nowH/24*100).toFixed(3)+'%"></div>';
-  let hits=0,h='<div class="pl-row pl-axis"><div class="pl-lab">Mezzo</div><div class="pl-ax">';
+  let h='<div class="pl-row pl-axis"><div class="pl-lab">Mezzo</div><div class="pl-ax">';
   for(let i=0;i<24;i++)h+='<span>'+pad(i)+'</span>';
   h+=(nowH==null?"":'<b class="pl-nowp" style="left:'+(nowH/24*100).toFixed(3)+'%">'+hm(nowH)+'</b>')+'</div></div>';
   let shown=0;
   for(const {v,xb} of plRows(ds)){
-    const list=on(ds,v.id),tms=tmOn(ds,v.id),nb=list.filter(plMatch).length,nt=tms.filter(tmMatch).length,plHit=!!q&&norm(String(v.plate||"")+" "+String(v.plate||"").replace(/\s+/g,"")+" "+(v.num||"")).includes(q);
-    hits+=f?nb:0;
-    if(PL.only&&(f?(!nb&&!nt&&!plHit):(!list.length&&!tms.length)))continue;
+    const list=on(ds,v.id).filter(b=>!pk.has(b.id)),tms=tmOn(ds,v.id); // 4.0.9: quelle in attesa sono nella striscia in basso
     shown++;
     // corsie: le barre che si sovrappongono (orari mancanti, conflitti di prima, tempi morti sopra un servizio: 4.0.8)
     // vanno una sotto l'altra
     const items=list.map(b=>({b,s:plSpan(b,ds)})).concat(tms.map(t=>({t,s:{a:hOf(t.da),z:hOf(t.a)}}))).sort((a,c)=>a.s.a-c.s.a||(a.t?1:0)-(c.t?1:0)),lanes=[];
     for(const it of items){let k=0;while(lanes[k]!=null&&lanes[k]>it.s.a+1e-6)k++;lanes[k]=it.s.z;it.k=k;}
     const nl=Math.max(1,lanes.length),hgt=8+nl*44;
-    h+='<div class="pl-row'+(xb?" xb":"")+(vOn(v,ds)||xb?"":" off")+'" data-pr="'+esc(v.id)+'"><div class="pl-lab'+(plHit?" hit":"")+'" style="min-height:'+hgt+'px"><span class="vl">'+vehLabelHTML(v)+'</span>'+(xb?"":vOffTag(v,ds))+'</div>'+
+    h+='<div class="pl-row'+(xb?" xb":"")+(vOn(v,ds)||xb?"":" off")+'" data-pr="'+esc(v.id)+'"><div class="pl-lab" style="min-height:'+hgt+'px"><span class="vl">'+vehLabelHTML(v)+'</span>'+(xb?"":vOffTag(v,ds))+'</div>'+
       '<div class="pl-track" data-pt="'+esc(v.id)+'" style="height:'+hgt+'px">'+nowM+
       items.map(it=>it.t?plDeadHTML(it.t,v.id,ds,7+it.k*44,drag,f):plBarHTML(it.b,ds,4+it.k*44,drag&&!capoLock(it.b),f)).join("")+'</div></div>';
   }
-  if(!shown)h+='<div class="pl-empty">Nessun mezzo con questi filtri. <button type="button" class="btn sm" data-plclear="1">Azzera filtri</button></div>';
+  if(!shown)h+='<div class="pl-empty">Nessun mezzo in flotta in questo giorno.</div>';
   const g=$("plGrid"),st=g.scrollTop;g.innerHTML=h;g.scrollTop=st;
-  // da assegnare
-  const una=on(ds,"");if(f)hits+=una.filter(plMatch).length;
-  $("plTray").innerHTML='<div class="pl-tray-h"><b>Da assegnare – prenotazioni senza mezzo</b><small>'+(una.length?(una.length===1?"1 prenotazione":una.length+" prenotazioni")+(drag?" · trascinale sulla riga di un mezzo":" · apri il lucchetto per assegnarle"):"nessuna in questo giorno")+'</small></div>'+
-    (una.length?'<div class="pl-cards">'+una.map(b=>{const m=plMatch(b);return '<div class="pl-card t-'+esc(b.type)+(drag?" mv":"")+(f?(m?(q?" hit":""):" dim"):"")+'" draggable="'+(drag?"true":"false")+'" data-pb="'+esc(b.id)+'" data-ps="'+esc(b.start)+'" tabindex="0" role="button" title="'+esc(dispClient(b)+"\n"+plTime(b,ds)+(drag?"\nTrascina sulla riga di un mezzo · clic: apri la prenotazione":"\nClic: apri la prenotazione"))+'"><span class="c1"><span class="stm '+stCls(b)+'" aria-hidden="true">'+stMark(b)+'</span>'+esc(plTime(b,ds))+'</span><span class="c2">'+esc(dispClient(b))+'</span><span class="c3">'+esc([(TYPES[b.type]||""),whatToday(b,ds),b.pax!==""&&b.pax!=null?b.pax+" passeggeri":""].filter(Boolean).join(" · "))+'</span></div>';}).join("")+'</div>':'');
-  $("plCnt").textContent=f?(hits===1?"1 prenotazione trovata":hits+" prenotazioni trovate"):shown+(shown===1?" mezzo":" mezzi");
-  $("plClear").hidden=!(f||PL.size||PL.only);
+  // da assegnare: prenotazioni senza mezzo e (4.0.9) quelle messe in attesa
+  const una=on(ds,"").concat(dayList(ds).filter(b=>pk.has(b.id)));
+  $("plTray").innerHTML='<div class="pl-tray-h"><b>Da assegnare</b><small>'+(una.length?(una.length===1?"1 prenotazione":una.length+" prenotazioni")+(drag?" · trascinale sulla riga di un mezzo":" · apri il lucchetto per spostarle"):drag?"trascina qui una prenotazione per lasciarla in attesa: nell'agenda resta com'è":"nessuna in questo giorno")+'</small></div>'+
+    (una.length?'<div class="pl-cards">'+una.map(b=>{const pkd=pk.has(b.id),full=pkd?(plFull(b)||b):null;return '<div class="pl-card t-'+esc(b.type)+(drag?" mv":"")+(pkd?" park":"")+'" draggable="'+(drag?"true":"false")+'" data-pb="'+esc(b.id)+'" data-ps="'+esc(b.start)+'"'+(pkd?' data-pk="'+esc(full.vehicle)+'"':'')+' tabindex="0" role="button" title="'+esc(dispClient(b)+"\n"+plTime(b,ds)+(pkd?"\nIn attesa: nell'agenda resta sul "+plVLab(full.vehicle):"\nSenza mezzo")+(drag?"\nTrascina sulla riga di un mezzo · clic: apri la prenotazione":"\nClic: apri la prenotazione"))+'"><span class="c1"><span class="stm '+stCls(b)+'" aria-hidden="true">'+stMark(b)+'</span>'+esc(plTime(b,ds))+'</span><span class="c2">'+esc(dispClient(b))+'</span><span class="c3">'+esc([(TYPES[b.type]||""),whatToday(b,ds),b.pax!==""&&b.pax!=null?b.pax+" passeggeri":""].filter(Boolean).join(" · "))+'</span><span class="c4">'+esc(pkd?"In attesa · nell'agenda sul "+plVLab(full.vehicle):"Senza mezzo")+'</span></div>';}).join("")+'</div>':'');
   if(!PL.msg)plSay("","");else plSay(PL.msg.t,PL.msg.k);
 }
 // ---- comandi ----
 $("vPlan").onclick=()=>setView("plan");
 $("psign").addEventListener("click",e=>{if(e.target.id==="pPrev")go(addDays(S.sel,-1));if(e.target.id==="pNext")go(addDays(S.sel,1));});
 $("plLock").onclick=()=>{if(S.readOnly||isInvio())return;PL.locked=!PL.locked;PL.undo=null;plMenuClose();plSay(PL.locked?"Lucchetto chiuso: le prenotazioni non si spostano.":"Lucchetto aperto: ora puoi spostare le prenotazioni e mettere i tempi morti.","");renderPlan();};
-$("plQ").addEventListener("input",()=>{PL.q=$("plQ").value;clearTimeout(renderPlan._q);renderPlan._q=setTimeout(()=>{if(S.view==="plan")renderPlan();},150);});
-$("plSize").addEventListener("change",()=>{PL.size=$("plSize").value;renderPlan();});
-$("plOnly").addEventListener("change",()=>{PL.only=$("plOnly").checked;renderPlan();});
-const plClear=()=>{PL.q="";PL.fty=[];PL.fst=[];PL.size="";PL.only=false;renderPlan();};
-$("plClear").onclick=plClear;
-$("plUndo").onclick=()=>{const u=PL.undo;if(!u)return;PL.undo=null;if(u.kind==="tm")tmMove(u.id,u.veh,0,u);else if(u.kind==="drv")plDriver({id:u.id,start:u.start},u.slot,"",u);else plMove({id:u.id,start:u.start},u.vehicle,u);};
+$("plUndo").onclick=()=>{const u=PL.undo;if(!u)return;PL.undo=null;if(u.kind==="tm")tmMove(u.id,u.veh,0,u);else if(u.kind==="drv")plDriver({id:u.id,start:u.start},u.slot,"",u);else if(u.kind==="park")plParkDo({id:u.id,start:u.start},u.on,u);else plMove({id:u.id,start:u.start},u.vehicle,u);};
 $("planView").addEventListener("click",e=>{
-  const ty=e.target.closest("[data-plty]");if(ty){const k=ty.dataset.plty;PL.fty=PL.fty.includes(k)?PL.fty.filter(x=>x!==k):PL.fty.concat([k]);renderPlan();return;}
-  const st=e.target.closest("[data-plst]");if(st){const k=st.dataset.plst;PL.fst=PL.fst.includes(k)?PL.fst.filter(x=>x!==k):PL.fst.concat([k]);renderPlan();return;}
-  if(e.target.closest("[data-plclear]")){plClear();return;}
   const b=e.target.closest("[data-pb]");
   if(b&&Date.now()-PL.lpAt<900)return; // 4.0.8: dopo «tieni premuto» non si apre la prenotazione
   if(b&&(e.target.closest("#plGrid")||e.target.closest("#plTray"))){const x=bookingsAll().find(y=>y.id===b.dataset.pb&&y.start===b.dataset.ps);if(x)openForm({booking:x});}
@@ -3967,7 +3980,7 @@ $("planView").addEventListener("dragstart",e=>{
   const el=e.target.closest&&e.target.closest("[data-pb]");if(!el)return;
   if(PL.locked||S.readOnly||isInvio()){e.preventDefault();return;}
   const b=bookingsAll().find(y=>y.id===el.dataset.pb&&y.start===el.dataset.ps);if(!b||capoLock(b)){e.preventDefault();if(b)plSay(CAPO_NO,"err");return;}
-  PL.drag={id:b.id,start:b.start};PL.fit=new Map();plMenuClose();
+  PL.drag={id:b.id,start:b.start,tray:!!el.closest("#plTray"),park:el.dataset.pk!=null,veh:el.dataset.pk||""};PL.fit=new Map();plMenuClose(); // 4.0.9: dalla striscia, in attesa
   try{e.dataTransfer.setData("text/plain",b.id);e.dataTransfer.effectAllowed="move";}catch(_){}
   setTimeout(()=>el.classList.add("dragging"),0);
 });
@@ -3978,7 +3991,11 @@ $("planView").addEventListener("dragend",e=>{
 function plFitOf(vid){
   if(!PL.drag)return null;if(PL.fit.has(vid))return PL.fit.get(vid);
   if(PL.drag.tm)return {ok:false};
-  const b=bookingsAll().find(y=>y.id===PL.drag.id);const r=!b?{ok:false}:vid==="__tray"?(b.vehicle?plCheckOut(b):{ok:false}):((b.vehicle||"")===vid?{ok:false,same:true}:plCheck(b,vid));
+  const b=bookingsAll().find(y=>y.id===PL.drag.id),d=PL.drag;let r;
+  if(!b)r={ok:false};
+  else if(vid==="__tray")r=d.tray||!b.vehicle?{ok:false,same:true}:{ok:true}; // 4.0.9: nella striscia = in attesa (qualunque prenotazione con il mezzo)
+  else if((b.vehicle||"")===vid)r=d.park?plCheck(b,vid,true):{ok:false,same:true}; // in attesa che torna sul suo mezzo: contano solo gli orari
+  else r=plCheck(b,vid);
   PL.fit.set(vid,r);return r;
 }
 $("plGrid").addEventListener("dragover",e=>{
@@ -4000,13 +4017,15 @@ $("plGrid").addEventListener("drop",e=>{
   if(!PL.drag)return;e.preventDefault();const row=e.target.closest("[data-pr]"),d=PL.drag;
   if(row&&d.tm){const at=plTmAt(row,e.clientX);PL.drag=null;plOverClr();tmMove(d.tm,row.dataset.pr,at);return;}
   PL.drag=null;plOverClr();
-  if(row)plMove(d,row.dataset.pr);
+  if(!row)return;const vid=row.dataset.pr;
+  if(d.park){if(vid===d.veh)plParkDo(d,false);else plMove(d,vid,null,{unpark:true});return;} // 4.0.9: esce dall'attesa
+  plMove(d,vid);
 });
-$("plTray").addEventListener("dragover",e=>{if(!PL.drag||PL.drag.tm)return;e.preventDefault();const r=plFitOf("__tray");plOverClr();$("plTray").classList.toggle("ov-ok",!!(r&&r.ok));$("plTray").classList.toggle("ov-no",!!(r&&!r.ok));});
+$("plTray").addEventListener("dragover",e=>{if(!PL.drag||PL.drag.tm)return;e.preventDefault();const r=plFitOf("__tray");plOverClr();$("plTray").classList.toggle("ov-ok",!!(r&&r.ok));$("plTray").classList.toggle("ov-no",!!(r&&!r.ok&&!r.same));});
 $("plTray").addEventListener("dragleave",e=>{if(!$("plTray").contains(e.relatedTarget))$("plTray").classList.remove("ov-ok","ov-no");});
 $("plTray").addEventListener("drop",e=>{
   if(!PL.drag||PL.drag.tm)return;e.preventDefault();const d=PL.drag;PL.drag=null;plOverClr();
-  const b=bookingsAll().find(y=>y.id===d.id);if(b&&b.vehicle)plMove(d,"");
+  const b=bookingsAll().find(y=>y.id===d.id);if(b&&b.vehicle&&!d.tray)plParkDo(d,true); // 4.0.9: in attesa, nell'agenda non cambia niente
 });
 // ---- menu del tasto destro (tempi morti; 4.0.8: autista della prenotazione) ----
 function plMenuClose(){PL.menu=null;$("plMenu").hidden=true;$("plVeil").hidden=true;}
@@ -4022,7 +4041,9 @@ function plMenuOpen(m,x,y,keep){
         '<input type="search" class="pl-mq" id="plMq" placeholder="Cerca autista" aria-label="Cerca autista" autocomplete="off" spellcheck="false" value="'+esc(m.q||"")+'">'+
         '<div class="pl-dl" id="plDl" role="group" aria-label="Autisti">'+plDrvList(cur,m.slot,m.q||"")+'</div>';
     }
-    h+='<div class="pl-sep"></div><button type="button" role="menuitem" data-bkopen="1">Apri la prenotazione</button>';
+    const pkd=plParkSet().has(cur.id); // 4.0.9: attesa anche dal menu (su telefono e tablet non si trascina)
+    h+='<div class="pl-sep"></div>'+(pkd?'<button type="button" role="menuitem" data-bkunpark="1">Rimetti sul suo mezzo<small>'+esc(plVLab(cur.vehicle))+'</small></button>':cur.vehicle?'<button type="button" role="menuitem" data-bkpark="1">Metti in attesa<small>in «Da assegnare»</small></button>':'')+
+      '<button type="button" role="menuitem" data-bkopen="1">Apri la prenotazione</button>';
   }
   else if(m.kind==="row"){
     h='<div class="pl-mh">'+(PL.locked?"Apri il lucchetto per mettere un tempo morto":"Tempo morto dalle "+hm(m.at)+" · "+esc(plVLab(m.vid)))+'</div>'+
@@ -4149,6 +4170,8 @@ $("plMenu").addEventListener("click",async e=>{
   // 4.0.8: autista
   if(bt.dataset.dslot){const mn=$("plMenu");m.slot=+bt.dataset.dslot;plMenuOpen(m,parseFloat(mn.style.left)||8,parseFloat(mn.style.top)||8,true);const t=mn.querySelector('[data-dslot="'+m.slot+'"]');if(t)t.focus();return;}
   if(bt.dataset.bkopen){plMenuClose();const x=plFull(m);if(x)openForm({booking:x});return;}
+  if(bt.dataset.bkpark){plMenuClose();plParkDo(m,true);return;}
+  if(bt.dataset.bkunpark){plMenuClose();plParkDo(m,false);return;}
   if(bt.dataset.drvset!=null){const sl=m.slot||1;plMenuClose();plDriver(m,sl,bt.dataset.drvset);return;}
   plMenuClose();if(PL.locked)return;
   if(bt.dataset.tmadd!=null){
@@ -7787,18 +7810,21 @@ const HOWTO=[
  {t:"Guardare le e-mail ricevute dai clienti",d:"Il tasto fucsia «E-mail», a sinistra di «Fatturato», mostra le risposte dei clienti alle richieste dei dati di fatturazione, con i dati letti e i controlli.",k:"email e-mail ricevute posta risposte clienti dati controlli anagrafica tasto fucsia inbox arrivate",v:"4.0.6",go:{hl:"#vMail"},
   s:["Premi «E-mail» in alto: il numero sul tasto dice quante risposte sono nuove o da controllare.","Scegli una e-mail: vedi i dati letti con i controlli (✓ a posto, ! da controllare, ✕ sbagliato) e il testo della mail.","«Da controllare»: «Correggi e aggiungi all'anagrafica» apre il modulo del cliente già compilato; «Chiedi di nuovo i dati» prepara una nuova richiesta con l'elenco di quello che non torna.","«In anagrafica»: «Apri la scheda del cliente» mostra il cliente inserito."],
   n:"Si vedono solo le risposte alle richieste dei dati di fatturazione, non tutta la posta."},
- {t:"Usare il Planning (mezzi e orari)",d:"Il tasto «Planning», a sinistra di «Giorno», apre il tabellone del giorno: a sinistra i mezzi, in alto le ore dalle 00 alle 24, ogni prenotazione è una barra. Sotto c'è la striscia «Da assegnare» con le prenotazioni ancora senza mezzo. Col lucchetto aperto puoi trascinare una prenotazione su un altro mezzo: cambia solo il mezzo, date e orari restano quelli.",k:"planning tabellone mezzi orari ore trascina sposta cambia mezzo lucchetto blocca sblocca da assegnare senza mezzo filtri ricerca targa gantt",v:"4.0.7",go:{view:"plan"},
-  s:["Premi «Planning» (a sinistra di «Giorno») e scegli il giorno con le frecce o dalla striscia dei giorni.","Premi il lucchetto «Bloccato» per aprirlo: diventa «Sbloccato: puoi spostare».","Trascina la barra della prenotazione sulla riga del mezzo che vuoi: la riga diventa verde se si può, arancione se si può ma a quell'ora c'è un tempo morto (lo sposta lo stesso e avvisa), rossa se no (mezzo occupato da un altro servizio, troppo piccolo, fermo, oppure prenotazione già confermata da Massimo).","Lascia il mouse: in basso compare cosa è cambiato, con il tasto «Annulla» se hai sbagliato.","Per togliere il mezzo a una prenotazione in sospeso, trascinala nella striscia «Da assegnare».","Quando hai finito premi di nuovo il lucchetto per chiuderlo.","Per cercare: scrivi nella casella (cliente, targa, itinerario, autista) oppure usa i filtri per tipo, stato e grandezza del mezzo; «Solo i mezzi con risultati» nasconde le righe vuote."],
+ {t:"Usare il Planning (mezzi e orari)",d:"Il tasto «Planning», a sinistra di «Giorno», apre il tabellone del giorno: a sinistra i mezzi, in alto le ore dalle 00 alle 24, ogni prenotazione è una barra. Sotto c'è la striscia «Da assegnare» con le prenotazioni senza mezzo e quelle messe in attesa. Col lucchetto aperto puoi trascinare una prenotazione su un altro mezzo: cambia solo il mezzo, date e orari restano quelli.",k:"planning tabellone mezzi orari ore trascina sposta cambia mezzo lucchetto blocca sblocca da assegnare senza mezzo attesa targa gantt",v:"4.0.7",go:{view:"plan"},
+  s:["Premi «Planning» (a sinistra di «Giorno») e scegli il giorno con le frecce o dalla striscia dei giorni.","Premi il lucchetto «Bloccato» per aprirlo: diventa «Sbloccato: puoi spostare».","Trascina la barra della prenotazione sulla riga del mezzo che vuoi: la riga diventa verde se si può, arancione se si può ma a quell'ora c'è un tempo morto (lo sposta lo stesso e avvisa), rossa se no (mezzo occupato da un altro servizio, troppo piccolo, fermo, oppure prenotazione già confermata da Massimo).","Lascia il mouse: in basso compare cosa è cambiato, con il tasto «Annulla» se hai sbagliato.","Per lasciare una prenotazione in attesa, trascinala nella striscia «Da assegnare»: nell'agenda resta sul suo mezzo e con il suo stato.","Quando hai finito premi di nuovo il lucchetto per chiuderlo."],
   n:"Se sposti un giorno di un tour, il mezzo cambia per tutto il tour. Se il foglio di servizio era già stato inviato all'autista, va reinviato. Un clic su una barra apre la prenotazione; il tasto destro assegna l'autista. In Impostazioni › Planning puoi nascondere la riga delle ore, la linea dell'ora attuale e le linee verticali."},
  {t:"Mettere un tempo morto su un mezzo",d:"Nel Planning, con il tasto destro su un punto vuoto della riga di un mezzo, scegli un tempo morto (per esempio «ATTESA SCARICO» o «RITORNO VILLAGGIO»): parte dall'ora dove hai cliccato. Col lucchetto aperto lo trascini su un'altra ora o su un altro mezzo. Se si sovrappone a un servizio l'agenda avvisa e lo segna con il bordo rosso, ma lo lascia.",k:"tempo morto tempi morti attesa scarico ritorno villaggio pulizia tasto destro occupato mezzo planning voci predefinite durata sposta trascina sovrapposto avviso bordo rosso",v:"4.0.8",go:{view:"plan",hl:"#plTmSet"},
   s:["Apri il Planning e premi il lucchetto per aprirlo.","Porta il mouse sulla riga del mezzo, all'ora giusta, e premi il tasto destro (sul Mac: clic con due dita, oppure ctrl + clic).","Scegli la voce dal menu: il tempo morto compare sulla riga, a righe oblique.","Per spostarlo: trascinalo con il mouse a destra o a sinistra (ora, al quarto d'ora) o su un'altra riga (mezzo). In basso c'è «Annulla» se hai sbagliato.","Se si sovrappone a un servizio o a un altro tempo morto: in basso compare l'avviso e il tempo morto ha il bordo rosso con «!». Controlla e, se serve, spostalo.","Per cambiare la durata o toglierlo: tasto destro sul tempo morto e scegli la durata nuova oppure «Togli questo tempo morto».","Per cambiare l'elenco delle voci: premi «Tempi morti…» in alto a destra nel Planning, aggiungi o modifica nome e durata, poi premi «Salva»."],
-  n:"Le voci e i tempi morti si salvano su Dropbox (cartella config: tempi-morti-voci.json e tempi-morti.json) e si vedono su tutti i computer. Si vedono anche nella vista Giorno, sulla riga del mezzo. Non vanno nel foglio di servizio e non arrivano all'autista."},
+  n:"Le voci e i tempi morti si salvano su Dropbox (cartella config: tempi-morti-voci.json e tempi-morti.json) e si vedono su tutti i computer. Si vedono solo nel Planning (non nella vista Giorno). Non vanno nel foglio di servizio e non arrivano all'autista."},
  {t:"Prenotazione senza mezzo (da assegnare)",d:"Nella prenotazione, nel campo «Mezzo» puoi scegliere «Da assegnare»: la prenotazione si salva senza mezzo e resta in sospeso. Finché non ha il mezzo non si può confermare, non si invia all'autista e non prende il n. foglio, quindi non va nel fatturato.",k:"senza mezzo da assegnare mezzo dopo sospeso opzione prenotazione bus non scelto planning striscia assegna",v:"4.0.7",go:{hl:"#btnNew"},
   s:["Premi «+ Nuova prenotazione».","Nel campo «Mezzo» scegli «Da assegnare» (in fondo all'elenco).","Compila il resto e premi «Salva»: la prenotazione compare nella riga «Da assegnare» in cima alla vista Giorno e nella striscia in basso del Planning.","Per darle il mezzo: nel Planning apri il lucchetto e trascinala sulla riga del mezzo, oppure apri la prenotazione e scegli il mezzo nel campo «Mezzo».","Quando ha il mezzo prende da sola il n. foglio e va nel fatturato; poi puoi confermarla come sempre."],
   n:"Aggiorna tutti i computer e i telefoni alla 4.0.7: le versioni vecchie non vedono le prenotazioni senza mezzo."},
  {t:"Assegnare l'autista dal Planning",d:"Nel Planning, con il tasto destro su una prenotazione (su telefono e tablet: tienila premuta) si apre «Autista»: scegli il nome e l'autista è assegnato, senza aprire la prenotazione e senza aprire il lucchetto.",k:"autista assegna assegnare planning tasto destro tieni premuto tablet telefono massimo 1° 2° secondo autista occupato riposo",v:"4.0.8",go:{view:"plan"},
   s:["Apri il Planning sul giorno del servizio.","Tasto destro sulla barra della prenotazione (sul Mac: clic con due dita, oppure ctrl + clic). Su telefono e tablet: tieni premuto il dito sulla barra per mezzo secondo.","In alto scegli «1° autista» o «2° autista».","Scegli il nome dall'elenco (puoi scrivere le prime lettere in «Cerca autista»). Accanto al nome vedi se a quell'ora è già occupato, se è di riposo o se quel giorno ha un altro servizio.","In basso compare cosa è cambiato, con «Annulla» se hai sbagliato."],
-  n:"«Da assegnare» rimette l'autista generico. Nei tour l'autista vale per tutto il tour. Se il foglio era già stato inviato, va inviato di nuovo. Se bus e autisti li ha decisi Massimo (MAX), li cambia solo lui."},
+  n:"Dallo stesso menu: «Metti in attesa» e «Rimetti sul suo mezzo». «Da assegnare» rimette l'autista generico. Nei tour l'autista vale per tutto il tour. Se il foglio era già stato inviato, va inviato di nuovo. Se bus e autisti li ha decisi Massimo (MAX), li cambia solo lui."},
+ {t:"Mettere un servizio in attesa nel Planning",d:"Nel Planning la striscia «Da assegnare» in basso serve anche da zona di attesa: trascina lì un servizio per toglierlo un attimo dalla riga del suo mezzo mentre riorganisci. Nell'agenda non cambia niente: resta sul suo mezzo, con il suo stato (non va in sospeso).",k:"attesa in attesa da assegnare parcheggia lascia sospeso planning striscia riorganizza sposta",v:"4.0.9",go:{view:"plan"},
+  s:["Apri il Planning e premi il lucchetto per aprirlo.","Trascina la barra del servizio nella striscia «Da assegnare» in basso: compare lì con «In attesa · nell'agenda sul …».","Su telefono e tablet (o senza trascinare): tasto destro sulla barra, oppure tieni premuto, e scegli «Metti in attesa».","Intanto la riga di quel mezzo nel Planning è libera: se ci metti un altro servizio alla stessa ora l'agenda lo sposta, ma ti avvisa che il servizio in attesa è ancora su quel mezzo.","Per riassegnarlo: trascina la scheda dalla striscia sulla riga di un mezzo. Se è un altro mezzo cambia il mezzo (con le regole di sempre); se è il suo, torna com'era.","Per rimetterlo subito sul suo mezzo: tasto destro sulla scheda e «Rimetti sul suo mezzo»."],
+  n:"L'attesa si vede su tutti i computer (è salvata in Dropbox: config/planning-attesa.json). Se intanto qualcuno cambia il mezzo dal modulo della prenotazione, il servizio esce da solo dall'attesa."},
  {t:"Nascondere le righe delle ore nel Planning",d:"In Impostazioni › Planning scegli cosa vedere nel tabellone: la riga delle ore in alto, la linea dell'ora attuale e le linee verticali delle ore.",k:"planning nascondere riga oraria ore linea ora attuale griglia linee verticali impostazioni",v:"4.0.8",go:"pln",
   s:["Premi «Impostazioni» in alto e, nella colonna a sinistra, «Planning» (aspetto classico: «Menu» › «Le mie impostazioni», riquadro «Planning», poi «Salva»).","Togli la spunta a quello che vuoi nascondere: «Riga delle ore in alto», «Linea dell'ora attuale» o «Linee verticali delle ore».","Torna nel Planning: si vede subito."],
   n:"Vale solo per te, su tutti i tuoi dispositivi. Per rivederle rimetti la spunta."},
