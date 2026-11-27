@@ -537,6 +537,7 @@
     if (p.look === "nuovo" || p.look === "classico") o.look = p.look; // 4.0: aspetto scelto
     if (p.theme === "chiaro" || p.theme === "scuro" || p.theme === "auto") o.theme = p.theme; // 4.0: tema
     if (typeof p.tour40 === "string" && p.tour40.length <= 40) o.tour40 = p.tour40; // 4.0: benvenuto già visto (quando)
+    if (isObj(p.plan)) { const q = {}; for (const k of ["axis", "now", "grid"]) if (typeof p.plan[k] === "boolean") q[k] = p.plan[k]; if (Object.keys(q).length) o.plan = q; } // 4.0.8: cosa si vede nel Planning
     if (p.keys && typeof p.keys === "object" && !Array.isArray(p.keys)) { const k = {}; for (const [id, v] of Object.entries(p.keys)) if (/^[a-z]{2,8}$/.test(id) && typeof v === "string" && v.length <= 40) k[id] = v; if (Object.keys(k).length) o.keys = k; } // 4.0.1: scorciatoie da tastiera scelte
     return Object.keys(o).length ? o : null;
   }
@@ -1649,7 +1650,7 @@
   }
 
   (window.AGENDA_FILES = window.AGENDA_FILES || {}).store = "3.0";
-  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "4.0.7"; // 4.0.7: prenotazioni senza mezzo, tempi morti; 4.0.6: testi delle mail per cliente e richieste dei dati di fatturazione; 4.0.5: conflitti sullo stesso campo, permessi, impostazioni con revisione, coda anche in IndexedDB, chiavi dei telefoni cifrate; 4.0.4: correzioni di sicurezza (pulizia notturna, fatture, fatturato, sincronizzazione); 4.0.3: passeggero H a bordo; // 4.0.1: scorciatoie da tastiera nelle impostazioni personali; 4.0: aspetto, tema e benvenuto nelle impostazioni personali; 3.0.11: pulizia di quelle senza cliente alle 00:00 del giorno del servizio; 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
+  (window.AGENDA_PATCH = window.AGENDA_PATCH || {}).store = "4.0.8"; // 4.0.8: impostazioni del Planning (prefs.plan); 4.0.7: prenotazioni senza mezzo, tempi morti; 4.0.6: testi delle mail per cliente e richieste dei dati di fatturazione; 4.0.5: conflitti sullo stesso campo, permessi, impostazioni con revisione, coda anche in IndexedDB, chiavi dei telefoni cifrate; 4.0.4: correzioni di sicurezza (pulizia notturna, fatture, fatturato, sincronizzazione); 4.0.3: passeggero H a bordo; // 4.0.1: scorciatoie da tastiera nelle impostazioni personali; 4.0: aspetto, tema e benvenuto nelle impostazioni personali; 3.0.11: pulizia di quelle senza cliente alle 00:00 del giorno del servizio; 3.0.2: allegati; 3.0.3: pulizia delle prenotazioni in sospeso, mezzi del tour giorno per giorno; 3.0.5: mezzi aggiunti ed eliminati
   window.STORE = {
     BASE, P,
     saveAttachment, readAttachment, removeAttachment, cleanAtt, ATT_MAX,

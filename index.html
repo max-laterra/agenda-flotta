@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-v="3.0" data-p="4.0.7">
+<html lang="it" data-v="3.0" data-p="4.0.8">
 <head>
 <meta charset="utf-8">
 <!-- Regola di sicurezza (CSP): la pagina esegue solo i propri file e parla solo con Dropbox, Google Places e i caratteri di Google.
@@ -2039,7 +2039,7 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
       <button type="button" id="mMaster" class="mst-only"><b>Pannello Master</b><span>Utenti, dispositivi collegati, registro delle modifiche e impostazioni</span></button>
       <button type="button" id="mLock"><b>Esci</b><span>Torna alla schermata di accesso, per esempio per cambiare utente</span></button>
       <button type="button" id="mSync"><b>Aggiorna adesso</b><span>Scarica le modifiche degli altri dispositivi e aggiorna il fatturato</span></button>
-      <button type="button" data-pane="mPrefs"><b>Le mie impostazioni</b><span>Uscita automatica e punto esclamativo «!» delle cose da completare</span></button>
+      <button type="button" data-pane="mPrefs"><b>Le mie impostazioni</b><span>Uscita automatica, punto esclamativo «!» delle cose da completare, aspetto e Planning</span></button>
       <button type="button" data-pane="mPw"><b>Cambia la mia password</b><span>Serve la password attuale</span></button>
       <button type="button" id="mFat" class="mst-only"><b>Collega file fatturato</b><span>A inizio anno collega il file del nuovo anno: ogni servizio va nel file del suo anno</span></button>
       <button type="button" class="danger mst-only" data-pane="mUnlink"><b>Scollega questo dispositivo</b><span>Da usare se il Mac o il telefono non deve più avere accesso</span></button>
@@ -2069,6 +2069,10 @@ table.pg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
           <label><input type="radio" name="prLook" value="classico"> <span><b>Classico</b> come la 3.0</span></label>
         </div>
         <div id="prTelBox"></div>
+      </fieldset>
+      <fieldset class="pr-look" id="prPlanBox"><legend>Planning</legend>
+        <p class="menu-note">Cosa vedere nel tabellone dei mezzi. Togli la spunta per nascondere. Vale solo per te, su tutti i tuoi dispositivi.</p>
+        <div class="pr-checks" id="prPlan"></div>
       </fieldset>
     </form>
     <div class="menu-list" id="mUnlink" hidden>

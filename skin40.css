@@ -3,7 +3,7 @@
    Tutte le regole valgono SOLO con <html data-look="nuovo">: con l'aspetto «Classico» l'agenda resta identica alla 3.0.
    Sul Mac e sull'iPhone il carattere è quello di Apple (San Francisco); altrove Inter / quello di sistema.
    ===================================================================================== */
-:root{--skin40:"4.0.7"} /* l'app controlla che questo file sia arrivato (stessa versione degli altri) */
+:root{--skin40:"4.0.8"} /* l'app controlla che questo file sia arrivato (stessa versione degli altri) */
 html[data-look="nuovo"]{
   --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F4F4F7; --ink:#1D1D1F; --ink-2:#4A4A4F; --ink-3:#8E8E93;
   --line:#E3E3E8; --accent:#C8102E; --accent-ink:#FFFFFF; --accent-soft:#FCE8EB;
@@ -982,3 +982,44 @@ html[data-theme="dark"] .un-tag{color:#FFB074;background:#3D2410}
 tr.unrow th.vc,tr.unrow td{background:color-mix(in srgb,#FF8A1F 6%,transparent)}
 .cell.un{background:#FFEBDA;color:#9A4508;border:1px dashed #FF8A1F}
 @media (max-width:700px){.pl-row{grid-template-columns:118px minmax(760px,1fr)}.pl-lab{font-size:12px;padding-left:8px}.pl-card{width:100%}.tm-row{grid-template-columns:minmax(0,1fr) 130px 44px}}
+/* ===== 4.0.8 — Planning: tempi morti trascinabili e sovrapposti (avviso), menu dell'autista, impostazioni ===== */
+.pl-row.ov-wa .pl-track{background-color:color-mix(in srgb,#FF8A1F 14%,transparent);box-shadow:inset 0 0 0 2px #E67700}
+.pl-dead.mv{cursor:grab;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.pl-dead.mv:hover{box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.pl-dead.dragging{opacity:.35}
+.pl-dead.clash{border:2px solid #D70015;box-shadow:0 0 0 2px color-mix(in srgb,#D70015 18%,transparent)}
+.tm-bang{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;background:#D70015;color:#fff;font-style:normal;font-size:10px;font-weight:900;margin-right:4px;vertical-align:1px}
+.tm-chip.clash{border:2px solid #D70015;color:#B0000F}
+.pl-msg.warn{color:#8A4200;background:color-mix(in srgb,#FF8A1F 13%,var(--surface,#fff))}
+html[data-theme="dark"] .pl-msg.warn{color:#FFB074}
+@media (prefers-color-scheme:dark){html:not([data-theme="light"]) .pl-msg.warn{color:#FFB074}}
+#planView.pl-noaxis .pl-axis{display:none}
+#planView.pl-nonow .pl-now,#planView.pl-nonow .pl-nowp{display:none}
+#planView.pl-nogrid .pl-track{background-image:none}
+.pl-bar,.pl-card,.pl-dead{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.pl-menu.pl-mbk{width:330px;max-width:calc(100vw - 16px)}
+.pl-mnote{font-size:12.5px;color:var(--ink-2,#4a4a4f);padding:4px 10px 8px;line-height:1.4}
+.pl-slots{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:2px 4px 6px}
+.pl-menu .pl-slots button{flex-direction:column;align-items:flex-start;gap:1px;padding:6px 9px;border:1px solid var(--line,#e3e3e8);min-height:0}
+.pl-menu .pl-slots button span{font-size:12px;color:var(--ink-3,#6e6e73);font-weight:600}
+.pl-menu .pl-slots button small{font-size:13.5px;color:var(--ink,#1d1d1f);font-weight:700;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl-menu .pl-slots button[aria-selected="true"]{border-color:var(--accent,#C8102E);box-shadow:inset 0 0 0 1px var(--accent,#C8102E);background:color-mix(in srgb,var(--accent,#C8102E) 7%,var(--surface,#fff))}
+.pl-mq{font:inherit;font-size:14px;margin:0 4px 6px;padding:8px 10px;border-radius:9px;border:1px solid var(--line,#d1d1d6);background:var(--surface,#fff);color:var(--ink,#1d1d1f);min-height:38px;box-sizing:border-box}
+.pl-dl{display:flex;flex-direction:column;max-height:min(46vh,380px);overflow:auto;overscroll-behavior:contain}
+.pl-menu .pl-dl button{align-items:center}
+.pl-menu .pl-dl button span{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl-menu .pl-dl button small{text-align:right;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl-menu .pl-dl .cur{font-weight:800}
+.pl-menu .pl-dl .busy small{color:#B0000F}
+.pl-menu .pl-dl .day small{color:#8A4200}
+.pl-menu .pl-dl .gen{color:var(--ink-2,#4a4a4f);font-style:italic}
+.pl-dd{width:9px;height:9px;border-radius:50%;flex:none;background:var(--ink-3,#8e8e93)}
+.pl-dd.drv-g{background:#30B556}.pl-dd.drv-r{background:#D70015}
+.pl-setchk{display:flex;gap:10px;align-items:flex-start;padding:8px 0;cursor:pointer}
+.pl-setchk input{width:18px;height:18px;margin:2px 0 0;flex:none;accent-color:var(--accent,#C8102E)}
+.pl-setchk span{display:flex;flex-direction:column;gap:2px}
+.pl-setchk b{font-size:14px;font-weight:600}
+.pl-setchk small{font-size:12.5px;color:var(--ink-3,#6e6e73)}
+@media (pointer:coarse){.pl-menu button{min-height:44px}.pl-mq{min-height:44px;font-size:16px}}
+html[data-theme="dark"] .pl-menu .pl-dl .busy small,html[data-theme="dark"] .tm-chip.clash{color:#FF8A84}html[data-theme="dark"] .pl-menu .pl-dl .day small{color:#FFB074}
+@media (prefers-color-scheme:dark){html:not([data-theme="light"]) .pl-menu .pl-dl .busy small,html:not([data-theme="light"]) .tm-chip.clash{color:#FF8A84}html:not([data-theme="light"]) .pl-menu .pl-dl .day small{color:#FFB074}}

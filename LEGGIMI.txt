@@ -1,7 +1,84 @@
-AGENDA FLOTTA LA TERRA – VERSIONE 4.0.7 (27/11/2026)
+AGENDA FLOTTA LA TERRA – VERSIONE 4.0.8 (27/11/2026)
 ====================================================
 La versione in uso si vede nell'app: in alto accanto a "Sincronizzato", nella schermata di
 accesso e in Impostazioni › Generali. Deve corrispondere a quella di questo file.
+
+COME AGGIORNARE ALLA 4.0.8 (dalla 4.0.7, 4.0.6 o 4.0.5: 3 minuti, 9 file)
+--------------------------------------------------------------------------
+1. Su GitHub, nel repository agenda-flotta: "Add file" → "Upload files" → trascina SOLO questi
+   9 file: index.html, app.js, store.js, fatture.js, fatturato.js, autisti.js, skin40.css, sw.js,
+   LEGGIMI.txt. Niente config.js. Gli altri file restano quelli che ci sono.
+   Dalla 4.0.7 sono cambiati index.html, app.js, store.js, skin40.css, sw.js e LEGGIMI.txt:
+   fatture.js, fatturato.js e autisti.js sono gli stessi e sono nello zip solo perché così va bene
+   anche se la 4.0.7 o la 4.0.6 non erano ancora state caricate (ricaricarli non fa danni).
+   (Se aggiorni da una versione più vecchia della 4.0.5 usa lo zip «completo» e carica tutti i
+   file tranne config.js.)
+2. "Commit changes". Dopo 1–2 minuti l'agenda si aggiorna da sola (riquadro in basso a sinistra),
+   oppure ricarica (Cmd+Shift+R): in alto "v4.0.8".
+3. Aggiorna tutti i computer, i tablet e i telefoni con l'agenda (basta aprirla e aspettare il
+   riquadro «Nuova versione», oppure ricaricare). Un dispositivo rimasto alla 4.0.7 non conosce le
+   nuove impostazioni del Planning: se salva le sue impostazioni personali, quelle del Planning
+   degli altri utenti tornano come di serie (tutto visibile).
+4. Niente da fare sull'app degli autisti (non è cambiata), sui dati e sull'app per Mac.
+
+NOVITÀ DELLA 4.0.8
+------------------
+1) TEMPI MORTI: SI SPOSTANO E SI POSSONO SOVRAPPORRE
+- Con il lucchetto aperto i rettangoli dei tempi morti si trascinano col mouse: a destra o a
+  sinistra cambia l'ora (al quarto d'ora, la durata resta quella), su un'altra riga cambia il
+  mezzo. In basso compare cosa è cambiato, con «Annulla».
+- Un tempo morto non blocca più niente: se si sovrappone a un servizio (o a un altro tempo morto)
+  l'agenda lo mette lo stesso e avvisa: messaggio arancione in basso («Attenzione: si sovrappone
+  a …»), bordo rosso con «!» sul tempo morto, nel Planning e nella vista Giorno.
+  Vale quando lo metti col tasto destro, quando cambi la durata e quando lo trascini.
+- Vale anche al contrario: una prenotazione trascinata su un mezzo che a quell'ora ha un tempo
+  morto si sposta lo stesso, con lo stesso avviso (mentre trascini la riga diventa arancione
+  invece che verde). Restano rossi, e non si sposta, i casi di prima: mezzo occupato da un altro
+  servizio, troppo piccolo, non attrezzato per la carrozzina, fermo, o servizio deciso da MAX.
+- Tempo morto e servizio sovrapposti si vedono uno sotto l'altro sulla riga del mezzo.
+- Il tasto destro su un punto vuoto della riga mette un tempo morto; sopra la barra di un servizio
+  apre invece il menu dell'autista (vedi sotto). Per mettere un tempo morto sopra un servizio:
+  mettilo accanto e trascinalo.
+
+2) AUTISTA DAL PLANNING (TASTO DESTRO O «TIENI PREMUTO»)
+- Tasto destro sulla barra di una prenotazione (sul Mac: clic con due dita o ctrl + clic). Su
+  telefono e tablet: tieni premuto il dito sulla barra per mezzo secondo. Si apre «Autista»:
+  · in alto «1° autista» e «2° autista»: scegli quale cambiare;
+  · «Cerca autista»: scrivi le prime lettere (con Invio prendi il primo dell'elenco);
+  · l'elenco degli autisti dell'anagrafica, con il pallino del loro colore e accanto: «occupato:
+    …» se a quell'ora è già su un altro servizio, «riposo …» se è di riposo, «ha anche …» se quel
+    giorno ha un altro servizio (a un'altra ora), «adesso» per quello assegnato;
+  · «Da assegnare» rimette l'autista generico; per il 2° c'è anche «Nessun 2° autista»;
+  · «Apri la prenotazione».
+- Non serve aprire il lucchetto (non sposta niente). Scegliendo un autista occupato a quell'ora o
+  di riposo l'agenda chiede conferma.
+- Dopo la scelta in basso compare cosa è cambiato, con «Annulla». Va nel Registro («Cambiato
+  l'autista dal Planning: …»).
+- Nei tour l'autista vale per tutto il tour (se nei giorni del tour c'erano autisti diversi per
+  quel posto, diventa lo stesso per tutti: lo dice il messaggio).
+- Se il foglio era già stato inviato all'autista, il messaggio ricorda di inviarlo di nuovo.
+- Se bus e autisti li ha decisi MAX, il menu lo dice e l'autista lo cambia solo lui.
+- Funziona anche sulle prenotazioni della striscia «Da assegnare».
+
+3) NASCONDERE LE RIGHE DELLE ORE NEL PLANNING
+- Impostazioni › Planning (aspetto Classico: Menu › Le mie impostazioni, riquadro «Planning», poi
+  «Salva»): tre spunte per scegliere cosa vedere:
+  · «Riga delle ore in alto» (00, 01, 02 … 23 sopra i mezzi);
+  · «Linea dell'ora attuale» (la linea colorata con l'orario, quando guardi oggi);
+  · «Linee verticali delle ore» (le righe sottili della griglia).
+  Togli la spunta per nascondere. Vale solo per te, su tutti i tuoi dispositivi.
+
+4) CORREZIONE
+- Nella 4.0.7, se MAX (Massimo) trascinava nel Planning un servizio di cui aveva già deciso bus e
+  autisti, il mezzo poteva tornare quello di prima. Ora lo spostamento resta (come quando lo
+  cambia dal modulo della prenotazione).
+
+5) GUIDA
+- Nella guida (tasto «?») due voci nuove: «Assegnare l'autista dal Planning» e «Nascondere le righe
+  delle ore nel Planning»; aggiornate «Usare il Planning» e «Mettere un tempo morto su un mezzo».
+
+======================================================================
+VERSIONE 4.0.7 (27/11/2026)
 
 COME AGGIORNARE ALLA 4.0.7 (dalla 4.0.6 o dalla 4.0.5: 3 minuti, 9 file)
 ------------------------------------------------------------------------

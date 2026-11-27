@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const APP_VERSION="4.0.7",APP_DATE="27/11/2026";window.AGENDA_VERSION=APP_VERSION;
+const APP_VERSION="4.0.8",APP_DATE="27/11/2026";window.AGENDA_VERSION=APP_VERSION;
 // Aggiornamenti parziali (come la 2.7.1): gli altri file restano della famiglia; i file cambiati portano anche il
 // numero della versione nuova (AGENDA_PATCH, e data-p per index.html) e finché non arrivano tutti l'app aspetta.
 // 2.8: aggiornamento intero, tutti i file della famiglia "2.8".
@@ -16,7 +16,7 @@ const APP_VERSION="4.0.7",APP_DATE="27/11/2026";window.AGENDA_VERSION=APP_VERSIO
 //        store.js e autisti.js restano quelli della 3.0.3.
 // 3.0.6: aggiornamento parziale (solo app.js): nomi di prima degli autisti (un autista rinominato nell'anagrafica
 //        resta una persona sola: servizi già inseriti, telefono, crocette dei pasti). Gli altri file restano della 3.0.5.
-const APP_FAMILY="3.0",APP_PATCH={index:"4.0.7",store:"4.0.7",autisti:"4.0.5",fatture:"4.0.6",fatturato:"4.0.6",accessi:"4.0.4",dropbox:"4.0.4"};
+const APP_FAMILY="3.0",APP_PATCH={index:"4.0.8",store:"4.0.8",autisti:"4.0.5",fatture:"4.0.6",fatturato:"4.0.6",accessi:"4.0.4",dropbox:"4.0.4"};
 // ---------- protezioni all'avvio (2.1) ----------
 // 1) L'agenda non funziona dentro la pagina di un altro sito (iframe): lì qualcuno potrebbe coprirla con
 //    pulsanti finti e far fare clic senza accorgersene. Si mostra solo il collegamento per aprirla da sola.
@@ -42,7 +42,7 @@ if(framed){stopPage("Agenda Flotta La Terra","Per sicurezza l'agenda non si può
   const F=window.AGENDA_FILES||{},FP=window.AGENDA_PATCH||{},bad=[];
   if(document.documentElement.getAttribute("data-v")!==APP_FAMILY||(APP_PATCH.index&&document.documentElement.getAttribute("data-p")!==APP_PATCH.index))bad.push("index.html");
   for(const f of ["dropbox","fatturato","fatture","store","accessi","autisti"])if(F[f]!==APP_FAMILY||(APP_PATCH[f]&&FP[f]!==APP_PATCH[f]))bad.push(f+".js");
-  try{if(getComputedStyle(document.documentElement).getPropertyValue("--skin40").indexOf("4.0.7")<0)bad.push("skin40.css");}catch(_){} // 4.0: anche la grafica nuova deve essere arrivata
+  try{if(getComputedStyle(document.documentElement).getPropertyValue("--skin40").indexOf("4.0.8")<0)bad.push("skin40.css");}catch(_){} // 4.0: anche la grafica nuova deve essere arrivata
   let n=0;try{n=+sessionStorage.getItem("agenda-upd-try")||0;}catch(_){}
   if(bad.length){
     // ricaricando, ogni file viene richiesto di nuovo al sito (la copia per l'uso offline non si cancella:
@@ -3742,10 +3742,16 @@ function knowOf(b){return {c:(b&&b.capo&&b.capo.at)||"",s:b&&b.sent?(b.sent.at||
 // senza mezzo) su un mezzo. Valgono le regole di sempre: posti, passeggero H, mezzo in flotta, mezzo libero a
 // quell'ora (anche i tempi morti), bus e autisti decisi da MAX, «perché cambi il mezzo?» nelle 24 ore prima della
 // partenza, foglio già inviato da reinviare (il foglio cambia impronta da solo).
-// Tempi morti: tasto destro su un punto vuoto della riga di un mezzo; occupano il mezzo. Sono in
+// Tempi morti: tasto destro su un punto vuoto della riga di un mezzo. Sono in
 // config/tempi-morti.json; le voci del menu (nome e durata) in config/tempi-morti-voci.json («Tempi morti…»).
+// 4.0.8: i tempi morti si trascinano (ora e mezzo) col lucchetto aperto; se si sovrappongono a un servizio (o a un altro
+// tempo morto) non bloccano più: avviso in basso con «Annulla» e bordo rosso. Tasto destro (sul telefono e sul tablet:
+// tieni premuto) su una prenotazione: «Assegna autista» (1° e 2°), senza aprire il lucchetto. Impostazioni › Planning:
+// riga delle ore, linea dell'ora attuale e linee verticali si possono nascondere (vale per l'utente).
 // =====================================================================================
-const PL={locked:true,q:"",fty:[],fst:[],size:"",only:false,drag:null,over:null,fit:new Map(),undo:null,menu:null,dirty:false};
+const PL={locked:true,q:"",fty:[],fst:[],size:"",only:false,drag:null,over:null,fit:new Map(),undo:null,menu:null,dirty:false,lp:null,lpT:0,lpAt:0,menuAt:0};
+// 4.0.8: cosa si vede nel Planning (Impostazioni › Planning, per utente)
+function plPref(){let p=null;try{p=prefNow("plan");}catch(_){p=null;}return Object.assign({axis:true,now:true,grid:true},p&&typeof p==="object"?p:{});}
 const PL_SIZE={g:[64,9999],m:[50,63],p:[19,49],v:[0,18]};
 const PL_DUR=[15,30,45,60,90,120,180,240];
 const TM_DEF=[{nome:"ATTESA SCARICO",min:60},{nome:"RITORNO VILLAGGIO",min:60}];
@@ -3806,17 +3812,17 @@ function plCheck(b0,vid){
   if(!v.xbus)for(let d=cur.start,n=0;d<=e&&n<32;d=addDays(d,1),n++)if(!vOn(v,d))return {ok:false,why:"Il "+vehLabel(v)+" non è in flotta il "+itD(d)+"."};
   if(v.seats&&/^\d+$/.test(String(cur.pax||""))&&+cur.pax>v.seats)return {ok:false,why:"Non entra: «"+dispClient(cur)+"» ha "+cur.pax+" passeggeri e il "+vehLabel(v)+" ne porta "+v.seats+"."};
   if(cur.hPax===true&&!isH33(v))return {ok:false,why:"A bordo c'è un passeggero in carrozzina: serve il mezzo attrezzato (H)."};
-  const bz=busyOf(cur),unk=[];
+  const bz=busyOf(cur),unk=[],tw=[];
   for(let d=cur.start,n=0;d<=e&&n<32;d=addDays(d,1),n++){
     for(const x of on(d,vid)){if(x.id===cur.id)continue;const xz=busyOf(x);
       if(!bz||!xz){if(!unk.includes("«"+dispClient(x)+"» ("+when(x)+")"))unk.push("«"+dispClient(x)+"» ("+when(x)+")");continue;}
       if(xz[0]<bz[1]&&bz[0]<xz[1])return {ok:false,why:"Il "+vehLabel(v)+" è già occupato a quell'ora: "+(TYPES[x.type]||"servizio")+" «"+dispClient(x)+"» ("+when(x)+(x.time2?"–"+x.time2:"")+")."};}
-    for(const t of tmOn(d,vid)){const tz=tmBusy(t);
-      if(!bz){unk.push("il tempo morto «"+t.nome+"» ("+t.da+"–"+t.a+")");continue;}
-      if(tz[0]<bz[1]&&bz[0]<tz[1])return {ok:false,why:"Il "+vehLabel(v)+" ha un tempo morto a quell'ora: «"+t.nome+"» "+t.da+"–"+t.a+(d!==S.sel?" del "+itD(d):"")+"."};}
+    // 4.0.8: un tempo morto non blocca: si avvisa
+    for(const t of tmOn(d,vid)){const tz=tmBusy(t);if(bz&&tz[0]<bz[1]&&bz[0]<tz[1])tw.push("«"+t.nome+"» "+t.da+"–"+t.a+(d!==S.sel?" del "+itD(d):""));}
   }
-  if(unk.length)return {ok:true,ask:"Sul "+vehLabel(v)+" negli stessi giorni c'è già "+unk.join(", ")+", e manca un orario per capire se si sovrappone.\n\nLo sposto lo stesso?"};
-  return {ok:true};
+  const warn=tw.length?"si sovrappone al tempo morto "+tw.join(", "):"";
+  if(unk.length)return {ok:true,warn,ask:"Sul "+vehLabel(v)+" negli stessi giorni c'è già "+unk.join(", ")+", e manca un orario per capire se si sovrappone.\n\nLo sposto lo stesso?"};
+  return {ok:true,warn};
 }
 function plCheckOut(b0){
   const cur=plFull(b0)||b0;
@@ -3825,7 +3831,7 @@ function plCheckOut(b0){
   if(cur.sent&&cur.sent.at&&!cur.sent.off)return {ok:false,why:"Il foglio è già sul telefono dell'autista: prima ritiralo."};
   return {ok:true};
 }
-function plSay(t,kind){PL.msg={t:t||"",k:kind||""};const m=$("plMsg");if(!m)return;$("plMsgT").textContent=PL.msg.t;m.className="pl-msg"+(PL.msg.k?" "+PL.msg.k:"");$("plUndo").hidden=!(PL.undo&&PL.msg.k==="ok");}
+function plSay(t,kind){PL.msg={t:t||"",k:kind||""};const m=$("plMsg");if(!m)return;$("plMsgT").textContent=PL.msg.t;m.className="pl-msg"+(PL.msg.k?" "+PL.msg.k:"");$("plUndo").hidden=!(PL.undo&&(PL.msg.k==="ok"||PL.msg.k==="warn"));}
 const xbObjOf=vid=>{const d=xbIndex().get(vid)||(dayXbus(S.sel).find(x=>x.vid===vid)||{}).def||{};return {id:vid.slice(3),az:String(d.az||""),posti:String(d.posti||""),targa:String(d.targa||"")};};
 // sposta la prenotazione sul mezzo vid ("" = tra quelle da assegnare); u = annulla l'ultimo spostamento
 async function plMove(b0,vid,u){
@@ -3833,10 +3839,11 @@ async function plMove(b0,vid,u){
   const cur=plFull(b0);if(!cur){plSay("La prenotazione non c'è più (eliminata o spostata).","err");return;}
   vid=vid||"";
   if(!u&&(cur.vehicle||"")===vid&&!plDvV(cur))return;
-  let fv=null;
+  let fv=null,warn="";
   if(!u){
     const ck=vid?plCheck(cur,vid):plCheckOut(cur);
     if(!ck.ok){plSay(ck.why,"err");return;}
+    warn=ck.warn||"";
     if(ck.ask&&!confirm(ck.ask))return;
     if(vid){fv=await fvAfterChange(cur,vid);if(!fv)return;}
   }
@@ -3850,14 +3857,16 @@ async function plMove(b0,vid,u){
     if(fv){if(fv.fveh)nb.fveh=fv.fveh;else delete nb.fveh;if(JSON.stringify(cur.fveh||null)!==JSON.stringify(nb.fveh||null))pt.push("fveh");}
     if(!vid&&nb.status!=="opzione"){nb.status="opzione";pt.push("status");}
   }
-  try{writeDayOps(cur.start,{bookings:{[cur.id]:nb}},{edit:true,only:true,base:cur.updatedAt||null,patch:pt});}
+  // 4.0.8: MAX (o il Super Master) su un servizio deciso da MAX: senza il segno «boss» il mezzo tornerebbe quello di prima
+  const boss=!!cur.capo&&(hasMax()||isSuper());
+  try{writeDayOps(cur.start,{bookings:{[cur.id]:nb}},Object.assign({edit:true,only:true,base:cur.updatedAt||null,patch:pt},boss?{boss:true}:{}));}
   catch(err){plSay(err&&err.code==="readonly"?"Con questo profilo non si possono spostare le prenotazioni.":"Non sono riuscito a spostarla: riprova.","err");return;}
   const ch=[["Mezzo",plVLab(cur.vehicle),plVLab(vid)]];if(fv&&fv.why)ch.push(fvLogRow(fv));
   ACC.log("prenotazione",(u?"Annullato lo spostamento dal Planning: ":vid?"Cambiato il mezzo dal Planning: ":"Tolto il mezzo dal Planning (da assegnare): ")+bookingLabel(nb),{id:cur.id,ch});
-  PL.undo=u?null:{id:cur.id,start:cur.start,vehicle:cur.vehicle||"",xbus:cur.xbus||"",dayv:Array.isArray(cur.dayv)?JSON.parse(JSON.stringify(cur.dayv)):[],fveh:cur.fveh?JSON.parse(JSON.stringify(cur.fveh)):null,status:cur.status||"opzione"};
+  PL.undo=u?null:{kind:"veh",id:cur.id,start:cur.start,vehicle:cur.vehicle||"",xbus:cur.xbus||"",dayv:Array.isArray(cur.dayv)?JSON.parse(JSON.stringify(cur.dayv)):[],fveh:cur.fveh?JSON.parse(JSON.stringify(cur.fveh)):null,status:cur.status||"opzione"};
   const sent=!!(cur.sent&&cur.sent.at&&!cur.sent.off),tour=isMulti(cur.type)&&endOf(cur)>cur.start;
   renderAll();
-  plSay(u?"Spostamento annullato.":"«"+dispClient(cur)+"» "+(vid?"ora è sul "+plVLab(vid)+(tour?" per tutto il tour":""):"è tra quelle da assegnare")+"."+(sent&&vid?" Il foglio era già stato inviato: va reinviato all'autista.":"")+(vid&&!cur.vehicle&&!cur.foglio&&String(cur.client||"").trim()?" Ora ha il n. foglio e va nel fatturato.":""),u?"":"ok");
+  plSay(u?"Spostamento annullato.":"«"+dispClient(cur)+"» "+(vid?"ora è sul "+plVLab(vid)+(tour?" per tutto il tour":""):"è tra quelle da assegnare")+"."+(sent&&vid?" Il foglio era già stato inviato: va reinviato all'autista.":"")+(vid&&!cur.vehicle&&!cur.foglio&&String(cur.client||"").trim()?" Ora ha il n. foglio e va nel fatturato.":"")+(warn?" Attenzione: "+warn+".":""),u?"":warn?"warn":"ok");
 }
 // ---- disegno ----
 function plRows(ds){
@@ -3872,8 +3881,14 @@ function plBarHTML(b,ds,top,canDrag,f){
   return '<div class="pl-bar t-'+esc(b.type)+(s.cl?" cl":"")+(s.cr?" cr":"")+(s.nt?" nt":"")+(canDrag?" mv":"")+(f?(m?(q?" hit":""):" dim"):"")+(pending(b)?" opz":"")+'" style="left:'+(s.a/24*100).toFixed(3)+'%;width:'+(Math.max(0.6,(s.z-s.a)/24*100)).toFixed(3)+'%;top:'+top+'px" draggable="'+(canDrag?"true":"false")+'" data-pb="'+esc(b.id)+'" data-ps="'+esc(b.start)+'" title="'+esc(tip)+'" tabindex="0" role="button" aria-label="'+esc(dispClient(b)+", "+plTime(b,ds))+'">'+
     '<span class="stm '+stCls(b)+'" aria-hidden="true">'+stMark(b)+'</span><span class="pl-tx"><span class="l1">'+esc(plTime(b,ds)+" · "+dispClient(b))+'</span><span class="l2">'+esc(l2)+'</span></span></div>';
 }
+// 4.0.8: tempo morto trascinabile (lucchetto aperto); bordo rosso se si sovrappone a un servizio o a un altro tempo morto
+function plDeadHTML(t,vid,ds,top,drag,f){
+  const a=hOf(t.da),z=hOf(t.a),c=tmClash(vid,ds,a,z,t.id);
+  return '<div class="pl-dead'+(c?" clash":"")+(drag?" mv":"")+(f&&!tmMatch(t)?" dim":"")+'" data-pd="'+esc(t.id)+'" draggable="'+(drag?"true":"false")+'" style="left:'+(a/24*100).toFixed(3)+'%;width:'+((z-a)/24*100).toFixed(3)+'%;top:'+top+'px" title="'+esc("Tempo morto: "+t.nome+" "+t.da+"–"+t.a+(t.by?" (messo da "+t.by+")":"")+(c?"\nSi sovrappone a "+c:"")+(drag?"\nTrascina per spostarlo (ora o mezzo) · tasto destro: durata o togli":""))+'"><b>'+(c?'<i class="tm-bang" aria-label="si sovrappone">!</i>':'')+esc(t.nome)+'</b><span>'+esc(t.da+"–"+t.a)+'</span></div>';
+}
 function renderPlan(){
   const ds=S.sel,w=wday(ds),dd=parse(ds),canEd=!S.readOnly&&!isInvio();
+  {const P=plPref(),pv=$("planView");pv.classList.toggle("pl-noaxis",!P.axis);pv.classList.toggle("pl-nonow",!P.now);pv.classList.toggle("pl-nogrid",!P.grid);}
   if(!canEd)PL.locked=true;
   $("psign").className="sign"+(w===0?" sun":"");
   $("psign").innerHTML='<div class="date"><span>'+WDL[w]+'</span><span>'+dd.getUTCDate()+" "+MN[dd.getUTCMonth()]+" "+dd.getUTCFullYear()+'</span>'+(ds===todayISO()?'<span class="today-tag">Oggi</span>':'')+'</div><div class="sright"><div class="nav"><button type="button" id="pPrev" aria-label="Giorno precedente">‹</button><button type="button" id="pNext" aria-label="Giorno successivo">›</button></div></div>';
@@ -3881,7 +3896,7 @@ function renderPlan(){
   lk.setAttribute("aria-pressed",PL.locked?"true":"false");lk.classList.toggle("open",!PL.locked);
   lk.innerHTML=(PL.locked?PL_LOCK:PL_OPEN)+'<span>'+(PL.locked?"Bloccato":"Sbloccato: puoi spostare")+'</span>';
   const tch=!!(window.matchMedia&&matchMedia("(pointer:coarse)").matches&&!matchMedia("(any-pointer:fine)").matches);
-  $("plHint").textContent=!canEd?"Qui vedi i mezzi con le ore del giorno: le prenotazioni si aprono con un clic.":tch?"Su telefono e tablet il Planning si guarda e le prenotazioni si aprono con un tocco. Per trascinarle su un altro mezzo e per i tempi morti usa il computer con il mouse.":PL.locked?"Il lucchetto chiuso evita gli spostamenti per sbaglio. Aprilo per trascinare le prenotazioni su un altro mezzo o per mettere un tempo morto (tasto destro su un punto vuoto della riga di un mezzo).":"Trascina una prenotazione sulla riga di un altro mezzo: verde si può, rosso no. Tasto destro su un punto vuoto della riga: tempo morto da quell'ora. Quando hai finito richiudi il lucchetto.";
+  $("plHint").textContent=!canEd?"Qui vedi i mezzi con le ore del giorno: le prenotazioni si aprono con un clic.":tch?"Tocca una prenotazione per aprirla; tienila premuta per assegnare l'autista. Per trascinare le prenotazioni e i tempi morti usa il computer con il mouse.":PL.locked?"Il lucchetto chiuso evita gli spostamenti per sbaglio: aprilo per trascinare prenotazioni e tempi morti o per metterne uno (tasto destro su un punto vuoto della riga). Tasto destro su una prenotazione: assegna l'autista.":"Trascina prenotazioni e tempi morti: verde si può, arancione si può ma si sovrappone a un tempo morto, rosso no. Tasto destro su un punto vuoto: tempo morto; su una prenotazione: autista. Quando hai finito richiudi il lucchetto.";
   $("plTy").innerHTML=Object.keys(TYPES).map(k=>'<button type="button" class="pl-chip" data-plty="'+k+'" aria-pressed="'+PL.fty.includes(k)+'"><i class="sw t-'+k+'"></i>'+esc(TYPES[k])+'</button>').join("");
   $("plSt").innerHTML=[["opzione","In sospeso","q"],["confermato","Confermata","ok"],["stampabile","Stampabile","pr"]].map(([k,l,c])=>'<button type="button" class="pl-chip" data-plst="'+k+'" aria-pressed="'+PL.fst.includes(k)+'"><i class="pl-dot '+c+'" aria-hidden="true"></i>'+l+'</button>').join("");
   if($("plQ").value!==PL.q)$("plQ").value=PL.q;$("plSize").value=PL.size;$("plOnly").checked=PL.only;
@@ -3896,14 +3911,14 @@ function renderPlan(){
     hits+=f?nb:0;
     if(PL.only&&(f?(!nb&&!nt&&!plHit):(!list.length&&!tms.length)))continue;
     shown++;
-    // corsie: le barre che si sovrappongono (orari mancanti, conflitti di prima) vanno una sotto l'altra
-    const items=list.map(b=>({b,s:plSpan(b,ds)})).sort((a,c)=>a.s.a-c.s.a),lanes=[];
+    // corsie: le barre che si sovrappongono (orari mancanti, conflitti di prima, tempi morti sopra un servizio: 4.0.8)
+    // vanno una sotto l'altra
+    const items=list.map(b=>({b,s:plSpan(b,ds)})).concat(tms.map(t=>({t,s:{a:hOf(t.da),z:hOf(t.a)}}))).sort((a,c)=>a.s.a-c.s.a||(a.t?1:0)-(c.t?1:0)),lanes=[];
     for(const it of items){let k=0;while(lanes[k]!=null&&lanes[k]>it.s.a+1e-6)k++;lanes[k]=it.s.z;it.k=k;}
     const nl=Math.max(1,lanes.length),hgt=8+nl*44;
     h+='<div class="pl-row'+(xb?" xb":"")+(vOn(v,ds)||xb?"":" off")+'" data-pr="'+esc(v.id)+'"><div class="pl-lab'+(plHit?" hit":"")+'" style="min-height:'+hgt+'px"><span class="vl">'+vehLabelHTML(v)+'</span>'+(xb?"":vOffTag(v,ds))+'</div>'+
       '<div class="pl-track" data-pt="'+esc(v.id)+'" style="height:'+hgt+'px">'+nowM+
-      tms.map(t=>{const a=hOf(t.da),z=hOf(t.a);return '<div class="pl-dead'+(f&&!tmMatch(t)?" dim":"")+'" data-pd="'+esc(t.id)+'" style="left:'+(a/24*100).toFixed(3)+'%;width:'+((z-a)/24*100).toFixed(3)+'%" title="'+esc("Tempo morto: "+t.nome+" "+t.da+"–"+t.a+(t.by?" (messo da "+t.by+")":"")+(drag?"\nTasto destro: cambia la durata o togli":""))+'"><b>'+esc(t.nome)+'</b><span>'+esc(t.da+"–"+t.a)+'</span></div>';}).join("")+
-      items.map(it=>plBarHTML(it.b,ds,4+it.k*44,drag&&!capoLock(it.b),f)).join("")+'</div></div>';
+      items.map(it=>it.t?plDeadHTML(it.t,v.id,ds,7+it.k*44,drag,f):plBarHTML(it.b,ds,4+it.k*44,drag&&!capoLock(it.b),f)).join("")+'</div></div>';
   }
   if(!shown)h+='<div class="pl-empty">Nessun mezzo con questi filtri. <button type="button" class="btn sm" data-plclear="1">Azzera filtri</button></div>';
   const g=$("plGrid"),st=g.scrollTop;g.innerHTML=h;g.scrollTop=st;
@@ -3924,18 +3939,31 @@ $("plSize").addEventListener("change",()=>{PL.size=$("plSize").value;renderPlan(
 $("plOnly").addEventListener("change",()=>{PL.only=$("plOnly").checked;renderPlan();});
 const plClear=()=>{PL.q="";PL.fty=[];PL.fst=[];PL.size="";PL.only=false;renderPlan();};
 $("plClear").onclick=plClear;
-$("plUndo").onclick=()=>{const u=PL.undo;if(!u)return;PL.undo=null;plMove({id:u.id,start:u.start},u.vehicle,u);};
+$("plUndo").onclick=()=>{const u=PL.undo;if(!u)return;PL.undo=null;if(u.kind==="tm")tmMove(u.id,u.veh,0,u);else if(u.kind==="drv")plDriver({id:u.id,start:u.start},u.slot,"",u);else plMove({id:u.id,start:u.start},u.vehicle,u);};
 $("planView").addEventListener("click",e=>{
   const ty=e.target.closest("[data-plty]");if(ty){const k=ty.dataset.plty;PL.fty=PL.fty.includes(k)?PL.fty.filter(x=>x!==k):PL.fty.concat([k]);renderPlan();return;}
   const st=e.target.closest("[data-plst]");if(st){const k=st.dataset.plst;PL.fst=PL.fst.includes(k)?PL.fst.filter(x=>x!==k):PL.fst.concat([k]);renderPlan();return;}
   if(e.target.closest("[data-plclear]")){plClear();return;}
   const b=e.target.closest("[data-pb]");
+  if(b&&Date.now()-PL.lpAt<900)return; // 4.0.8: dopo «tieni premuto» non si apre la prenotazione
   if(b&&(e.target.closest("#plGrid")||e.target.closest("#plTray"))){const x=bookingsAll().find(y=>y.id===b.dataset.pb&&y.start===b.dataset.ps);if(x)openForm({booking:x});}
 });
 $("planView").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches&&e.target.matches("[data-pb]")){e.preventDefault();e.target.click();}});
 // trascinamento
-function plOverClr(){if(PL.over){PL.over.classList.remove("ov-ok","ov-no");PL.over=null;}$("plTray").classList.remove("ov-ok","ov-no");}
+function plOverClr(){if(PL.over){PL.over.classList.remove("ov-ok","ov-no","ov-wa");PL.over=null;}$("plTray").classList.remove("ov-ok","ov-no");}
+// 4.0.8: ora d'inizio del tempo morto trascinato sulla riga row (al quarto d'ora), tenendo il punto in cui è stato preso
+function plTmAt(row,x){const tr=row.querySelector("[data-pt]")||row,r=tr.getBoundingClientRect(),d=PL.drag;return Math.max(0,Math.min(24-d.dur,Math.round(((x-r.left)/r.width*24-d.off)*4)/4));}
 $("planView").addEventListener("dragstart",e=>{
+  lpStop();
+  const dd=e.target.closest&&e.target.closest("[data-pd]");
+  if(dd){ // 4.0.8: tempo morto
+    if(PL.locked||S.readOnly||isInvio()){e.preventDefault();return;}
+    const t=tmRows().find(x=>x.id===dd.dataset.pd),tr=dd.closest("[data-pt]");if(!t||!tr){e.preventDefault();return;}
+    const r=tr.getBoundingClientRect(),a=hOf(t.da),dur=hOf(t.a)-a;
+    PL.drag={tm:t.id,dur,off:Math.max(0,Math.min(dur,(e.clientX-r.left)/r.width*24-a))};PL.fit=new Map();plMenuClose();
+    try{e.dataTransfer.setData("text/plain",t.id);e.dataTransfer.effectAllowed="move";}catch(_){}
+    setTimeout(()=>dd.classList.add("dragging"),0);return;
+  }
   const el=e.target.closest&&e.target.closest("[data-pb]");if(!el)return;
   if(PL.locked||S.readOnly||isInvio()){e.preventDefault();return;}
   const b=bookingsAll().find(y=>y.id===el.dataset.pb&&y.start===el.dataset.ps);if(!b||capoLock(b)){e.preventDefault();if(b)plSay(CAPO_NO,"err");return;}
@@ -3944,37 +3972,59 @@ $("planView").addEventListener("dragstart",e=>{
   setTimeout(()=>el.classList.add("dragging"),0);
 });
 $("planView").addEventListener("dragend",e=>{
-  const el=e.target.closest&&e.target.closest("[data-pb]");if(el)el.classList.remove("dragging");
+  const el=e.target.closest&&e.target.closest("[data-pb],[data-pd]");if(el)el.classList.remove("dragging");
   PL.drag=null;plOverClr();if(PL.dirty){PL.dirty=false;renderPlan();}
 });
 function plFitOf(vid){
   if(!PL.drag)return null;if(PL.fit.has(vid))return PL.fit.get(vid);
+  if(PL.drag.tm)return {ok:false};
   const b=bookingsAll().find(y=>y.id===PL.drag.id);const r=!b?{ok:false}:vid==="__tray"?(b.vehicle?plCheckOut(b):{ok:false}):((b.vehicle||"")===vid?{ok:false,same:true}:plCheck(b,vid));
   PL.fit.set(vid,r);return r;
 }
 $("plGrid").addEventListener("dragover",e=>{
   if(!PL.drag)return;const row=e.target.closest("[data-pr]");if(!row)return;
-  e.preventDefault();const r=plFitOf(row.dataset.pr);
+  e.preventDefault();
+  if(PL.drag.tm){ // 4.0.8: il tempo morto si mette sempre; arancione se a quell'ora c'è già qualcosa
+    const at=plTmAt(row,e.clientX),c=tmClash(row.dataset.pr,S.sel,at,at+PL.drag.dur,PL.drag.tm);
+    if(PL.over!==row){plOverClr();PL.over=row;}
+    row.classList.toggle("ov-ok",!c);row.classList.toggle("ov-wa",!!c);row.classList.remove("ov-no");
+    try{e.dataTransfer.dropEffect="move";}catch(_){}return;
+  }
+  const r=plFitOf(row.dataset.pr);
   if(PL.over!==row){plOverClr();PL.over=row;}
-  row.classList.toggle("ov-ok",!!(r&&r.ok));row.classList.toggle("ov-no",!!(r&&!r.ok&&!r.same));
+  row.classList.toggle("ov-ok",!!(r&&r.ok&&!r.warn));row.classList.toggle("ov-wa",!!(r&&r.ok&&r.warn));row.classList.toggle("ov-no",!!(r&&!r.ok&&!r.same));
   try{e.dataTransfer.dropEffect="move";}catch(_){}
 });
 $("plGrid").addEventListener("dragleave",e=>{if(PL.over&&!$("plGrid").contains(e.relatedTarget))plOverClr();});
 $("plGrid").addEventListener("drop",e=>{
-  if(!PL.drag)return;e.preventDefault();const row=e.target.closest("[data-pr]"),d=PL.drag;PL.drag=null;plOverClr();
+  if(!PL.drag)return;e.preventDefault();const row=e.target.closest("[data-pr]"),d=PL.drag;
+  if(row&&d.tm){const at=plTmAt(row,e.clientX);PL.drag=null;plOverClr();tmMove(d.tm,row.dataset.pr,at);return;}
+  PL.drag=null;plOverClr();
   if(row)plMove(d,row.dataset.pr);
 });
-$("plTray").addEventListener("dragover",e=>{if(!PL.drag)return;e.preventDefault();const r=plFitOf("__tray");plOverClr();$("plTray").classList.toggle("ov-ok",!!(r&&r.ok));$("plTray").classList.toggle("ov-no",!!(r&&!r.ok));});
+$("plTray").addEventListener("dragover",e=>{if(!PL.drag||PL.drag.tm)return;e.preventDefault();const r=plFitOf("__tray");plOverClr();$("plTray").classList.toggle("ov-ok",!!(r&&r.ok));$("plTray").classList.toggle("ov-no",!!(r&&!r.ok));});
 $("plTray").addEventListener("dragleave",e=>{if(!$("plTray").contains(e.relatedTarget))$("plTray").classList.remove("ov-ok","ov-no");});
 $("plTray").addEventListener("drop",e=>{
-  if(!PL.drag)return;e.preventDefault();const d=PL.drag;PL.drag=null;plOverClr();
+  if(!PL.drag||PL.drag.tm)return;e.preventDefault();const d=PL.drag;PL.drag=null;plOverClr();
   const b=bookingsAll().find(y=>y.id===d.id);if(b&&b.vehicle)plMove(d,"");
 });
-// ---- menu del tasto destro (tempi morti) ----
+// ---- menu del tasto destro (tempi morti; 4.0.8: autista della prenotazione) ----
 function plMenuClose(){PL.menu=null;$("plMenu").hidden=true;$("plVeil").hidden=true;}
-function plMenuOpen(m,x,y){
-  PL.menu=m;const mn=$("plMenu"),dis=PL.locked?" disabled":"";let h="";
-  if(m.kind==="row"){
+function plMenuOpen(m,x,y,keep){
+  PL.menu=m;PL.menuAt=Date.now();const mn=$("plMenu"),dis=PL.locked?" disabled":"";let h="";
+  if(m.kind==="bk"){
+    const cur=plFull(m);if(!cur)return;
+    if(!m.slot)m.slot=realDriver(cur.driver)&&isGen(cur.driver2)?2:1;
+    h='<div class="pl-mh">Autista · '+esc(dispClient(cur))+' · '+esc(plTime(cur,S.sel))+'</div>';
+    if(capoLock(cur))h+='<div class="pl-mnote">'+esc(CAPO_NO)+'</div>';
+    else{
+      h+='<div class="pl-slots" role="tablist" aria-label="Quale autista">'+[1,2].map(i=>{const v=String((i===1?cur.driver:cur.driver2)||"").trim();return '<button type="button" role="tab" data-dslot="'+i+'" aria-selected="'+(m.slot===i)+'"><span>'+i+'° autista</span><small>'+esc(realDriver(v)||(v||i===1?"da assegnare":"nessuno"))+'</small></button>';}).join("")+'</div>'+
+        '<input type="search" class="pl-mq" id="plMq" placeholder="Cerca autista" aria-label="Cerca autista" autocomplete="off" spellcheck="false" value="'+esc(m.q||"")+'">'+
+        '<div class="pl-dl" id="plDl" role="group" aria-label="Autisti">'+plDrvList(cur,m.slot,m.q||"")+'</div>';
+    }
+    h+='<div class="pl-sep"></div><button type="button" role="menuitem" data-bkopen="1">Apri la prenotazione</button>';
+  }
+  else if(m.kind==="row"){
     h='<div class="pl-mh">'+(PL.locked?"Apri il lucchetto per mettere un tempo morto":"Tempo morto dalle "+hm(m.at)+" · "+esc(plVLab(m.vid)))+'</div>'+
       tmTypes().map((t,i)=>'<button type="button" role="menuitem" data-tmadd="'+i+'"'+dis+'>'+esc(t.nome)+'<small>'+esc(minLbl(t.min))+'</small></button>').join("")+
       '<div class="pl-sep"></div><button type="button" role="menuitem" data-tmset="1">Imposta i tempi morti…</button>';
@@ -3983,39 +4033,136 @@ function plMenuOpen(m,x,y){
     h='<div class="pl-mh">'+esc(t.nome+" "+t.da+"–"+t.a)+'</div>'+PL_DUR.map(d=>'<button type="button" role="menuitem" data-tmdur="'+d+'"'+dis+'>Durata '+esc(minLbl(d))+'<small>'+(d===cur?"adesso":"")+'</small></button>').join("")+
       '<div class="pl-sep"></div><button type="button" role="menuitem" class="del" data-tmdel="1"'+dis+'>Togli questo tempo morto</button>';
   }
-  mn.innerHTML=h;mn.hidden=false;$("plVeil").hidden=false;
+  mn.innerHTML=h;mn.hidden=false;$("plVeil").hidden=false;mn.classList.toggle("pl-mbk",m.kind==="bk");
   const r=mn.getBoundingClientRect();mn.style.left=Math.max(8,Math.min(x,innerWidth-r.width-8))+"px";mn.style.top=Math.max(8,Math.min(y,innerHeight-r.height-8))+"px";
-  const f=mn.querySelector("button:not([disabled])");if(f)f.focus();
+  const tch=!!(window.matchMedia&&matchMedia("(pointer:coarse)").matches);
+  const f=keep?null:(m.kind==="bk"&&!tch?$("plMq"):null)||mn.querySelector("button:not([disabled])");if(f)f.focus();
+}
+// 4.0.8: autisti per il menu: occupato a quell'ora (o di riposo), altro servizio nello stesso giorno
+function plDrvInfo(cur){
+  const out=new Map(),bz=busyOf(cur),e=endOf(cur);
+  for(let d=cur.start,n=0;d<=e&&n<32;d=addDays(d,1),n++)for(const x of dayList(d)){
+    if(x.id===cur.id)continue;const xz=bz?busyOf(x):null,ov=!!(xz&&xz[0]<bz[1]&&bz[0]<xz[1]);
+    const lbl="«"+dispClient(x)+"»"+(x.time?" "+x.time+(x.time2?"–"+x.time2:""):"")+(d!==S.sel?" del "+itD(d).slice(0,5):"");
+    for(const y of [x.driver,x.driver2].map(realDriver).filter(Boolean)){const k=drvKey(y),o=out.get(k)||{};if(ov){if(!o.ov)o.ov=lbl;}else if(!o.day)o.day=lbl;out.set(k,o);}
+  }
+  return out;
+}
+function plRp(name,cur){const e=endOf(cur);for(let d=cur.start,n=0;d<=e&&n<32;d=addDays(d,1),n++){const r=riposoOf(name,d);if(r)return r;}return null;}
+function plDrvList(cur,slot,q){
+  q=norm(q||"").trim();const info=plDrvInfo(cur),mine=String((slot===2?cur.driver2:cur.driver)||"").trim(),other=drvKey(realDriver(slot===2?cur.driver:cur.driver2));
+  const mk=drvKey(realDriver(mine));let h="",n=0;
+  if(!q){
+    h+='<button type="button" role="menuitem" data-drvset="" class="gen">Da assegnare<small>'+(mine&&isGen(mine)||(!mine&&slot===1)?"adesso":"autista generico")+'</small></button>';
+    if(slot===2&&mine)h+='<button type="button" role="menuitem" data-drvset="__none" class="gen">Nessun 2° autista<small>toglie il 2°</small></button>';
+  }
+  for(const [nm,c] of drivers()){
+    if(q&&!(norm(nm).split(/\s+/).some(w=>w.startsWith(q))||norm(nm).includes(q)))continue;
+    const k=drvKey(nm),o=info.get(k)||{},rp=plRp(nm,cur),me=k===mk,ot=!!other&&k===other;
+    const note=me?"adesso":ot?(slot===1?"è già il 2° autista":"è già il 1° autista"):o.ov?"occupato: "+o.ov:rp?"riposo "+rpDates(rp):o.day?"ha anche "+o.day:"";
+    h+='<button type="button" role="menuitem" data-drvset="'+esc(nm)+'" class="'+(me?"cur":o.ov||rp?"busy":o.day?"day":"")+'"'+(ot?" disabled":"")+' title="'+esc(nm+(note?" – "+note:""))+'"><span><i class="pl-dd drv-'+c+'" aria-hidden="true"></i>'+esc(nm)+'</span><small>'+esc(note)+'</small></button>';n++;
+  }
+  if(q&&!n)h+='<div class="pl-mnote">Nessun autista con questo nome nell\'anagrafica.</div>';
+  return h;
+}
+// 4.0.8: autista scelto dal Planning (slot 1 o 2). val: nome; "" = da assegnare (autista generico); "__none" = niente 2°.
+// Tour: lo stesso autista per tutto il tour (i cambi giorno per giorno di quel posto si tolgono). u = annulla.
+async function plDriver(b0,slot,val,u){
+  if(S.readOnly||isInvio())return;
+  const cur=plFull(b0);if(!cur){plSay("La prenotazione non c'è più (eliminata o spostata).","err");return;}
+  if(!u&&capoLock(cur)){plSay(CAPO_NO,"err");return;}
+  const k=slot===2?"driver2":"driver",kd=slot===2?"d2":"d1",old=String(cur[k]||"").trim(),now=new Date().toISOString(),who=meName();
+  const nb=Object.assign({},cur,{updatedAt:now,updBy:who}),pt=["updBy"];let nv="",info={},dvWas=false;
+  if(u){nb.driver=u.driver;nb.driver2=u.driver2;nb.dayv=u.dayv;pt.push("driver","driver2","dayv");}
+  else{
+    nv=val==="__none"?"":val===""?(slot===2?GEN2:GEN1):val;
+    dvWas=dayvOf(cur).some(o=>o&&o[kd]);
+    if(old===nv&&!dvWas){plSay("«"+dispClient(cur)+"»: "+slot+"° autista già "+(realDriver(nv)||"da assegnare")+".","");return;}
+    if(realDriver(nv)){
+      info=plDrvInfo(cur).get(drvKey(nv))||{};const rp=plRp(nv,cur);
+      if(info.ov&&!confirm(nv+" a quell'ora è già sul servizio "+info.ov+".\n\nLo assegno lo stesso?"))return;
+      if(rp&&!confirm(nv+" è di riposo ("+rpDates(rp)+").\n\nLo assegno lo stesso?"))return;
+    }
+    nb[k]=nv;pt.push(k);
+    if(dvWas){nb.dayv=dvTrim(dayvOf(cur).map(o=>o?Object.assign({},o,{[kd]:""}):null),32);pt.push("dayv");}
+  }
+  const boss=!!cur.capo&&(hasMax()||isSuper());
+  try{writeDayOps(cur.start,{bookings:{[cur.id]:nb}},Object.assign({edit:true,only:true,base:cur.updatedAt||null,patch:pt},boss?{boss:true}:{}));}
+  catch(err){plSay(err&&err.code==="readonly"?"Con questo profilo non si può cambiare l'autista.":"Non sono riuscito a salvare l'autista: riprova.","err");return;}
+  const ch=u?[["1° Autista",cur.driver||"—",u.driver||"—"],["2° Autista",cur.driver2||"—",u.driver2||"—"]].filter(c=>c[1]!==c[2]):[[slot+"° Autista",old||"—",nv||"—"]];
+  ACC.log("prenotazione",(u?"Annullato il cambio di autista dal Planning: ":"Cambiato l'autista dal Planning: ")+bookingLabel(nb),{id:cur.id,ch});
+  PL.undo=u?null:{kind:"drv",id:cur.id,start:cur.start,slot,driver:cur.driver||"",driver2:cur.driver2||"",dayv:Array.isArray(cur.dayv)?JSON.parse(JSON.stringify(cur.dayv)):[]};
+  const sent=!!(cur.sent&&cur.sent.at&&!cur.sent.off),tour=isMulti(cur.type)&&endOf(cur)>cur.start;
+  renderAll();
+  if(u){plSay("Cambio di autista annullato.","");return;}
+  plSay("«"+dispClient(cur)+"»: "+(val==="__none"?"tolto il 2° autista":slot+"° autista "+(realDriver(nv)||"da assegnare"))+(tour?" per tutto il tour":"")+"."+(dvWas?" Nei giorni del tour c'erano autisti diversi: ora è lo stesso per tutti.":"")+(info.day?" Quel giorno ha anche "+info.day+".":"")+(sent?" Il foglio era già stato inviato: va inviato di nuovo.":""),"ok");
+}
+// 4.0.8: sposta il tempo morto id sul mezzo vid dalle ore at (stessa durata); u = annulla
+async function tmMove(id,vid,at,u){
+  if(S.readOnly||isInvio())return;
+  const t=tmRows().find(x=>x.id===id);if(!t){plSay("Il tempo morto non c'è più.","err");return;}
+  const dur=hOf(t.a)-hOf(t.da),veh=u?u.veh:vid,da=u?u.da:hm(at),a=u?u.a:hm(Math.min(24,at+dur));
+  if(t.veh===veh&&t.da===da&&t.a===a)return;
+  try{await STORE.updateReg("tempimorti",J=>{const x=(J.rows||[]).find(y=>y.id===id);if(!x)return null;x.veh=veh;x.da=da;x.a=a;x.by=meName();x.at=new Date().toISOString();return J;});}catch(err){handleErr(err);return;}
+  ACC.log("prenotazione",(u?"Annullato lo spostamento del tempo morto «":"Spostato il tempo morto «")+t.nome+"» del "+itD(t.data)+": "+plVLab(t.veh)+" "+t.da+"–"+t.a+" → "+plVLab(veh)+" "+da+"–"+a);
+  PL.undo=u?null:{kind:"tm",id,veh:t.veh,da:t.da,a:t.a};
+  renderAll();
+  if(u){plSay("Spostamento del tempo morto annullato.","");return;}
+  const c=tmClash(veh,t.data,hOf(da),hOf(a),id);
+  plSay("«"+t.nome+"» ora è "+(veh!==t.veh?"sul "+plVLab(veh)+" ":"")+"dalle "+da+" alle "+a+"."+(c?" Attenzione: si sovrappone a "+c+".":""),c?"warn":"ok");
 }
 $("plGrid").addEventListener("contextmenu",e=>{
   if(S.readOnly||isInvio())return;
   const dd=e.target.closest("[data-pd]");if(dd){e.preventDefault();plMenuOpen({kind:"dead",id:dd.dataset.pd},e.clientX,e.clientY);return;}
-  if(e.target.closest("[data-pb]"))return;
+  const pb=e.target.closest("[data-pb]");if(pb){e.preventDefault();plBkMenu(pb,e.clientX,e.clientY);return;}
   const tr=e.target.closest("[data-pt]");if(!tr)return;e.preventDefault();
   const r=tr.getBoundingClientRect(),at=Math.max(0,Math.min(23.75,Math.round((e.clientX-r.left)/r.width*96)/4));
   plMenuOpen({kind:"row",vid:tr.dataset.pt,at},e.clientX,e.clientY);
 });
-$("plVeil").addEventListener("click",plMenuClose);
+// 4.0.8: menu dell'autista (tasto destro, tasto «menu» della tastiera o «tieni premuto» su telefono e tablet)
+function plBkMenu(el,x,y){
+  if(S.readOnly||isInvio()||Date.now()-PL.lpAt<900&&!$("plMenu").hidden)return;
+  if(!x&&!y){const r=el.getBoundingClientRect();x=r.left+12;y=r.bottom-4;}
+  plMenuOpen({kind:"bk",id:el.dataset.pb,start:el.dataset.ps,slot:0,q:""},x,y);
+}
+$("plTray").addEventListener("contextmenu",e=>{const pb=e.target.closest("[data-pb]");if(!pb||S.readOnly||isInvio())return;e.preventDefault();plBkMenu(pb,e.clientX,e.clientY);});
+function lpStop(){clearTimeout(PL.lpT);PL.lp=null;}
+$("planView").addEventListener("pointerdown",e=>{
+  if(e.pointerType==="mouse")return;const pb=e.target.closest&&e.target.closest("[data-pb]");if(!pb||S.readOnly||isInvio())return;
+  lpStop();const x=e.clientX,y=e.clientY;PL.lp={x,y,el:pb};
+  PL.lpT=setTimeout(()=>{if(!PL.lp||PL.lp.el!==pb)return;PL.lp=null;try{if(navigator.vibrate)navigator.vibrate(12);}catch(_){}plBkMenu(pb,x,y);PL.lpAt=Date.now();},520);
+});
+$("planView").addEventListener("pointermove",e=>{if(PL.lp&&(Math.abs(e.clientX-PL.lp.x)>10||Math.abs(e.clientY-PL.lp.y)>10))lpStop();});
+["pointerup","pointercancel"].forEach(ev=>$("planView").addEventListener(ev,lpStop));
+$("plGrid").addEventListener("scroll",lpStop,{passive:true});
+$("plVeil").addEventListener("click",()=>{if(Date.now()-PL.menuAt>400)plMenuClose();});
 $("plVeil").addEventListener("contextmenu",e=>{e.preventDefault();plMenuClose();});
+$("plMenu").addEventListener("input",e=>{if(e.target.id!=="plMq"||!PL.menu||PL.menu.kind!=="bk")return;PL.menu.q=e.target.value;const cur=plFull(PL.menu);if(cur)$("plDl").innerHTML=plDrvList(cur,PL.menu.slot||1,PL.menu.q);});
+$("plMenu").addEventListener("keydown",e=>{
+  if(e.target.id==="plMq"&&e.key==="Enter"){e.preventDefault();const f=$("plDl").querySelector("button:not([disabled]):not(.gen)")||$("plDl").querySelector("button:not([disabled])");if(f)f.click();return;}
+  if(e.key==="ArrowDown"||e.key==="ArrowUp"){const l=[...$("plMenu").querySelectorAll("button:not([disabled]),#plMq")],i=l.indexOf(document.activeElement);if(!l.length)return;e.preventDefault();l[(i+(e.key==="ArrowDown"?1:-1)+l.length)%l.length].focus();}
+});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("plMenu").hidden){e.preventDefault();e.stopImmediatePropagation();plMenuClose();}},true);
 $("plMenu").addEventListener("click",async e=>{
   const bt=e.target.closest("button");if(!bt||bt.disabled)return;const m=PL.menu;if(!m)return;
   if(bt.dataset.tmset){plMenuClose();tmEdOpen();return;}
+  // 4.0.8: autista
+  if(bt.dataset.dslot){const mn=$("plMenu");m.slot=+bt.dataset.dslot;plMenuOpen(m,parseFloat(mn.style.left)||8,parseFloat(mn.style.top)||8,true);const t=mn.querySelector('[data-dslot="'+m.slot+'"]');if(t)t.focus();return;}
+  if(bt.dataset.bkopen){plMenuClose();const x=plFull(m);if(x)openForm({booking:x});return;}
+  if(bt.dataset.drvset!=null){const sl=m.slot||1;plMenuClose();plDriver(m,sl,bt.dataset.drvset);return;}
   plMenuClose();if(PL.locked)return;
   if(bt.dataset.tmadd!=null){
-    const t=tmTypes()[+bt.dataset.tmadd];if(!t)return;const ds=S.sel,z=Math.min(24,m.at+t.min/60),c=tmClash(m.vid,ds,m.at,z,"");
-    if(c){plSay("Non metto «"+t.nome+"» sul "+plVLab(m.vid)+" alle "+hm(m.at)+": a quell'ora c'è "+c+".","err");return;}
+    const t=tmTypes()[+bt.dataset.tmadd];if(!t)return;const ds=S.sel,z=Math.min(24,m.at+t.min/60),c=tmClash(m.vid,ds,m.at,z,""); // 4.0.8: si mette lo stesso, con l'avviso
     const row={id:"t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),data:ds,veh:m.vid,da:hm(m.at),a:hm(z),nome:t.nome,by:meName(),at:new Date().toISOString()};
     try{await STORE.updateReg("tempimorti",J=>{J.rows=tmPrune((J.rows||[]).concat([row]));return J;});}catch(err){handleErr(err);return;}
     ACC.log("prenotazione","Tempo morto «"+t.nome+"» sul "+plVLab(m.vid)+" il "+itD(ds)+" dalle "+row.da+" alle "+row.a);
-    PL.undo=null;renderAll();plSay("Messo «"+t.nome+"» sul "+plVLab(m.vid)+" dalle "+row.da+" alle "+row.a+": in quelle ore il mezzo risulta occupato.","");return;
+    PL.undo=null;renderAll();plSay("Messo «"+t.nome+"» sul "+plVLab(m.vid)+" dalle "+row.da+" alle "+row.a+"."+(c?" Attenzione: si sovrappone a "+c+".":""),c?"warn":"");return;
   }
   const t=tmRows().find(x=>x.id===m.id);if(!t)return;
   if(bt.dataset.tmdur){
-    const z=Math.min(24,hOf(t.da)+(+bt.dataset.tmdur)/60),c=tmClash(t.veh,t.data,hOf(t.da),z,t.id);
-    if(c){plSay("Non posso allungarlo fino alle "+hm(z)+": c'è "+c+".","err");return;}
+    const z=Math.min(24,hOf(t.da)+(+bt.dataset.tmdur)/60),c=tmClash(t.veh,t.data,hOf(t.da),z,t.id); // 4.0.8: avviso, non blocco
     try{await STORE.updateReg("tempimorti",J=>{const x=(J.rows||[]).find(y=>y.id===t.id);if(!x)return null;x.a=hm(z);x.by=meName();x.at=new Date().toISOString();return J;});}catch(err){handleErr(err);return;}
-    renderAll();plSay("«"+t.nome+"» ora va dalle "+t.da+" alle "+hm(z)+".","");return;
+    PL.undo=null;renderAll();plSay("«"+t.nome+"» ora va dalle "+t.da+" alle "+hm(z)+"."+(c?" Attenzione: si sovrappone a "+c+".":""),c?"warn":"");return;
   }
   if(bt.dataset.tmdel){
     try{await STORE.updateReg("tempimorti",J=>{J.rows=(J.rows||[]).filter(y=>y.id!==t.id);return J;});}catch(err){handleErr(err);return;}
@@ -4050,7 +4197,7 @@ $("tmSave").onclick=async()=>{
   finally{$("tmSave").disabled=false;}
 };
 // tempi morti nella vista Giorno e nel modulo della prenotazione
-const tmChips=(ds,vid)=>tmOn(ds,vid).map(t=>'<span class="tm-chip" title="Tempo morto messo dal Planning">'+esc(t.nome)+' '+esc(t.da+"–"+t.a)+'</span>').join("");
+const tmChips=(ds,vid)=>tmOn(ds,vid).map(t=>{const c=tmClash(vid,ds,hOf(t.da),hOf(t.a),t.id);return '<span class="tm-chip'+(c?" clash":"")+'" title="'+esc("Tempo morto messo dal Planning"+(c?"\nSi sovrappone a "+c:""))+'">'+(c?"! ":"")+esc(t.nome)+' '+esc(t.da+"–"+t.a)+'</span>';}).join("");
 function tmWarns(b){
   const out=[];if(!b||!b.vehicle||!validDate(b.start))return out;
   const bz=busyOf(b),e=endOf(b);
@@ -4426,6 +4573,7 @@ function fillPrefs(){
   $("prMissBox").hidden=isInvio();
   const lk=myPrefs().look||lookWanted();for(const r of document.querySelectorAll('input[name="prLook"]'))r.checked=r.value===lk;
   {const tb=$("prTelBox");if(tb)tb.innerHTML=isPhone()?telBoxHtml():"";} // 4.0.2: solo sul telefono
+  {const pp=$("prPlan"),P=plPref();if(pp)pp.innerHTML=[["axis","Riga delle ore in alto"],["now","Linea dell'ora attuale"],["grid","Linee verticali delle ore"]].map(([k,t])=>'<label><input type="checkbox" data-pp="'+k+'"'+(P[k]?" checked":"")+'> <span>'+esc(t)+'</span></label>').join("");} // 4.0.8
 }
 $("prMode").addEventListener("change",()=>{const v=(document.querySelector('input[name="prMode"]:checked')||{}).value;$("prChecks").classList.toggle("off",v==="off");});
 $("mPrefs").addEventListener("submit",async e=>{
@@ -4436,10 +4584,12 @@ $("mPrefs").addEventListener("submit",async e=>{
   const lv=$("prLock").value,mode=(document.querySelector('input[name="prMode"]:checked')||{}).value||"both";
   const checks=[...$("prChecks").querySelectorAll("[data-mc]")].filter(x=>x.checked).map(x=>x.dataset.mc);
   const look=(document.querySelector('input[name="prLook"]:checked')||{}).value||""; // 4.0
+  // 4.0.8: Planning (solo dal Menu del Classico; nelle Impostazioni nuove si salva da «Planning»)
+  const plan=!$("ovMenu").hidden&&$("prPlan")&&$("prPlan").querySelector("[data-pp]")?Object.fromEntries([...$("prPlan").querySelectorAll("[data-pp]")].map(x=>[x.dataset.pp,x.checked])):null;
   if(mode!=="off"&&!checks.length){msg.textContent="Spunta almeno un controllo, oppure scegli «Spento».";return;}
   $("prGo").disabled=true;
   try{
-    await STORE.updateUsers(J=>{const x=J.users[me.uid];if(!x)return null;const p=Object.assign({},x.prefs||{});if(lv==="")delete p.lock;else p.lock=+lv;p.miss={mode,checks};if(look)p.look=look;x.prefs=p;return J;});
+    await STORE.updateUsers(J=>{const x=J.users[me.uid];if(!x)return null;const p=Object.assign({},x.prefs||{});if(lv==="")delete p.lock;else p.lock=+lv;p.miss={mode,checks};if(look)p.look=look;if(plan)p.plan=plan;x.prefs=p;return J;});
     if(look)applyLook(look);
     ACC.log("utenti","Ha cambiato le sue impostazioni: uscita automatica "+(lv===""?"come il Master":lockTxt(+lv).toLowerCase())+"; «!» "+({both:"passati e futuri",past:"mancanze passate",future:"mancanze future",off:"spento"}[mode])+(mode!=="off"?" ("+checks.map(k=>(MISS_CHECKS.find(c=>c[0]===k)||[])[2]).join(", ")+")":""));
     $("ovMenu").hidden=true;toast("Impostazioni salvate");renderAll();
@@ -7606,7 +7756,7 @@ const SVGI={
 const icoSvg=(k,c)=>'<span class="set-ic" style="background:'+c+'"><svg viewBox="0 0 20 20" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+(SVGI[k]||"")+'</svg></span>';
 const SET_NAV=[
  {g:1,k:"gen",t:"Generali",c:"#8E8E93",ic:"gear"},{g:1,k:"asp",t:"Aspetto",c:"#1D1D1F",ic:"look"},{g:1,k:"keys",t:"Tastiera",c:"#8E8E93",ic:"kbd",show:()=>FINE()},
- {g:1,k:"miss",t:"Punto esclamativo «!»",c:"#FF3B30",ic:"excl",show:()=>!isInvio()},{g:1,k:"pw",t:"Password",c:"#FF9500",ic:"key"},
+ {g:1,k:"pln",t:"Planning",c:"#C8102E",ic:"clock"},{g:1,k:"miss",t:"Punto esclamativo «!»",c:"#FF3B30",ic:"excl",show:()=>!isInvio()},{g:1,k:"pw",t:"Password",c:"#FF9500",ic:"key"},
  {g:2,k:"cli",t:"Clienti",c:"#0A84FF",ic:"person2"},{g:2,k:"flo",t:"Flotta",c:"#FF9F0A",ic:"bus"},{g:2,k:"aut",t:"Autisti",c:"#30B556",ic:"person",reg:"autisti"},
  {g:2,k:"ref",t:"Referenti",c:"#64D2FF",ic:"phone",reg:"referenti"},{g:2,k:"gui",t:"Guide",c:"#BF5AF2",ic:"flag",reg:"guide"},{g:2,k:"hot",t:"Hotel",c:"#5E5CE6",ic:"bed",reg:"hotel"},
  {g:2,k:"par",t:"Parcheggi",c:"#0A84FF",ic:"park",reg:"parcheggi"},{g:2,k:"ten",t:"Tendine",c:"#8E8E93",ic:"list"},{g:2,k:"con",t:"Contabilità",c:"#14B8A6",ic:"euro",show:()=>canCont()},
@@ -7638,14 +7788,20 @@ const HOWTO=[
   s:["Premi «E-mail» in alto: il numero sul tasto dice quante risposte sono nuove o da controllare.","Scegli una e-mail: vedi i dati letti con i controlli (✓ a posto, ! da controllare, ✕ sbagliato) e il testo della mail.","«Da controllare»: «Correggi e aggiungi all'anagrafica» apre il modulo del cliente già compilato; «Chiedi di nuovo i dati» prepara una nuova richiesta con l'elenco di quello che non torna.","«In anagrafica»: «Apri la scheda del cliente» mostra il cliente inserito."],
   n:"Si vedono solo le risposte alle richieste dei dati di fatturazione, non tutta la posta."},
  {t:"Usare il Planning (mezzi e orari)",d:"Il tasto «Planning», a sinistra di «Giorno», apre il tabellone del giorno: a sinistra i mezzi, in alto le ore dalle 00 alle 24, ogni prenotazione è una barra. Sotto c'è la striscia «Da assegnare» con le prenotazioni ancora senza mezzo. Col lucchetto aperto puoi trascinare una prenotazione su un altro mezzo: cambia solo il mezzo, date e orari restano quelli.",k:"planning tabellone mezzi orari ore trascina sposta cambia mezzo lucchetto blocca sblocca da assegnare senza mezzo filtri ricerca targa gantt",v:"4.0.7",go:{view:"plan"},
-  s:["Premi «Planning» (a sinistra di «Giorno») e scegli il giorno con le frecce o dalla striscia dei giorni.","Premi il lucchetto «Bloccato» per aprirlo: diventa «Sbloccato: puoi spostare».","Trascina la barra della prenotazione sulla riga del mezzo che vuoi: la riga diventa verde se si può, rossa se no (mezzo occupato a quell'ora, troppo piccolo, fermo, oppure prenotazione già confermata da Massimo).","Lascia il mouse: in basso compare cosa è cambiato, con il tasto «Annulla» se hai sbagliato.","Per togliere il mezzo a una prenotazione in sospeso, trascinala nella striscia «Da assegnare».","Quando hai finito premi di nuovo il lucchetto per chiuderlo.","Per cercare: scrivi nella casella (cliente, targa, itinerario, autista) oppure usa i filtri per tipo, stato e grandezza del mezzo; «Solo i mezzi con risultati» nasconde le righe vuote."],
-  n:"Se sposti un giorno di un tour, il mezzo cambia per tutto il tour. Se il foglio di servizio era già stato inviato all'autista, va reinviato. Un clic su una barra apre la prenotazione."},
- {t:"Mettere un tempo morto su un mezzo",d:"Nel Planning, con il tasto destro su un punto vuoto della riga di un mezzo, scegli un tempo morto (per esempio «ATTESA SCARICO» o «RITORNO VILLAGGIO»): parte dall'ora dove hai cliccato e occupa il mezzo, quindi lì non si possono mettere altre prenotazioni.",k:"tempo morto tempi morti attesa scarico ritorno villaggio pulizia tasto destro occupato mezzo planning voci predefinite durata",v:"4.0.7",go:{view:"plan",hl:"#plTmSet"},
-  s:["Apri il Planning e porta il mouse sulla riga del mezzo, all'ora giusta.","Premi il tasto destro del mouse (sul Mac: clic con due dita, oppure ctrl + clic).","Scegli la voce dal menu: il tempo morto compare sulla riga, a righe oblique.","Per cambiare la durata o toglierlo: tasto destro sul tempo morto e scegli la durata nuova oppure «Togli questo tempo morto».","Per cambiare l'elenco delle voci: premi «Tempi morti…» in alto a destra nel Planning, aggiungi o modifica nome e durata, poi premi «Salva»."],
+  s:["Premi «Planning» (a sinistra di «Giorno») e scegli il giorno con le frecce o dalla striscia dei giorni.","Premi il lucchetto «Bloccato» per aprirlo: diventa «Sbloccato: puoi spostare».","Trascina la barra della prenotazione sulla riga del mezzo che vuoi: la riga diventa verde se si può, arancione se si può ma a quell'ora c'è un tempo morto (lo sposta lo stesso e avvisa), rossa se no (mezzo occupato da un altro servizio, troppo piccolo, fermo, oppure prenotazione già confermata da Massimo).","Lascia il mouse: in basso compare cosa è cambiato, con il tasto «Annulla» se hai sbagliato.","Per togliere il mezzo a una prenotazione in sospeso, trascinala nella striscia «Da assegnare».","Quando hai finito premi di nuovo il lucchetto per chiuderlo.","Per cercare: scrivi nella casella (cliente, targa, itinerario, autista) oppure usa i filtri per tipo, stato e grandezza del mezzo; «Solo i mezzi con risultati» nasconde le righe vuote."],
+  n:"Se sposti un giorno di un tour, il mezzo cambia per tutto il tour. Se il foglio di servizio era già stato inviato all'autista, va reinviato. Un clic su una barra apre la prenotazione; il tasto destro assegna l'autista. In Impostazioni › Planning puoi nascondere la riga delle ore, la linea dell'ora attuale e le linee verticali."},
+ {t:"Mettere un tempo morto su un mezzo",d:"Nel Planning, con il tasto destro su un punto vuoto della riga di un mezzo, scegli un tempo morto (per esempio «ATTESA SCARICO» o «RITORNO VILLAGGIO»): parte dall'ora dove hai cliccato. Col lucchetto aperto lo trascini su un'altra ora o su un altro mezzo. Se si sovrappone a un servizio l'agenda avvisa e lo segna con il bordo rosso, ma lo lascia.",k:"tempo morto tempi morti attesa scarico ritorno villaggio pulizia tasto destro occupato mezzo planning voci predefinite durata sposta trascina sovrapposto avviso bordo rosso",v:"4.0.8",go:{view:"plan",hl:"#plTmSet"},
+  s:["Apri il Planning e premi il lucchetto per aprirlo.","Porta il mouse sulla riga del mezzo, all'ora giusta, e premi il tasto destro (sul Mac: clic con due dita, oppure ctrl + clic).","Scegli la voce dal menu: il tempo morto compare sulla riga, a righe oblique.","Per spostarlo: trascinalo con il mouse a destra o a sinistra (ora, al quarto d'ora) o su un'altra riga (mezzo). In basso c'è «Annulla» se hai sbagliato.","Se si sovrappone a un servizio o a un altro tempo morto: in basso compare l'avviso e il tempo morto ha il bordo rosso con «!». Controlla e, se serve, spostalo.","Per cambiare la durata o toglierlo: tasto destro sul tempo morto e scegli la durata nuova oppure «Togli questo tempo morto».","Per cambiare l'elenco delle voci: premi «Tempi morti…» in alto a destra nel Planning, aggiungi o modifica nome e durata, poi premi «Salva»."],
   n:"Le voci e i tempi morti si salvano su Dropbox (cartella config: tempi-morti-voci.json e tempi-morti.json) e si vedono su tutti i computer. Si vedono anche nella vista Giorno, sulla riga del mezzo. Non vanno nel foglio di servizio e non arrivano all'autista."},
  {t:"Prenotazione senza mezzo (da assegnare)",d:"Nella prenotazione, nel campo «Mezzo» puoi scegliere «Da assegnare»: la prenotazione si salva senza mezzo e resta in sospeso. Finché non ha il mezzo non si può confermare, non si invia all'autista e non prende il n. foglio, quindi non va nel fatturato.",k:"senza mezzo da assegnare mezzo dopo sospeso opzione prenotazione bus non scelto planning striscia assegna",v:"4.0.7",go:{hl:"#btnNew"},
   s:["Premi «+ Nuova prenotazione».","Nel campo «Mezzo» scegli «Da assegnare» (in fondo all'elenco).","Compila il resto e premi «Salva»: la prenotazione compare nella riga «Da assegnare» in cima alla vista Giorno e nella striscia in basso del Planning.","Per darle il mezzo: nel Planning apri il lucchetto e trascinala sulla riga del mezzo, oppure apri la prenotazione e scegli il mezzo nel campo «Mezzo».","Quando ha il mezzo prende da sola il n. foglio e va nel fatturato; poi puoi confermarla come sempre."],
   n:"Aggiorna tutti i computer e i telefoni alla 4.0.7: le versioni vecchie non vedono le prenotazioni senza mezzo."},
+ {t:"Assegnare l'autista dal Planning",d:"Nel Planning, con il tasto destro su una prenotazione (su telefono e tablet: tienila premuta) si apre «Autista»: scegli il nome e l'autista è assegnato, senza aprire la prenotazione e senza aprire il lucchetto.",k:"autista assegna assegnare planning tasto destro tieni premuto tablet telefono massimo 1° 2° secondo autista occupato riposo",v:"4.0.8",go:{view:"plan"},
+  s:["Apri il Planning sul giorno del servizio.","Tasto destro sulla barra della prenotazione (sul Mac: clic con due dita, oppure ctrl + clic). Su telefono e tablet: tieni premuto il dito sulla barra per mezzo secondo.","In alto scegli «1° autista» o «2° autista».","Scegli il nome dall'elenco (puoi scrivere le prime lettere in «Cerca autista»). Accanto al nome vedi se a quell'ora è già occupato, se è di riposo o se quel giorno ha un altro servizio.","In basso compare cosa è cambiato, con «Annulla» se hai sbagliato."],
+  n:"«Da assegnare» rimette l'autista generico. Nei tour l'autista vale per tutto il tour. Se il foglio era già stato inviato, va inviato di nuovo. Se bus e autisti li ha decisi Massimo (MAX), li cambia solo lui."},
+ {t:"Nascondere le righe delle ore nel Planning",d:"In Impostazioni › Planning scegli cosa vedere nel tabellone: la riga delle ore in alto, la linea dell'ora attuale e le linee verticali delle ore.",k:"planning nascondere riga oraria ore linea ora attuale griglia linee verticali impostazioni",v:"4.0.8",go:"pln",
+  s:["Premi «Impostazioni» in alto e, nella colonna a sinistra, «Planning» (aspetto classico: «Menu» › «Le mie impostazioni», riquadro «Planning», poi «Salva»).","Togli la spunta a quello che vuoi nascondere: «Riga delle ore in alto», «Linea dell'ora attuale» o «Linee verticali delle ore».","Torna nel Planning: si vede subito."],
+  n:"Vale solo per te, su tutti i tuoi dispositivi. Per rivederle rimetti la spunta."},
  {t:"Due computer cambiano la stessa prenotazione",d:"Se mentre hai aperta una prenotazione un altro computer la salva cambiando lo stesso campo (per esempio il prezzo), quando salvi tu resta il suo valore e compare un avviso con i due valori. Le modifiche a campi diversi si uniscono da sole.",k:"conflitto due computer stessa prenotazione prezzo sovrascrive avviso valori suo tuo unite modifiche",v:"4.0.5",go:null,
   s:["Leggi l'avviso in alto: per ogni campo c'è il valore dell'altro computer («suo») e il tuo («tuo»).","Se è giusto il tuo: riapri la prenotazione, correggi il campo e premi «Salva».","Se è giusto il suo: non devi fare niente."],
   n:"Così due persone che lavorano sulla stessa prenotazione non si cancellano più le modifiche a vicenda senza accorgersene."},
@@ -7877,6 +8033,10 @@ function renderSetPane(){
       [["chiaro","l","Chiaro"],["scuro","d","Scuro"],["auto","a","Automatico"]].map(([v,c,t])=>'<label class="th-opt'+(th===v?" on":"")+'">'+thumb("n",c)+'<span><input type="radio" name="sTh" value="'+v+'"'+(th===v?" checked":"")+'> '+t+'</span></label>').join("")+'</div>'+
       '<p class="set-note">«Automatico» segue il Mac: chiaro di giorno, scuro quando il Mac è in modalità scura.</p></div>';return;}
   if(setCur==="keys"){b.innerHTML='<div class="set-box">'+kEditorHtml()+'</div><p class="set-note">Valgono solo per te, su tutti i tuoi dispositivi. Funzionano quando non stai scrivendo in un campo e non c\'è una finestra aperta; quella per stampare funziona con il foglio di servizio aperto e fa «Salva e stampa».</p>';return;}
+  if(setCur==="pln"){const P=plPref(); // 4.0.8
+    b.innerHTML='<div class="set-box"><div class="set-lbl">Cosa vedere nel Planning</div>'+
+      [["axis","Riga delle ore in alto","00, 01, 02 … 23 sopra i mezzi"],["now","Linea dell'ora attuale","la linea colorata con l'orario, quando guardi il giorno di oggi"],["grid","Linee verticali delle ore","le righe sottili della griglia, una per ogni ora"]].map(([k,t,d])=>'<label class="pl-setchk"><input type="checkbox" data-plpref="'+k+'"'+(P[k]?" checked":"")+'><span><b>'+esc(t)+'</b><small>'+esc(d)+'</small></span></label>').join("")+
+      '<p class="set-note">Togli la spunta per nascondere. Vale solo per te, su tutti i tuoi dispositivi.</p></div>';return;}
   if(setCur==="miss"){fillPrefs();setHostEl($("prMissBox"));setHostEl($("menuMsg"));return;}
   if(setCur==="pw"){$("mPw").reset();setHostEl($("mPw"));setHostEl($("pwGo"),setRow());setHostEl($("menuMsg"));$("menuMsg").textContent="";return;}
   if(setCur==="cli"){setHostModal("ovClients",()=>openClients());return;}
@@ -7908,6 +8068,7 @@ $("setBody").addEventListener("change",e=>{
   const t=e.target;
   if(t.name==="sLook"){applyLook(t.value);savePref("look",t.value);renderSetPane();return;}
   if(t.name==="sTh"){applyTheme(t.value);savePref("theme",t.value);renderSetPane();return;}
+  if(t.dataset&&t.dataset.plpref){const P=plPref();P[t.dataset.plpref]=t.checked;savePref("plan",{axis:!!P.axis,now:!!P.now,grid:!!P.grid});if(S.view==="plan")renderPlan();return;} // 4.0.8
   if(t.id==="prLock"||t.closest("#prMissBox")){if(t.closest("#prMissBox")&&t.name==="prMode")$("prChecks").classList.toggle("off",t.value==="off");$("mPrefs").requestSubmit();}
 });
 $("setQ").addEventListener("input",()=>{setQv=$("setQ").value.trim();if(setQv){const f=howFind(setQv);if(f.length)setCur="h"+f[0];}else setCur="gen";renderSetNav();if(!setQv||/^h/.test(setCur))renderSetPane();});
